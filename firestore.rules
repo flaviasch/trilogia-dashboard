@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Apenas Cloud Functions (server-side) leem e escrevem em 'mentoradas'.
+    // O frontend nunca acessa o Firestore diretamente — passa sempre pelas Functions.
+    match /mentoradas/{uid} {
+      allow read, write: if false;
+    }
+
+    // Nenhuma outra coleção é acessível pelo cliente.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

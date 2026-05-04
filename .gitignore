@@ -1,0 +1,22 @@
+# Dependências Node
+functions/node_modules/
+scripts/node_modules/
+
+# Chaves e segredos — NUNCA subir
+functions/.env
+scripts/.env
+scripts/serviceAccountKey.json
+*.json.key
+*.pem
+
+# Build local do GitHub Actions
+_site/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+*.swp

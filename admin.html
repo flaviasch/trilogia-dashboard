@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Trilogia Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45;
+      --navy-dark: #081e30;
+      --gold: #CFAE65;
+      --gold-light: #e8d49b;
+      --gold-dim: rgba(207,174,101,0.15);
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.08);
+      --border-gold: rgba(207,174,101,0.2);
+      --positive: #4ade80;
+      --positive-dim: rgba(74,222,128,0.12);
+      --negative: #f87171;
+      --negative-dim: rgba(248,113,113,0.12);
+      --warning: #fbbf24;
+      --warning-dim: rgba(251,191,36,0.12);
+      --text-muted: rgba(255,255,255,0.45);
+      --text-secondary: rgba(255,255,255,0.65);
+    }
+
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+
+    /* ─── Navbar ────────────────────────────── */
+    .navbar {
+      background: var(--navy); border-bottom: 1px solid var(--border);
+      padding: 0 32px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--white); text-decoration: none; }
+    .logo span { color: var(--gold); }
+    .navbar-center {
+      display: flex; gap: 4px;
+    }
+    .nav-tab {
+      background: transparent; border: none; border-radius: 6px;
+      padding: 7px 14px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .nav-tab:hover { color: var(--white); background: rgba(255,255,255,0.06); }
+    .nav-tab.ativo { color: var(--gold); background: var(--gold-dim); }
+    .navbar-right { display: flex; align-items: center; gap: 12px; }
+    .admin-badge {
+      background: var(--gold-dim); border: 1px solid var(--border-gold);
+      border-radius: 20px; padding: 3px 12px; font-size: 11px; font-weight: 600; color: var(--gold);
+    }
+    .btn-logout {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 14px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-logout:hover { border-color: var(--border-gold); color: var(--gold); }
+
+    /* ─── Layout ────────────────────────────── */
+    .main { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .loading-overlay {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: calc(100vh - 64px);
+      gap: 16px; color: var(--text-muted); font-size: 14px;
+    }
+    .spinner {
+      width: 32px; height: 32px; border: 2px solid var(--border);
+      border-top-color: var(--gold); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Acesso negado ─────────────────────── */
+    .acesso-negado {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: calc(100vh - 64px); text-align: center; gap: 12px;
+    }
+    .acesso-negado h2 { font-family: 'Playfair Display', serif; font-size: 22px; }
+    .acesso-negado p { font-size: 14px; color: var(--text-muted); }
+
+    /* ─── Views ─────────────────────────────── */
+    .view { display: none; }
+    .view.ativo { display: block; }
+
+    /* ─── Page header ───────────────────────── */
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 32px; gap: 16px; flex-wrap: wrap;
+    }
+    .page-header h1 { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; }
+    .page-header p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ─── KPIs ──────────────────────────────── */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 36px; }
+    .kpi-card { background: var(--navy); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+    .kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 8px; }
+    .kpi-value { font-size: 24px; font-weight: 700; }
+    .kpi-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ─── Busca e filtros ───────────────────── */
+    .toolbar {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .search-wrap { position: relative; flex: 1; min-width: 200px; }
+    .search-wrap input {
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 16px 10px 36px;
+      font-size: 14px; color: var(--white); font-family: 'Inter', sans-serif;
+      width: 100%; transition: border-color 0.2s;
+    }
+    .search-wrap input:focus { outline: none; border-color: rgba(207,174,101,0.4); }
+    .search-wrap input::placeholder { color: rgba(255,255,255,0.25); }
+    .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; opacity: 0.4; }
+    .filter-btn {
+      background: transparent; border: 1px solid var(--border); border-radius: 8px;
+      padding: 9px 16px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; white-space: nowrap;
+    }
+    .filter-btn:hover, .filter-btn.ativo { border-color: var(--border-gold); color: var(--gold); background: var(--gold-dim); }
+    .btn-nova-mentorada {
+      background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
+      padding: 10px 20px; font-size: 13px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap;
+      transition: background 0.2s;
+    }
+    .btn-nova-mentorada:hover { background: var(--gold-light); }
+
+    /* ─── Tabela mentoradas ─────────────────── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0 4px; }
+    thead th {
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--text-muted); padding: 8px 16px; text-align: left;
+    }
+    tbody tr {
+      background: var(--navy); cursor: pointer; transition: background 0.15s;
+    }
+    tbody tr:hover { background: rgba(13,43,69,0.8); outline: 1px solid rgba(207,174,101,0.2); }
+    tbody td { padding: 14px 16px; font-size: 14px; }
+    tbody td:first-child { border-radius: 10px 0 0 10px; }
+    tbody td:last-child  { border-radius: 0 10px 10px 0; }
+
+    .td-nome strong { display: block; font-size: 14px; }
+    .td-nome span { font-size: 12px; color: var(--text-muted); }
+    .td-num { text-align: right; }
+    .td-num.positive { color: var(--positive); }
+    .td-num.gold     { color: var(--gold); }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 600;
+    }
+    .status-ativa    { background: var(--positive-dim); color: var(--positive); }
+    .status-alerta   { background: var(--warning-dim); color: var(--warning); }
+    .status-inativa  { background: rgba(255,255,255,0.07); color: var(--text-muted); }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    .perfil-tag {
+      font-size: 11px; background: var(--gold-dim); border: 1px solid var(--border-gold);
+      border-radius: 20px; padding: 2px 10px; color: var(--gold);
+    }
+
+    .acoes-cell { display: flex; gap: 6px; justify-content: flex-end; }
+    .btn-acao {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      padding: 5px 10px; font-size: 12px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-acao:hover { border-color: var(--border-gold); color: var(--gold); }
+    .btn-acao.danger:hover { border-color: rgba(248,113,113,0.4); color: var(--negative); }
+
+    /* ─── Detalhe mentorada ─────────────────── */
+    .detalhe-header {
+      display: flex; align-items: center; gap: 16px; margin-bottom: 32px; flex-wrap: wrap;
+    }
+    .btn-voltar-lista {
+      background: transparent; border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 16px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-voltar-lista:hover { border-color: var(--border-gold); color: var(--white); }
+    .detalhe-nome { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; }
+    .detalhe-meta { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+    .detalhe-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 28px; }
+    .detalhe-card { background: var(--navy); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+    .detalhe-card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 8px; }
+    .detalhe-card-value { font-size: 20px; font-weight: 700; }
+    .detalhe-card-value.gold  { color: var(--gold); }
+    .detalhe-card-value.green { color: var(--positive); }
+    .detalhe-card-value.red   { color: var(--negative); }
+
+    .detalhe-section-title { font-family: 'Playfair Display', serif; font-size: 16px; margin-bottom: 14px; }
+
+    .nota-area {
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 16px; font-size: 14px; color: var(--white);
+      font-family: 'Inter', sans-serif; width: 100%; resize: vertical; min-height: 100px;
+    }
+    .nota-area:focus { outline: none; border-color: rgba(207,174,101,0.4); }
+    .btn-salvar-nota {
+      background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
+      padding: 10px 24px; font-size: 13px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; margin-top: 10px;
+      transition: background 0.2s;
+    }
+    .btn-salvar-nota:hover { background: var(--gold-light); }
+
+    .alerta-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: var(--navy); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px; margin-bottom: 6px;
+    }
+    .alerta-icon { font-size: 16px; flex-shrink: 0; }
+    .alerta-texto { font-size: 13px; color: var(--text-secondary); }
+
+    /* ─── Modal nova mentorada ──────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 24px;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-card {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px; width: 100%; max-width: 460px;
+    }
+    .modal-title { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 24px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    label { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.6); }
+    input, select {
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 16px; font-size: 14px; color: var(--white);
+      font-family: 'Inter', sans-serif; transition: border-color 0.2s; width: 100%;
+    }
+    input:focus, select:focus { outline: none; border-color: rgba(207,174,101,0.5); }
+    input::placeholder { color: rgba(255,255,255,0.25); }
+    select option { background: var(--navy); }
+    .modal-actions { display: flex; gap: 12px; margin-top: 24px; }
+    .btn-cancel {
+      flex: 1; background: transparent; border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px; font-size: 14px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-cancel:hover { border-color: var(--border-gold); color: var(--white); }
+    .btn-save {
+      flex: 2; background: var(--gold); color: var(--navy); border: none;
+      border-radius: 8px; padding: 12px; font-size: 14px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-save:hover { background: var(--gold-light); }
+
+    @media (max-width: 768px) {
+      .navbar { padding: 0 16px; }
+      .navbar-center { display: none; }
+      .main { padding: 24px 16px 60px; }
+      .kpi-row { grid-template-columns: 1fr 1fr; }
+      .detalhe-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .kpi-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="#" class="logo">Trilogia <span>Dashboard</span></a>
+    <div class="navbar-center">
+      <button class="nav-tab ativo" data-tab="mentoradas">Mentoradas</button>
+      <button class="nav-tab" data-tab="financeiro">Financeiro</button>
+    </div>
+    <div class="navbar-right">
+      <span class="admin-badge">Admin</span>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </nav>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Carregando painel...</span>
+  </div>
+
+  <div class="acesso-negado" id="acessoNegado" style="display:none">
+    <h2>Acesso restrito</h2>
+    <p>Esta página é exclusiva para administradores.</p>
+    <a href="index.html" style="color:var(--gold);margin-top:8px;font-size:14px">← Voltar ao dashboard</a>
+  </div>
+
+  <main class="main" id="mainContent" style="display:none">
+
+    <!-- ─── VIEW: MENTORADAS ─────────────────── -->
+    <div class="view ativo" id="view-mentoradas">
+
+      <div class="page-header">
+        <div>
+          <h1>Mentoradas</h1>
+          <p id="subtituloMentoradas">—</p>
+        </div>
+        <button class="btn-nova-mentorada" id="btnNovaMentorada">+ Nova mentorada</button>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-label">Ativas</div>
+          <div class="kpi-value" id="kpiAtivas">—</div>
+          <div class="kpi-sub">assinaturas ativas</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">MRR</div>
+          <div class="kpi-value" id="kpiMRR">—</div>
+          <div class="kpi-sub">receita mensal recorrente</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Alertas</div>
+          <div class="kpi-value" id="kpiAlertas">—</div>
+          <div class="kpi-sub">atenção necessária</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">PL médio</div>
+          <div class="kpi-value" id="kpiPLMedio">—</div>
+          <div class="kpi-sub">patrimônio líquido médio</div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="buscaMentorada" placeholder="Buscar por nome ou e-mail…" />
+        </div>
+        <button class="filter-btn ativo" data-filtro="todas">Todas</button>
+        <button class="filter-btn" data-filtro="ativas">Ativas</button>
+        <button class="filter-btn" data-filtro="alertas">Com alerta</button>
+      </div>
+
+      <!-- Tabela -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Status</th>
+              <th>Perfil</th>
+              <th class="td-num">PL</th>
+              <th class="td-num">Sobra/mês</th>
+              <th class="td-num">Reservas</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tabelaMentoradas"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ─── VIEW: DETALHE MENTORADA ──────────── -->
+    <div class="view" id="view-detalhe">
+      <div class="detalhe-header">
+        <button class="btn-voltar-lista" id="btnVoltarLista">← Mentoradas</button>
+        <div>
+          <div class="detalhe-nome" id="detNome">—</div>
+          <div class="detalhe-meta" id="detMeta">—</div>
+        </div>
+      </div>
+
+      <div class="detalhe-grid">
+        <div class="detalhe-card">
+          <div class="detalhe-card-label">Patrimônio Líquido</div>
+          <div class="detalhe-card-value gold" id="detPL">—</div>
+        </div>
+        <div class="detalhe-card">
+          <div class="detalhe-card-label">Sobra mensal</div>
+          <div class="detalhe-card-value green" id="detSobra">—</div>
+        </div>
+        <div class="detalhe-card">
+          <div class="detalhe-card-label">Reservas acumuladas</div>
+          <div class="detalhe-card-value" id="detReservas">—</div>
+        </div>
+      </div>
+
+      <!-- Alertas -->
+      <h2 class="detalhe-section-title" style="margin-bottom:12px">Alertas</h2>
+      <div id="detAlertas" style="margin-bottom:28px"></div>
+
+      <!-- Notas da mentora -->
+      <h2 class="detalhe-section-title">Notas da mentora</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Visível apenas para você.</p>
+      <textarea class="nota-area" id="detNota" placeholder="Observações, próximos passos, pontos de atenção…"></textarea>
+      <button class="btn-salvar-nota" id="btnSalvarNota">Salvar nota</button>
+
+      <!-- Ações rápidas -->
+      <div style="margin-top:32px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn-acao" id="btnAbrirDashboard">Abrir dashboard dela</button>
+        <button class="btn-acao" id="btnEnviarEmail">Enviar e-mail</button>
+        <button class="btn-acao danger" id="btnBloquear">Bloquear acesso</button>
+      </div>
+    </div>
+
+    <!-- ─── VIEW: FINANCEIRO ─────────────────── -->
+    <div class="view" id="view-financeiro">
+      <div class="page-header">
+        <div>
+          <h1>Financeiro</h1>
+          <p>Receita recorrente e projeções do dashboard.</p>
+        </div>
+      </div>
+
+      <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi-card">
+          <div class="kpi-label">MRR atual</div>
+          <div class="kpi-value" id="finMRR">—</div>
+          <div class="kpi-sub">R$ 197/mentorada/mês</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">ARR projetado</div>
+          <div class="kpi-value" id="finARR">—</div>
+          <div class="kpi-sub">receita anual recorrente</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ticket médio</div>
+          <div class="kpi-value">R$ 197</div>
+          <div class="kpi-sub">por assinatura</div>
+        </div>
+      </div>
+
+      <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;padding:24px;margin-top:8px">
+        <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin-bottom:16px">Histórico de assinaturas</h3>
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr>
+              <th style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);text-align:left;padding:0 0 12px">Mês</th>
+              <th style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);text-align:right;padding:0 0 12px">Ativas</th>
+              <th style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);text-align:right;padding:0 0 12px">MRR</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaFinanceiro"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modal nova mentorada -->
+  <div class="modal-overlay hidden" id="modalNova">
+    <div class="modal-card">
+      <h2 class="modal-title">Nova mentorada</h2>
+      <div class="field-group">
+        <label for="mNome">Nome completo</label>
+        <input type="text" id="mNome" placeholder="Nome da mentorada" />
+      </div>
+      <div class="field-group">
+        <label for="mEmail">E-mail</label>
+        <input type="email" id="mEmail" placeholder="email@exemplo.com" />
+      </div>
+      <div class="field-group">
+        <label for="mInicio">Início da mentoria</label>
+        <input type="month" id="mInicio" />
+      </div>
+      <div class="field-group">
+        <label for="mPerfil">Perfil de investidor</label>
+        <select id="mPerfil">
+          <option value="">A definir</option>
+          <option value="conservador">Conservador</option>
+          <option value="moderado">Moderado</option>
+          <option value="arrojado">Arrojado</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarModal">Cancelar</button>
+        <button class="btn-save" id="btnSalvarModal">Criar conta</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { exigirAdmin, logout, refreshAdmin } from './js/admin-guard.js';
+    import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada } from './js/api.js';
+
+    // ─── Auth guard via Custom Claim ─────────────
+    const user = await exigirAdmin();
+    if (!user) {
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('acessoNegado').style.display = 'flex';
+      // Botão para tentar atualizar o token (caso a claim tenha sido atribuída agora)
+      document.getElementById('acessoNegado').insertAdjacentHTML('beforeend',
+        '<button onclick="location.reload()" style="margin-top:16px;background:transparent;border:1px solid rgba(207,174,101,0.3);border-radius:6px;padding:8px 20px;font-size:13px;color:rgba(207,174,101,0.8);cursor:pointer;">Tentar novamente</button>'
+      );
+    } else {
+      init(user);
+    }
+
+    document.getElementById('btnLogout').addEventListener('click', () => logout());
+
+    // ─── Helpers ────────────────────────────
+    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+    function formatMesAno(str) {
+      if (!str) return '—';
+      const [ano, mes] = str.split('-').map(Number);
+      const nomes = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      return `${nomes[mes - 1]} de ${ano}`;
+    }
+
+    // ─── Mock data ────────────────────────────
+    let mentoradas = [
+      { id: 'm1', nome: 'Ana Paula Ferreira',  email: 'ana@email.com',   status: 'ativa',   inicio: '2024-03', perfil: 'moderado',     pl: 240000, sobra: 6200,  reservas: 163500, nota: '' },
+      { id: 'm2', nome: 'Beatriz Costa',        email: 'bea@email.com',   status: 'ativa',   inicio: '2024-06', perfil: 'conservador',  pl: 95000,  sobra: 3100,  reservas: 42000,  nota: '' },
+      { id: 'm3', nome: 'Camila Rodrigues',     email: 'cami@email.com',  status: 'alerta',  inicio: '2023-11', perfil: 'arrojado',     pl: 520000, sobra: -800,  reservas: 89000,  nota: 'Despesas muito altas. Discutir na próxima sessão.' },
+      { id: 'm4', nome: 'Daniela Martins',      email: 'dani@email.com',  status: 'ativa',   inicio: '2024-09', perfil: '',             pl: 68000,  sobra: 2400,  reservas: 18000,  nota: '' },
+      { id: 'm5', nome: 'Eduarda Lima',         email: 'edu@email.com',   status: 'inativa', inicio: '2023-08', perfil: 'moderado',     pl: 310000, sobra: 0,     reservas: 210000, nota: 'Cancelou em fevereiro. Exportou dados.' },
+    ];
+
+    let filtroAtual = 'todas';
+    let buscaAtual  = '';
+
+    // ─── Init ─────────────────────────────────
+    async function init(user) {
+      try {
+        mentoradas = await getMentoradas();
+      } catch (err) {
+        console.warn('Erro ao carregar mentoradas, usando mock:', err.message);
+        // Mock mantido como fallback durante desenvolvimento
+      }
+      renderMentoradas();
+      renderFinanceiro();
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+    }
+
+    // ─── Tabs ────────────────────────────────
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('ativo'));
+        tab.classList.add('ativo');
+        const nome = tab.dataset.tab;
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('ativo'));
+        document.getElementById(`view-${nome}`)?.classList.add('ativo');
+      });
+    });
+
+    // ─── Mentoradas ──────────────────────────
+    function mentoradasFiltradas() {
+      return mentoradas.filter(m => {
+        const matchFiltro = filtroAtual === 'todas' ? true : filtroAtual === 'alertas' ? m.status === 'alerta' : m.status === filtroAtual;
+        const matchBusca  = buscaAtual === '' || m.nome.toLowerCase().includes(buscaAtual) || m.email.toLowerCase().includes(buscaAtual);
+        return matchFiltro && matchBusca;
+      });
+    }
+
+    function renderMentoradas() {
+      const ativas  = mentoradas.filter(m => m.status === 'ativa').length;
+      const alertas = mentoradas.filter(m => m.status === 'alerta').length;
+      const mrr     = (ativas + alertas) * 197;
+      const plMedio = Math.round(mentoradas.filter(m => m.status !== 'inativa').reduce((s, m) => s + m.pl, 0) / Math.max(1, ativas + alertas));
+
+      document.getElementById('kpiAtivas').textContent   = ativas;
+      document.getElementById('kpiMRR').textContent      = brl(mrr);
+      document.getElementById('kpiAlertas').textContent  = alertas;
+      document.getElementById('kpiPLMedio').textContent  = brl(plMedio);
+
+      const lista = mentoradasFiltradas();
+      document.getElementById('subtituloMentoradas').textContent = `${lista.length} mentorada${lista.length !== 1 ? 's' : ''} exibida${lista.length !== 1 ? 's' : ''}`;
+
+      const statusLabel = { ativa: 'Ativa', alerta: 'Alerta', inativa: 'Inativa' };
+      const statusClass = { ativa: 'status-ativa', alerta: 'status-alerta', inativa: 'status-inativa' };
+      const perfilLabel = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' };
+
+      document.getElementById('tabelaMentoradas').innerHTML = lista.map(m => `
+        <tr data-id="${m.id}">
+          <td class="td-nome">
+            <strong>${m.nome}</strong>
+            <span>${m.email} · desde ${formatMesAno(m.inicio)}</span>
+          </td>
+          <td>
+            <span class="status-badge ${statusClass[m.status]}">
+              <span class="status-dot"></span>${statusLabel[m.status]}
+            </span>
+          </td>
+          <td>${m.perfil ? `<span class="perfil-tag">${perfilLabel[m.perfil]}</span>` : '<span style="color:var(--text-muted);font-size:12px">A definir</span>'}</td>
+          <td class="td-num gold">${brl(m.pl)}</td>
+          <td class="td-num ${m.sobra >= 0 ? 'positive' : ''}" style="${m.sobra < 0 ? 'color:var(--negative)' : ''}">${brl(m.sobra)}</td>
+          <td class="td-num">${brl(m.reservas)}</td>
+          <td>
+            <div class="acoes-cell">
+              <button class="btn-acao" data-ver="${m.id}">Ver</button>
+            </div>
+          </td>
+        </tr>`).join('');
+
+      document.querySelectorAll('[data-ver]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          abrirDetalhe(btn.dataset.ver);
+        });
+      });
+      document.querySelectorAll('tbody tr').forEach(tr => {
+        tr.addEventListener('click', () => abrirDetalhe(tr.dataset.id));
+      });
+    }
+
+    // ─── Filtros e busca ─────────────────────
+    document.querySelectorAll('[data-filtro]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-filtro]').forEach(b => b.classList.remove('ativo'));
+        btn.classList.add('ativo');
+        filtroAtual = btn.dataset.filtro;
+        renderMentoradas();
+      });
+    });
+
+    document.getElementById('buscaMentorada').addEventListener('input', (e) => {
+      buscaAtual = e.target.value.toLowerCase().trim();
+      renderMentoradas();
+    });
+
+    // ─── Detalhe mentorada ───────────────────
+    function abrirDetalhe(id) {
+      const m = mentoradas.find(x => x.uid === id || x.id === id);
+      mentoradaEmDetalhe = m;
+      if (!m) return;
+
+      document.getElementById('detNome').textContent   = m.nome;
+      document.getElementById('detMeta').textContent   = `${m.email} · desde ${formatMesAno(m.inicio)}`;
+      document.getElementById('detPL').textContent     = brl(m.pl);
+      document.getElementById('detSobra').textContent  = brl(m.sobra);
+      document.getElementById('detReservas').textContent = brl(m.reservas);
+      document.getElementById('detNota').value         = m.nota || '';
+
+      const alertas = [];
+      if (m.sobra < 0) alertas.push({ icon: '🔴', texto: 'Despesas maiores que receita este mês.' });
+      if (!m.perfil)   alertas.push({ icon: '⚠️', texto: 'Perfil de investidor não preenchido.' });
+      if (m.status === 'alerta') alertas.push({ icon: '⚠️', texto: 'Mentorada marcada com alerta. Verificar situação.' });
+      if (alertas.length === 0) alertas.push({ icon: '✅', texto: 'Nenhum alerta ativo para esta mentorada.' });
+
+      document.getElementById('detAlertas').innerHTML = alertas.map(a => `
+        <div class="alerta-item">
+          <span class="alerta-icon">${a.icon}</span>
+          <span class="alerta-texto">${a.texto}</span>
+        </div>`).join('');
+
+      document.getElementById('btnSalvarNota').onclick = async () => {
+        const nota = document.getElementById('detNota').value;
+        try {
+          await updateMentorada(m.uid, { nota });
+          m.nota = nota;
+          document.getElementById('btnSalvarNota').textContent = 'Salvo ✓';
+        } catch (err) {
+          document.getElementById('btnSalvarNota').textContent = 'Erro — tente novamente';
+        }
+        setTimeout(() => { document.getElementById('btnSalvarNota').textContent = 'Salvar nota'; }, 2000);
+      };
+
+      document.getElementById('view-mentoradas').classList.remove('ativo');
+      document.getElementById('view-detalhe').classList.add('ativo');
+      document.querySelector('[data-tab="mentoradas"]').classList.remove('ativo');
+    }
+
+    document.getElementById('btnVoltarLista').addEventListener('click', () => {
+      document.getElementById('view-detalhe').classList.remove('ativo');
+      document.getElementById('view-mentoradas').classList.add('ativo');
+      document.querySelector('[data-tab="mentoradas"]').classList.add('ativo');
+    });
+
+    document.getElementById('btnEnviarEmail').addEventListener('click', () => {
+      // TODO: abrir rascunho via Gmail MCP
+      alert('Integração com Gmail em desenvolvimento.');
+    });
+
+    let mentoradaEmDetalhe = null;
+
+    document.getElementById('btnBloquear').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      if (!confirm(`Bloquear o acesso de ${mentoradaEmDetalhe.nome} ao dashboard?`)) return;
+      try {
+        await bloquearMentorada(mentoradaEmDetalhe.uid);
+        mentoradaEmDetalhe.status = 'inativa';
+        alert(`Acesso de ${mentoradaEmDetalhe.nome} bloqueado.`);
+        document.getElementById('btnVoltarLista').click();
+        renderMentoradas();
+      } catch (err) {
+        alert(`Erro ao bloquear: ${err.message}`);
+      }
+    });
+
+    // ─── Modal nova mentorada ────────────────
+    document.getElementById('btnNovaMentorada').addEventListener('click', () =>
+      document.getElementById('modalNova').classList.remove('hidden'));
+    document.getElementById('btnCancelarModal').addEventListener('click', () =>
+      document.getElementById('modalNova').classList.add('hidden'));
+    document.getElementById('modalNova').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('modalNova'))
+        document.getElementById('modalNova').classList.add('hidden');
+    });
+
+    document.getElementById('btnSalvarModal').addEventListener('click', async () => {
+      const nome   = document.getElementById('mNome').value.trim();
+      const email  = document.getElementById('mEmail').value.trim();
+      const inicio = document.getElementById('mInicio').value;
+      const perfil = document.getElementById('mPerfil').value;
+
+      if (!nome || !email) { alert('Nome e e-mail são obrigatórios.'); return; }
+
+      const btnSalvar = document.getElementById('btnSalvarModal');
+      btnSalvar.disabled = true;
+      btnSalvar.textContent = 'Criando conta…';
+
+      try {
+        const resultado = await createMentorada({ nome, email, inicio, perfil });
+        // Recarrega lista completa do servidor
+        mentoradas = await getMentoradas();
+        document.getElementById('modalNova').classList.add('hidden');
+        ['mNome','mEmail','mInicio'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('mPerfil').value = '';
+        renderMentoradas();
+        alert(`Conta criada! Um link de redefinição de senha será enviado para ${email}.`);
+      } catch (err) {
+        alert(`Erro ao criar conta: ${err.message}`);
+      } finally {
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = 'Criar conta';
+      }
+    });
+
+    // ─── Financeiro ──────────────────────────
+    function renderFinanceiro() {
+      const ativas = mentoradas.filter(m => m.status !== 'inativa').length;
+      const mrr = ativas * 197;
+      document.getElementById('finMRR').textContent = brl(mrr);
+      document.getElementById('finARR').textContent = brl(mrr * 12);
+
+      // Histórico mock dos últimos 6 meses
+      const hoje = new Date();
+      const historico = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        const qtd = Math.max(1, ativas - i);
+        historico.push({ mes: `${MESES[d.getMonth()]} ${d.getFullYear()}`, qtd, mrr: qtd * 197 });
+      }
+
+      document.getElementById('tabelaFinanceiro').innerHTML = historico.map(h => `
+        <tr>
+          <td style="font-size:14px;padding:10px 0;color:var(--text-secondary);border-top:1px solid var(--border)">${h.mes}</td>
+          <td style="font-size:14px;text-align:right;padding:10px 0;border-top:1px solid var(--border)">${h.qtd}</td>
+          <td style="font-size:14px;text-align:right;padding:10px 0;color:var(--gold);border-top:1px solid var(--border)">${brl(h.mrr)}</td>
+        </tr>`).join('');
+    }
+  </script>
+
+</body>
+</html>

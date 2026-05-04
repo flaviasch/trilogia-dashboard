@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perfil de Investidor — Trilogia Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45;
+      --navy-dark: #081e30;
+      --gold: #CFAE65;
+      --gold-light: #e8d49b;
+      --gold-dim: rgba(207,174,101,0.15);
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.08);
+      --border-gold: rgba(207,174,101,0.2);
+      --positive: #4ade80;
+      --positive-dim: rgba(74,222,128,0.12);
+      --negative: #f87171;
+      --warning: #fbbf24;
+      --warning-dim: rgba(251,191,36,0.12);
+      --text-muted: rgba(255,255,255,0.45);
+      --text-secondary: rgba(255,255,255,0.65);
+    }
+
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+
+    /* ─── Navbar ────────────────────────────── */
+    .navbar {
+      background: var(--navy); border-bottom: 1px solid var(--border);
+      padding: 0 32px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--white); text-decoration: none; }
+    .logo span { color: var(--gold); }
+    .navbar-right { display: flex; align-items: center; gap: 16px; }
+    .user-name { font-size: 14px; color: var(--text-secondary); }
+    .btn-logout {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 14px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-logout:hover { border-color: var(--border-gold); color: var(--gold); }
+
+    /* ─── Layout ────────────────────────────── */
+    .main { max-width: 800px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .loading-overlay {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: calc(100vh - 64px);
+      gap: 16px; color: var(--text-muted); font-size: 14px;
+    }
+    .spinner {
+      width: 32px; height: 32px; border: 2px solid var(--border);
+      border-top-color: var(--gold); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Breadcrumb ────────────────────────── */
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .breadcrumb a:hover { color: var(--gold); }
+    .breadcrumb-current { color: var(--text-secondary); }
+
+    /* ─── Page header ───────────────────────── */
+    .page-header { margin-bottom: 32px; }
+    .page-header h1 { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+    .page-header p { font-size: 13px; color: var(--text-muted); }
+
+    /* ─── Banner de validade ────────────────── */
+    .validade-banner {
+      border-radius: 12px; padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; margin-bottom: 32px; flex-wrap: wrap;
+    }
+    .validade-banner.ok      { background: var(--positive-dim); border: 1px solid rgba(74,222,128,0.2); }
+    .validade-banner.alerta  { background: var(--warning-dim);  border: 1px solid rgba(251,191,36,0.3); }
+    .validade-banner.vencido { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); }
+    .validade-texto strong { display: block; font-size: 14px; margin-bottom: 2px; }
+    .validade-texto span { font-size: 13px; color: var(--text-muted); }
+    .validade-banner.ok      .validade-texto strong { color: var(--positive); }
+    .validade-banner.alerta  .validade-texto strong { color: var(--warning); }
+    .validade-banner.vencido .validade-texto strong { color: var(--negative); }
+    .btn-renovar {
+      background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
+      padding: 10px 20px; font-size: 13px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap;
+      transition: background 0.2s;
+    }
+    .btn-renovar:hover { background: var(--gold-light); }
+
+    /* ─── Perfil atual ──────────────────────── */
+    .perfil-atual {
+      background: var(--navy); border: 1px solid var(--border-gold);
+      border-radius: 14px; padding: 28px; margin-bottom: 32px;
+    }
+    .perfil-atual-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .perfil-nome { font-family: 'Playfair Display', serif; font-size: 32px; font-weight: 700; color: var(--gold); margin-bottom: 8px; }
+    .perfil-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 20px; }
+    .perfil-alocacao-title { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .perfil-bar-track { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; margin-bottom: 12px; }
+    .perfil-bar-seg { height: 100%; }
+    .perfil-legenda { display: flex; flex-wrap: wrap; gap: 10px 20px; }
+    .legenda-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+    .legenda-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .legenda-pct { color: var(--text-muted); font-size: 11px; }
+
+    /* ─── Questionário ──────────────────────── */
+    .questionario { display: none; }
+    .questionario.ativo { display: block; }
+
+    .q-titulo { font-family: 'Playfair Display', serif; font-size: 18px; margin-bottom: 24px; }
+
+    .progress-quiz-track { background: rgba(255,255,255,0.07); border-radius: 4px; height: 4px; margin-bottom: 32px; }
+    .progress-quiz-fill { background: var(--gold); height: 4px; border-radius: 4px; transition: width 0.3s ease; }
+
+    .pergunta-bloco { margin-bottom: 28px; }
+    .pergunta-texto { font-size: 15px; font-weight: 500; margin-bottom: 14px; line-height: 1.5; }
+    .opcoes { display: flex; flex-direction: column; gap: 8px; }
+    .opcao-label {
+      display: flex; align-items: flex-start; gap: 12px;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: all 0.2s;
+    }
+    .opcao-label:hover { border-color: var(--border-gold); background: var(--gold-dim); }
+    .opcao-label input[type="radio"] { margin-top: 2px; accent-color: var(--gold); flex-shrink: 0; }
+    .opcao-label input[type="radio"]:checked + .opcao-txt { color: var(--gold); }
+    .opcao-label:has(input:checked) { border-color: var(--border-gold); background: var(--gold-dim); }
+    .opcao-txt { font-size: 14px; line-height: 1.4; }
+
+    .quiz-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 32px; gap: 12px; }
+    .btn-voltar {
+      background: transparent; border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 24px; font-size: 14px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-voltar:hover { border-color: var(--border-gold); color: var(--white); }
+    .btn-avancar {
+      background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
+      padding: 12px 32px; font-size: 14px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-avancar:hover { background: var(--gold-light); }
+    .btn-avancar:disabled { opacity: 0.4; cursor: not-allowed; }
+    .q-step { font-size: 13px; color: var(--text-muted); }
+
+    /* ─── Resultado do quiz ─────────────────── */
+    .resultado { display: none; }
+    .resultado.ativo { display: block; }
+    .resultado-card {
+      background: var(--navy); border: 1px solid var(--border-gold);
+      border-radius: 14px; padding: 32px; text-align: center; margin-bottom: 24px;
+    }
+    .resultado-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .resultado-nome { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 700; color: var(--gold); margin-bottom: 12px; }
+    .resultado-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 24px; max-width: 480px; margin-left: auto; margin-right: auto; }
+    .resultado-alocacao-title { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .resultado-bar-track { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; margin-bottom: 12px; max-width: 400px; margin-left: auto; margin-right: auto; }
+    .resultado-bar-seg { height: 100%; }
+    .resultado-legenda { display: flex; flex-wrap: wrap; gap: 10px 20px; justify-content: center; margin-bottom: 28px; }
+    .btn-confirmar {
+      background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
+      padding: 14px 40px; font-size: 15px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-confirmar:hover { background: var(--gold-light); }
+    .btn-refazer {
+      background: transparent; border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 24px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; margin-left: 12px; transition: all 0.2s;
+    }
+    .btn-refazer:hover { border-color: var(--border-gold); color: var(--white); }
+
+    /* ─── Aviso impacto reservas ────────────── */
+    .aviso-impacto {
+      background: var(--warning-dim); border: 1px solid rgba(251,191,36,0.25);
+      border-radius: 10px; padding: 14px 18px; font-size: 13px;
+      color: var(--warning); margin-bottom: 24px; line-height: 1.5;
+    }
+
+    @media (max-width: 640px) {
+      .navbar { padding: 0 16px; }
+      .main { padding: 24px 16px 60px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="index.html" class="logo">Trilogia <span>Dashboard</span></a>
+    <div class="navbar-right">
+      <span class="user-name" id="userDisplayName"></span>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </nav>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Carregando perfil...</span>
+  </div>
+
+  <main class="main" id="mainContent" style="display:none">
+
+    <nav class="breadcrumb">
+      <a href="index.html">Dashboard</a>
+      <span style="opacity:.4">›</span>
+      <span class="breadcrumb-current">Perfil de Investidor</span>
+    </nav>
+
+    <div class="page-header">
+      <h1>Perfil de Investidor</h1>
+      <p>Válido por 2 anos. Quando atualizado, recalcula a alocação das reservas de longo prazo.</p>
+    </div>
+
+    <!-- Banner de validade -->
+    <div class="validade-banner" id="validadeBanner">
+      <div class="validade-texto">
+        <strong id="validadeStatus">—</strong>
+        <span id="validadeDetalhe">—</span>
+      </div>
+      <button class="btn-renovar" id="btnRenovar">Atualizar perfil</button>
+    </div>
+
+    <!-- Perfil atual (visível quando tem perfil) -->
+    <div class="perfil-atual" id="perfilAtual" style="display:none">
+      <div class="perfil-atual-label">Seu perfil atual</div>
+      <div class="perfil-nome" id="perfilNome">—</div>
+      <div class="perfil-desc" id="perfilDesc">—</div>
+      <div class="perfil-alocacao-title">Alocação sugerida para reservas de longo prazo</div>
+      <div class="perfil-bar-track" id="perfilBar"></div>
+      <div class="perfil-legenda" id="perfilLegenda"></div>
+    </div>
+
+    <!-- Questionário -->
+    <div class="questionario" id="questionario">
+      <h2 class="q-titulo">Suitability — Perfil de Investidor</h2>
+      <div class="progress-quiz-track">
+        <div class="progress-quiz-fill" id="quizProgress"></div>
+      </div>
+      <div id="perguntaContainer"></div>
+      <div class="quiz-nav">
+        <button class="btn-voltar" id="btnVoltar">← Voltar</button>
+        <span class="q-step" id="quizStep">1 / 5</span>
+        <button class="btn-avancar" id="btnAvancar">Avançar →</button>
+      </div>
+    </div>
+
+    <!-- Resultado -->
+    <div class="resultado" id="resultado">
+      <div class="resultado-card">
+        <div class="resultado-label">Seu novo perfil</div>
+        <div class="resultado-nome" id="resultadoNome">—</div>
+        <div class="resultado-desc" id="resultadoDesc">—</div>
+        <div class="resultado-alocacao-title">Alocação sugerida para reservas &gt; 10 anos</div>
+        <div class="resultado-bar-track" id="resultadoBar"></div>
+        <div class="resultado-legenda" id="resultadoLegenda"></div>
+      </div>
+      <div class="aviso-impacto" id="avisoImpacto" style="display:none">
+        ⚠ Ao confirmar, a alocação sugerida das suas reservas com prazo acima de 10 anos será atualizada automaticamente.
+      </div>
+      <div style="text-align:center">
+        <button class="btn-confirmar" id="btnConfirmar">Confirmar e salvar</button>
+        <button class="btn-refazer" id="btnRefazer">Refazer questionário</button>
+      </div>
+    </div>
+
+  </main>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getPerfil, savePerfil, getReservas } from './js/api.js';
+    import {
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) { window.location.href = 'login.html'; return; }
+      document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+      init(user);
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth); window.location.href = 'login.html';
+    });
+
+    // ─── Perfis ──────────────────────────────
+    const PERFIS = {
+      conservador: {
+        nome: 'Conservador',
+        desc: 'Prioridade máxima em preservação de capital e segurança. Você prefere rendimentos previsíveis, mesmo que menores, a qualquer exposição à volatilidade do mercado.',
+        alocacao: [
+          { label: 'RF Pós', pct: 70, cor: '#60a5fa' },
+          { label: 'RF Inflação', pct: 25, cor: '#34d399' },
+          { label: 'RF Pré', pct: 5, cor: '#a78bfa' },
+        ]
+      },
+      moderado: {
+        nome: 'Moderado',
+        desc: 'Equilíbrio entre segurança e crescimento. Você aceita alguma oscilação no curto prazo em troca de melhores retornos no longo prazo.',
+        alocacao: [
+          { label: 'RF Pós', pct: 40, cor: '#60a5fa' },
+          { label: 'RF Inflação', pct: 20, cor: '#34d399' },
+          { label: 'Multimercado', pct: 20, cor: '#fb7185' },
+          { label: 'Renda Variável', pct: 15, cor: '#f59e0b' },
+          { label: 'Internacional', pct: 5, cor: '#22d3ee' },
+        ]
+      },
+      arrojado: {
+        nome: 'Arrojado',
+        desc: 'Foco em crescimento de longo prazo com tolerância elevada à volatilidade. Você entende que oscilações fazem parte do jogo e pensa em décadas, não em meses.',
+        alocacao: [
+          { label: 'RF Pós', pct: 15, cor: '#60a5fa' },
+          { label: 'RF Inflação', pct: 10, cor: '#34d399' },
+          { label: 'Multimercado', pct: 15, cor: '#fb7185' },
+          { label: 'Renda Variável', pct: 40, cor: '#f59e0b' },
+          { label: 'Internacional', pct: 15, cor: '#22d3ee' },
+          { label: 'Alternativos', pct: 5, cor: '#c084fc' },
+        ]
+      }
+    };
+
+    // ─── Perguntas do suitability ─────────────
+    const PERGUNTAS = [
+      {
+        texto: 'Qual é o seu principal objetivo ao investir?',
+        opcoes: [
+          { texto: 'Proteger meu dinheiro da inflação, com o mínimo de risco possível.', pontos: 1 },
+          { texto: 'Crescimento moderado com equilíbrio entre segurança e retorno.', pontos: 2 },
+          { texto: 'Maximizar o crescimento de longo prazo, aceitando oscilações.', pontos: 3 },
+        ]
+      },
+      {
+        texto: 'Imagine que sua carteira de R$100.000 cai para R$80.000 em 3 meses. O que você faz?',
+        opcoes: [
+          { texto: 'Resgato tudo imediatamente — não suporto ver meu patrimônio diminuir.', pontos: 1 },
+          { texto: 'Fico preocupada, mas aguardo — acredito que vai se recuperar.', pontos: 2 },
+          { texto: 'Aproveito para comprar mais. Quedas são oportunidades.', pontos: 3 },
+        ]
+      },
+      {
+        texto: 'Por quanto tempo você pode deixar seu dinheiro investido sem precisar resgatar?',
+        opcoes: [
+          { texto: 'Menos de 2 anos — posso precisar a qualquer momento.', pontos: 1 },
+          { texto: 'Entre 2 e 5 anos — tenho reserva de emergência separada.', pontos: 2 },
+          { texto: 'Mais de 5 anos — é dinheiro de longo prazo mesmo.', pontos: 3 },
+        ]
+      },
+      {
+        texto: 'Qual opção de investimento mais te atrai?',
+        opcoes: [
+          { texto: 'CDB 100% CDI com liquidez diária. Simples, seguro, previsível.', pontos: 1 },
+          { texto: 'Mix de renda fixa e fundos multimercado. Equilíbrio entre segurança e retorno.', pontos: 2 },
+          { texto: 'Ações, ETFs e ativos internacionais. Volatilidade no curto prazo, ganho no longo.', pontos: 3 },
+        ]
+      },
+      {
+        texto: 'Como você se descreveria como investidora?',
+        opcoes: [
+          { texto: 'Iniciante ou cautelosa — prefiro entender bem antes de arriscar.', pontos: 1 },
+          { texto: 'Intermediária — já invisto há algum tempo e estou expandindo o conhecimento.', pontos: 2 },
+          { texto: 'Experiente — acompanho o mercado e me sinto confortável com ativos de risco.', pontos: 3 },
+        ]
+      },
+    ];
+
+    // ─── Dados mock ───────────────────────────
+    const MOCK_PERFIL = {
+      perfil: 'moderado',
+      dataAtualizacao: '2024-03-15', // AAAA-MM-DD
+    };
+
+    let perfilAtual = { ...MOCK_PERFIL };
+    let respostas = new Array(PERGUNTAS.length).fill(null);
+    let stepAtual = 0;
+    let modoQuiz = false;
+
+    // ─── Init ─────────────────────────────────
+    async function init(user) {
+      try {
+        perfilAtual = await getPerfil();
+      } catch (err) {
+        console.error('Erro ao carregar perfil:', err);
+      }
+      renderPerfilAtual();
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+    }
+
+    // ─── Validade ─────────────────────────────
+    function calcValidade(dataStr) {
+      if (!dataStr) return { status: 'vencido', texto: 'Perfil não definido', mesesRestantes: -1 };
+      const data = new Date(dataStr + 'T00:00:00');
+      const expira = new Date(data);
+      expira.setFullYear(expira.getFullYear() + 2);
+      const hoje = new Date();
+      const meses = Math.round((expira - hoje) / (1000 * 60 * 60 * 24 * 30));
+
+      if (meses < 0)  return { status: 'vencido', texto: 'Perfil vencido — atualização necessária', mesesRestantes: meses };
+      if (meses <= 3) return { status: 'alerta', texto: `Vence em ${meses} mês${meses !== 1 ? 'es' : ''} — considere renovar`, mesesRestantes: meses };
+      return { status: 'ok', texto: `Válido até ${expira.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`, mesesRestantes: meses };
+    }
+
+    function renderPerfilAtual() {
+      const val = calcValidade(perfilAtual.dataAtualizacao);
+      const banner = document.getElementById('validadeBanner');
+      banner.className = `validade-banner ${val.status}`;
+      document.getElementById('validadeStatus').textContent =
+        val.status === 'ok' ? '✓ Perfil atualizado' :
+        val.status === 'alerta' ? '⚠ Vencimento próximo' : '✗ Perfil vencido';
+      document.getElementById('validadeDetalhe').textContent = val.texto;
+
+      if (perfilAtual.perfil) {
+        const p = PERFIS[perfilAtual.perfil];
+        document.getElementById('perfilAtual').style.display = 'block';
+        document.getElementById('perfilNome').textContent = p.nome;
+        document.getElementById('perfilDesc').textContent = p.desc;
+        renderBarraAlocacao('perfilBar', 'perfilLegenda', p.alocacao);
+      }
+    }
+
+    function renderBarraAlocacao(barId, legendaId, alocacao) {
+      const bar = document.getElementById(barId);
+      const legenda = document.getElementById(legendaId);
+      bar.innerHTML = alocacao.map(a =>
+        `<div class="perfil-bar-seg" style="width:${a.pct}%; background:${a.cor}" title="${a.label}: ${a.pct}%"></div>`
+      ).join('');
+      legenda.innerHTML = alocacao.map(a => `
+        <div class="legenda-item">
+          <div class="legenda-dot" style="background:${a.cor}"></div>
+          <span>${a.label}</span>
+          <span class="legenda-pct">${a.pct}%</span>
+        </div>`).join('');
+    }
+
+    // ─── Quiz ─────────────────────────────────
+    document.getElementById('btnRenovar').addEventListener('click', iniciarQuiz);
+
+    function iniciarQuiz() {
+      modoQuiz = true;
+      respostas = new Array(PERGUNTAS.length).fill(null);
+      stepAtual = 0;
+      document.getElementById('perfilAtual').style.display = 'none';
+      document.getElementById('validadeBanner').style.display = 'none';
+      document.getElementById('resultado').classList.remove('ativo');
+      document.getElementById('questionario').classList.add('ativo');
+      renderPergunta();
+    }
+
+    function renderPergunta() {
+      const p = PERGUNTAS[stepAtual];
+      const total = PERGUNTAS.length;
+      document.getElementById('quizStep').textContent = `${stepAtual + 1} / ${total}`;
+      document.getElementById('quizProgress').style.width = `${((stepAtual + 1) / total) * 100}%`;
+      document.getElementById('btnVoltar').style.visibility = stepAtual === 0 ? 'hidden' : 'visible';
+      document.getElementById('btnAvancar').textContent = stepAtual === total - 1 ? 'Ver resultado →' : 'Avançar →';
+
+      document.getElementById('perguntaContainer').innerHTML = `
+        <div class="pergunta-bloco">
+          <div class="pergunta-texto">${stepAtual + 1}. ${p.texto}</div>
+          <div class="opcoes">
+            ${p.opcoes.map((op, i) => `
+              <label class="opcao-label">
+                <input type="radio" name="pergunta" value="${i}" ${respostas[stepAtual] === i ? 'checked' : ''} />
+                <span class="opcao-txt">${op.texto}</span>
+              </label>`).join('')}
+          </div>
+        </div>`;
+
+      atualizarBtnAvancar();
+      document.querySelectorAll('input[name="pergunta"]').forEach(radio => {
+        radio.addEventListener('change', atualizarBtnAvancar);
+      });
+    }
+
+    function atualizarBtnAvancar() {
+      const checked = document.querySelector('input[name="pergunta"]:checked');
+      document.getElementById('btnAvancar').disabled = !checked;
+    }
+
+    document.getElementById('btnAvancar').addEventListener('click', async () => {
+      const checked = document.querySelector('input[name="pergunta"]:checked');
+      if (!checked) return;
+      respostas[stepAtual] = parseInt(checked.value);
+      if (stepAtual < PERGUNTAS.length - 1) {
+        stepAtual++;
+        renderPergunta();
+      } else {
+        await mostrarResultado();
+      }
+    });
+
+    document.getElementById('btnVoltar').addEventListener('click', () => {
+      if (stepAtual > 0) { stepAtual--; renderPergunta(); }
+    });
+
+    async function mostrarResultado() {
+      document.getElementById('questionario').classList.remove('ativo');
+
+      const pontos = respostas.reduce((soma, r, i) => soma + PERGUNTAS[i].opcoes[r].pontos, 0);
+      const max = PERGUNTAS.length * 3;
+      const ratio = pontos / max;
+
+      const perfil = ratio <= 0.45 ? 'conservador' : ratio <= 0.75 ? 'moderado' : 'arrojado';
+      const p = PERFIS[perfil];
+
+      document.getElementById('resultadoNome').textContent = p.nome;
+      document.getElementById('resultadoDesc').textContent = p.desc;
+      renderBarraResultado(p.alocacao);
+
+      let temReservasLongo = false;
+      try {
+        const reservas = await getReservas();
+        const hoje = new Date();
+        temReservasLongo = reservas.some(r => {
+          if (!r.dataMeta) return false;
+          const [dAno, dMes] = r.dataMeta.split('-').map(Number);
+          const meses = Math.round((new Date(dAno, dMes - 1, 1) - hoje) / (1000 * 60 * 60 * 24 * 30));
+          return meses > 120;
+        });
+      } catch (err) {
+        console.error('Erro ao checar reservas:', err);
+      }
+      document.getElementById('avisoImpacto').style.display = temReservasLongo ? 'block' : 'none';
+
+      document.getElementById('resultado').classList.add('ativo');
+      document.getElementById('resultado').dataset.perfilCalculado = perfil;
+    }
+
+    function renderBarraResultado(alocacao) {
+      document.getElementById('resultadoBar').innerHTML = alocacao.map(a =>
+        `<div class="resultado-bar-seg" style="width:${a.pct}%; background:${a.cor}" title="${a.label}: ${a.pct}%"></div>`
+      ).join('');
+      document.getElementById('resultadoLegenda').innerHTML = alocacao.map(a => `
+        <div class="legenda-item">
+          <div class="legenda-dot" style="background:${a.cor}"></div>
+          <span>${a.label}</span>
+          <span class="legenda-pct">${a.pct}%</span>
+        </div>`).join('');
+    }
+
+    document.getElementById('btnConfirmar').addEventListener('click', async () => {
+      const perfil = document.getElementById('resultado').dataset.perfilCalculado;
+      const hoje = new Date().toISOString().split('T')[0];
+      perfilAtual = { perfil, dataAtualizacao: hoje };
+
+      try {
+        await savePerfil(perfil);
+      } catch (err) {
+        alert(`Erro ao salvar perfil: ${err.message || err}`);
+      }
+
+      document.getElementById('resultado').classList.remove('ativo');
+      document.getElementById('validadeBanner').style.display = '';
+      renderPerfilAtual();
+      document.getElementById('perfilAtual').style.display = 'block';
+    });
+
+    document.getElementById('btnRefazer').addEventListener('click', iniciarQuiz);
+  </script>
+
+</body>
+</html>

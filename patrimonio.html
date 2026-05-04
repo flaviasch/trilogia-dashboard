@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patrimônio — Trilogia Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45;
+      --navy-dark: #081e30;
+      --gold: #CFAE65;
+      --gold-light: #e8d49b;
+      --gold-dim: rgba(207,174,101,0.15);
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.08);
+      --border-gold: rgba(207,174,101,0.2);
+      --positive: #4ade80;
+      --positive-dim: rgba(74,222,128,0.12);
+      --negative: #f87171;
+      --negative-dim: rgba(248,113,113,0.12);
+      --text-muted: rgba(255,255,255,0.45);
+      --text-secondary: rgba(255,255,255,0.65);
+
+      /* cores por classe de ativo */
+      --c-pos:  #60a5fa;   /* RF Pós */
+      --c-infl: #34d399;   /* RF Inflação */
+      --c-pre:  #a78bfa;   /* RF Pré */
+      --c-rv:   #f59e0b;   /* Renda Variável */
+      --c-mm:   #fb7185;   /* Multimercado */
+      --c-int:  #22d3ee;   /* Internacional */
+      --c-alt:  #c084fc;   /* Alternativos */
+    }
+
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+
+    /* ─── Navbar ────────────────────────────── */
+    .navbar {
+      background: var(--navy); border-bottom: 1px solid var(--border);
+      padding: 0 32px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--white); text-decoration: none; }
+    .logo span { color: var(--gold); }
+    .navbar-right { display: flex; align-items: center; gap: 16px; }
+    .user-name { font-size: 14px; color: var(--text-secondary); }
+    .btn-logout {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 14px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-logout:hover { border-color: var(--border-gold); color: var(--gold); }
+
+    /* ─── Layout ────────────────────────────── */
+    .main { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .loading-overlay {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: calc(100vh - 64px);
+      gap: 16px; color: var(--text-muted); font-size: 14px;
+    }
+    .spinner {
+      width: 32px; height: 32px; border: 2px solid var(--border);
+      border-top-color: var(--gold); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Breadcrumb ────────────────────────── */
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .breadcrumb a:hover { color: var(--gold); }
+    .breadcrumb-current { color: var(--text-secondary); }
+
+    /* ─── Page header ───────────────────────── */
+    .page-header { margin-bottom: 32px; }
+    .page-header h1 { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+    .page-header p { font-size: 13px; color: var(--text-muted); }
+
+    /* ─── Resumo 3 cols ─────────────────────── */
+    .resumo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+    .resumo-card { background: var(--navy); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+    .resumo-card.destaque { border-color: var(--border-gold); }
+    .resumo-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 12px; }
+    .resumo-value { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+    .resumo-value.green { color: var(--positive); }
+    .resumo-value.red   { color: var(--negative); }
+    .resumo-value.gold  { color: var(--gold); }
+    .resumo-sub { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+
+    /* ─── Import banners ────────────────────── */
+    .import-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 40px; }
+    .import-card {
+      background: var(--gold-dim); border: 1px solid var(--border-gold);
+      border-radius: 12px; padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .import-card-text strong { display: block; font-size: 13px; color: var(--gold); margin-bottom: 2px; }
+    .import-card-text span { font-size: 12px; color: var(--text-muted); }
+    .btn-import {
+      background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
+      padding: 9px 18px; font-size: 13px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap; transition: background 0.2s;
+    }
+    .btn-import:hover { background: var(--gold-light); }
+    .file-input { display: none; }
+
+    /* ─── Section ───────────────────────────── */
+    .section { margin-bottom: 40px; }
+    .section-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+    .section-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; }
+    .section-sub { font-size: 13px; color: var(--text-muted); }
+
+    /* ─── Barra de alocação total ───────────── */
+    .alloc-bar-wrap { background: var(--navy); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+    .alloc-bar-track { display: flex; height: 10px; border-radius: 6px; overflow: hidden; gap: 2px; margin-bottom: 16px; }
+    .alloc-segment { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+    .alloc-legend { display: flex; flex-wrap: wrap; gap: 12px 20px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .legend-pct { color: var(--text-muted); font-size: 11px; }
+
+    /* ─── Lista de ativos ───────────────────── */
+    .ativo-row {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 4px;
+      display: grid; grid-template-columns: 16px 1fr auto auto;
+      align-items: center; gap: 14px;
+    }
+    .ativo-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .ativo-info {}
+    .ativo-classe { font-size: 14px; color: var(--white); }
+    .ativo-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .ativo-bar-col { width: 140px; }
+    .ativo-bar-track { background: rgba(255,255,255,0.07); border-radius: 4px; height: 4px; overflow: hidden; }
+    .ativo-bar-fill { height: 100%; border-radius: 4px; }
+    .ativo-pct-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-align: right; }
+    .ativo-value { font-size: 15px; font-weight: 600; text-align: right; white-space: nowrap; min-width: 110px; }
+
+    /* ─── Dívidas ───────────────────────────── */
+    .divida-row {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .divida-icon { font-size: 18px; flex-shrink: 0; }
+    .divida-info { flex: 1; }
+    .divida-nome { font-size: 14px; color: var(--white); }
+    .divida-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .divida-value { font-size: 15px; font-weight: 600; color: var(--negative); text-align: right; white-space: nowrap; }
+    .divida-progress-track { background: rgba(255,255,255,0.07); border-radius: 4px; height: 4px; overflow: hidden; margin-top: 6px; }
+    .divida-progress-fill { height: 100%; border-radius: 4px; background: var(--negative); opacity: 0.5; }
+
+    .btn-add-divida {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: transparent; border: 1px dashed var(--border);
+      border-radius: 10px; padding: 14px 20px; width: 100%;
+      font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: all 0.2s; margin-top: 4px;
+    }
+    .btn-add-divida:hover { border-color: var(--border-gold); color: var(--gold); }
+
+    /* ─── Modal de dívida ───────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 24px;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-card {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px; width: 100%; max-width: 440px;
+    }
+    .modal-title { font-family: 'Playfair Display', serif; font-size: 18px; margin-bottom: 24px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    label { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.6); }
+    input, select {
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 16px; font-size: 14px; color: var(--white);
+      font-family: 'Inter', sans-serif; transition: border-color 0.2s; width: 100%;
+    }
+    input:focus, select:focus { outline: none; border-color: rgba(207,174,101,0.5); }
+    input::placeholder { color: rgba(255,255,255,0.25); }
+    select option { background: var(--navy); }
+    .modal-actions { display: flex; gap: 12px; margin-top: 24px; }
+    .btn-cancel {
+      flex: 1; background: transparent; border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px; font-size: 14px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-cancel:hover { border-color: var(--border-gold); color: var(--white); }
+    .btn-save {
+      flex: 2; background: var(--gold); color: var(--navy); border: none;
+      border-radius: 8px; padding: 12px; font-size: 14px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-save:hover { background: var(--gold-light); }
+
+    /* ─── Responsive ────────────────────────── */
+    @media (max-width: 640px) {
+      .navbar { padding: 0 16px; }
+      .main { padding: 24px 16px 60px; }
+      .resumo-grid { grid-template-columns: 1fr; }
+      .import-row { grid-template-columns: 1fr; }
+      .ativo-row { grid-template-columns: 16px 1fr auto; }
+      .ativo-bar-col { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <a href="index.html" class="logo">Trilogia <span>Dashboard</span></a>
+    <div class="navbar-right">
+      <span class="user-name" id="userDisplayName"></span>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </nav>
+
+  <!-- Loading -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Carregando patrimônio...</span>
+  </div>
+
+  <!-- Conteúdo -->
+  <main class="main" id="mainContent" style="display:none">
+
+    <nav class="breadcrumb">
+      <a href="index.html">Dashboard</a>
+      <span style="opacity:.4">›</span>
+      <span class="breadcrumb-current">Patrimônio</span>
+    </nav>
+
+    <div class="page-header">
+      <h1>Patrimônio</h1>
+      <p>Visão consolidada de ativos, dívidas e patrimônio líquido.</p>
+    </div>
+
+    <!-- Resumo -->
+    <div class="resumo-grid">
+      <div class="resumo-card">
+        <div class="resumo-label">Ativos Totais</div>
+        <div class="resumo-value green" id="totalAtivos">—</div>
+        <div class="resumo-sub" id="subAtivos">—</div>
+      </div>
+      <div class="resumo-card">
+        <div class="resumo-label">Dívidas Totais</div>
+        <div class="resumo-value red" id="totalDividas">—</div>
+        <div class="resumo-sub" id="subDividas">—</div>
+      </div>
+      <div class="resumo-card destaque">
+        <div class="resumo-label">Patrimônio Líquido</div>
+        <div class="resumo-value gold" id="totalPL">—</div>
+        <div class="resumo-sub" id="subPL">—</div>
+      </div>
+    </div>
+
+    <!-- Importar dados -->
+    <div class="import-row">
+      <div class="import-card">
+        <div class="import-card-text">
+          <strong>Importar declaração IR</strong>
+          <span>CSV gerado pelo Agente de Patrimônio</span>
+        </div>
+        <div>
+          <input type="file" id="csvIR" class="file-input" accept=".csv" />
+          <button class="btn-import" id="btnImportIR">Importar CSV</button>
+        </div>
+      </div>
+      <div class="import-card">
+        <div class="import-card-text">
+          <strong>Importar posição da corretora</strong>
+          <span>CSV gerado pelo Agente de Investimentos</span>
+        </div>
+        <div>
+          <input type="file" id="csvCorretora" class="file-input" accept=".csv" />
+          <button class="btn-import" id="btnImportCorretora">Importar CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ativos por classe -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">Ativos por classe</h2>
+        <span class="section-sub" id="totalAtivosHeader">—</span>
+      </div>
+
+      <!-- Barra visual de alocação -->
+      <div class="alloc-bar-wrap">
+        <div class="alloc-bar-track" id="allocBar"></div>
+        <div class="alloc-legend" id="allocLegend"></div>
+      </div>
+
+      <!-- Lista de classes -->
+      <div id="ativosList"></div>
+    </div>
+
+    <!-- Dívidas -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">Dívidas</h2>
+        <span class="section-sub" id="totalDividasHeader">—</span>
+      </div>
+      <div id="dividasList"></div>
+      <button class="btn-add-divida" id="btnAddDivida">+ Adicionar dívida</button>
+    </div>
+
+  </main>
+
+  <!-- Modal dívida -->
+  <div class="modal-overlay hidden" id="modalDivida">
+    <div class="modal-card">
+      <h2 class="modal-title">Nova dívida</h2>
+
+      <div class="field-group">
+        <label for="dividaNome">Descrição</label>
+        <input type="text" id="dividaNome" placeholder="ex: Financiamento imobiliário" />
+      </div>
+      <div class="field-group">
+        <label for="dividaTipo">Tipo</label>
+        <select id="dividaTipo">
+          <option value="financiamento">Financiamento imobiliário</option>
+          <option value="carro">Financiamento de veículo</option>
+          <option value="emprestimo">Empréstimo pessoal</option>
+          <option value="cartao">Cartão de crédito</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label for="dividaSaldo">Saldo devedor (R$)</label>
+        <input type="number" id="dividaSaldo" placeholder="0,00" min="0" step="0.01" />
+      </div>
+      <div class="field-group">
+        <label for="dividaParcela">Parcela mensal (R$)</label>
+        <input type="number" id="dividaParcela" placeholder="0,00" min="0" step="0.01" />
+      </div>
+      <div class="field-group">
+        <label for="dividaTermino">Término previsto</label>
+        <input type="month" id="dividaTermino" />
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelDivida">Cancelar</button>
+        <button class="btn-save" id="btnSaveDivida">Salvar dívida</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getPatrimonio, savePatrimonio, saveDivida, parsearCsvPatrimonio } from './js/api.js';
+    import {
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // ─── Auth guard ──────────────────────────
+    onAuthStateChanged(auth, (user) => {
+      if (!user) { window.location.href = 'login.html'; return; }
+      document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+      init(user);
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login.html';
+    });
+
+    // ─── Helpers ────────────────────────────
+    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const pct = (v, t) => t > 0 ? `${((v / t) * 100).toFixed(1)}%` : '0%';
+
+    // ─── Classes de ativos ───────────────────
+    const CLASSES = [
+      { id: 'pos',  label: 'RF Pós (liquidez diária)', cor: 'var(--c-pos)',  desc: 'Tesouro Selic, CDB pós, LCI/LCA pós' },
+      { id: 'infl', label: 'RF Inflação',              cor: 'var(--c-infl)', desc: 'Tesouro IPCA+, CDB IPCA, Debêntures' },
+      { id: 'pre',  label: 'RF Pré-fixado',            cor: 'var(--c-pre)',  desc: 'Tesouro Pré, CDB pré, LCI/LCA pré' },
+      { id: 'rv',   label: 'Renda Variável',           cor: 'var(--c-rv)',   desc: 'Ações, FIIs, ETFs brasileiros' },
+      { id: 'mm',   label: 'Multimercado',             cor: 'var(--c-mm)',   desc: 'Fundos macro, long & short, hedge' },
+      { id: 'int',  label: 'Internacional',            cor: 'var(--c-int)',  desc: 'BDRs, ETFs internacionais, fundos' },
+      { id: 'alt',  label: 'Alternativos',             cor: 'var(--c-alt)',  desc: 'COE, FIPs, criptomoedas' },
+    ];
+
+    // ─── Mock data (substituir por Google Sheets) ─
+    const MOCK = {
+      ativos: [
+        { classe: 'pos',  valor: 45000 },
+        { classe: 'infl', valor: 30000 },
+        { classe: 'pre',  valor: 10000 },
+        { classe: 'rv',   valor: 80000 },
+        { classe: 'mm',   valor: 25000 },
+        { classe: 'int',  valor: 70000 },
+        { classe: 'alt',  valor: 25000 },
+      ],
+      dividas: [
+        { id: 'd1', nome: 'Financiamento imobiliário', tipo: 'financiamento', saldo: 38000, parcela: 1850, termino: '2035-06' },
+        { id: 'd2', nome: 'Cartão de crédito',          tipo: 'cartao',        saldo: 7000,  parcela: 7000, termino: '' },
+      ]
+    };
+
+    let ativos = [];
+    let dividas = [];
+
+    async function init(user) {
+      try {
+        const data = await getPatrimonio();
+        ativos  = data.ativos  || [];
+        dividas = data.dividas || [];
+      } catch (err) {
+        console.error('Erro ao carregar patrimônio:', err);
+      }
+      render(ativos, dividas);
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+    }
+
+    function render(ativos, divs) {
+      const totalAtivos  = ativos.reduce((s, a) => s + a.valor, 0);
+      const totalDividas = divs.reduce((s, d) => s + d.saldo, 0);
+      const pl = totalAtivos - totalDividas;
+
+      // Resumo
+      document.getElementById('totalAtivos').textContent  = brl(totalAtivos);
+      document.getElementById('totalDividas').textContent = brl(totalDividas);
+      document.getElementById('totalPL').textContent      = brl(pl);
+      document.getElementById('subAtivos').textContent    = `${ativos.length} classes de ativos`;
+      document.getElementById('subDividas').textContent   = `${divs.length} dívida${divs.length !== 1 ? 's' : ''}`;
+      document.getElementById('subPL').textContent        = `${pct(pl, totalAtivos)} dos ativos livres`;
+      document.getElementById('totalAtivosHeader').textContent = brl(totalAtivos);
+      document.getElementById('totalDividasHeader').textContent = brl(totalDividas);
+
+      // Barra de alocação
+      const bar    = document.getElementById('allocBar');
+      const legend = document.getElementById('allocLegend');
+      bar.innerHTML = '';
+      legend.innerHTML = '';
+
+      ativos.forEach(a => {
+        const cls = CLASSES.find(c => c.id === a.classe);
+        if (!cls || a.valor === 0) return;
+        const p = (a.valor / totalAtivos) * 100;
+        const seg = document.createElement('div');
+        seg.className = 'alloc-segment';
+        seg.style.cssText = `width:${p}%; background:${cls.cor};`;
+        seg.title = `${cls.label}: ${pct(a.valor, totalAtivos)}`;
+        bar.appendChild(seg);
+
+        legend.innerHTML += `
+          <div class="legend-item">
+            <div class="legend-dot" style="background:${cls.cor}"></div>
+            <span>${cls.label}</span>
+            <span class="legend-pct">${pct(a.valor, totalAtivos)}</span>
+          </div>`;
+      });
+
+      // Lista de ativos
+      const lista = document.getElementById('ativosList');
+      lista.innerHTML = [...ativos]
+        .sort((a, b) => b.valor - a.valor)
+        .map(a => {
+          const cls = CLASSES.find(c => c.id === a.classe);
+          if (!cls) return '';
+          const p = (a.valor / totalAtivos) * 100;
+          return `
+            <div class="ativo-row">
+              <div class="ativo-dot" style="background:${cls.cor}"></div>
+              <div class="ativo-info">
+                <div class="ativo-classe">${cls.label}</div>
+                <div class="ativo-desc">${cls.desc}</div>
+              </div>
+              <div class="ativo-bar-col">
+                <div class="ativo-bar-track">
+                  <div class="ativo-bar-fill" style="width:${p}%; background:${cls.cor}; opacity:.7"></div>
+                </div>
+                <div class="ativo-pct-label">${pct(a.valor, totalAtivos)}</div>
+              </div>
+              <div class="ativo-value">${brl(a.valor)}</div>
+            </div>`;
+        }).join('');
+
+      // Dívidas
+      renderDividas(divs, totalDividas);
+    }
+
+    function renderDividas(divs, totalDividas) {
+      const lista = document.getElementById('dividasList');
+
+      const tipoIcons = {
+        financiamento: '🏠', carro: '🚗', emprestimo: '💳', cartao: '💳', outro: '📋'
+      };
+
+      lista.innerHTML = divs.map(d => {
+        const pctDivida = totalDividas > 0 ? (d.saldo / totalDividas) * 100 : 0;
+        const terminoLabel = d.termino
+          ? new Date(d.termino + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+          : 'Sem prazo definido';
+        return `
+          <div class="divida-row">
+            <span class="divida-icon">${tipoIcons[d.tipo] || '📋'}</span>
+            <div class="divida-info">
+              <div class="divida-nome">${d.nome}</div>
+              <div class="divida-meta">Parcela: ${brl(d.parcela)}/mês · Término: ${terminoLabel}</div>
+              <div class="divida-progress-track">
+                <div class="divida-progress-fill" style="width:${pctDivida}%"></div>
+              </div>
+            </div>
+            <div class="divida-value">${brl(d.saldo)}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // ─── Imports ─────────────────────────────
+    document.getElementById('btnImportIR').addEventListener('click', () =>
+      document.getElementById('csvIR').click());
+    document.getElementById('btnImportCorretora').addEventListener('click', () =>
+      document.getElementById('csvCorretora').click());
+
+    ['csvIR', 'csvCorretora'].forEach(id => {
+      document.getElementById(id).addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const tipo = id === 'csvCorretora' ? 'corretora' : 'ir';
+        e.target.value = '';
+
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          try {
+            const itens = parsearCsvPatrimonio(ev.target.result);
+            await savePatrimonio(itens, tipo);
+            const data = await getPatrimonio();
+            ativos  = data.ativos  || [];
+            dividas = data.dividas || [];
+            render(ativos, dividas);
+          } catch (err) {
+            alert(`Erro ao importar CSV: ${err.message || err}`);
+          }
+        };
+        reader.readAsText(file, 'utf-8');
+      });
+    });
+
+    // ─── Modal de dívida ──────────────────────
+    const modalEl = document.getElementById('modalDivida');
+
+    document.getElementById('btnAddDivida').addEventListener('click', () =>
+      modalEl.classList.remove('hidden'));
+
+    document.getElementById('btnCancelDivida').addEventListener('click', () => {
+      modalEl.classList.add('hidden');
+      resetModal();
+    });
+
+    modalEl.addEventListener('click', (e) => {
+      if (e.target === modalEl) { modalEl.classList.add('hidden'); resetModal(); }
+    });
+
+    function resetModal() {
+      document.getElementById('dividaNome').value    = '';
+      document.getElementById('dividaTipo').value    = 'financiamento';
+      document.getElementById('dividaSaldo').value   = '';
+      document.getElementById('dividaParcela').value = '';
+      document.getElementById('dividaTermino').value = '';
+    }
+
+    document.getElementById('btnSaveDivida').addEventListener('click', async () => {
+      const nome    = document.getElementById('dividaNome').value.trim();
+      const tipo    = document.getElementById('dividaTipo').value;
+      const saldo   = parseFloat(document.getElementById('dividaSaldo').value);
+      const parcela = parseFloat(document.getElementById('dividaParcela').value) || 0;
+      const termino = document.getElementById('dividaTermino').value;
+
+      if (!nome || isNaN(saldo) || saldo <= 0) {
+        alert('Preencha pelo menos a descrição e o saldo devedor.');
+        return;
+      }
+
+      const nova = {
+        id: 'd' + Date.now(),
+        nome, tipo, saldo, parcela, termino
+      };
+
+      dividas.push(nova);
+      try {
+        await saveDivida(nova);
+      } catch (err) {
+        alert(`Erro ao salvar dívida: ${err.message || err}`);
+      }
+
+      const totalAtivos  = ativos.reduce((s, a) => s + a.valor, 0);
+      const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+      const pl = totalAtivos - totalDividas;
+
+      document.getElementById('totalDividas').textContent = brl(totalDividas);
+      document.getElementById('totalPL').textContent      = brl(pl);
+      document.getElementById('subDividas').textContent   = `${dividas.length} dívida${dividas.length !== 1 ? 's' : ''}`;
+      document.getElementById('totalDividasHeader').textContent = brl(totalDividas);
+      renderDividas(dividas, totalDividas);
+
+      modalEl.classList.add('hidden');
+      resetModal();
+    });
+  </script>
+
+</body>
+</html>

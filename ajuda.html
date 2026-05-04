@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard — Como usar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45;
+      --navy-light: #1a3d5c;
+      --navy-dark: #081e30;
+      --gold: #CFAE65;
+      --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.1);
+      --text-muted: rgba(255,255,255,0.55);
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--navy-dark);
+      color: var(--white);
+      min-height: 100vh;
+    }
+    nav {
+      background: rgba(8,30,48,0.95);
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-logo { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; }
+    .nav-logo span { color: var(--gold); }
+    .nav-back {
+      font-size: 13px;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 6px 16px;
+      border-radius: 100px;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-back:hover { color: var(--white); }
+    .container { max-width: 820px; margin: 0 auto; padding: 60px 24px; }
+    .page-title { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 700; margin-bottom: 12px; }
+    .page-title span { color: var(--gold); }
+    .page-subtitle { font-size: 16px; color: var(--text-muted); line-height: 1.7; margin-bottom: 56px; max-width: 600px; }
+    .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 20px; }
+    .agent-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .agent-header {
+      background: rgba(255,255,255,0.04);
+      padding: 24px 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .agent-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(207,174,101,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gold);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .agent-title { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+    .agent-desc { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+    .agent-body { padding: 24px 28px; }
+    .agent-when {
+      background: rgba(207,174,101,0.06);
+      border: 1px solid rgba(207,174,101,0.2);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+    .agent-when p { font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.6; }
+    .agent-when strong { color: var(--gold); }
+    .steps-title { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; }
+    .steps { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+    .step { display: flex; gap: 12px; align-items: flex-start; }
+    .step-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step p { font-size: 14px; color: rgba(255,255,255,0.8); line-height: 1.6; }
+    .step p strong { color: var(--white); font-weight: 500; }
+    .btn-agent {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--gold);
+      color: var(--navy);
+      font-weight: 700;
+      font-size: 14px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .btn-agent:hover { background: var(--gold-light); }
+    .divider { height: 1px; background: var(--border); margin: 48px 0; }
+    .faq-section { margin-top: 48px; }
+    .faq-item { border-bottom: 1px solid var(--border); padding: 20px 0; }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-q { font-size: 15px; font-weight: 500; color: var(--white); margin-bottom: 8px; }
+    .faq-a { font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .tag-mensal { background: rgba(207,174,101,0.15); color: var(--gold); }
+    .tag-anual { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.5); }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <span class="nav-logo">Trilogia <span>Dashboard</span></span>
+    <a href="index.html" class="nav-back">← Voltar ao dashboard</a>
+  </nav>
+
+  <div class="container">
+
+    <h1 class="page-title">Como usar os <span>agentes</span></h1>
+    <p class="page-subtitle">O dashboard é alimentado por três agentes de inteligência artificial. Cada um transforma um tipo de documento em dados estruturados que aparecem automaticamente no seu painel.</p>
+
+    <p class="section-label">os três agentes</p>
+
+    <!-- Agente 1 — Raio-X -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-num">1</div>
+        <div>
+          <p class="agent-title">Agente Raio-X Financeiro</p>
+          <p class="agent-desc">Transforma seu extrato bancário e fatura do cartão em dados de orçamento mensal.</p>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-when">
+          <p><strong>Quando usar:</strong> uma vez por mês, após receber o extrato do banco e a fatura do cartão. Essa é a rotina semanal que você vai incorporar na sua vida financeira.</p>
+        </div>
+        <p class="steps-title">passo a passo</p>
+        <div class="steps">
+          <div class="step">
+            <div class="step-dot">1</div>
+            <p>Acesse o agente pelo link abaixo e envie seu extrato bancário ou fatura do cartão (PDF ou texto).</p>
+          </div>
+          <div class="step">
+            <div class="step-dot">2</div>
+            <p>O agente classifica cada transação automaticamente e gera um arquivo <strong>CSV</strong>.</p>
+          </div>
+          <div class="step">
+            <div class="step-dot">3</div>
+            <p>Baixe o CSV e importe na seção <strong>Orçamento</strong> do dashboard usando o botão "Importar lançamentos".</p>
+          </div>
+          <div class="step">
+            <div class="step-dot">4</div>
+            <p>Os dados de receita, despesa e sobra atualizam automaticamente na tela principal.</p>
+          </div>
+        </div>
+        <a href="LINK_AGENTE_RAIOX" target="_blank" class="btn-agent">
+          Acessar Agente Raio-X →
+        </a>
+        <span class="tag tag-mensal">uso mensal</span>
+      </div>
+    </div>
+
+    <!-- Agente 2 — Patrimônio -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-num">2</div>
+        <div>
+          <p class="agent-title">Agente de Patrimônio</p>
+          <p class="agent-desc">Organiza seus bens e direitos do Imposto de Renda e calcula seu Patrimônio Líquido.</p>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-when">
+          <p><strong>Quando usar:</strong> uma vez por ano, após entregar a declaração do IR. Você preenche um template simples com seus bens e o agente gera os arquivos para o dashboard.</p>
+        </div>
+        <p class="steps-title">passo a passo</p>
+        <div class="steps">
+          <div class="step">
+            <div class="step-dot">1</div>
+            <p>Acesse o agente pelo link abaixo. Ele vai te guiar no preenchimento ou você pode enviar o template já preenchido.</p>
+          </div>
+          <div class="step">
+            <div class="step-dot">2</div>
+            <p>Informe seus bens (imóveis, veículos, investimentos, previdência, contas) e suas dívidas atuais.</p>
+          </div>
+          <div class="step">
+            <div class="step-dot">3</div>
+            <p>O agente gera dois arquivos CSV: um de <strong>ativos</strong> e um de <strong>dívidas</strong>.</p>
+          </div>
+          <div class="step">
+            <div class="step-dot">4</div>
+            <p>Importe ambos na seção <strong>Patrimônio</strong> do dashboard. O PL é calculado automaticamente.</p>
+          </div>
+        </div>
+        <a href="LINK_AGENTE_PATRIMONIO" target="_blank" class="btn-agent">
+          Acessar Agente de Patrimônio →
+        </a>
+        <span class="tag tag-anual">uso anual</span>
+      </div>
+    </div>
+
+    <!-- Agente 3 — Investimentos -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-num">3</div>
+        <div>
+          <p class="agent-title">Agente de Investimentos</p>
+          <p class="agent-desc">Lê o PDF de posição consolidada da sua corretora e classifica cada ativo na carteira.</p>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-when">
+          <p><strong>Quando usar:</strong> mensalmente ou sempre que quiser atualizar a visão da sua carteira. Use apenas PDFs digitais gerados diretamente pelo app ou site da corretora — não funcionará com PDFs escaneados.</p>
+        </div>
+        <p class="steps-title">passo a passo</p>
+        <div class="steps">
+          <div class="step">
+            <div class="step-dot">1</div>
+            <p>No app ou site da sua corretora, acesse <strong>Relatórios → Posição Consolidada</strong> e baixe o PDF digital do mês.</p>
+          </div>
+          <div class="step">
+            <div class="step-dot">2</div>
+            <p>Acesse o agente pelo link abaixo e envie o PDF. Se tiver mais de uma corretora, envie um PDF de cada.</p>
+          </div>
+          <div class="step">
+            <div class="step-dot">3</div>
+            <p>O agente classifica cada ativo por classe (RF Pós, RF Inflação, RF Pré, Multimercado, Renda Variável, Internacional, Alternativos) e gera um CSV.</p>
+          </div>
+          <div class="step">
+            <div class="step-dot">4</div>
+            <p>Importe o CSV na seção <strong>Reservas</strong> do dashboard. O comparativo de alocação atual x sugerida atualiza automaticamente.</p>
+          </div>
+        </div>
+        <a href="LINK_AGENTE_INVESTIMENTOS" target="_blank" class="btn-agent">
+          Acessar Agente de Investimentos →
+        </a>
+        <span class="tag tag-mensal">uso mensal</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- FAQ -->
+    <div class="faq-section">
+      <p class="section-label">dúvidas frequentes</p>
+
+      <div class="faq-item">
+        <p class="faq-q">Preciso usar os três agentes?</p>
+        <p class="faq-a">O Agente Raio-X é o mais importante e deve ser usado todo mês. O Agente de Investimentos é recomendado mensalmente para manter o comparativo de alocação atualizado. O Agente de Patrimônio é anual — basta usar uma vez por ano após o IR.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">E se eu não usar os agentes?</p>
+        <p class="faq-a">Você pode inserir os dados manualmente diretamente no dashboard em todas as seções. Os agentes existem para facilitar e agilizar — não são obrigatórios, mas economizam bastante tempo.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Meus dados ficam salvos nos agentes?</p>
+        <p class="faq-a">Não. Os agentes processam os documentos e geram os arquivos CSV, mas não armazenam seus dados. Tudo fica salvo apenas no seu dashboard.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">O agente de investimentos funciona com qualquer corretora?</p>
+        <p class="faq-a">Funciona com qualquer corretora que gere um PDF digital de posição consolidada — XP, BTG, Rico, Nu Invest, entre outras. O único requisito é que o PDF seja digital (texto selecionável), não escaneado.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Tenho investimentos no exterior ou criptomoedas. O que faço?</p>
+        <p class="faq-a">O Agente de Investimentos suporta ativos internacionais e cripto. Você pode informar os valores em dólar e o agente converte automaticamente para reais pela cotação do dia.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Preciso de ajuda técnica?</p>
+        <p class="faq-a">Entre em contato pelo e-mail flavia@trilogiafinanceira.com.br ou pelo suporte disponível no dashboard.</p>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

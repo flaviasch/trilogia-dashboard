@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45;
+      --navy-dark: #081e30;
+      --navy-mid: #0f3352;
+      --gold: #CFAE65;
+      --gold-light: #e8d49b;
+      --gold-dim: rgba(207,174,101,0.15);
+      --white: #FFFFFF;
+      --off-white: #F9F7F4;
+      --gray: #6B7280;
+      --border: rgba(255,255,255,0.08);
+      --border-gold: rgba(207,174,101,0.2);
+      --positive: #4ade80;
+      --negative: #f87171;
+      --text-muted: rgba(255,255,255,0.45);
+      --text-secondary: rgba(255,255,255,0.65);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--navy-dark);
+      color: var(--white);
+      min-height: 100vh;
+    }
+
+    /* ─── Navbar ─────────────────────────────── */
+    .navbar {
+      background: var(--navy);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--white);
+    }
+    .logo span { color: var(--gold); }
+
+    .navbar-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .user-name {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .btn-logout {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.2s;
+    }
+    .btn-logout:hover {
+      border-color: var(--border-gold);
+      color: var(--gold);
+    }
+
+    /* ─── Layout principal ────────────────────── */
+    .main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* ─── Loading state ───────────────────────── */
+    .loading-overlay {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 64px);
+      gap: 16px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--border);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Greeting + perfil ───────────────────── */
+    .greeting-section {
+      margin-bottom: 40px;
+    }
+    .greeting {
+      font-family: 'Playfair Display', serif;
+      font-size: 26px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .meta-item .label { color: var(--text-secondary); }
+    .badge-perfil {
+      display: inline-flex;
+      align-items: center;
+      background: var(--gold-dim);
+      border: 1px solid var(--border-gold);
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--gold);
+    }
+    .meta-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    /* ─── Section titles ──────────────────────── */
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--white);
+    }
+    .section-link {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .section-link:hover { color: var(--gold); }
+
+    /* ─── Orçamento cards ─────────────────────── */
+    .orcamento-section { margin-bottom: 40px; }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .budget-card {
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-decoration: none;
+      display: block;
+      transition: border-color 0.2s, transform 0.15s;
+      cursor: pointer;
+    }
+    .budget-card:hover {
+      border-color: var(--border-gold);
+      transform: translateY(-2px);
+    }
+    .card-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .card-value {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--white);
+      letter-spacing: -0.5px;
+    }
+    .card-value.positive { color: var(--positive); }
+    .card-value.negative { color: var(--negative); }
+    .card-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    /* ─── Patrimônio ──────────────────────────── */
+    .patrimonio-section { margin-bottom: 40px; }
+    .patrimonio-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .pat-item {
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-decoration: none;
+      display: block;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .pat-item:hover {
+      border-color: var(--border-gold);
+      transform: translateY(-2px);
+    }
+    .pat-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .pat-value {
+      font-family: 'Playfair Display', serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: -0.5px;
+    }
+    .pat-value.negative { color: var(--negative); }
+    .pat-value.highlight { color: var(--gold); }
+
+    /* ─── Reservas ────────────────────────────── */
+    .reservas-section {}
+    .reservas-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .reserva-card {
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      text-decoration: none;
+      display: block;
+      transition: border-color 0.2s;
+    }
+    .reserva-card:hover {
+      border-color: var(--border-gold);
+    }
+    .reserva-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .reserva-nome {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--white);
+    }
+    .reserva-tag {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+      padding: 2px 10px;
+    }
+    .reserva-valores {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .reserva-acumulado {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--white);
+    }
+    .reserva-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .reserva-pct {
+      margin-left: auto;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gold);
+    }
+    .progress-track {
+      background: rgba(255,255,255,0.07);
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: var(--gold);
+      transition: width 0.6s ease;
+    }
+    .progress-fill.complete {
+      background: var(--positive);
+    }
+    .reserva-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+    .reserva-alocacao {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .reserva-prazo {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ─── Empty state ─────────────────────────── */
+    .empty-state {
+      background: var(--navy);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .empty-state p { margin-top: 8px; font-size: 12px; }
+
+    /* ─── Responsive ──────────────────────────── */
+    @media (max-width: 640px) {
+      .navbar { padding: 0 16px; }
+      .main { padding: 24px 16px 60px; }
+      .cards-grid,
+      .patrimonio-row { grid-template-columns: 1fr; }
+      .greeting { font-size: 20px; }
+      .pat-value { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <span class="logo">Trilogia <span>Dashboard</span></span>
+    <div class="navbar-right">
+      <span class="user-name" id="userDisplayName"></span>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </nav>
+
+  <!-- Loading -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Carregando seus dados...</span>
+  </div>
+
+  <!-- Conteúdo principal (oculto até carregar) -->
+  <main class="main" id="mainContent" style="display:none">
+
+    <!-- Saudação + perfil -->
+    <div class="greeting-section">
+      <h1 class="greeting" id="greetingText">Olá!</h1>
+      <div class="meta-row">
+        <div class="meta-item">
+          <span class="label">Mentorada desde</span>
+          <span id="mentoraSince">—</span>
+        </div>
+        <div class="meta-dot"></div>
+        <div class="meta-item">
+          <span class="label">Perfil de investidor</span>
+          <span class="badge-perfil" id="perfilBadge">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orçamento -->
+    <div class="orcamento-section">
+      <div class="section-header">
+        <h2 class="section-title">Orçamento</h2>
+        <a href="orcamento.html" class="section-link">Ver detalhes →</a>
+      </div>
+      <div class="cards-grid">
+        <a href="orcamento.html" class="budget-card">
+          <div class="card-label">Receita</div>
+          <div class="card-value" id="receita">—</div>
+          <div class="card-sub" id="receitaSub"></div>
+        </a>
+        <a href="orcamento.html" class="budget-card">
+          <div class="card-label">Despesa</div>
+          <div class="card-value" id="despesa">—</div>
+          <div class="card-sub" id="despesaSub"></div>
+        </a>
+        <a href="orcamento.html" class="budget-card">
+          <div class="card-label">Sobra do mês</div>
+          <div class="card-value" id="sobra">—</div>
+          <div class="card-sub" id="sobraSub"></div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Patrimônio -->
+    <div class="patrimonio-section">
+      <div class="section-header">
+        <h2 class="section-title">Patrimônio</h2>
+        <a href="patrimonio.html" class="section-link">Ver detalhes →</a>
+      </div>
+      <div class="patrimonio-row">
+        <a href="patrimonio.html" class="pat-item">
+          <div class="pat-label">Ativos</div>
+          <div class="pat-value" id="ativos">—</div>
+        </a>
+        <a href="patrimonio.html" class="pat-item">
+          <div class="pat-label">Dívidas</div>
+          <div class="pat-value negative" id="dividas">—</div>
+        </a>
+        <a href="patrimonio.html" class="pat-item">
+          <div class="pat-label">Patrimônio Líquido</div>
+          <div class="pat-value highlight" id="pl">—</div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Reservas -->
+    <div class="reservas-section">
+      <div class="section-header">
+        <h2 class="section-title">Reservas</h2>
+        <a href="reservas.html" class="section-link">Gerenciar →</a>
+      </div>
+      <div id="reservasList" class="reservas-list"></div>
+    </div>
+
+  </main>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getDashboard } from './js/api.js';
+    import {
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // ─── Auth guard ───────────────────────────────
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        window.location.href = 'login.html';
+        return;
+      }
+      init(user);
+    });
+
+    // ─── Logout ───────────────────────────────────
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login.html';
+    });
+
+    // ─── Init ─────────────────────────────────────
+    async function init(user) {
+      document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+      await loadDashboard(user);
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+    }
+
+    // ─── Format helpers ───────────────────────────
+    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const pct = (v) => `${Math.round(v)}%`;
+
+    function prazoLabel(meses) {
+      if (meses <= 12) return 'Curto prazo';
+      if (meses <= 48) return 'Médio prazo';
+      if (meses <= 120) return 'Longo prazo';
+      return 'Muito longo prazo';
+    }
+
+    function alocacaoLabel(meses) {
+      if (meses <= 12) return '100% Renda Fixa pós (liquidez diária)';
+      if (meses <= 48) return '70% Pós · 25% Inflação · 5% Pré';
+      return 'Conforme perfil de investidor';
+    }
+
+    // ─── Mock data (será substituído por Google Sheets) ─
+    const MOCK = {
+      nome: 'Ana Paula',
+      mentoraSince: 'março de 2024',
+      perfil: 'Moderado',
+      orcamento: {
+        receita: 18500,
+        despesa: 12300,
+        sobra: 6200,
+        mes: 'abril de 2025'
+      },
+      patrimonio: {
+        ativos: 285000,
+        dividas: 45000,
+        pl: 240000
+      },
+      reservas: [
+        {
+          id: 'emergencia',
+          nome: 'Fundo de Emergência',
+          acumulado: 25500,
+          meta: 30000,
+          mesesRestantes: 4,
+          dataMeta: 'agosto de 2025'
+        },
+        {
+          id: 'viagem',
+          nome: 'Viagem Europa',
+          acumulado: 8000,
+          meta: 25000,
+          mesesRestantes: 18,
+          dataMeta: 'outubro de 2026'
+        },
+        {
+          id: 'carro',
+          nome: 'Troca de Carro',
+          acumulado: 30000,
+          meta: 50000,
+          mesesRestantes: 24,
+          dataMeta: 'abril de 2027'
+        },
+        {
+          id: 'aposentadoria',
+          nome: 'Aposentadoria',
+          acumulado: 120000,
+          meta: 1000000,
+          mesesRestantes: 240,
+          dataMeta: 'dezembro de 2044'
+        }
+      ]
+    };
+
+    async function loadDashboard(user) {
+      let data;
+      try {
+        data = await getDashboard();
+      } catch (err) {
+        console.error('Erro ao carregar dashboard:', err);
+        return;
+      }
+
+      const NOMES_MESES = ['janeiro','fevereiro','março','abril','maio','junho',
+                           'julho','agosto','setembro','outubro','novembro','dezembro'];
+
+      // Saudação
+      const hora = new Date().getHours();
+      const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+      document.getElementById('greetingText').textContent = `${saudacao}, ${user.displayName || user.email}.`;
+      document.getElementById('mentoraSince').textContent = '';
+      const perfilStr = data.perfil?.perfil;
+      document.getElementById('perfilBadge').textContent = perfilStr
+        ? perfilStr.charAt(0).toUpperCase() + perfilStr.slice(1) : '—';
+
+      // Orçamento
+      const { receita, despesa, sobra, mes, ano } = data.orcamento;
+      document.getElementById('receita').textContent = brl(receita);
+      document.getElementById('despesa').textContent = brl(despesa);
+      document.getElementById('despesa').classList.add('negative');
+
+      const sobraEl = document.getElementById('sobra');
+      sobraEl.textContent = brl(sobra);
+      sobraEl.classList.add(sobra >= 0 ? 'positive' : 'negative');
+
+      const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
+      document.getElementById('receitaSub').textContent = `${NOMES_MESES[mes - 1]} de ${ano}`;
+      document.getElementById('despesaSub').textContent = `${pct((despesa/receita)*100)} da receita`;
+      document.getElementById('sobraSub').textContent = `${pct(sobraPct)} da receita`;
+
+      // Patrimônio
+      const { ativos, dividas, pl } = data.patrimonio;
+      document.getElementById('ativos').textContent = brl(ativos);
+      document.getElementById('dividas').textContent = brl(dividas);
+      document.getElementById('pl').textContent = brl(pl);
+
+      // Reservas: adiciona mesesRestantes calculado e dataMeta formatada
+      const hoje = new Date();
+      const reservasFormatadas = (data.reservas || []).map(r => {
+        let mesesRestantes = null;
+        let dataMeta = r.dataMeta;
+        if (r.dataMeta) {
+          const [dAno, dMes] = r.dataMeta.split('-').map(Number);
+          const alvo = new Date(dAno, dMes - 1, 1);
+          mesesRestantes = Math.max(0, Math.round((alvo - hoje) / (1000 * 60 * 60 * 24 * 30)));
+          dataMeta = `${NOMES_MESES[dMes - 1]} de ${dAno}`;
+        }
+        return { ...r, mesesRestantes, dataMeta };
+      });
+      renderReservas(reservasFormatadas);
+    }
+
+    function renderReservas(reservas) {
+      const container = document.getElementById('reservasList');
+
+      if (!reservas || reservas.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            Nenhuma reserva cadastrada ainda.
+            <p>Cadastre suas primeiras reservas para começar a acompanhar seu progresso.</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = reservas.map(r => {
+        const progresso = Math.min((r.acumulado / r.meta) * 100, 100);
+        const completa = progresso >= 100;
+        return `
+          <a href="reservas.html#${r.id}" class="reserva-card">
+            <div class="reserva-top">
+              <span class="reserva-nome">${r.nome}</span>
+              <span class="reserva-tag">${prazoLabel(r.mesesRestantes)}</span>
+            </div>
+            <div class="reserva-valores">
+              <span class="reserva-acumulado">${brl(r.acumulado)}</span>
+              <span class="reserva-meta">de ${brl(r.meta)}</span>
+              <span class="reserva-pct">${pct(progresso)}</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill ${completa ? 'complete' : ''}" style="width:${progresso}%"></div>
+            </div>
+            <div class="reserva-footer">
+              <span class="reserva-alocacao">${alocacaoLabel(r.mesesRestantes)}</span>
+              <span class="reserva-prazo">Meta: ${r.dataMeta}</span>
+            </div>
+          </a>`;
+      }).join('');
+    }
+  </script>
+
+</body>
+</html>

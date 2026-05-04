@@ -1,0 +1,65 @@
+name: Deploy Dashboard → GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Permite disparar manualmente pelo GitHub Actions UI
+  workflow_dispatch:
+
+# Permissões necessárias para o deploy
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Cancela deploy anterior se um novo push chegar antes de terminar
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Prepara apenas os arquivos de frontend para deploy.
+      # Exclui: functions/, scripts/, agentes/, arquivos de config Firebase e secrets.
+      - name: Preparar arquivos de frontend
+        run: |
+          mkdir -p _site
+
+          # HTMLs na raiz
+          cp *.html _site/ 2>/dev/null || true
+
+          # Assets
+          cp -r css  _site/ 2>/dev/null || true
+          cp -r js   _site/ 2>/dev/null || true
+
+          # Imagens na raiz (foto da Flávia, etc.)
+          find . -maxdepth 1 -name "*.jpg" -o -name "*.png" -o -name "*.svg" -o -name "*.webp" \
+            | xargs -I{} cp {} _site/ 2>/dev/null || true
+
+          # Arquivos especiais do GitHub Pages
+          cp CNAME    _site/ 2>/dev/null || true
+          cp .nojekyll _site/ 2>/dev/null || true
+
+          echo "── Conteúdo do _site ──"
+          find _site -type f | sort
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload do artefato
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v4

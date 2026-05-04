@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reservas — Trilogia Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45;
+      --navy-dark: #081e30;
+      --gold: #CFAE65;
+      --gold-light: #e8d49b;
+      --gold-dim: rgba(207,174,101,0.15);
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.08);
+      --border-gold: rgba(207,174,101,0.2);
+      --positive: #4ade80;
+      --positive-dim: rgba(74,222,128,0.12);
+      --negative: #f87171;
+      --negative-dim: rgba(248,113,113,0.12);
+      --warning: #fbbf24;
+      --warning-dim: rgba(251,191,36,0.12);
+      --text-muted: rgba(255,255,255,0.45);
+      --text-secondary: rgba(255,255,255,0.65);
+    }
+
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+
+    /* ─── Navbar ────────────────────────────── */
+    .navbar {
+      background: var(--navy); border-bottom: 1px solid var(--border);
+      padding: 0 32px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--white); text-decoration: none; }
+    .logo span { color: var(--gold); }
+    .navbar-right { display: flex; align-items: center; gap: 16px; }
+    .user-name { font-size: 14px; color: var(--text-secondary); }
+    .btn-logout {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 14px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-logout:hover { border-color: var(--border-gold); color: var(--gold); }
+
+    /* ─── Layout ────────────────────────────── */
+    .main { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .loading-overlay {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: calc(100vh - 64px);
+      gap: 16px; color: var(--text-muted); font-size: 14px;
+    }
+    .spinner {
+      width: 32px; height: 32px; border: 2px solid var(--border);
+      border-top-color: var(--gold); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Breadcrumb ────────────────────────── */
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .breadcrumb a:hover { color: var(--gold); }
+    .breadcrumb-current { color: var(--text-secondary); }
+
+    /* ─── Page header ───────────────────────── */
+    .page-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 32px; gap: 16px; flex-wrap: wrap;
+    }
+    .page-header-left h1 { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+    .page-header-left p { font-size: 13px; color: var(--text-muted); }
+    .btn-nova-reserva {
+      background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
+      padding: 12px 24px; font-size: 14px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap;
+      transition: background 0.2s; flex-shrink: 0;
+    }
+    .btn-nova-reserva:hover { background: var(--gold-light); }
+
+    /* ─── Resumo topo ───────────────────────── */
+    .resumo-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+    .resumo-card { background: var(--navy); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+    .resumo-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 10px; }
+    .resumo-value { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+    .resumo-sub { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+    /* ─── Legenda de alocação ───────────────── */
+    .legenda-alocacao {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 20px; margin-bottom: 32px;
+    }
+    .legenda-title { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .legenda-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+    .legenda-item { display: flex; align-items: flex-start; gap: 10px; }
+    .legenda-badge {
+      background: var(--gold-dim); border: 1px solid var(--border-gold);
+      border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600;
+      color: var(--gold); white-space: nowrap; flex-shrink: 0; margin-top: 1px;
+    }
+    .legenda-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+
+    /* ─── Reserva card ──────────────────────── */
+    .reserva-card {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 14px;
+      padding: 24px; margin-bottom: 12px; transition: border-color 0.2s;
+      scroll-margin-top: 80px;
+    }
+    .reserva-card:hover { border-color: rgba(255,255,255,0.14); }
+    .reserva-card.completa { border-color: rgba(74,222,128,0.25); background: rgba(74,222,128,0.04); }
+    .reserva-card.alerta { border-color: rgba(251,191,36,0.3); }
+
+    .reserva-header {
+      display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 12px;
+    }
+    .reserva-header-left {}
+    .reserva-nome { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .reserva-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tag {
+      font-size: 11px; border-radius: 20px; padding: 2px 10px; font-weight: 500;
+    }
+    .tag-prazo { background: rgba(255,255,255,0.07); color: var(--text-secondary); }
+    .tag-completa { background: var(--positive-dim); color: var(--positive); }
+    .tag-alerta { background: var(--warning-dim); color: var(--warning); }
+
+    .reserva-acoes { display: flex; gap: 8px; flex-shrink: 0; }
+    .btn-icon {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-icon:hover { border-color: var(--border-gold); }
+
+    /* Valores e progresso */
+    .reserva-valores {
+      display: flex; align-items: baseline; gap: 6px; margin-bottom: 10px;
+    }
+    .valor-acumulado { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; }
+    .valor-meta { font-size: 14px; color: var(--text-muted); }
+    .valor-pct { margin-left: auto; font-size: 16px; font-weight: 700; }
+    .valor-pct.ok { color: var(--positive); }
+    .valor-pct.andamento { color: var(--gold); }
+
+    .progress-track { background: rgba(255,255,255,0.07); border-radius: 6px; height: 8px; overflow: hidden; margin-bottom: 16px; }
+    .progress-fill { height: 100%; border-radius: 6px; background: var(--gold); transition: width 0.6s ease; }
+    .progress-fill.completa { background: var(--positive); }
+
+    /* Detalhes */
+    .reserva-detalhes {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px; padding-top: 16px; border-top: 1px solid var(--border);
+    }
+    .detalhe-item {}
+    .detalhe-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .detalhe-value { font-size: 14px; font-weight: 500; }
+
+    /* Alocação sugerida */
+    .alocacao-box {
+      background: var(--gold-dim); border: 1px solid var(--border-gold);
+      border-radius: 8px; padding: 12px 16px; margin-top: 14px;
+    }
+    .alocacao-title { font-size: 11px; font-weight: 600; color: var(--gold); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .alocacao-itens { display: flex; flex-wrap: wrap; gap: 8px; }
+    .alocacao-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text-secondary);
+    }
+    .alocacao-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ─── Empty state ───────────────────────── */
+    .empty-state {
+      background: var(--navy); border: 1px dashed var(--border);
+      border-radius: 14px; padding: 48px; text-align: center;
+    }
+    .empty-state-icon { font-size: 36px; margin-bottom: 16px; }
+    .empty-state h3 { font-family: 'Playfair Display', serif; font-size: 18px; margin-bottom: 8px; }
+    .empty-state p { font-size: 13px; color: var(--text-muted); }
+
+    /* ─── Modal ─────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 24px; overflow-y: auto;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-card {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px; width: 100%; max-width: 480px;
+      margin: auto;
+    }
+    .modal-title { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 8px; }
+    .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    label { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.6); }
+    input, select {
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 16px; font-size: 14px; color: var(--white);
+      font-family: 'Inter', sans-serif; transition: border-color 0.2s; width: 100%;
+    }
+    input:focus, select:focus { outline: none; border-color: rgba(207,174,101,0.5); }
+    input::placeholder { color: rgba(255,255,255,0.25); }
+    select option { background: var(--navy); }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .alocacao-preview {
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+      font-size: 13px; color: var(--text-secondary); min-height: 44px;
+    }
+    .modal-actions { display: flex; gap: 12px; margin-top: 24px; }
+    .btn-cancel {
+      flex: 1; background: transparent; border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px; font-size: 14px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-cancel:hover { border-color: var(--border-gold); color: var(--white); }
+    .btn-save {
+      flex: 2; background: var(--gold); color: var(--navy); border: none;
+      border-radius: 8px; padding: 12px; font-size: 14px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-save:hover { background: var(--gold-light); }
+
+    /* ─── Responsive ────────────────────────── */
+    @media (max-width: 640px) {
+      .navbar { padding: 0 16px; }
+      .main { padding: 24px 16px 60px; }
+      .resumo-row { grid-template-columns: 1fr; }
+      .field-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="index.html" class="logo">Trilogia <span>Dashboard</span></a>
+    <div class="navbar-right">
+      <span class="user-name" id="userDisplayName"></span>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </nav>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Carregando reservas...</span>
+  </div>
+
+  <main class="main" id="mainContent" style="display:none">
+
+    <nav class="breadcrumb">
+      <a href="index.html">Dashboard</a>
+      <span style="opacity:.4">›</span>
+      <span class="breadcrumb-current">Reservas</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Reservas</h1>
+        <p>Acompanhe o progresso de cada meta e a alocação sugerida por prazo.</p>
+      </div>
+      <button class="btn-nova-reserva" id="btnNovaReserva">+ Nova reserva</button>
+    </div>
+
+    <!-- Resumo -->
+    <div class="resumo-row">
+      <div class="resumo-card">
+        <div class="resumo-label">Total acumulado</div>
+        <div class="resumo-value" id="totalAcumulado">—</div>
+        <div class="resumo-sub" id="subTotal">—</div>
+      </div>
+      <div class="resumo-card">
+        <div class="resumo-label">Reservas completas</div>
+        <div class="resumo-value" id="qtdCompletas">—</div>
+        <div class="resumo-sub" id="subCompletas">—</div>
+      </div>
+      <div class="resumo-card">
+        <div class="resumo-label">Aporte mensal total</div>
+        <div class="resumo-value" id="aporteMensal">—</div>
+        <div class="resumo-sub">sugerido para todas as reservas</div>
+      </div>
+    </div>
+
+    <!-- Legenda de alocação -->
+    <div class="legenda-alocacao">
+      <div class="legenda-title">Alocação automática por prazo</div>
+      <div class="legenda-grid">
+        <div class="legenda-item">
+          <span class="legenda-badge">≤ 1 ano</span>
+          <span class="legenda-desc">100% RF Pós com liquidez diária</span>
+        </div>
+        <div class="legenda-item">
+          <span class="legenda-badge">1 – 4 anos</span>
+          <span class="legenda-desc">70% Pós · 25% Inflação · 5% Pré</span>
+        </div>
+        <div class="legenda-item">
+          <span class="legenda-badge">4 – 10 anos</span>
+          <span class="legenda-desc">Conforme orientação da mentora</span>
+        </div>
+        <div class="legenda-item">
+          <span class="legenda-badge">&gt; 10 anos</span>
+          <span class="legenda-desc">Conforme perfil de investidor</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lista de reservas -->
+    <div id="reservasList"></div>
+
+  </main>
+
+  <!-- Modal nova/editar reserva -->
+  <div class="modal-overlay hidden" id="modalReserva">
+    <div class="modal-card">
+      <h2 class="modal-title" id="modalTitle">Nova reserva</h2>
+      <p class="modal-sub">A alocação sugerida é calculada automaticamente pelo prazo.</p>
+
+      <div class="field-group">
+        <label for="rNome">Nome da reserva</label>
+        <input type="text" id="rNome" placeholder="ex: Viagem Europa, Fundo de emergência…" />
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label for="rMeta">Meta total (R$)</label>
+          <input type="number" id="rMeta" placeholder="0" min="0" step="100" />
+        </div>
+        <div class="field-group">
+          <label for="rAcumulado">Já acumulado (R$)</label>
+          <input type="number" id="rAcumulado" placeholder="0" min="0" step="100" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label for="rDataMeta">Data objetivo</label>
+          <input type="month" id="rDataMeta" />
+        </div>
+        <div class="field-group">
+          <label for="rAporte">Aporte mensal (R$)</label>
+          <input type="number" id="rAporte" placeholder="0" min="0" step="50" />
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Alocação sugerida</label>
+        <div class="alocacao-preview" id="alocacaoPreview">Defina a data objetivo para calcular.</div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarModal">Cancelar</button>
+        <button class="btn-save" id="btnSalvarModal">Salvar reserva</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getReservas, saveReserva, deleteReserva } from './js/api.js';
+    import {
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // ─── Auth guard ──────────────────────────
+    onAuthStateChanged(auth, (user) => {
+      if (!user) { window.location.href = 'login.html'; return; }
+      document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+      init(user);
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth); window.location.href = 'login.html';
+    });
+
+    // ─── Helpers ────────────────────────────
+    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const pct = (v, t) => t > 0 ? Math.min((v / t) * 100, 100) : 0;
+
+    function mesesAte(dataStr) {
+      if (!dataStr) return null;
+      const hoje = new Date();
+      const [ano, mes] = dataStr.split('-').map(Number);
+      const alvo = new Date(ano, mes - 1, 1);
+      return Math.max(0, (alvo.getFullYear() - hoje.getFullYear()) * 12 + (alvo.getMonth() - hoje.getMonth()));
+    }
+
+    function prazoLabel(meses) {
+      if (meses === null) return '—';
+      if (meses <= 12)  return 'Curto prazo (≤ 1 ano)';
+      if (meses <= 48)  return 'Médio prazo (1–4 anos)';
+      if (meses <= 120) return 'Longo prazo (4–10 anos)';
+      return 'Muito longo prazo (> 10 anos)';
+    }
+
+    function alocacao(meses) {
+      if (meses === null) return [];
+      if (meses <= 12)  return [{ label: 'RF Pós liquidez diária', pct: 100, cor: '#60a5fa' }];
+      if (meses <= 48)  return [
+        { label: 'RF Pós', pct: 70, cor: '#60a5fa' },
+        { label: 'RF Inflação', pct: 25, cor: '#34d399' },
+        { label: 'RF Pré', pct: 5, cor: '#a78bfa' },
+      ];
+      if (meses <= 120) return [{ label: 'Conforme orientação da mentora', pct: 100, cor: '#CFAE65' }];
+      return [{ label: 'Conforme perfil de investidor', pct: 100, cor: '#c084fc' }];
+    }
+
+    function alocacaoTexto(meses) {
+      const items = alocacao(meses);
+      if (!items.length) return 'Defina a data objetivo para calcular.';
+      return items.map(i => i.pct < 100 ? `${i.pct}% ${i.label}` : i.label).join(' · ');
+    }
+
+    function formatMesAno(dataStr) {
+      if (!dataStr) return '—';
+      const [ano, mes] = dataStr.split('-').map(Number);
+      const nomes = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      return `${nomes[mes - 1]} de ${ano}`;
+    }
+
+    // ─── Mock data ────────────────────────────
+    let reservas = [];
+
+    let editandoId = null;
+
+    async function init(user) {
+      try {
+        reservas = await getReservas();
+      } catch (err) {
+        console.error('Erro ao carregar reservas:', err);
+      }
+      renderAll();
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+
+      // Scroll para âncora se veio do index (#r1 etc.)
+      const hash = window.location.hash.slice(1);
+      if (hash) {
+        const el = document.getElementById(hash);
+        if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 300);
+      }
+    }
+
+    function renderAll() {
+      // Resumo
+      const totalAcum   = reservas.reduce((s, r) => s + r.acumulado, 0);
+      const totalMeta   = reservas.reduce((s, r) => s + r.meta, 0);
+      const completas   = reservas.filter(r => r.acumulado >= r.meta).length;
+      const totalAporte = reservas.reduce((s, r) => s + (r.acumulado < r.meta ? r.aporte : 0), 0);
+
+      document.getElementById('totalAcumulado').textContent = brl(totalAcum);
+      document.getElementById('subTotal').textContent = `de ${brl(totalMeta)} em metas`;
+      document.getElementById('qtdCompletas').textContent = `${completas} de ${reservas.length}`;
+      document.getElementById('subCompletas').textContent = completas > 0 ? 'reservas concluídas 🎉' : 'ainda nenhuma concluída';
+      document.getElementById('aporteMensal').textContent = brl(totalAporte);
+
+      // Lista
+      const container = document.getElementById('reservasList');
+      if (reservas.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🎯</div>
+            <h3>Nenhuma reserva ainda</h3>
+            <p>Clique em "Nova reserva" para começar a planejar suas metas financeiras.</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = reservas.map(r => renderCard(r)).join('');
+
+      // Ações dos cards
+      container.querySelectorAll('[data-edit]').forEach(btn => {
+        btn.addEventListener('click', () => abrirModal(btn.dataset.edit));
+      });
+      container.querySelectorAll('[data-delete]').forEach(btn => {
+        btn.addEventListener('click', () => deletarReserva(btn.dataset.delete));
+      });
+    }
+
+    function renderCard(r) {
+      const meses    = mesesAte(r.dataMeta);
+      const progresso = pct(r.acumulado, r.meta);
+      const completa  = r.acumulado >= r.meta;
+      const alertaEsgotando = meses !== null && meses <= 3 && !completa && progresso < 90;
+
+      const cardClass = completa ? 'reserva-card completa' : alertaEsgotando ? 'reserva-card alerta' : 'reserva-card';
+
+      const tags = [
+        `<span class="tag tag-prazo">${prazoLabel(meses)}</span>`,
+        completa ? `<span class="tag tag-completa">✓ Concluída</span>` : '',
+        alertaEsgotando ? `<span class="tag tag-alerta">⚠ Prazo próximo</span>` : '',
+      ].filter(Boolean).join('');
+
+      const aloc = alocacao(meses);
+      const alocHTML = aloc.map(a => `
+        <div class="alocacao-item">
+          <div class="alocacao-dot" style="background:${a.cor}"></div>
+          <span>${a.pct < 100 ? a.pct + '% ' : ''}${a.label}</span>
+        </div>`).join('');
+
+      const falta = r.meta - r.acumulado;
+
+      return `
+        <div class="${cardClass}" id="${r.id}">
+          <div class="reserva-header">
+            <div class="reserva-header-left">
+              <div class="reserva-nome">${r.nome}</div>
+              <div class="reserva-tags">${tags}</div>
+            </div>
+            <div class="reserva-acoes">
+              <button class="btn-icon" data-edit="${r.id}" title="Editar">✏️</button>
+              <button class="btn-icon" data-delete="${r.id}" title="Excluir">🗑</button>
+            </div>
+          </div>
+
+          <div class="reserva-valores">
+            <span class="valor-acumulado">${brl(r.acumulado)}</span>
+            <span class="valor-meta">de ${brl(r.meta)}</span>
+            <span class="valor-pct ${completa ? 'ok' : 'andamento'}">${progresso.toFixed(0)}%</span>
+          </div>
+
+          <div class="progress-track">
+            <div class="progress-fill ${completa ? 'completa' : ''}" style="width:${progresso}%"></div>
+          </div>
+
+          <div class="reserva-detalhes">
+            <div class="detalhe-item">
+              <div class="detalhe-label">Data objetivo</div>
+              <div class="detalhe-value">${formatMesAno(r.dataMeta)}</div>
+            </div>
+            <div class="detalhe-item">
+              <div class="detalhe-label">${completa ? 'Meta atingida' : 'Falta atingir'}</div>
+              <div class="detalhe-value">${completa ? '✓' : brl(falta)}</div>
+            </div>
+            <div class="detalhe-item">
+              <div class="detalhe-label">Aporte mensal</div>
+              <div class="detalhe-value">${completa ? 'Concluído' : brl(r.aporte)}</div>
+            </div>
+            ${meses !== null ? `
+            <div class="detalhe-item">
+              <div class="detalhe-label">Meses restantes</div>
+              <div class="detalhe-value">${meses} mese${meses !== 1 ? 's' : ''}</div>
+            </div>` : ''}
+          </div>
+
+          <div class="alocacao-box">
+            <div class="alocacao-title">Alocação sugerida</div>
+            <div class="alocacao-itens">${alocHTML}</div>
+          </div>
+        </div>`;
+    }
+
+    // ─── Modal ───────────────────────────────
+    const modal = document.getElementById('modalReserva');
+
+    function abrirModal(id = null) {
+      editandoId = id;
+      document.getElementById('modalTitle').textContent = id ? 'Editar reserva' : 'Nova reserva';
+      resetModal();
+
+      if (id) {
+        const r = reservas.find(x => x.id === id);
+        if (r) {
+          document.getElementById('rNome').value      = r.nome;
+          document.getElementById('rMeta').value      = r.meta;
+          document.getElementById('rAcumulado').value = r.acumulado;
+          document.getElementById('rDataMeta').value  = r.dataMeta;
+          document.getElementById('rAporte').value    = r.aporte;
+          atualizarPreview();
+        }
+      }
+      modal.classList.remove('hidden');
+    }
+
+    function fecharModal() {
+      modal.classList.add('hidden');
+      editandoId = null;
+      resetModal();
+    }
+
+    function resetModal() {
+      ['rNome','rMeta','rAcumulado','rDataMeta','rAporte'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+      document.getElementById('alocacaoPreview').textContent = 'Defina a data objetivo para calcular.';
+    }
+
+    function atualizarPreview() {
+      const data = document.getElementById('rDataMeta').value;
+      const meses = mesesAte(data);
+      document.getElementById('alocacaoPreview').textContent = alocacaoTexto(meses);
+    }
+
+    document.getElementById('btnNovaReserva').addEventListener('click', () => abrirModal());
+    document.getElementById('btnCancelarModal').addEventListener('click', fecharModal);
+    modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
+    document.getElementById('rDataMeta').addEventListener('change', atualizarPreview);
+
+    document.getElementById('btnSalvarModal').addEventListener('click', async () => {
+      const nome      = document.getElementById('rNome').value.trim();
+      const meta      = parseFloat(document.getElementById('rMeta').value);
+      const acumulado = parseFloat(document.getElementById('rAcumulado').value) || 0;
+      const dataMeta  = document.getElementById('rDataMeta').value;
+      const aporte    = parseFloat(document.getElementById('rAporte').value) || 0;
+
+      if (!nome || isNaN(meta) || meta <= 0) {
+        alert('Preencha nome e valor da meta.'); return;
+      }
+
+      let reserva;
+      if (editandoId) {
+        const idx = reservas.findIndex(r => r.id === editandoId);
+        if (idx !== -1) {
+          reservas[idx] = { ...reservas[idx], nome, meta, acumulado, dataMeta, aporte };
+          reserva = reservas[idx];
+        }
+      } else {
+        reserva = { id: 'r' + Date.now(), nome, meta, acumulado, dataMeta, aporte };
+        reservas.push(reserva);
+      }
+
+      if (reserva) {
+        try {
+          await saveReserva(reserva);
+        } catch (err) {
+          alert(`Erro ao salvar: ${err.message || err}`);
+        }
+      }
+      fecharModal();
+      renderAll();
+    });
+
+    // ─── Deletar ─────────────────────────────
+    async function deletarReserva(id) {
+      const r = reservas.find(x => x.id === id);
+      if (!r) return;
+      if (!confirm(`Excluir a reserva "${r.nome}"?`)) return;
+      reservas = reservas.filter(x => x.id !== id);
+      try {
+        await deleteReserva(id);
+      } catch (err) {
+        console.error('Erro ao excluir reserva:', err);
+      }
+      renderAll();
+    }
+  </script>
+
+</body>
+</html>
