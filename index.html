@@ -372,6 +372,7 @@
   <nav class="navbar">
     <span class="logo">Trilogia <span>Dashboard</span></span>
     <div class="navbar-right">
+      <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
@@ -463,6 +464,7 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { getDashboard } from './js/api.js';
+    import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
       signOut
@@ -486,6 +488,8 @@
     // ─── Init ─────────────────────────────────────
     async function init(user) {
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+      const admin = await isAdmin();
+      if (admin) document.getElementById('linkAdmin').style.display = 'inline';
       await loadDashboard(user);
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
