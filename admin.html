@@ -499,7 +499,7 @@
     document.getElementById('btnLogout').addEventListener('click', () => logout());
 
     // ─── Helpers ────────────────────────────
-    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
     const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
     function formatMesAno(str) {
