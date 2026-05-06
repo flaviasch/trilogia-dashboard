@@ -8,54 +8,48 @@ const SCOPES = [
 ];
 
 function buildAuth() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurada.');
-  return new google.auth.GoogleAuth({ credentials: JSON.parse(raw), scopes: SCOPES });
+  const clientId     = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error('Credenciais OAuth não configuradas (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN).');
+  }
+
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
+  return oauth2Client;
 }
 
 // ─── Schema das abas ──────────────────────────────────────────────────────────
-// Cada aba define: cabeçalhos, larguras de coluna (pixels) e validações dropdown.
 
 const ABAS = {
   orcamento: {
     headers: ['mes', 'ano', 'categoria', 'tipo', 'valor'],
     colWidths: [60, 70, 220, 100, 120],
     validacoes: [
-      // Coluna D (índice 3) = tipo: receita | despesa
-      {
-        colIndex: 3,
-        valores: ['receita', 'despesa'],
-      },
+      { colIndex: 3, valores: ['receita', 'despesa'] },
     ],
   },
   patrimonio: {
     headers: ['classe', 'valor', 'atualizado'],
     colWidths: [160, 150, 130],
     validacoes: [
-      {
-        colIndex: 0,
-        valores: ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'alt'],
-      },
+      { colIndex: 0, valores: ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'alt'] },
     ],
   },
   investimentos: {
     headers: ['classe', 'valor', 'atualizado'],
     colWidths: [160, 150, 130],
     validacoes: [
-      {
-        colIndex: 0,
-        valores: ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'alt'],
-      },
+      { colIndex: 0, valores: ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'alt'] },
     ],
   },
   dividas: {
     headers: ['id', 'nome', 'tipo', 'saldo', 'parcela', 'termino'],
     colWidths: [160, 240, 160, 120, 120, 120],
     validacoes: [
-      {
-        colIndex: 2,
-        valores: ['financiamento', 'carro', 'emprestimo', 'cartao', 'outro'],
-      },
+      { colIndex: 2, valores: ['financiamento', 'carro', 'emprestimo', 'cartao', 'outro'] },
     ],
   },
   reservas: {
@@ -67,47 +61,67 @@ const ABAS = {
     headers: ['perfil', 'dataAtualizacao'],
     colWidths: [160, 160],
     validacoes: [
-      {
-        colIndex: 0,
-        valores: ['conservador', 'moderado', 'arrojado'],
-      },
+      { colIndex: 0, valores: ['conservador', 'moderado', 'arrojado'] },
     ],
   },
 };
 
-// Cor do cabeçalho: navy (#0D2B45)
 const COR_HEADER = { red: 0.051, green: 0.169, blue: 0.271 };
 const COR_TEXTO  = { red: 1, green: 1, blue: 1 };
-const COR_ALT    = { red: 0.965, green: 0.961, blue: 0.957 }; // off-white para linhas alternadas
+const COR_ALT    = { red: 0.965, green: 0.961, blue: 0.957 };
 
 /**
- * Cria a planilha Google Sheets de uma nova mentorada na conta da Flávia,
- * com cabeçalhos, formatação visual, larguras de coluna e validações dropdown.
+ * Cria a planilha Google Sheets de uma nova mentorada usando as credenciais
+ * OAuth da Flávia — o arquivo é criado na conta dela, dentro da pasta indicada.
  *
- * @param {string} nome      - Nome da mentorada (título do arquivo)
+ * @param {string} nome      - Nome da mentorada
  * @param {string} folderId  - ID da pasta no Drive da Flávia
  * @returns {Promise<string>} - spreadsheetId criado
  */
 async function provisionar(nome, folderId) {
-  const auth   = buildAuth();
-  const client = await auth.getClient();
-  const api    = google.sheets({ version: 'v4', auth: client });
-  const drive  = google.drive({ version: 'v3', auth: client });
+  const auth  = buildAuth();
+  const api   = google.sheets({ version: 'v4', auth });
+  const drive = google.drive({ version: 'v3', auth });
 
-  // ── 1. Criar arquivo com todas as abas ──────────────────────────────────────
-  const { data: spreadsheet } = await api.spreadsheets.create({
+  // ── 1. Criar arquivo Sheets na pasta da Flávia via Drive API ────────────────
+  const createParams = {
     requestBody: {
-      properties: { title: `Trilogia — ${nome}`, locale: 'pt_BR' },
-      sheets: Object.keys(ABAS).map((title, i) => ({
-        properties: { sheetId: i, title, index: i },
-      })),
+      name:     `Trilogia — ${nome}`,
+      mimeType: 'application/vnd.google-apps.spreadsheet',
+    },
+    fields: 'id',
+  };
+  if (folderId) createParams.requestBody.parents = [folderId];
+
+  const { data: file } = await drive.files.create(createParams);
+  const fileId = file.id;
+
+  // ── 2. Configurar abas: renomear a padrão + adicionar as demais ─────────────
+  const nomeAbas = Object.keys(ABAS);
+  await api.spreadsheets.batchUpdate({
+    spreadsheetId: fileId,
+    requestBody: {
+      requests: [
+        {
+          updateSheetProperties: {
+            properties: { sheetId: 0, title: nomeAbas[0], index: 0 },
+            fields: 'title,index',
+          },
+        },
+        ...nomeAbas.slice(1).map((title, i) => ({
+          addSheet: {
+            properties: { sheetId: i + 1, title, index: i + 1 },
+          },
+        })),
+      ],
     },
   });
 
-  const fileId    = spreadsheet.spreadsheetId;
-  const sheetMeta = spreadsheet.sheets; // array com sheetId numérico de cada aba
+  const sheetMeta = nomeAbas.map((title, i) => ({
+    properties: { sheetId: i, title },
+  }));
 
-  // ── 2. Inserir cabeçalhos ───────────────────────────────────────────────────
+  // ── 3. Inserir cabeçalhos ───────────────────────────────────────────────────
   await api.spreadsheets.values.batchUpdate({
     spreadsheetId: fileId,
     requestBody: {
@@ -119,27 +133,22 @@ async function provisionar(nome, folderId) {
     },
   });
 
-  // ── 3. Formatação visual + validações (batchUpdate de requests) ─────────────
+  // ── 4. Formatação visual + validações ──────────────────────────────────────
   const requests = [];
 
   for (const [nomeAba, cfg] of Object.entries(ABAS)) {
     const sheet = sheetMeta.find(s => s.properties.title === nomeAba);
     if (!sheet) continue;
-    const sid = sheet.properties.sheetId;
+    const sid   = sheet.properties.sheetId;
     const nCols = cfg.headers.length;
 
-    // 3a. Congelar linha 1
     requests.push({
       updateSheetProperties: {
-        properties: {
-          sheetId: sid,
-          gridProperties: { frozenRowCount: 1 },
-        },
+        properties: { sheetId: sid, gridProperties: { frozenRowCount: 1 } },
         fields: 'gridProperties.frozenRowCount',
       },
     });
 
-    // 3b. Fundo navy + texto branco + negrito no cabeçalho (linha 1)
     requests.push({
       repeatCell: {
         range: { sheetId: sid, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: nCols },
@@ -155,7 +164,6 @@ async function provisionar(nome, folderId) {
       },
     });
 
-    // 3c. Cor alternada nas linhas de dados (linhas 2–200)
     requests.push({
       addBanding: {
         bandedRange: {
@@ -163,14 +171,13 @@ async function provisionar(nome, folderId) {
           range: { sheetId: sid, startRowIndex: 1, endRowIndex: 200, startColumnIndex: 0, endColumnIndex: nCols },
           rowProperties: {
             headerColor: COR_HEADER,
-            firstBandColor: { red: 1, green: 1, blue: 1 },
+            firstBandColor:  { red: 1, green: 1, blue: 1 },
             secondBandColor: COR_ALT,
           },
         },
       },
     });
 
-    // 3d. Largura das colunas
     cfg.colWidths.forEach((px, i) => {
       requests.push({
         updateDimensionProperties: {
@@ -181,7 +188,6 @@ async function provisionar(nome, folderId) {
       });
     });
 
-    // 3e. Validações dropdown
     for (const val of cfg.validacoes) {
       requests.push({
         setDataValidation: {
@@ -208,27 +214,41 @@ async function provisionar(nome, folderId) {
     requestBody: { requests },
   });
 
-  // ── 4. Mover para a pasta da Flávia no Drive ────────────────────────────────
-  if (folderId) {
-    const fileMeta = await drive.files.get({ fileId, fields: 'parents' });
-    const parentsAtuais = (fileMeta.data.parents || []).join(',');
-    await drive.files.update({
-      fileId,
-      addParents:    folderId,
-      removeParents: parentsAtuais,
-      fields:        'id, parents',
-    });
+  // ── 5. Compartilha a planilha com a Service Account do projeto ──────────────
+  // A SA usa o arquivo para ler/escrever via sheets.js (SheetsClient).
+  // O arquivo fica na conta da Flávia (quota dela), mas a SA tem permissão
+  // de editor — sem transferência de propriedade.
+  const saEmail = getSaEmail();
+  if (saEmail) {
+    try {
+      await drive.permissions.create({
+        fileId,
+        requestBody: {
+          role: 'writer',
+          type: 'user',
+          emailAddress: saEmail,
+        },
+        sendNotificationEmail: false,
+        fields: 'id',
+      });
+    } catch (err) {
+      // Não bloqueia a criação da mentorada se o compartilhamento falhar
+      console.warn('Aviso: não foi possível compartilhar com SA:', err.message);
+    }
   }
 
-  // ── 5. Compartilhar com a Flávia como editora ───────────────────────────────
-  const flaviaEmail = process.env.FLAVIA_EMAIL || 'flaviasch@gmail.com';
-  await drive.permissions.create({
-    fileId,
-    requestBody: { role: 'writer', type: 'user', emailAddress: flaviaEmail },
-    sendNotificationEmail: false,
-  });
-
   return fileId;
+}
+
+/** Extrai o client_email do GOOGLE_SERVICE_ACCOUNT_JSON injetado como secret. */
+function getSaEmail() {
+  try {
+    const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    if (!raw) return null;
+    return JSON.parse(raw).client_email || null;
+  } catch {
+    return null;
+  }
 }
 
 module.exports = { provisionar };

@@ -4,22 +4,18 @@ const { google } = require('googleapis');
 const { HttpsError } = require('firebase-functions/v2/https');
 
 /**
- * Cria o cliente OAuth2 autenticado com as credenciais da Flávia.
- * As planilhas são criadas na conta dela (via provisionar.js) e ficam
- * sob controle dela — a SA não precisa de acesso separado.
+ * Cria o cliente autenticado com a conta de serviço.
+ * A SA tem acesso às planilhas porque provisionar.js compartilha
+ * cada nova planilha com ela no momento da criação.
  */
 function buildAuth() {
-  const clientId     = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Credenciais OAuth não configuradas (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN).');
-  }
-
-  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
-  oauth2Client.setCredentials({ refresh_token: refreshToken });
-  return oauth2Client;
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurada.');
+  const credentials = JSON.parse(raw);
+  return new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
 }
 
 /**
@@ -33,7 +29,8 @@ class SheetsClient {
   }
 
   async _api() {
-    return google.sheets({ version: 'v4', auth: this._auth });
+    const client = await this._auth.getClient();
+    return google.sheets({ version: 'v4', auth: client });
   }
 
   // ─── Primitivas ────────────────────────────────────────────────────────────

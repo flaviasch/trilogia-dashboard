@@ -11,10 +11,11 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // Secrets declaradas explicitamente para que o runtime v2 as injete via env.
-// Todas as funções usam as mesmas credenciais OAuth da Flávia para ler/escrever
-// nas planilhas — as sheets são criadas na conta dela via provisionar.js.
-const SECRETS_SHEETS = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN'];
-const SECRETS_ALL    = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN', 'DRIVE_FOLDER_ID'];
+// GOOGLE_SERVICE_ACCOUNT_JSON: lê/escreve nas planilhas (SA compartilhada em provisionar)
+// SECRETS_ALL: cria planilha via OAuth da Flávia + SA JSON p/ gravar o email de sharing
+const SECRETS_SHEETS = ['GOOGLE_SERVICE_ACCOUNT_JSON'];
+const SECRETS_ALL    = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN',
+                        'DRIVE_FOLDER_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON'];
 
 // ID da pasta no Google Drive da Flávia onde ficam as planilhas das mentoradas.
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || '';
