@@ -639,13 +639,20 @@
       const r = reservas.find(x => x.id === id);
       if (!r) return;
       if (!confirm(`Excluir a reserva "${r.nome}"?`)) return;
+
+      // Remove localmente de imediato para feedback rápido
       reservas = reservas.filter(x => x.id !== id);
+      renderAll();
+
       try {
         await deleteReserva(id);
       } catch (err) {
         console.error('Erro ao excluir reserva:', err);
+        alert('Erro ao excluir a reserva. Recarregue a página e tente novamente.');
+        // Recarrega do servidor para restaurar estado correto
+        reservas = await getReservas().catch(() => reservas);
+        renderAll();
       }
-      renderAll();
     }
   </script>
 

@@ -384,6 +384,11 @@
     <span>Carregando seus dados...</span>
   </div>
 
+  <!-- Banner de erro (oculto por default) -->
+  <div id="erroBanner" style="display:none; background:rgba(248,113,113,0.12); border-bottom:1px solid rgba(248,113,113,0.3); padding:12px 32px; font-size:13px; color:#f87171;">
+    Não foi possível carregar seus dados. Verifique sua conexão e <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">tente novamente</a>.
+  </div>
+
   <!-- Conteúdo principal (oculto até carregar) -->
   <main class="main" id="mainContent" style="display:none">
 
@@ -564,12 +569,19 @@
       ]
     };
 
+    // Recarrega a página quando o usuário voltar via botão "Voltar" do browser
+    // para garantir que dados recém-salvos (reservas, perfil) apareçam atualizados.
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted) location.reload();
+    });
+
     async function loadDashboard(user) {
       let data;
       try {
         data = await getDashboard();
       } catch (err) {
         console.error('Erro ao carregar dashboard:', err);
+        document.getElementById('erroBanner').style.display = 'block';
         return;
       }
 
@@ -580,7 +592,16 @@
       const hora = new Date().getHours();
       const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
       document.getElementById('greetingText').textContent = `${saudacao}, ${user.displayName || user.email}.`;
-      document.getElementById('mentoraSince').textContent = '';
+
+      // Mentorada desde
+      if (data.inicio) {
+        const [iAno, iMes] = data.inicio.split('-').map(Number);
+        document.getElementById('mentoraSince').textContent =
+          `${NOMES_MESES[iMes - 1]} de ${iAno}`;
+      } else {
+        document.getElementById('mentoraSince').textContent = '—';
+      }
+
       const perfilStr = data.perfil?.perfil;
       document.getElementById('perfilBadge').textContent = perfilStr
         ? perfilStr.charAt(0).toUpperCase() + perfilStr.slice(1) : '—';

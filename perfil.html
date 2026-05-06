@@ -550,16 +550,24 @@
       const hoje = new Date().toISOString().split('T')[0];
       perfilAtual = { perfil, dataAtualizacao: hoje };
 
+      const btn = document.getElementById('btnConfirmar');
+      btn.disabled = true;
+      btn.textContent = 'Salvando…';
+
       try {
         await savePerfil(perfil);
+        // Redireciona para o dashboard para refletir o perfil atualizado
+        window.location.href = 'index.html';
       } catch (err) {
         alert(`Erro ao salvar perfil: ${err.message || err}`);
-      }
+        btn.disabled = false;
+        btn.textContent = 'Confirmar e salvar';
 
-      document.getElementById('resultado').classList.remove('ativo');
-      document.getElementById('validadeBanner').style.display = '';
-      renderPerfilAtual();
-      document.getElementById('perfilAtual').style.display = 'block';
+        document.getElementById('resultado').classList.remove('ativo');
+        document.getElementById('validadeBanner').style.display = '';
+        renderPerfilAtual();
+        document.getElementById('perfilAtual').style.display = 'block';
+      }
     });
 
     document.getElementById('btnRefazer').addEventListener('click', iniciarQuiz);

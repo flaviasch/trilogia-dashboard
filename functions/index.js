@@ -36,7 +36,16 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
 
-  const sheetId = await getSheetId(db, uid);
+  // Lê o doc Firestore para obter sheetId e o campo 'inicio'
+  const docSnap = await db.collection('mentoradas').doc(uid).get();
+  if (!docSnap.exists) {
+    throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
+  }
+  const { sheetId, inicio } = docSnap.data();
+  if (!sheetId) {
+    throw new HttpsError('failed-precondition', 'Planilha ainda não configurada para esta mentorada.');
+  }
+
   const sheets  = new SheetsClient(sheetId);
 
   const agora = new Date();
@@ -65,6 +74,7 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     patrimonio: { ativos: totalAtivos, dividas: totalDividas, pl: totalAtivos - totalDividas },
     reservas,
     perfil,
+    inicio: inicio || null,   // AAAA-MM (ex: "2025-03")
   };
 });
 
