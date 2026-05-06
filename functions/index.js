@@ -10,8 +10,13 @@ const { provisionar }  = require('./lib/provisionar');
 admin.initializeApp();
 const db = admin.firestore();
 
+// Secrets declaradas explicitamente para que o runtime v2 as injete via env.
+// Todas as funções usam as mesmas credenciais OAuth da Flávia para ler/escrever
+// nas planilhas — as sheets são criadas na conta dela via provisionar.js.
+const SECRETS_SHEETS = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN'];
+const SECRETS_ALL    = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN', 'DRIVE_FOLDER_ID'];
+
 // ID da pasta no Google Drive da Flávia onde ficam as planilhas das mentoradas.
-// Configure via: firebase functions:secrets:set DRIVE_FOLDER_ID
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || '';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -26,7 +31,7 @@ function hoje() {
  * Retorna todos os dados necessários para a tela principal de uma mentorada:
  * orçamento do mês atual, patrimônio, reservas e perfil.
  */
-exports.getDashboard = onCall(async (request) => {
+exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
@@ -65,7 +70,7 @@ exports.getDashboard = onCall(async (request) => {
 
 // ─── ORÇAMENTO (orcamento.html) ───────────────────────────────────────────────
 
-exports.getOrcamento = onCall(async (request) => {
+exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid, mes, ano } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -79,7 +84,7 @@ exports.getOrcamento = onCall(async (request) => {
  * Salva itens de orçamento importados do CSV do Raio-X.
  * Espera: { uid, mes, ano, itens: [{ categoria, tipo, valor }] }
  */
-exports.saveOrcamento = onCall(async (request) => {
+exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid, mes, ano, itens } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -94,7 +99,7 @@ exports.saveOrcamento = onCall(async (request) => {
 
 // ─── PATRIMÔNIO (patrimonio.html) ─────────────────────────────────────────────
 
-exports.getPatrimonio = onCall(async (request) => {
+exports.getPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -111,7 +116,7 @@ exports.getPatrimonio = onCall(async (request) => {
   return { ativos, dividas };
 });
 
-exports.savePatrimonio = onCall(async (request) => {
+exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid, itens, tipo } = request.data; // tipo: 'ir' | 'corretora'
   requireSelfOrAdmin(request, uid);
@@ -131,7 +136,7 @@ exports.savePatrimonio = onCall(async (request) => {
 
 // ─── DÍVIDAS ──────────────────────────────────────────────────────────────────
 
-exports.saveDivida = onCall(async (request) => {
+exports.saveDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid, divida } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -145,7 +150,7 @@ exports.saveDivida = onCall(async (request) => {
   return { ok: true };
 });
 
-exports.deleteDivida = onCall(async (request) => {
+exports.deleteDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid, dividaId } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -157,7 +162,7 @@ exports.deleteDivida = onCall(async (request) => {
 
 // ─── RESERVAS (reservas.html) ─────────────────────────────────────────────────
 
-exports.getReservas = onCall(async (request) => {
+exports.getReservas = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -166,7 +171,7 @@ exports.getReservas = onCall(async (request) => {
   return new SheetsClient(sheetId).getReservas();
 });
 
-exports.saveReserva = onCall(async (request) => {
+exports.saveReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid, reserva } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -180,7 +185,7 @@ exports.saveReserva = onCall(async (request) => {
   return { ok: true };
 });
 
-exports.deleteReserva = onCall(async (request) => {
+exports.deleteReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid, reservaId } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -192,7 +197,7 @@ exports.deleteReserva = onCall(async (request) => {
 
 // ─── PERFIL DE INVESTIDOR (perfil.html) ───────────────────────────────────────
 
-exports.getPerfil = onCall(async (request) => {
+exports.getPerfil = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -201,7 +206,7 @@ exports.getPerfil = onCall(async (request) => {
   return new SheetsClient(sheetId).getPerfil();
 });
 
-exports.savePerfil = onCall(async (request) => {
+exports.savePerfil = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid, perfil } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -230,7 +235,7 @@ exports.getMentoradas = onCall(async (request) => {
  * Cria conta Firebase Auth + documento Firestore + planilha Sheets para nova mentorada.
  * Exclusivo para admin.
  */
-exports.createMentorada = onCall(async (request) => {
+exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
   requireAdmin(request);
 
   const { nome, email, inicio, perfil } = request.data;
@@ -267,9 +272,16 @@ exports.createMentorada = onCall(async (request) => {
     criadoEm: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // 4. Enviar e-mail de redefinição de senha para a mentorada definir a própria senha
-  await admin.auth().generatePasswordResetLink(email);
-  // TODO: enviar o link via e-mail transacional (SendGrid / nodemailer)
+  // 4. Enviar e-mail de redefinição de senha via Firebase Auth REST API
+  const FIREBASE_API_KEY = 'AIzaSyCbgekmh90OPhr7DZJsVS-GXAYMOqtZ3Ds';
+  await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_API_KEY}`,
+    {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ requestType: 'PASSWORD_RESET', email }),
+    }
+  );
 
   return { uid: userRecord.uid, sheetId };
 });

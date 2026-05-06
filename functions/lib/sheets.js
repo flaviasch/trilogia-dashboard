@@ -4,15 +4,22 @@ const { google } = require('googleapis');
 const { HttpsError } = require('firebase-functions/v2/https');
 
 /**
- * Cria o cliente autenticado com a conta de serviço.
- * A variável de ambiente GOOGLE_SERVICE_ACCOUNT_JSON deve conter o JSON
- * da service account com acesso ao Google Sheets e Drive da Flávia.
+ * Cria o cliente OAuth2 autenticado com as credenciais da Flávia.
+ * As planilhas são criadas na conta dela (via provisionar.js) e ficam
+ * sob controle dela — a SA não precisa de acesso separado.
  */
-function buildAuth(scopes) {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurada.');
-  const credentials = JSON.parse(raw);
-  return new google.auth.GoogleAuth({ credentials, scopes });
+function buildAuth() {
+  const clientId     = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error('Credenciais OAuth não configuradas (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN).');
+  }
+
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
+  return oauth2Client;
 }
 
 /**
@@ -22,12 +29,11 @@ function buildAuth(scopes) {
 class SheetsClient {
   constructor(sheetId) {
     this.sheetId = sheetId;
-    this._auth = buildAuth(['https://www.googleapis.com/auth/spreadsheets']);
+    this._auth = buildAuth();
   }
 
   async _api() {
-    const client = await this._auth.getClient();
-    return google.sheets({ version: 'v4', auth: client });
+    return google.sheets({ version: 'v4', auth: this._auth });
   }
 
   // ─── Primitivas ────────────────────────────────────────────────────────────

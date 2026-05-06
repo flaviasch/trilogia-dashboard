@@ -378,7 +378,7 @@
     });
 
     // ─── Helpers ────────────────────────────
-    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
     const pct = (v, t) => t > 0 ? Math.min((v / t) * 100, 100) : 0;
 
     function mesesAte(dataStr) {

@@ -375,7 +375,7 @@
     });
 
     // ─── Helpers ────────────────────────────
-    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
     const pct = (v, t) => t > 0 ? `${((v / t) * 100).toFixed(1)}%` : '0%';
 
     // ─── Classes de ativos ───────────────────

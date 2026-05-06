@@ -398,7 +398,7 @@
         <div class="meta-dot"></div>
         <div class="meta-item">
           <span class="label">Perfil de investidor</span>
-          <span class="badge-perfil" id="perfilBadge">—</span>
+          <a href="perfil.html" class="badge-perfil" id="perfilBadge" style="text-decoration:none;">—</a>
         </div>
       </div>
     </div>
@@ -496,7 +496,7 @@
     }
 
     // ─── Format helpers ───────────────────────────
-    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
     const pct = (v) => `${Math.round(v)}%`;
 
     function prazoLabel(meses) {

@@ -511,7 +511,7 @@
     });
 
     // ─── Helpers ─────────────────────────────
-    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
     const pct = (v, total) => total > 0 ? `${((v / total) * 100).toFixed(1)}%` : '0%';
 
     // ─── Mock data ────────────────────────────
