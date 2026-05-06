@@ -360,7 +360,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getReservas, saveReserva, deleteReserva } from './js/api.js';
+    import { getReservas, saveReserva, deleteReserva, getPerfil } from './js/api.js';
     import {
       onAuthStateChanged,
       signOut
@@ -397,16 +397,47 @@
       return 'Muito longo prazo (> 10 anos)';
     }
 
+    // ─── Alocação por perfil de investidor ──────
+    // (mesma tabela da página perfil.html)
+    const ALOCACAO_PERFIL = {
+      conservador: [
+        { label: 'RF Pós',      pct: 70, cor: '#60a5fa' },
+        { label: 'RF Inflação', pct: 25, cor: '#34d399' },
+        { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
+      ],
+      moderado: [
+        { label: 'RF Pós',          pct: 40, cor: '#60a5fa' },
+        { label: 'RF Inflação',     pct: 20, cor: '#34d399' },
+        { label: 'Multimercado',    pct: 20, cor: '#fb7185' },
+        { label: 'Renda Variável',  pct: 15, cor: '#f59e0b' },
+        { label: 'Internacional',   pct:  5, cor: '#22d3ee' },
+      ],
+      arrojado: [
+        { label: 'RF Pós',          pct: 15, cor: '#60a5fa' },
+        { label: 'RF Inflação',     pct: 10, cor: '#34d399' },
+        { label: 'Multimercado',    pct: 15, cor: '#fb7185' },
+        { label: 'Renda Variável',  pct: 40, cor: '#f59e0b' },
+        { label: 'Internacional',   pct: 15, cor: '#22d3ee' },
+        { label: 'Alternativos',    pct:  5, cor: '#c084fc' },
+      ],
+    };
+
+    let perfilInvestidor = null; // preenchido no init()
+
     function alocacao(meses) {
       if (meses === null) return [];
       if (meses <= 12)  return [{ label: 'RF Pós liquidez diária', pct: 100, cor: '#60a5fa' }];
       if (meses <= 48)  return [
-        { label: 'RF Pós', pct: 70, cor: '#60a5fa' },
+        { label: 'RF Pós',      pct: 70, cor: '#60a5fa' },
         { label: 'RF Inflação', pct: 25, cor: '#34d399' },
-        { label: 'RF Pré', pct: 5, cor: '#a78bfa' },
+        { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
       ];
       if (meses <= 120) return [{ label: 'Conforme orientação da mentora', pct: 100, cor: '#CFAE65' }];
-      return [{ label: 'Conforme perfil de investidor', pct: 100, cor: '#c084fc' }];
+      // Muito longo prazo: usa alocação real do perfil de investidor
+      if (perfilInvestidor && ALOCACAO_PERFIL[perfilInvestidor]) {
+        return ALOCACAO_PERFIL[perfilInvestidor];
+      }
+      return [{ label: 'Defina seu perfil de investidor', pct: 100, cor: '#c084fc' }];
     }
 
     function alocacaoTexto(meses) {
@@ -428,11 +459,14 @@
     let editandoId = null;
 
     async function init(user) {
-      try {
-        reservas = await getReservas();
-      } catch (err) {
-        console.error('Erro ao carregar reservas:', err);
-      }
+      // Carrega reservas e perfil em paralelo; não deixa um erro bloquear o outro
+      const [resResult, perfilResult] = await Promise.allSettled([
+        getReservas(),
+        getPerfil(),
+      ]);
+      if (resResult.status === 'fulfilled')   reservas         = resResult.value;
+      if (perfilResult.status === 'fulfilled') perfilInvestidor = perfilResult.value?.perfil || null;
+
       renderAll();
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';

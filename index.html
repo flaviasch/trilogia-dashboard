@@ -495,7 +495,15 @@
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
       const admin = await isAdmin();
       if (admin) document.getElementById('linkAdmin').style.display = 'inline';
-      await loadDashboard(user);
+
+      const ok = await loadDashboard(user);
+
+      // Admin sem documento de mentorada → redireciona para painel admin
+      if (!ok && admin) {
+        window.location.href = 'admin.html';
+        return;
+      }
+
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
     }
@@ -582,7 +590,7 @@
       } catch (err) {
         console.error('Erro ao carregar dashboard:', err);
         document.getElementById('erroBanner').style.display = 'block';
-        return;
+        return false;   // sinaliza falha para o init()
       }
 
       const NOMES_MESES = ['janeiro','fevereiro','março','abril','maio','junho',
@@ -641,6 +649,7 @@
         return { ...r, mesesRestantes, dataMeta };
       });
       renderReservas(reservasFormatadas);
+      return true;   // sucesso
     }
 
     function renderReservas(reservas) {
