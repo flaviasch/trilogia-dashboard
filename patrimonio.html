@@ -200,27 +200,23 @@
     .balanco-valor { font-size: 12px; font-weight: 600; white-space: nowrap; }
     .balanco-pct { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
 
-    /* ─── Gráfico histórico PL ─────────────── */
-    .historico-card {
+    /* ─── Gráfico de barras do patrimônio ───── */
+    .barras-card {
       background: var(--navy); border: 1px solid var(--border);
       border-radius: 14px; padding: 24px; margin-bottom: 32px;
     }
-    .historico-header {
+    .barras-header {
       display: flex; align-items: baseline; justify-content: space-between;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
     }
-    .historico-header h2 { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; }
-    .historico-header span { font-size: 12px; color: var(--text-muted); }
-    .historico-svg-wrap { width: 100%; overflow: hidden; position: relative; }
-    .historico-svg-wrap svg { display: block; width: 100%; }
-    .historico-tooltip {
-      position: absolute; background: var(--navy-dark); border: 1px solid var(--border-gold);
-      border-radius: 8px; padding: 8px 12px; font-size: 12px; pointer-events: none;
-      white-space: nowrap; transform: translate(-50%, -110%); transition: opacity 0.15s;
-      z-index: 10; color: var(--white);
-    }
-    .historico-tooltip.oculto { opacity: 0; }
-    .historico-vazio { font-size: 13px; color: var(--text-muted); text-align: center; padding: 32px 0; }
+    .barras-header h2 { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; }
+    .barras-header span { font-size: 12px; color: var(--text-muted); }
+    .barras-chart { display: flex; gap: 20px; height: 220px; align-items: stretch; }
+    .barra-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .barra-spacer { flex: 1; }
+    .barra-valor { font-size: 13px; font-weight: 600; white-space: nowrap; text-align: center; line-height: 1.3; }
+    .barra-fill { width: 72%; border-radius: 6px 6px 0 0; min-height: 4px; transition: height 0.6s ease; }
+    .barra-label { font-size: 11px; color: var(--text-muted); text-align: center; line-height: 1.4; }
 
     /* ─── Link agente ───────────────────────── */
     .link-agente { color: var(--gold); text-decoration: none; font-size: 11px; opacity: 0.8; transition: opacity 0.2s; }
@@ -604,7 +600,6 @@
       const novoPonto = { data: mesAtual, ativos: ta, dividas: td, pl: ta - td };
       if (idx === -1) historico = [...historico, novoPonto].sort((a, b) => a.data.localeCompare(b.data));
       else            { historico = [...historico]; historico[idx] = novoPonto; }
-      renderHistorico(historico);
 
       // Persiste na planilha (erros visíveis no console para debug)
       try {
@@ -689,14 +684,10 @@
         btn.addEventListener('click', () => deletarAtivo(btn.dataset.delAtivo)));
 
       // Balanço patrimonial
-      try { renderBalanco(ativos, divs, totalAtivos, totalDividas, pl); }
-      catch(e) { console.error('[renderBalanco]', e); }
+      renderBalanco(ativos, divs, totalAtivos, totalDividas, pl);
 
-      // Evolução do PL
-      try { renderHistorico(historico); }
-      catch(e) { console.error('[renderHistorico]', e); }
-
-      console.log('[render] balanco:', document.getElementById('balancoBox')?.innerHTML?.length, 'historico:', document.getElementById('historicoBox')?.innerHTML?.length, 'totalAtivos:', totalAtivos);
+      // Gráfico de barras do patrimônio
+      renderBarrasPatrimonio(totalAtivos, totalDividas, pl);
 
       // Dívidas
       renderDividas(divs, totalDividas);
@@ -774,175 +765,65 @@
         </div>`;
     }
 
-    function renderHistorico(pontos) {
+    function renderBarrasPatrimonio(totalAtivos, totalDividas, pl) {
       const box = document.getElementById('historicoBox');
-      if (!pontos || pontos.length === 0) {
-        box.innerHTML = '';
-        return;
-      }
+      if (!totalAtivos && !totalDividas) { box.innerHTML = ''; return; }
 
-      // Com apenas 1 ponto duplica para ter pelo menos 2 e mostrar barra/linha
-      const dados = pontos.length === 1
-        ? [pontos[0], pontos[0]]
-        : [...pontos].sort((a, b) => a.data.localeCompare(b.data));
-      const unico = pontos.length === 1;
-      const n     = dados.length;
+      const ref     = totalAtivos || 1;
+      const maxBarH = 160; // px — altura máxima (barra de ativos)
+      const ativosH = maxBarH;
+      const plH     = Math.max(4, (Math.max(0, pl) / ref) * maxBarH);
+      const divH    = Math.max(totalDividas > 0 ? 4 : 0, (totalDividas / ref) * maxBarH);
 
-      // Dimensões lógicas (viewBox)
-      const VW  = 880, VH = 220;
-      const PAD = { top: 16, right: 20, bottom: 40, left: 72 };
-      const CW  = VW - PAD.left - PAD.right;
-      const CH  = VH - PAD.top  - PAD.bottom;
+      const fmtVal = v => v >= 1e6
+        ? `R$ ${(v/1e6).toFixed(2).replace('.',',')}M`
+        : v >= 1e3
+        ? `R$ ${(v/1e3).toFixed(0)}k`
+        : brl(v);
 
-      const pls    = dados.map(d => d.pl);
-      const ativos = dados.map(d => d.ativos);
-
-      const rawMax = Math.max(...pls, ...ativos, 0);
-      const rawMin = Math.min(...pls, 0);
-
-      // Arredonda escala para valores "redondos"
-      function niceMax(v) {
-        if (v === 0) return 100000;
-        const mag = Math.pow(10, Math.floor(Math.log10(v)));
-        return Math.ceil(v / mag) * mag;
-      }
-      const yMax  = niceMax(rawMax);
-      const yMin  = rawMin < 0 ? -niceMax(Math.abs(rawMin)) : 0;
-      const yRange = yMax - yMin || 1;
-
-      const xPos = i => PAD.left + (n > 1 ? (i / (n - 1)) * CW : CW / 2);
-      const yPos = v => PAD.top + CH - ((v - yMin) / yRange) * CH;
-
-      // Linhas de grade horizontais
-      const yTicks = 4;
-      let gridLines = '';
-      let yLabels   = '';
-      for (let t = 0; t <= yTicks; t++) {
-        const v  = yMin + (yRange / yTicks) * t;
-        const y  = yPos(v);
-        const lbl = v >= 1e6 ? `${(v/1e6).toFixed(1)}M`
-                  : v >= 1e3 ? `${(v/1e3).toFixed(0)}k`
-                  : v < 0    ? `-${Math.abs(v) >= 1e3 ? (Math.abs(v)/1e3).toFixed(0)+'k' : Math.abs(v)}`
-                  : '0';
-        gridLines += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + CW}" y2="${y}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`;
-        yLabels   += `<text x="${PAD.left - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="rgba(255,255,255,0.35)">${lbl}</text>`;
-      }
-
-      // Linha do zero (se PL pode ser negativo)
-      const zeroY = yPos(0);
-      const zeroLine = yMin < 0
-        ? `<line x1="${PAD.left}" y1="${zeroY}" x2="${PAD.left + CW}" y2="${zeroY}" stroke="rgba(255,255,255,0.18)" stroke-width="1" stroke-dasharray="4,3"/>`
-        : '';
-
-      // Rótulos do eixo X
-      let xLabels = '';
-      if (!unico) {
-        const maxLabels = Math.min(n, 12);
-        const step = Math.ceil(n / maxLabels);
-        dados.forEach((d, i) => {
-          if (i % step !== 0 && i !== n - 1) return;
-          const [ano, mes] = d.data.split('-');
-          const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-          const lbl = `${meses[parseInt(mes) - 1]}/${ano.slice(2)}`;
-          xLabels += `<text x="${xPos(i)}" y="${VH - PAD.bottom + 16}" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.35)">${lbl}</text>`;
-        });
-      } else {
-        // Único ponto: mostra o mês centralizado
-        const [ano, mes] = dados[0].data.split('-');
-        const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-        xLabels = `<text x="${PAD.left + CW / 2}" y="${VH - PAD.bottom + 16}" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.35)">${meses[parseInt(mes)-1]}/${ano.slice(2)}</text>`;
-      }
-
-      // Path PL (gold)
-      const plPts = dados.map((d, i) => `${i === 0 ? 'M' : 'L'}${xPos(i)},${yPos(d.pl)}`).join(' ');
-
-      // Área PL
-      const areaPath = `${plPts} L${xPos(n-1)},${yPos(yMin < 0 ? 0 : yMin)} L${xPos(0)},${yPos(yMin < 0 ? 0 : yMin)} Z`;
-
-      // Path Ativos (verde, sutil)
-      const ativPts = dados.map((d, i) => `${i === 0 ? 'M' : 'L'}${xPos(i)},${yPos(d.ativos)}`).join(' ');
-
-      // Pontos interativos (PL) — no caso único, dot central; caso múltiplo, todos
-      let dots = '';
-      if (unico) {
-        const cx = PAD.left + CW / 2;
-        const cy = yPos(dados[0].pl);
-        dots = `<circle cx="${cx}" cy="${cy}" r="6" fill="var(--gold)" stroke="var(--navy)" stroke-width="2" class="hl-dot" data-idx="0"/>`;
-      } else {
-        dados.forEach((d, i) => {
-          dots += `<circle cx="${xPos(i)}" cy="${yPos(d.pl)}" r="4" fill="var(--gold)" stroke="var(--navy)" stroke-width="2" class="hl-dot" data-idx="${i}"/>`;
-        });
-      }
-
-      // Rótulo do último valor
-      const ultimo = dados[n - 1];
-      const lblPL = ultimo.pl >= 1e6 ? `R$${(ultimo.pl/1e6).toFixed(2)}M`
-                  : ultimo.pl >= 1e3 ? `R$${(ultimo.pl/1e3).toFixed(0)}k`
-                  : brl(ultimo.pl);
+      const plCor  = pl >= 0 ? 'var(--positive)' : 'var(--negative)';
+      const plGrad = pl >= 0
+        ? 'linear-gradient(to top, rgba(74,222,128,0.85), rgba(74,222,128,0.35))'
+        : 'linear-gradient(to top, rgba(248,113,113,0.85), rgba(248,113,113,0.35))';
 
       box.innerHTML = `
-        <div class="historico-card">
-          <div class="historico-header">
-            <h2>Evolução do Patrimônio Líquido</h2>
-            <span>${unico ? '1º registro — acompanhe mês a mês' : `Últimos ${pontos.length} meses`}</span>
+        <div class="barras-card">
+          <div class="barras-header">
+            <h2>Patrimônio em perspectiva</h2>
+            <span>Ativos · Patrimônio Líquido · Dívidas</span>
           </div>
-          <div class="historico-svg-wrap" id="historicoWrap">
-            <svg viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="none" id="historicoSvg">
-              <defs>
-                <linearGradient id="gradPL" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stop-color="#CFAE65" stop-opacity="0.22"/>
-                  <stop offset="100%" stop-color="#CFAE65" stop-opacity="0.01"/>
-                </linearGradient>
-              </defs>
-              ${gridLines}
-              ${zeroLine}
-              ${yLabels}
-              ${xLabels}
-              <!-- Ativos (verde sutil) -->
-              <path d="${ativPts}" fill="none" stroke="var(--positive)" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.35"/>
-              <!-- Área PL -->
-              <path d="${areaPath}" fill="url(#gradPL)"/>
-              <!-- Linha PL -->
-              <path d="${plPts}" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              ${dots}
-              <!-- Rótulo do valor -->
-              <text x="${unico ? PAD.left + CW / 2 : xPos(n-1) - 4}" y="${yPos(ultimo.pl) - 14}" text-anchor="${unico ? 'middle' : 'end'}" font-size="11" fill="var(--gold)" font-weight="600">${lblPL}</text>
-            </svg>
-            <div class="historico-tooltip oculto" id="historicoTooltip"></div>
+          <div class="barras-chart">
+
+            <div class="barra-col">
+              <div class="barra-spacer"></div>
+              <div class="barra-valor" style="color:var(--gold)">${fmtVal(totalAtivos)}</div>
+              <div class="barra-fill" style="height:${ativosH}px; background:linear-gradient(to top,rgba(207,174,101,0.9),rgba(207,174,101,0.4))"></div>
+              <div class="barra-label">Ativos totais</div>
+            </div>
+
+            <div class="barra-col">
+              <div class="barra-spacer"></div>
+              <div class="barra-valor" style="color:${plCor}">${fmtVal(pl)}</div>
+              <div class="barra-fill" style="height:${plH}px; background:${plGrad}"></div>
+              <div class="barra-label">Patrimônio Líquido</div>
+            </div>
+
+            <div class="barra-col">
+              <div class="barra-spacer"></div>
+              <div class="barra-valor" style="color:var(--negative)">${fmtVal(totalDividas)}</div>
+              <div class="barra-fill" style="height:${divH}px; background:linear-gradient(to top,rgba(248,113,113,0.85),rgba(248,113,113,0.35))"></div>
+              <div class="barra-label">Dívidas totais</div>
+            </div>
+
           </div>
         </div>`;
+    }
 
-      // Tooltip interativo
-      const svgEl     = document.getElementById('historicoSvg');
-      const tooltipEl = document.getElementById('historicoTooltip');
-      const wrap      = document.getElementById('historicoWrap');
+    // ── função renderHistorico removida (substituída por renderBarrasPatrimonio) ──
+    // Snapshot mantido para histórico futuro
+    function _renderHistoricoLegado(pontos) {
+      // reservado
 
-      svgEl.querySelectorAll('.hl-dot').forEach(dot => {
-        dot.addEventListener('mouseenter', (e) => {
-          const i   = parseInt(dot.dataset.idx);
-          const d   = dados[i];
-          const [ano, mes] = d.data.split('-');
-          const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-                         'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-          tooltipEl.innerHTML = `
-            <div style="font-weight:600;margin-bottom:4px">${meses[parseInt(mes)-1]} ${ano}</div>
-            <div style="color:var(--gold)">PL ${brl(d.pl)}</div>
-            <div style="color:var(--positive);opacity:.7;font-size:11px">Ativos ${brl(d.ativos)}</div>
-            ${d.dividas > 0 ? `<div style="color:var(--negative);opacity:.7;font-size:11px">Dívidas ${brl(d.dividas)}</div>` : ''}`;
-
-          // Posição relativa ao wrap
-          const rect   = wrap.getBoundingClientRect();
-          const dotRect = dot.getBoundingClientRect();
-          tooltipEl.style.left = `${dotRect.left - rect.left + dotRect.width / 2}px`;
-          tooltipEl.style.top  = `${dotRect.top  - rect.top}px`;
-          tooltipEl.classList.remove('oculto');
-          dot.setAttribute('r', '6');
-        });
-        dot.addEventListener('mouseleave', () => {
-          tooltipEl.classList.add('oculto');
-          dot.setAttribute('r', unico ? '6' : '4');
-        });
-      });
     }
 
     function renderDividas(divs, totalDividas) {
