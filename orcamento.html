@@ -892,7 +892,11 @@
 
       if (resResult.status === 'fulfilled') reservas = resResult.value || [];
 
-      render(currentData);
+      try {
+        render(currentData);
+      } catch (err) {
+        console.error('Erro ao renderizar orçamento:', err);
+      }
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
     }
