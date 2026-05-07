@@ -381,11 +381,17 @@ export function parsearCsvPatrimonio(csvText) {
             : ',';
 
   const cabecalho = primeiraLinha.split(sep).map(c => c.trim().toLowerCase());
-  const idxClasse = cabecalho.indexOf('classe');
-  const idxValor  = cabecalho.indexOf('valor');
+
+  // Aceita variações de nome de coluna geradas por diferentes agentes
+  const ALIAS_COL_CLASSE = ['classe', 'class', 'tipo', 'tipo_ativo', 'ativo', 'categoria', 'category', 'asset', 'asset_class'];
+  const ALIAS_COL_VALOR  = ['valor', 'value', 'montante', 'total', 'saldo', 'amount', 'preco', 'preço', 'price'];
+
+  const idxClasse = ALIAS_COL_CLASSE.map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
+  const idxValor  = ALIAS_COL_VALOR .map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
 
   if (idxClasse === -1 || idxValor === -1) {
-    throw new Error('CSV inválido: colunas esperadas são "classe" e "valor".');
+    const colsEncontradas = cabecalho.join(', ');
+    throw new Error(`CSV inválido: não encontrei colunas de classe e valor. Colunas no arquivo: ${colsEncontradas || '(nenhuma)'}.`);
   }
 
   // Aceita qualquer nome de classe; agrega por nome original (case-insensitive,
