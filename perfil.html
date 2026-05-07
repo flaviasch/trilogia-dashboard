@@ -294,34 +294,36 @@
     const PERFIS = {
       conservador: {
         nome: 'Conservador',
-        desc: 'Prioridade máxima em preservação de capital e segurança. Você prefere rendimentos previsíveis, mesmo que menores, a qualquer exposição à volatilidade do mercado.',
+        desc: 'Foco total em preservação de capital e estabilidade. Carteira defensiva, com proteção contra inflação e mínima exposição a volatilidade.',
         alocacao: [
-          { label: 'RF Pós', pct: 70, cor: '#60a5fa' },
-          { label: 'RF Inflação', pct: 25, cor: '#34d399' },
-          { label: 'RF Pré', pct: 5, cor: '#a78bfa' },
+          { label: 'RF Pós',      pct: 70,  cor: '#60a5fa' },
+          { label: 'RF Inflação', pct: 25,  cor: '#34d399' },
+          { label: 'RF Pré',      pct:  5,  cor: '#a78bfa' },
         ]
       },
       moderado: {
         nome: 'Moderado',
-        desc: 'Equilíbrio entre segurança e crescimento. Você aceita alguma oscilação no curto prazo em troca de melhores retornos no longo prazo.',
+        desc: 'Equilíbrio entre segurança e crescimento. Base sólida em renda fixa com diversificação real para ganho de capital no médio e longo prazo.',
         alocacao: [
-          { label: 'RF Pós', pct: 40, cor: '#60a5fa' },
-          { label: 'RF Inflação', pct: 20, cor: '#34d399' },
-          { label: 'Multimercado', pct: 20, cor: '#fb7185' },
-          { label: 'Renda Variável', pct: 15, cor: '#f59e0b' },
-          { label: 'Internacional', pct: 5, cor: '#22d3ee' },
+          { label: 'RF Pós',         pct: 52.5, cor: '#60a5fa' },
+          { label: 'RF Inflação',    pct: 25,   cor: '#34d399' },
+          { label: 'RF Pré',         pct:  5,   cor: '#a78bfa' },
+          { label: 'Multimercado',   pct:  7.5, cor: '#fb7185' },
+          { label: 'Renda Variável', pct:  5,   cor: '#f59e0b' },
+          { label: 'Internacional',  pct:  5,   cor: '#22d3ee' },
         ]
       },
       arrojado: {
         nome: 'Arrojado',
-        desc: 'Foco em crescimento de longo prazo com tolerância elevada à volatilidade. Você entende que oscilações fazem parte do jogo e pensa em décadas, não em meses.',
+        desc: 'Foco em crescimento patrimonial no longo prazo. Maior exposição a risco e volatilidade, com diversificação global e potencial de retorno mais elevado.',
         alocacao: [
-          { label: 'RF Pós', pct: 15, cor: '#60a5fa' },
-          { label: 'RF Inflação', pct: 10, cor: '#34d399' },
-          { label: 'Multimercado', pct: 15, cor: '#fb7185' },
-          { label: 'Renda Variável', pct: 40, cor: '#f59e0b' },
-          { label: 'Internacional', pct: 15, cor: '#22d3ee' },
-          { label: 'Alternativos', pct: 5, cor: '#c084fc' },
+          { label: 'RF Pós',         pct: 20,  cor: '#60a5fa' },
+          { label: 'RF Inflação',    pct: 25,  cor: '#34d399' },
+          { label: 'RF Pré',         pct:  5,  cor: '#a78bfa' },
+          { label: 'Multimercado',   pct: 15,  cor: '#fb7185' },
+          { label: 'Renda Variável', pct: 15,  cor: '#f59e0b' },
+          { label: 'Internacional',  pct: 15,  cor: '#22d3ee' },
+          { label: 'Alternativos',   pct:  5,  cor: '#c084fc' },
         ]
       }
     };

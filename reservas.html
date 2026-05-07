@@ -427,31 +427,33 @@
     // (mesma tabela da página perfil.html)
     const ALOCACAO_PERFIL = {
       conservador: [
-        { label: 'RF Pós',      pct: 70, cor: '#60a5fa' },
-        { label: 'RF Inflação', pct: 25, cor: '#34d399' },
-        { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
+        { label: 'RF Pós',      pct: 70,   cor: '#60a5fa' },
+        { label: 'RF Inflação', pct: 25,   cor: '#34d399' },
+        { label: 'RF Pré',      pct:  5,   cor: '#a78bfa' },
       ],
       moderado: [
-        { label: 'RF Pós',          pct: 40, cor: '#60a5fa' },
-        { label: 'RF Inflação',     pct: 20, cor: '#34d399' },
-        { label: 'Multimercado',    pct: 20, cor: '#fb7185' },
-        { label: 'Renda Variável',  pct: 15, cor: '#f59e0b' },
-        { label: 'Internacional',   pct:  5, cor: '#22d3ee' },
+        { label: 'RF Pós',         pct: 52.5, cor: '#60a5fa' },
+        { label: 'RF Inflação',    pct: 25,   cor: '#34d399' },
+        { label: 'RF Pré',         pct:  5,   cor: '#a78bfa' },
+        { label: 'Multimercado',   pct:  7.5, cor: '#fb7185' },
+        { label: 'Renda Variável', pct:  5,   cor: '#f59e0b' },
+        { label: 'Internacional',  pct:  5,   cor: '#22d3ee' },
       ],
       arrojado: [
-        { label: 'RF Pós',          pct: 15, cor: '#60a5fa' },
-        { label: 'RF Inflação',     pct: 10, cor: '#34d399' },
-        { label: 'Multimercado',    pct: 15, cor: '#fb7185' },
-        { label: 'Renda Variável',  pct: 40, cor: '#f59e0b' },
-        { label: 'Internacional',   pct: 15, cor: '#22d3ee' },
-        { label: 'Alternativos',    pct:  5, cor: '#c084fc' },
+        { label: 'RF Pós',         pct: 20,  cor: '#60a5fa' },
+        { label: 'RF Inflação',    pct: 25,  cor: '#34d399' },
+        { label: 'RF Pré',         pct:  5,  cor: '#a78bfa' },
+        { label: 'Multimercado',   pct: 15,  cor: '#fb7185' },
+        { label: 'Renda Variável', pct: 15,  cor: '#f59e0b' },
+        { label: 'Internacional',  pct: 15,  cor: '#22d3ee' },
+        { label: 'Alternativos',   pct:  5,  cor: '#c084fc' },
       ],
     };
 
     let perfilInvestidor = null;  // preenchido no init()
     let patrimonioAtual  = [];   // ativos consolidados de getPatrimonio()
 
-    // Mapeamento: código da aba → label usado no ALOCACAO_PERFIL
+    // Mapeamento: código interno → label usado no ALOCACAO_PERFIL
     const CLASS_TO_LABEL = {
       pos:  'RF Pós',
       infl: 'RF Inflação',
@@ -460,6 +462,7 @@
       mm:   'Multimercado',
       int:  'Internacional',
       alt:  'Alternativos',
+      imov: null, // Imóveis não entra na alocação sugerida por perfil
     };
 
     function alocacao(meses) {
