@@ -193,6 +193,7 @@ export const PATRIMONIO_COR = {
   'previdencia privada': 'mm', 'previdência privada': 'mm',
   'pgbl': 'mm', 'vgbl': 'mm', 'fundos': 'mm', 'multimercado': 'mm',
   // Internacional
+  'ativos internacionais': 'int', 'investimentos internacionais': 'int',
   'bdr': 'int', 'bdrs': 'int', 'exterior': 'int', 'moeda estrangeira': 'int',
   // Alternativos
   'cripto': 'alt', 'criptomoedas': 'alt', 'bitcoin': 'alt',
@@ -384,7 +385,7 @@ export function parsearCsvPatrimonio(csvText) {
 
   // Aceita variações de nome de coluna geradas por diferentes agentes
   const ALIAS_COL_CLASSE = ['classe', 'class', 'tipo', 'tipo_ativo', 'ativo', 'categoria', 'category', 'asset', 'asset_class'];
-  const ALIAS_COL_VALOR  = ['valor', 'value', 'montante', 'total', 'saldo', 'amount', 'preco', 'preço', 'price'];
+  const ALIAS_COL_VALOR  = ['valor', 'valor líquido', 'valor liquido', 'valor_liquido', 'value', 'montante', 'saldo', 'amount', 'preco', 'preço', 'price'];
 
   const idxClasse = ALIAS_COL_CLASSE.map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
   const idxValor  = ALIAS_COL_VALOR .map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
@@ -403,6 +404,9 @@ export function parsearCsvPatrimonio(csvText) {
     const cols      = linha.split(sep).map(c => c.trim());
     const classeRaw = cols[idxClasse]?.trim() || '';
     if (!classeRaw) return; // pula linhas em branco
+    // Ignora linhas de totalizador que o agente coloca no final
+    const classeLC = classeRaw.toLowerCase();
+    if (['total', 'total geral', 'soma', 'subtotal'].includes(classeLC)) return;
 
     const chave = classeRaw.toLowerCase();
     const valor = parseFloat(cols[idxValor]?.replace(',', '.'));
