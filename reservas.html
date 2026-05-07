@@ -161,23 +161,6 @@
     .detalhe-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
     .detalhe-value { font-size: 14px; font-weight: 500; }
 
-    /* ─── Ritmo dos aportes ───────────────────── */
-    .ritmo-box {
-      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
-      border-radius: 8px; padding: 14px 16px; margin-top: 14px;
-    }
-    .ritmo-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
-    .ritmo-grid { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; margin-bottom: 10px; }
-    .ritmo-label { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; }
-    .ritmo-valor { font-size: 13px; font-weight: 500; text-align: right; }
-    .ritmo-status {
-      font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 6px;
-      display: flex; align-items: center; gap: 6px;
-    }
-    .ritmo-status.em-dia    { background: var(--positive-dim); color: var(--positive); }
-    .ritmo-status.atrasada  { background: var(--warning-dim);  color: var(--warning);  }
-    .ritmo-status.adiantada { background: var(--positive-dim); color: var(--positive); }
-
     /* Alocação sugerida */
     .alocacao-box {
       background: var(--gold-dim); border: 1px solid var(--border-gold);
@@ -253,7 +236,8 @@
     .btn-icon.btn-expand.aberto svg { transform: rotate(180deg); }
 
     /* Painel de comparação de carteira */
-    .expansao-panel { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+    .expansao-panel { display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+    .expansao-panel.visivel { display: block; }
     .expansao-titulo { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
     .comp-grid { display: grid; gap: 4px; }
     .comp-row { display: grid; grid-template-columns: 1fr 68px 68px 76px; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; font-size: 13px; }
@@ -507,66 +491,6 @@
       return `${nomes[mes - 1]} de ${ano}`;
     }
 
-    // ─── Cálculo de ritmo ────────────────────────
-    // Compara quanto DEVERIA estar acumulado hoje para o plano funcionar
-    // com o que REALMENTE está acumulado.
-    // necessarioHoje = meta − (mesesRestantes × aporte)
-    function calcularRitmo(r) {
-      const meses = mesesAte(r.dataMeta);
-      if (
-        meses === null || meses <= 0 ||    // sem data ou prazo expirado
-        !r.aporte || r.aporte <= 0 ||      // sem aporte planejado
-        r.acumulado >= r.meta              // já concluída
-      ) return null;
-
-      const necessarioHoje = r.meta - meses * r.aporte;
-      if (necessarioHoje <= 0) return null; // prazo tão longo que ainda não há nada "esperado"
-
-      const diferenca = r.acumulado - necessarioHoje; // positivo = adiantada
-      const mesesEquiv = Math.abs(diferenca) / r.aporte;
-
-      return {
-        necessarioHoje,
-        diferenca,
-        mesesEquiv: Math.round(mesesEquiv * 10) / 10,  // 1 casa decimal
-        status: diferenca >= -r.aporte * 0.1            // tolerância de 10% de 1 mês
-          ? (diferenca > r.aporte * 0.1 ? 'adiantada' : 'em-dia')
-          : 'atrasada',
-      };
-    }
-
-    function renderRitmo(r) {
-      const ritmo = calcularRitmo(r);
-      if (!ritmo) return '';
-
-      const { necessarioHoje, diferenca, mesesEquiv, status } = ritmo;
-
-      let statusHTML;
-      if (status === 'em-dia') {
-        statusHTML = `<div class="ritmo-status em-dia">✓ Em dia com o planejado</div>`;
-      } else if (status === 'adiantada') {
-        const mesesStr = mesesEquiv >= 1 ? `${mesesEquiv.toFixed(0)} ${mesesEquiv < 2 ? 'mês' : 'meses'} adiantada` : '';
-        statusHTML = `<div class="ritmo-status adiantada">✓ Adiantada em ${brl(diferenca)}${mesesStr ? ` · ${mesesStr}` : ''}</div>`;
-      } else {
-        const mesesStr = mesesEquiv >= 1 ? `${mesesEquiv.toFixed(0)} ${mesesEquiv < 2 ? 'mês' : 'meses'} em falta` : '';
-        statusHTML = `<div class="ritmo-status atrasada">⚠ Abaixo do ritmo — faltam ${brl(Math.abs(diferenca))}${mesesStr ? ` · ${mesesStr}` : ''}</div>`;
-      }
-
-      return `
-        <div class="ritmo-box">
-          <div class="ritmo-title">Ritmo dos aportes</div>
-          <div class="ritmo-grid">
-            <div class="ritmo-label">Aporte planejado</div>
-            <div class="ritmo-valor">${brl(r.aporte)}/mês</div>
-            <div class="ritmo-label">Esperado acumulado hoje</div>
-            <div class="ritmo-valor">${brl(necessarioHoje)}</div>
-            <div class="ritmo-label">Acumulado real</div>
-            <div class="ritmo-valor" style="color:${diferenca >= 0 ? 'var(--positive)' : 'var(--warning)'}">${brl(r.acumulado)}</div>
-          </div>
-          ${statusHTML}
-        </div>`;
-    }
-
     // ─── Mock data ────────────────────────────
     let reservas = [];
 
@@ -712,8 +636,6 @@
             </div>` : ''}
           </div>
 
-          ${renderRitmo(r)}
-
           <div class="alocacao-box">
             <div class="alocacao-title">Alocação sugerida</div>
             <div class="alocacao-itens">${alocHTML}</div>
@@ -748,7 +670,7 @@
       const comp      = hasPerfil ? calcularComparacao() : null;
 
       if (!hasPerfil) {
-        return `<div class="expansao-panel" id="exp-${r.id}" style="display:none">
+        return `<div class="expansao-panel" id="exp-${r.id}">
           <div class="comp-aviso">Defina seu <a href="perfil.html">perfil de investidor</a> para ver a alocação comparativa.</div>
         </div>`;
       }
@@ -779,7 +701,7 @@
         : '';
 
       return `
-        <div class="expansao-panel" id="exp-${r.id}" style="display:none">
+        <div class="expansao-panel" id="exp-${r.id}">
           <div class="expansao-titulo">Carteira: sugerida × atual</div>
           <div class="comp-grid">
             <div class="comp-row comp-header">
@@ -798,8 +720,8 @@
       const panel = document.getElementById('exp-' + id);
       const btn   = document.querySelector(`[data-expand="${id}"]`);
       if (!panel) return;
-      const isOpen = panel.style.display !== 'none';
-      panel.style.display = isOpen ? 'none' : 'block';
+      const isOpen = panel.classList.contains('visivel');
+      panel.classList.toggle('visivel', !isOpen);
       if (btn) btn.classList.toggle('aberto', !isOpen);
     }
 

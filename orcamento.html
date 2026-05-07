@@ -387,6 +387,30 @@
       margin-top: 2px;
     }
 
+    /* ─── Ritmo dos aportes ─────────────────── */
+    .ritmo-box {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px 24px; margin-top: 24px;
+    }
+    .ritmo-title {
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px;
+    }
+    .ritmo-grid {
+      display: grid; grid-template-columns: 1fr auto;
+      gap: 6px 24px; margin-bottom: 14px;
+    }
+    .ritmo-label { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; }
+    .ritmo-valor { font-size: 14px; font-weight: 600; text-align: right; }
+    .ritmo-reservas { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+    .ritmo-reservas a { color: var(--gold); text-decoration: none; }
+    .ritmo-status {
+      font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .ritmo-status.em-dia   { background: var(--positive-dim); color: var(--positive); }
+    .ritmo-status.atrasada { background: var(--negative-dim); color: var(--negative); }
+
     /* ─── Responsive ─────────────────────────── */
     @media (max-width: 640px) {
       .navbar { padding: 0 16px; }
@@ -488,11 +512,14 @@
     <!-- Sobra destacada -->
     <div id="sobraBox"></div>
 
+    <!-- Ritmo dos aportes nas reservas -->
+    <div id="ritmoBox"></div>
+
   </main>
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX } from './js/api.js';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas } from './js/api.js';
     import {
       onAuthStateChanged,
       signOut
@@ -539,22 +566,32 @@
                    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
     let currentData = MOCK;
+    let reservas = [];
 
     async function init(user) {
       const agora = new Date();
       const mes = agora.getMonth() + 1;
       const ano = agora.getFullYear();
-      try {
-        const itens = await getOrcamento(mes, ano);
+
+      const [orcResult, resResult] = await Promise.allSettled([
+        getOrcamento(mes, ano),
+        getReservas(),
+      ]);
+
+      if (orcResult.status === 'fulfilled') {
+        const itens = orcResult.value;
         currentData = {
           periodo: { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor })),
           despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor })),
         };
-      } catch (err) {
-        console.error('Erro ao carregar orçamento:', err);
+      } else {
+        console.error('Erro ao carregar orçamento:', orcResult.reason);
         currentData = { periodo: { mes, ano }, receitas: [], despesas: [] };
       }
+
+      if (resResult.status === 'fulfilled') reservas = resResult.value || [];
+
       render(currentData);
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
@@ -654,6 +691,37 @@
             <div class="sobra-box-pct-label">da receita</div>
           </div>
         </div>`;
+
+      // Ritmo dos aportes
+      const ritmoBoxEl = document.getElementById('ritmoBox');
+      const totalAportePlanejado = reservas
+        .filter(r => r.acumulado < r.meta && r.aporte > 0)
+        .reduce((s, r) => s + r.aporte, 0);
+
+      if (totalAportePlanejado > 0) {
+        const qtdReservas = reservas.filter(r => r.acumulado < r.meta && r.aporte > 0).length;
+        const dif = sobra - totalAportePlanejado;
+        let statusHTML;
+        if (dif >= 0) {
+          statusHTML = `<div class="ritmo-status em-dia">✓ Sobra suficiente para cobrir todos os aportes${dif > 0 ? ` · sobram ${brl(dif)} extras` : ''}</div>`;
+        } else {
+          statusHTML = `<div class="ritmo-status atrasada">⚠ Sobra insuficiente — faltam ${brl(Math.abs(dif))} para cobrir todos os aportes planejados</div>`;
+        }
+        ritmoBoxEl.innerHTML = `
+          <div class="ritmo-box">
+            <div class="ritmo-title">Ritmo dos aportes nas reservas</div>
+            <div class="ritmo-grid">
+              <div class="ritmo-label">Total de aportes planejados este mês</div>
+              <div class="ritmo-valor">${brl(totalAportePlanejado)}</div>
+              <div class="ritmo-label">Sobra disponível</div>
+              <div class="ritmo-valor" style="color:${dif >= 0 ? 'var(--positive)' : 'var(--negative)'}">${brl(sobra)}</div>
+            </div>
+            <div class="ritmo-reservas">${qtdReservas} reserva${qtdReservas !== 1 ? 's' : ''} ativa${qtdReservas !== 1 ? 's' : ''} · <a href="reservas.html">ver detalhes</a></div>
+            ${statusHTML}
+          </div>`;
+      } else {
+        ritmoBoxEl.innerHTML = '';
+      }
     }
 
     // ─── Navegação de período ─────────────────
