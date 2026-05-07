@@ -649,30 +649,72 @@
     }
 
     // ─── Painel de comparação (longo prazo > 10 anos) ────────────────────────
+
+    // Resolve nome de classe livre → código interno (pos, infl, pre, rv, mm, int, alt, imov)
+    function resolverCodigo(classe) {
+      const classeLC = classe.toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(CLASS_TO_LABEL, classeLC)) return classeLC;
+      return PATRIMONIO_COR[classeLC] || null;
+    }
+
+    // Nomes de classe não financeiros — inclui categorias do IR e variantes livres.
+    // PATRIMONIO_COR cobre muitos casos, mas não todas as variações do IR (ex: "Imoveis e Direitos").
+    // Esta lista é o fallback para garantir que bens físicos nunca entrem na base de cálculo.
+    const CLASSES_NAO_FINANCEIRAS = new Set([
+      // ── Imóveis (categorias do IR e variantes livres) ──────────────────────
+      'imoveis', 'imóveis', 'imovel', 'imóvel',
+      'imoveis e direitos', 'imóveis e direitos',
+      'bens imoveis', 'bens imóveis',
+      'imovel residencial', 'imóvel residencial',
+      'imovel comercial', 'imóvel comercial',
+      'imovel rural', 'imóvel rural',
+      'apartamento', 'casa', 'terreno', 'lote',
+      'sala comercial', 'galpao', 'galpão', 'predio', 'prédio',
+      // ── Veículos e embarcações ─────────────────────────────────────────────
+      'veiculos', 'veículos', 'veiculo', 'veículo',
+      'veiculos e embarcacoes', 'veículos e embarcações',
+      'automovel', 'automóvel', 'carro', 'motocicleta', 'moto',
+      'caminhao', 'caminhão', 'onibus', 'ônibus',
+      'embarcacao', 'embarcação', 'lancha', 'barco',
+      'aeronave', 'aviao', 'avião',
+      // ── Bens físicos diversos ──────────────────────────────────────────────
+      'joias', 'jóias', 'joia', 'jóia',
+      'obras de arte', 'obra de arte', 'antiguidades', 'objetos de valor',
+      'animais', 'semoventes', 'gado',
+      'benfeitoria', 'benfeitorias',
+      'bens moveis', 'bens móveis',
+      'colecionaveis', 'colecionáveis',
+      'outros bens', 'outros bens e direitos', 'outros bens moveis', 'outros bens móveis',
+    ]);
+
+    function ehNaoFinanceiro(a) {
+      const codigo = resolverCodigo(a.classe);
+      // Código interno imov → sempre não financeiro
+      if (codigo === 'imov') return true;
+      // Fallback: verifica pelo nome original (cobre variantes do IR não mapeadas)
+      return CLASSES_NAO_FINANCEIRAS.has(a.classe.toLowerCase());
+    }
+
     function calcularComparacao() {
       const sugerida = perfilInvestidor && ALOCACAO_PERFIL[perfilInvestidor];
       if (!sugerida) return null;
 
-      const total = patrimonioAtual.reduce((s, a) => s + a.valor, 0);
+      // Exclui imóveis, veículos e demais bens físicos antes de calcular percentuais
+      const ativosFinanceiros = patrimonioAtual.filter(a => !ehNaoFinanceiro(a));
 
-      const atualMap    = {};  // label → % (dentro da alocação sugerida)
-      const foraMap     = {};  // nome original → % (fora da alocação sugerida)
+      const total = ativosFinanceiros.reduce((s, a) => s + a.valor, 0);
+
+      const atualMap     = {};
       const labelsNaAloc = new Set(sugerida.map(i => i.label));
 
-      for (const a of patrimonioAtual) {
+      for (const a of ativosFinanceiros) {
         if (!total) continue;
-        const codigo = CLASS_TO_LABEL[a.classe]
-          ? a.classe
-          : (PATRIMONIO_COR[a.classe.toLowerCase()] || null);
-        const label = codigo ? CLASS_TO_LABEL[codigo] : null;
-        const pct   = (a.valor / total) * 100;
+        const codigo = resolverCodigo(a.classe);
+        const label  = codigo ? CLASS_TO_LABEL[codigo] : null;
+        const p      = (a.valor / total) * 100;
 
         if (label && labelsNaAloc.has(label)) {
-          atualMap[label] = (atualMap[label] || 0) + pct;
-        } else {
-          // Classe existe no patrimônio mas não faz parte da alocação sugerida
-          const nomeExib = label || a.classe; // usa label se resolvido, senão nome bruto
-          foraMap[nomeExib] = (foraMap[nomeExib] || 0) + pct;
+          atualMap[label] = (atualMap[label] || 0) + p;
         }
       }
 
@@ -681,11 +723,7 @@
         return { ...item, atualPct, delta: atualPct - item.pct };
       });
 
-      // Agrega os ativos fora da alocação
-      const foraPct    = Object.values(foraMap).reduce((s, v) => s + v, 0);
-      const foraNomes  = Object.keys(foraMap).join(', ');
-
-      return { linhas, foraPct, foraNomes };
+      return { linhas };
     }
 
     function renderExpansaoHTML(r) {

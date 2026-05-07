@@ -281,13 +281,23 @@ export const PATRIMONIO_COR = {
   'imóveis': 'imov', 'imoveis': 'imov',
 
   // ── Imóveis ───────────────────────────────────────────────────────────────
+  'imovel': 'imov', 'imóvel': 'imov',
+  'imoveis e direitos': 'imov', 'imóveis e direitos': 'imov',
+  'bens imoveis': 'imov', 'bens imóveis': 'imov',
+  'imovel residencial': 'imov', 'imóvel residencial': 'imov',
+  'imovel comercial': 'imov', 'imóvel comercial': 'imov',
+  'predio': 'imov', 'prédio': 'imov',
   'apartamento': 'imov', 'casa': 'imov',
   'terreno': 'imov', 'lote': 'imov', 'sala comercial': 'imov', 'imovel rural': 'imov',
   'imóvel rural': 'imov', 'galpao': 'imov', 'galpão': 'imov',
   // ── Veículos ──────────────────────────────────────────────────────────────
   'veiculos': 'alt', 'veículos': 'alt', 'veiculo': 'alt', 'veículo': 'alt',
+  'veiculos e embarcacoes': 'alt', 'veículos e embarcações': 'alt',
   'automovel': 'alt', 'automóvel': 'alt', 'carro': 'alt', 'motocicleta': 'alt',
-  'moto': 'alt', 'caminhao': 'alt', 'embarcacao': 'alt', 'aeronave': 'alt',
+  'moto': 'alt', 'caminhao': 'alt', 'caminhão': 'alt',
+  'onibus': 'alt', 'ônibus': 'alt',
+  'embarcacao': 'alt', 'embarcação': 'alt', 'lancha': 'alt', 'barco': 'alt',
+  'aeronave': 'alt', 'aviao': 'alt', 'avião': 'alt',
   // ── Contas / liquidez ─────────────────────────────────────────────────────
   'conta corrente': 'pos', 'conta bancaria': 'pos', 'conta bancária': 'pos',
   'conta salario': 'pos', 'conta salário': 'pos', 'poupanca': 'pos', 'poupança': 'pos',
