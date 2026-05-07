@@ -348,7 +348,11 @@ export function parsearCsvPatrimonio(csvText) {
     throw new Error('CSV inválido: colunas esperadas são "classe" e "valor".');
   }
 
-  return linhas.slice(1).map((linha, i) => {
+  // Parseia cada linha e acumula por classe (soma se a mesma classe aparecer
+  // múltiplas vezes, ex: "Imoveis" e "Veiculos" ambos → alt)
+  const acumulado = {};
+
+  linhas.slice(1).forEach((linha, i) => {
     const cols      = linha.split(sep).map(c => c.trim());
     const classeRaw = cols[idxClasse]?.trim() || '';
     const chave     = classeRaw.toLowerCase();
@@ -362,6 +366,9 @@ export function parsearCsvPatrimonio(csvText) {
 
     const valor = parseFloat(cols[idxValor]?.replace(',', '.'));
     if (isNaN(valor)) throw new Error(`Linha ${i + 2}: valor inválido "${cols[idxValor]}".`);
-    return { classe, valor };
+
+    acumulado[classe] = (acumulado[classe] || 0) + valor;
   });
+
+  return Object.entries(acumulado).map(([classe, valor]) => ({ classe, valor }));
 }
