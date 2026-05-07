@@ -700,8 +700,6 @@
       }
 
       const linhasArr = comp ? comp.linhas : [];
-      const foraPct   = comp ? comp.foraPct   : 0;
-      const foraNomes = comp ? comp.foraNomes : '';
 
       const linhas = linhasArr.map(item => {
         const atualStr = temDados ? item.atualPct.toFixed(0) + '%' : '—';
@@ -724,18 +722,6 @@
           </div>`;
       }).join('');
 
-      // Linha de rodapé: ativos fora da alocação sugerida
-      const foraLinha = (temDados && foraPct > 0.5) ? `
-          <div class="comp-row" style="opacity:0.55; border-top:1px solid var(--border); margin-top:4px; padding-top:4px;">
-            <div class="comp-label" style="flex:1">
-              <div class="alocacao-dot" style="background:#94a3b8"></div>
-              <span style="font-size:11px">Fora da alocação sugerida<br><span style="color:var(--text-muted);font-size:10px">${foraNomes}</span></span>
-            </div>
-            <div class="comp-num">—</div>
-            <div class="comp-num">${foraPct.toFixed(0)}%</div>
-            <div class="comp-num">—</div>
-          </div>` : '';
-
       const aviso = !temDados
         ? `<div class="comp-aviso">Importe sua posição em <a href="patrimonio.html">Patrimônio</a> para ver os valores atuais.</div>`
         : '';
@@ -751,7 +737,6 @@
               <div class="comp-num">Diferença</div>
             </div>
             ${linhas}
-            ${foraLinha}
           </div>
           ${aviso}
         </div>`;
