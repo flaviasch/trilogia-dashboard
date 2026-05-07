@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
@@ -215,8 +215,14 @@
     .barra-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
     .barra-spacer { flex: 1; }
     .barra-valor { font-size: 13px; font-weight: 600; white-space: nowrap; text-align: center; line-height: 1.3; }
-    .barra-fill { width: 72%; border-radius: 6px 6px 0 0; min-height: 4px; transition: height 0.6s ease; }
+    .barra-fill  { width: 72%; border-radius: 6px 6px 0 0; min-height: 4px; transition: height 0.6s ease; }
+    .barra-stack { width: 72%; display: flex; flex-direction: column-reverse; border-radius: 6px 6px 0 0; overflow: hidden; transition: height 0.6s ease; }
+    .barra-stack > div { width: 100%; transition: height 0.6s ease; }
+    .barra-stack > div:last-child { border-radius: 6px 6px 0 0; } /* topo arredondado */
     .barra-label { font-size: 11px; color: var(--text-muted); text-align: center; line-height: 1.4; }
+    .barras-legenda { display: flex; gap: 20px; justify-content: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .barras-legenda span { font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+    .barras-legenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 
     /* ─── Link agente ───────────────────────── */
     .link-agente { color: var(--gold); text-decoration: none; font-size: 11px; opacity: 0.8; transition: opacity 0.2s; }
@@ -769,52 +775,64 @@
       const box = document.getElementById('historicoBox');
       if (!totalAtivos && !totalDividas) { box.innerHTML = ''; return; }
 
-      const ref     = totalAtivos || 1;
-      const maxBarH = 160; // px — altura máxima (barra de ativos)
-      const ativosH = maxBarH;
-      const plH     = Math.max(4, (Math.max(0, pl) / ref) * maxBarH);
-      const divH    = Math.max(totalDividas > 0 ? 4 : 0, (totalDividas / ref) * maxBarH);
+      // Referência = maior dos dois lados para escalar proporcionalmente
+      const ref     = Math.max(totalAtivos, totalDividas + Math.max(0, pl)) || 1;
+      const maxBarH = 160; // px
+
+      // Barra esquerda: ativos totais
+      const ativosH = (totalAtivos / ref) * maxBarH;
+
+      // Barra direita: empilhada — dívidas (base) + PL (topo)
+      const divH = Math.max(totalDividas > 0 ? 4 : 0, (totalDividas / ref) * maxBarH);
+      const plH  = Math.max(pl > 0 ? 4 : 0, (Math.max(0, pl) / ref) * maxBarH);
 
       const fmtVal = v => v >= 1e6
-        ? `R$ ${(v/1e6).toFixed(2).replace('.',',')}M`
+        ? `R$ ${(v/1e6).toFixed(2).replace('.',',')}M`
         : v >= 1e3
-        ? `R$ ${(v/1e3).toFixed(0)}k`
+        ? `R$ ${(v/1e3).toFixed(0)}k`
         : brl(v);
 
-      const plCor  = pl >= 0 ? 'var(--positive)' : 'var(--negative)';
-      const plGrad = pl >= 0
-        ? 'linear-gradient(to top, rgba(74,222,128,0.85), rgba(74,222,128,0.35))'
-        : 'linear-gradient(to top, rgba(248,113,113,0.85), rgba(248,113,113,0.35))';
+      const plCor = pl >= 0 ? 'var(--positive)' : 'var(--negative)';
 
       box.innerHTML = `
         <div class="barras-card">
           <div class="barras-header">
             <h2>Patrimônio em perspectiva</h2>
-            <span>Ativos · Patrimônio Líquido · Dívidas</span>
+            <span>Como num balanço: Ativos = Dívidas + Patrimônio Líquido</span>
           </div>
           <div class="barras-chart">
 
+            <!-- Coluna esquerda: Ativos -->
             <div class="barra-col">
               <div class="barra-spacer"></div>
               <div class="barra-valor" style="color:var(--gold)">${fmtVal(totalAtivos)}</div>
-              <div class="barra-fill" style="height:${ativosH}px; background:linear-gradient(to top,rgba(207,174,101,0.9),rgba(207,174,101,0.4))"></div>
+              <div class="barra-fill" style="height:${ativosH}px;
+                background:linear-gradient(to top,rgba(207,174,101,0.9),rgba(207,174,101,0.4))">
+              </div>
               <div class="barra-label">Ativos totais</div>
             </div>
 
+            <!-- Coluna direita: Dívidas (base, vermelho) + PL (topo, verde) -->
             <div class="barra-col">
               <div class="barra-spacer"></div>
               <div class="barra-valor" style="color:${plCor}">${fmtVal(pl)}</div>
-              <div class="barra-fill" style="height:${plH}px; background:${plGrad}"></div>
-              <div class="barra-label">Patrimônio Líquido</div>
+              <div class="barra-stack" style="height:${divH + plH}px">
+                <div style="height:${divH}px;
+                  background:linear-gradient(to top,rgba(248,113,113,0.85),rgba(248,113,113,0.35))">
+                </div>
+                <div style="height:${plH}px;
+                  background:linear-gradient(to top,rgba(74,222,128,0.85),rgba(74,222,128,0.35))">
+                </div>
+              </div>
+              <div class="barra-label">Passivo + PL</div>
             </div>
 
-            <div class="barra-col">
-              <div class="barra-spacer"></div>
-              <div class="barra-valor" style="color:var(--negative)">${fmtVal(totalDividas)}</div>
-              <div class="barra-fill" style="height:${divH}px; background:linear-gradient(to top,rgba(248,113,113,0.85),rgba(248,113,113,0.35))"></div>
-              <div class="barra-label">Dívidas totais</div>
-            </div>
+          </div>
 
+          <div class="barras-legenda">
+            <span><i style="background:rgba(207,174,101,0.8)"></i> Ativos: ${fmtVal(totalAtivos)}</span>
+            <span><i style="background:rgba(74,222,128,0.7)"></i> PL: ${fmtVal(pl)}</span>
+            <span><i style="background:rgba(248,113,113,0.7)"></i> Dívidas: ${fmtVal(totalDividas)}</span>
           </div>
         </div>`;
     }
