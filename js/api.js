@@ -265,36 +265,51 @@ export async function reativarMentorada(uid) {
 // Nome original do IR → código de categoria para cor na UI.
 // Não usado pelo parser — apenas exportado para consulta visual.
 export const PATRIMONIO_COR = {
-  // Imóveis
-  'imoveis': 'imov', 'imóveis': 'imov', 'apartamento': 'imov', 'casa': 'imov',
+  // ── Labels diretos de classe (adicionados manualmente ou via CSV) ──────────
+  // Estes são os nomes que aparecem no campo "classe" quando o usuário
+  // adiciona ativos manualmente ou o agente exporta com os labels do dashboard.
+  'rf pós': 'pos', 'rf pos': 'pos', 'renda fixa pos': 'pos', 'renda fixa pós': 'pos',
+  'rf pós (liquidez diária)': 'pos', 'rf pos (liquidez diaria)': 'pos',
+  'rf inflação': 'infl', 'rf inflacao': 'infl',
+  'renda fixa inflação': 'infl', 'renda fixa inflacao': 'infl',
+  'rf pré': 'pre', 'rf pre': 'pre', 'rf pré-fixado': 'pre', 'rf pre-fixado': 'pre',
+  'renda fixa pré': 'pre', 'renda fixa pre': 'pre', 'renda fixa pré-fixado': 'pre',
+  'renda variável': 'rv', 'renda variavel': 'rv',
+  'multimercado': 'mm', 'multi': 'mm',
+  'internacional': 'int', 'internacionais': 'int',
+  'alternativos': 'alt', 'alternativo': 'alt',
+  'imóveis': 'imov', 'imoveis': 'imov',
+
+  // ── Imóveis ───────────────────────────────────────────────────────────────
+  'apartamento': 'imov', 'casa': 'imov',
   'terreno': 'imov', 'lote': 'imov', 'sala comercial': 'imov', 'imovel rural': 'imov',
   'imóvel rural': 'imov', 'galpao': 'imov', 'galpão': 'imov',
-  // Veículos
+  // ── Veículos ──────────────────────────────────────────────────────────────
   'veiculos': 'alt', 'veículos': 'alt', 'veiculo': 'alt', 'veículo': 'alt',
   'automovel': 'alt', 'automóvel': 'alt', 'carro': 'alt', 'motocicleta': 'alt',
   'moto': 'alt', 'caminhao': 'alt', 'embarcacao': 'alt', 'aeronave': 'alt',
-  // Contas / liquidez
+  // ── Contas / liquidez ─────────────────────────────────────────────────────
   'conta corrente': 'pos', 'conta bancaria': 'pos', 'conta bancária': 'pos',
   'conta salario': 'pos', 'conta salário': 'pos', 'poupanca': 'pos', 'poupança': 'pos',
   'deposito bancario': 'pos', 'depósito bancário': 'pos', 'fgts': 'pos',
   'disponibilidades': 'pos', 'caixa': 'pos', 'dinheiro em especie': 'pos',
   'aplicacoes financeiras': 'pos', 'aplicações financeiras': 'pos',
-  // Renda Variável
+  // ── Renda Variável ────────────────────────────────────────────────────────
   'acoes': 'rv', 'ações': 'rv', 'fii': 'rv', 'fiis': 'rv',
   'participacoes societarias': 'rv', 'participações societárias': 'rv',
   'etf': 'rv', 'etfs': 'rv',
-  // RF Inflação
+  // ── RF Inflação ───────────────────────────────────────────────────────────
   'debentures': 'infl', 'debêntures': 'infl', 'cri': 'infl', 'cra': 'infl',
   'tesouro ipca': 'infl', 'ntnb': 'infl',
-  // RF Pré
+  // ── RF Pré ────────────────────────────────────────────────────────────────
   'tesouro prefixado': 'pre', 'ltn': 'pre', 'prefixado': 'pre',
-  // Multimercado / Previdência
+  // ── Multimercado / Previdência ────────────────────────────────────────────
   'previdencia privada': 'mm', 'previdência privada': 'mm',
-  'pgbl': 'mm', 'vgbl': 'mm', 'fundos': 'mm', 'multimercado': 'mm',
-  // Internacional
+  'pgbl': 'mm', 'vgbl': 'mm', 'fundos': 'mm',
+  // ── Internacional ─────────────────────────────────────────────────────────
   'ativos internacionais': 'int', 'investimentos internacionais': 'int',
   'bdr': 'int', 'bdrs': 'int', 'exterior': 'int', 'moeda estrangeira': 'int',
-  // Alternativos
+  // ── Alternativos ──────────────────────────────────────────────────────────
   'cripto': 'alt', 'criptomoedas': 'alt', 'bitcoin': 'alt',
   'ouro': 'alt', 'coe': 'alt', 'joias': 'alt', 'jóias': 'alt',
   'consorcio': 'alt', 'consórcio': 'alt', 'outros bens': 'alt', 'outros': 'alt',
