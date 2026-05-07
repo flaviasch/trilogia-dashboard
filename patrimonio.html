@@ -357,7 +357,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getPatrimonio, savePatrimonio, saveDivida, parsearCsvPatrimonio } from './js/api.js';
+    import { getPatrimonio, savePatrimonio, saveDivida, parsearCsvPatrimonio, PATRIMONIO_COR } from './js/api.js';
     import {
       onAuthStateChanged,
       signOut
@@ -390,6 +390,28 @@
       { id: 'imov', label: 'Imóveis',                  cor: 'var(--c-imov)', desc: 'Residencial, comercial, rural, terrenos' },
       { id: 'alt',  label: 'Alternativos',             cor: 'var(--c-alt)',  desc: 'COE, FIPs, criptomoedas, veículos' },
     ];
+
+    /**
+     * Dado o valor do campo "classe" (pode ser código interno como "pos",
+     * ou nome livre do IR como "Imoveis" ou "Conta Corrente"),
+     * retorna { id, label, cor, desc } para exibição.
+     */
+    function resolverClasse(classeId) {
+      // 1. Código interno direto (pos, rv, imov, alt…)
+      const direto = CLASSES.find(c => c.id === classeId);
+      if (direto) return direto;
+
+      // 2. Nome livre → busca no mapa de cores → pega cor da categoria
+      const codigo = PATRIMONIO_COR[classeId.toLowerCase()];
+      const base   = codigo ? CLASSES.find(c => c.id === codigo) : null;
+
+      return {
+        id:    classeId,
+        label: classeId,           // exibe o nome original
+        cor:   base ? base.cor : '#94a3b8',
+        desc:  base ? base.label : 'Outros ativos',
+      };
+    }
 
     // ─── Mock data (substituir por Google Sheets) ─
     const MOCK = {
@@ -446,7 +468,7 @@
       legend.innerHTML = '';
 
       ativos.forEach(a => {
-        const cls = CLASSES.find(c => c.id === a.classe);
+        const cls = resolverClasse(a.classe);
         if (!cls || a.valor === 0) return;
         const p = (a.valor / totalAtivos) * 100;
         const seg = document.createElement('div');
@@ -468,8 +490,8 @@
       lista.innerHTML = [...ativos]
         .sort((a, b) => b.valor - a.valor)
         .map(a => {
-          const cls = CLASSES.find(c => c.id === a.classe);
-          if (!cls) return '';
+          const cls = resolverClasse(a.classe);
+          if (!cls || cls.valor === 0) return '';
           const p = (a.valor / totalAtivos) * 100;
           return `
             <div class="ativo-row">

@@ -162,6 +162,44 @@ export async function reativarMentorada(uid) {
   return call('reativarMentorada')({ uid });
 }
 
+// ─── Mapa de cores para patrimônio (usado por patrimonio.html) ─────────────────
+// Nome original do IR → código de categoria para cor na UI.
+// Não usado pelo parser — apenas exportado para consulta visual.
+export const PATRIMONIO_COR = {
+  // Imóveis
+  'imoveis': 'imov', 'imóveis': 'imov', 'apartamento': 'imov', 'casa': 'imov',
+  'terreno': 'imov', 'lote': 'imov', 'sala comercial': 'imov', 'imovel rural': 'imov',
+  'imóvel rural': 'imov', 'galpao': 'imov', 'galpão': 'imov',
+  // Veículos
+  'veiculos': 'alt', 'veículos': 'alt', 'veiculo': 'alt', 'veículo': 'alt',
+  'automovel': 'alt', 'automóvel': 'alt', 'carro': 'alt', 'motocicleta': 'alt',
+  'moto': 'alt', 'caminhao': 'alt', 'embarcacao': 'alt', 'aeronave': 'alt',
+  // Contas / liquidez
+  'conta corrente': 'pos', 'conta bancaria': 'pos', 'conta bancária': 'pos',
+  'conta salario': 'pos', 'conta salário': 'pos', 'poupanca': 'pos', 'poupança': 'pos',
+  'deposito bancario': 'pos', 'depósito bancário': 'pos', 'fgts': 'pos',
+  'disponibilidades': 'pos', 'caixa': 'pos', 'dinheiro em especie': 'pos',
+  'aplicacoes financeiras': 'pos', 'aplicações financeiras': 'pos',
+  // Renda Variável
+  'acoes': 'rv', 'ações': 'rv', 'fii': 'rv', 'fiis': 'rv',
+  'participacoes societarias': 'rv', 'participações societárias': 'rv',
+  'etf': 'rv', 'etfs': 'rv',
+  // RF Inflação
+  'debentures': 'infl', 'debêntures': 'infl', 'cri': 'infl', 'cra': 'infl',
+  'tesouro ipca': 'infl', 'ntnb': 'infl',
+  // RF Pré
+  'tesouro prefixado': 'pre', 'ltn': 'pre', 'prefixado': 'pre',
+  // Multimercado / Previdência
+  'previdencia privada': 'mm', 'previdência privada': 'mm',
+  'pgbl': 'mm', 'vgbl': 'mm', 'fundos': 'mm', 'multimercado': 'mm',
+  // Internacional
+  'bdr': 'int', 'bdrs': 'int', 'exterior': 'int', 'moeda estrangeira': 'int',
+  // Alternativos
+  'cripto': 'alt', 'criptomoedas': 'alt', 'bitcoin': 'alt',
+  'ouro': 'alt', 'coe': 'alt', 'joias': 'alt', 'jóias': 'alt',
+  'consorcio': 'alt', 'consórcio': 'alt', 'outros bens': 'alt', 'outros': 'alt',
+};
+
 // ─── Utilitários de parse de CSV ───────────────────────────────────────────────
 
 /**
@@ -214,10 +252,9 @@ export function parsearCsvRaioX(csvText) {
  * @returns {Array<{classe, valor}>}
  */
 export function parsearCsvPatrimonio(csvText) {
-  const CLASSES_VALIDAS = ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'imov', 'alt'];
-
-  // Aliases gerados pelos agentes → classe interna
-  // Cobre: grupos do IR (DIRPF), nomes usados por corretoras e agentes de IA.
+  // Classe interna → código de cor/categoria usado na UI para cores e agrupamento.
+  // Não restringe o que pode ser importado — aceita qualquer nome de classe;
+  // este mapa é usado APENAS pelo patrimonio.html para determinar a cor do item.
   const ALIAS = {
 
     // ════ IMÓVEIS (→ imov) ════════════════════════════════════════════════
@@ -351,27 +388,26 @@ export function parsearCsvPatrimonio(csvText) {
     throw new Error('CSV inválido: colunas esperadas são "classe" e "valor".');
   }
 
-  // Parseia cada linha e acumula por classe (soma se a mesma classe aparecer
-  // múltiplas vezes, ex: "Imoveis" e "Veiculos" ambos → alt)
-  const acumulado = {};
+  // Aceita qualquer nome de classe; agrega por nome original (case-insensitive,
+  // preserva o caso da primeira ocorrência). Não remapeia para códigos internos:
+  // "Imoveis" fica "Imoveis", "Veiculos" fica "Veiculos", "pos" fica "pos".
+  const acumulado = {}; // chave = lowercase, valor = { classe (original), valor }
 
   linhas.slice(1).forEach((linha, i) => {
     const cols      = linha.split(sep).map(c => c.trim());
     const classeRaw = cols[idxClasse]?.trim() || '';
-    const chave     = classeRaw.toLowerCase();
+    if (!classeRaw) return; // pula linhas em branco
 
-    // Aceita o código direto (pos, rv…) ou busca no mapa de aliases
-    const classe = CLASSES_VALIDAS.includes(chave) ? chave : (ALIAS[chave] || null);
-
-    if (!classe) {
-      throw new Error(`Linha ${i + 2}: classe inválida "${classeRaw}". Use: ${CLASSES_VALIDAS.join(', ')}.`);
-    }
-
+    const chave = classeRaw.toLowerCase();
     const valor = parseFloat(cols[idxValor]?.replace(',', '.'));
     if (isNaN(valor)) throw new Error(`Linha ${i + 2}: valor inválido "${cols[idxValor]}".`);
 
-    acumulado[classe] = (acumulado[classe] || 0) + valor;
+    if (acumulado[chave]) {
+      acumulado[chave].valor += valor;
+    } else {
+      acumulado[chave] = { classe: classeRaw, valor };
+    }
   });
 
-  return Object.entries(acumulado).map(([classe, valor]) => ({ classe, valor }));
+  return Object.values(acumulado);
 }
