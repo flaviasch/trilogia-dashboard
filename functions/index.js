@@ -177,6 +177,45 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
   return { ok: true };
 });
 
+// ─── APORTE PATRIMÔNIO (orcamento.html) ──────────────────────────────────────
+
+/**
+ * Soma o valor aportado à classe informada na aba `patrimônio`.
+ * Lê só a aba IR (não investimentos) para não perder a separação entre fontes.
+ * Cria a linha se a classe ainda não existir.
+ */
+exports.aportePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const { uid, classe, valor } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!classe || typeof valor !== 'number' || valor <= 0) {
+    throw new HttpsError('invalid-argument', 'classe e valor são obrigatórios.');
+  }
+
+  const sheetId = await getSheetId(db, uid);
+  const sheets  = new SheetsClient(sheetId);
+
+  const itens = await sheets.getPatrimonio();
+  const classeLC = classe.toLowerCase();
+  const idx = itens.findIndex(i => i.classe.toLowerCase() === classeLC);
+
+  if (idx !== -1) {
+    itens[idx].valor += valor;
+  } else {
+    itens.push({ classe, valor });
+  }
+
+  await sheets.savePatrimonio(itens);
+
+  // Upsert histórico de PL com o novo total
+  const totalAtivos = itens.reduce((s, i) => s + i.valor, 0);
+  const data = hoje().slice(0, 7);
+  await sheets.upsertHistorico(data, totalAtivos, 0); // dividas não mudam
+
+  return { ok: true };
+});
+
 // ─── HISTÓRICO DE PL ─────────────────────────────────────────────────────────
 
 exports.getHistoricoPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {

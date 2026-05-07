@@ -647,6 +647,30 @@
 
   </main>
 
+  <!-- Modal de classe do aporte -->
+  <div class="modal-overlay hidden" id="modalClasse">
+    <div class="modal-card">
+      <h2 class="modal-title">Em qual classe foi aportado?</h2>
+      <p class="modal-sub" id="modalClasseSub">—</p>
+      <div class="field-group">
+        <label for="mClasse">Classe do ativo</label>
+        <select id="mClasse">
+          <option value="RF Pós">RF Pós (liquidez diária)</option>
+          <option value="RF Inflação">RF Inflação (IPCA+, NTN-B)</option>
+          <option value="RF Pré">RF Pré (Prefixado)</option>
+          <option value="Multimercado">Multimercado / Previdência</option>
+          <option value="Renda Variável">Renda Variável (ações, FIIs)</option>
+          <option value="Internacional">Internacional (BDRs, exterior)</option>
+          <option value="Alternativos">Alternativos (cripto, ouro, COE)</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarClasse">Cancelar</button>
+        <button class="btn-save" id="btnConfirmarClasse">Confirmar aporte</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal adicionar / editar item -->
   <div class="modal-overlay hidden" id="modalItem">
     <div class="modal-card">
@@ -678,7 +702,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas } from './js/api.js';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, aportePatrimonio } from './js/api.js';
     import {
       onAuthStateChanged,
       signOut
@@ -782,14 +806,52 @@
       render(currentData);
     }
 
-    // Salvar aporte efetivado
-    document.getElementById('btnSalvarAporte').addEventListener('click', async () => {
-      const val = parseFloat(document.getElementById('aporteEfetivadoInput').value);
-      if (isNaN(val) || val < 0) return;
-      currentData.aporteEfetivado = val;
-      await salvarEAtualizar();
+    // ─── Modal de classe do aporte ────────────────────────────────────────────
+    const modalClasse   = document.getElementById('modalClasse');
+    let valorAportePendente = null;
+
+    function abrirModalClasse(valor) {
+      valorAportePendente = valor;
+      document.getElementById('modalClasseSub').textContent =
+        `Valor: ${brl(valor)} — selecione onde foi investido para atualizar o patrimônio.`;
+      modalClasse.classList.remove('hidden');
+    }
+
+    document.getElementById('btnCancelarClasse').addEventListener('click', () => {
+      modalClasse.classList.add('hidden');
+      valorAportePendente = null;
     });
-    document.getElementById('aporteEfetivadoInput').addEventListener('keydown', async (e) => {
+    modalClasse.addEventListener('click', e => {
+      if (e.target === modalClasse) { modalClasse.classList.add('hidden'); valorAportePendente = null; }
+    });
+
+    document.getElementById('btnConfirmarClasse').addEventListener('click', async () => {
+      if (valorAportePendente == null) return;
+      const classe = document.getElementById('mClasse').value;
+      const valor  = valorAportePendente;
+      modalClasse.classList.add('hidden');
+      valorAportePendente = null;
+
+      currentData.aporteEfetivado = valor;
+
+      // Salva aporte no orçamento e soma ao patrimônio em paralelo
+      const [, patErr] = await Promise.allSettled([
+        salvarEAtualizar(),
+        aportePatrimonio(classe, valor),
+      ]);
+      if (patErr?.status === 'rejected') {
+        console.error('Erro ao atualizar patrimônio:', patErr.reason);
+        alert('Aporte salvo no orçamento, mas houve erro ao atualizar o patrimônio. Verifique a página de Patrimônio.');
+      }
+    });
+
+    // Botão ✓ — abre modal de classe antes de salvar
+    document.getElementById('btnSalvarAporte').addEventListener('click', () => {
+      const val = parseFloat(document.getElementById('aporteEfetivadoInput').value);
+      if (isNaN(val) || val <= 0) { alert('Digite um valor válido para o aporte.'); return; }
+      abrirModalClasse(val);
+    });
+    document.getElementById('aporteEfetivadoInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('btnSalvarAporte').click();
     });
 

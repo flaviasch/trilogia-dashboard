@@ -87,6 +87,15 @@ export async function savePatrimonio(itens, tipo) {
   return call('savePatrimonio')({ uid: uidAtual(), itens, tipo });
 }
 
+/**
+ * Soma o valor aportado à classe indicada na aba patrimônio.
+ * @param {string} classe  - label exibido na UI (ex: 'RF Pós')
+ * @param {number} valor
+ */
+export async function aportePatrimonio(classe, valor) {
+  return call('aportePatrimonio')({ uid: uidAtual(), classe, valor });
+}
+
 // ─── Dívidas ──────────────────────────────────────────────────────────────────
 
 /**
