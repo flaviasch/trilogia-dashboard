@@ -606,7 +606,11 @@
         data = await getDashboard();
       } catch (err) {
         console.error('Erro ao carregar dashboard:', err);
-        document.getElementById('erroBanner').style.display = 'block';
+        const banner = document.getElementById('erroBanner');
+        const codigo = err?.code || 'unknown';
+        const msg    = err?.message || 'Erro desconhecido';
+        banner.innerHTML = `Erro ao carregar (${codigo}): ${msg} &nbsp;·&nbsp; <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">tentar novamente</a>`;
+        banner.style.display = 'block';
         return false;   // sinaliza falha total para o init()
       }
 
