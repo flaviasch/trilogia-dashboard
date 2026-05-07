@@ -241,8 +241,12 @@ export function parsearCsvPatrimonio(csvText) {
     'tesouro selic': 'pos', 'cdb pos': 'pos', 'cdb pós': 'pos',
     'conta bancaria': 'pos', 'conta bancária': 'pos',
     'contas bancarias': 'pos', 'contas bancárias': 'pos',
+    'conta corrente': 'pos', 'contas correntes': 'pos',
+    'conta salario': 'pos', 'conta salário': 'pos',
+    'conta pagamento': 'pos', 'conta investimento': 'pos',
     'aplicacoes financeiras': 'pos', 'aplicações financeiras': 'pos',
     'poupanca': 'pos', 'poupança': 'pos',
+    'deposito bancario': 'pos', 'depósito bancário': 'pos',
     // ── RF Inflação ──
     'rf inflacao': 'infl', 'rf inflação': 'infl',
     'renda fixa inflacao': 'infl', 'renda fixa inflação': 'infl',
