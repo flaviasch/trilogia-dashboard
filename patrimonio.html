@@ -408,10 +408,7 @@
       </div>
     </div>
 
-    <!-- Balanço patrimonial -->
-    <div id="balancoBox"></div>
-
-    <!-- Balanço em perspectiva -->
+    <!-- Balanço Patrimonial -->
     <div id="historicoBox"></div>
 
     <!-- Evolução 12 meses -->
@@ -725,9 +722,6 @@
       lista.querySelectorAll('[data-del-ativo]').forEach(btn =>
         btn.addEventListener('click', () => deletarAtivo(btn.dataset.delAtivo)));
 
-      // Balanço patrimonial
-      renderBalanco(ativos, divs, totalAtivos, totalDividas, pl);
-
       // Gráfico de barras do patrimônio
       renderBarrasPatrimonio(totalAtivos, totalDividas, pl);
 
@@ -836,8 +830,8 @@
       box.innerHTML = `
         <div class="barras-card">
           <div class="barras-header">
-            <h2>Patrimônio em perspectiva</h2>
-            <span>Como num balanço: Ativos = Dívidas + Patrimônio Líquido</span>
+            <h2>Balanço Patrimonial</h2>
+            <span>Ativo = Passivo + Patrimônio Líquido</span>
           </div>
           <div class="barras-chart">
 
