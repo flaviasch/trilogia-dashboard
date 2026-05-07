@@ -226,12 +226,36 @@
     }
     .btn-save:hover { background: var(--gold-light); }
 
+    /* Delete hover vermelho */
+    .btn-icon.btn-delete:hover { border-color: rgba(248,113,113,0.5); color: var(--negative); background: rgba(248,113,113,0.08); }
+
+    /* Expand chevron */
+    .btn-icon.btn-expand { color: var(--text-muted); }
+    .btn-icon.btn-expand svg { transition: transform 0.25s ease; }
+    .btn-icon.btn-expand.aberto svg { transform: rotate(180deg); }
+
+    /* Painel de comparação de carteira */
+    .expansao-panel { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+    .expansao-titulo { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+    .comp-grid { display: grid; gap: 4px; }
+    .comp-row { display: grid; grid-template-columns: 1fr 68px 68px 76px; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; font-size: 13px; }
+    .comp-row:not(.comp-header) { background: rgba(255,255,255,0.03); }
+    .comp-header { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 10px; }
+    .comp-label { display: flex; align-items: center; gap: 8px; }
+    .comp-num { text-align: right; }
+    .delta-pos { color: var(--positive); font-weight: 600; }
+    .delta-neg { color: var(--negative); font-weight: 600; }
+    .delta-ok  { color: var(--text-muted); }
+    .comp-aviso { font-size: 12px; color: var(--text-muted); font-style: italic; margin-top: 10px; }
+    .comp-aviso a { color: var(--gold); }
+
     /* ─── Responsive ────────────────────────── */
     @media (max-width: 640px) {
       .navbar { padding: 0 16px; }
       .main { padding: 24px 16px 60px; }
       .resumo-row { grid-template-columns: 1fr; }
       .field-row { grid-template-columns: 1fr; }
+      .comp-row { grid-template-columns: 1fr 56px 56px 64px; font-size: 12px; }
     }
   </style>
 </head>
@@ -360,7 +384,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getReservas, saveReserva, deleteReserva, getPerfil } from './js/api.js';
+    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio } from './js/api.js';
     import {
       onAuthStateChanged,
       signOut
@@ -422,7 +446,19 @@
       ],
     };
 
-    let perfilInvestidor = null; // preenchido no init()
+    let perfilInvestidor = null;  // preenchido no init()
+    let patrimonioAtual  = [];   // ativos consolidados de getPatrimonio()
+
+    // Mapeamento: código da aba → label usado no ALOCACAO_PERFIL
+    const CLASS_TO_LABEL = {
+      pos:  'RF Pós',
+      infl: 'RF Inflação',
+      pre:  'RF Pré',
+      rv:   'Renda Variável',
+      mm:   'Multimercado',
+      int:  'Internacional',
+      alt:  'Alternativos',
+    };
 
     function alocacao(meses) {
       if (meses === null) return [];
@@ -459,13 +495,15 @@
     let editandoId = null;
 
     async function init(user) {
-      // Carrega reservas e perfil em paralelo; não deixa um erro bloquear o outro
-      const [resResult, perfilResult] = await Promise.allSettled([
+      // Carrega reservas, perfil e patrimônio em paralelo
+      const [resResult, perfilResult, patResult] = await Promise.allSettled([
         getReservas(),
         getPerfil(),
+        getPatrimonio(),
       ]);
       if (resResult.status === 'fulfilled')   reservas         = resResult.value;
       if (perfilResult.status === 'fulfilled') perfilInvestidor = perfilResult.value?.perfil || null;
+      if (patResult.status === 'fulfilled')   patrimonioAtual  = patResult.value?.ativos || [];
 
       renderAll();
       document.getElementById('loadingOverlay').style.display = 'none';
@@ -513,13 +551,22 @@
       container.querySelectorAll('[data-delete]').forEach(btn => {
         btn.addEventListener('click', () => deletarReserva(btn.dataset.delete));
       });
+      container.querySelectorAll('[data-expand]').forEach(btn => {
+        btn.addEventListener('click', () => toggleExpand(btn.dataset.expand));
+      });
     }
+
+    // SVG icons
+    const IC_EDIT   = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
+    const IC_DELETE = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10M6 7v4M10 7v4"/></svg>`;
+    const IC_CHEVRON = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"/></svg>`;
 
     function renderCard(r) {
       const meses    = mesesAte(r.dataMeta);
       const progresso = pct(r.acumulado, r.meta);
       const completa  = r.acumulado >= r.meta;
       const alertaEsgotando = meses !== null && meses <= 3 && !completa && progresso < 90;
+      const isLongoMuitoPrazo = meses !== null && meses > 120;
 
       const cardClass = completa ? 'reserva-card completa' : alertaEsgotando ? 'reserva-card alerta' : 'reserva-card';
 
@@ -538,6 +585,11 @@
 
       const falta = r.meta - r.acumulado;
 
+      // Botão de expansão só para reservas de muito longo prazo (> 10 anos)
+      const expandBtn = isLongoMuitoPrazo
+        ? `<button class="btn-icon btn-expand" data-expand="${r.id}" title="Ver carteira vs. sugerida">${IC_CHEVRON}</button>`
+        : '';
+
       return `
         <div class="${cardClass}" id="${r.id}">
           <div class="reserva-header">
@@ -546,8 +598,9 @@
               <div class="reserva-tags">${tags}</div>
             </div>
             <div class="reserva-acoes">
-              <button class="btn-icon" data-edit="${r.id}" title="Editar">✏️</button>
-              <button class="btn-icon" data-delete="${r.id}" title="Excluir">🗑</button>
+              ${expandBtn}
+              <button class="btn-icon" data-edit="${r.id}" title="Editar">${IC_EDIT}</button>
+              <button class="btn-icon btn-delete" data-delete="${r.id}" title="Excluir">${IC_DELETE}</button>
             </div>
           </div>
 
@@ -585,7 +638,89 @@
             <div class="alocacao-title">Alocação sugerida</div>
             <div class="alocacao-itens">${alocHTML}</div>
           </div>
+
+          ${isLongoMuitoPrazo ? renderExpansaoHTML(r) : ''}
         </div>`;
+    }
+
+    // ─── Painel de comparação (longo prazo > 10 anos) ────────────────────────
+    function calcularComparacao() {
+      const sugerida = perfilInvestidor && ALOCACAO_PERFIL[perfilInvestidor];
+      if (!sugerida) return null;
+
+      const total = patrimonioAtual.reduce((s, a) => s + a.valor, 0);
+
+      const atualMap = {};
+      for (const a of patrimonioAtual) {
+        const label = CLASS_TO_LABEL[a.classe];
+        if (label && total > 0) atualMap[label] = (a.valor / total) * 100;
+      }
+
+      return sugerida.map(item => {
+        const atualPct = atualMap[item.label] || 0;
+        return { ...item, atualPct, delta: atualPct - item.pct };
+      });
+    }
+
+    function renderExpansaoHTML(r) {
+      const hasPerfil = !!perfilInvestidor;
+      const temDados  = patrimonioAtual.length > 0;
+      const comp      = hasPerfil ? calcularComparacao() : null;
+
+      if (!hasPerfil) {
+        return `<div class="expansao-panel" id="exp-${r.id}" style="display:none">
+          <div class="comp-aviso">Defina seu <a href="perfil.html">perfil de investidor</a> para ver a alocação comparativa.</div>
+        </div>`;
+      }
+
+      const linhas = (comp || []).map(item => {
+        const atualStr = temDados ? item.atualPct.toFixed(0) + '%' : '—';
+        let deltaStr = '—', deltaClass = 'delta-ok';
+        if (temDados) {
+          const d = item.delta;
+          if (Math.abs(d) < 1) { deltaStr = '✓';                      deltaClass = 'delta-ok';  }
+          else if (d > 0)      { deltaStr = '+' + d.toFixed(0) + '%'; deltaClass = 'delta-pos'; }
+          else                 { deltaStr = d.toFixed(0) + '%';        deltaClass = 'delta-neg'; }
+        }
+        return `
+          <div class="comp-row">
+            <div class="comp-label">
+              <div class="alocacao-dot" style="background:${item.cor}"></div>
+              <span>${item.label}</span>
+            </div>
+            <div class="comp-num">${item.pct}%</div>
+            <div class="comp-num">${atualStr}</div>
+            <div class="comp-num ${deltaClass}">${deltaStr}</div>
+          </div>`;
+      }).join('');
+
+      const aviso = !temDados
+        ? `<div class="comp-aviso">Importe sua posição em <a href="patrimonio.html">Patrimônio</a> para ver os valores atuais.</div>`
+        : '';
+
+      return `
+        <div class="expansao-panel" id="exp-${r.id}" style="display:none">
+          <div class="expansao-titulo">Carteira: sugerida × atual</div>
+          <div class="comp-grid">
+            <div class="comp-row comp-header">
+              <div>Classe</div>
+              <div class="comp-num">Sugerido</div>
+              <div class="comp-num">Atual</div>
+              <div class="comp-num">Diferença</div>
+            </div>
+            ${linhas}
+          </div>
+          ${aviso}
+        </div>`;
+    }
+
+    function toggleExpand(id) {
+      const panel = document.getElementById('exp-' + id);
+      const btn   = document.querySelector(`[data-expand="${id}"]`);
+      if (!panel) return;
+      const isOpen = panel.style.display !== 'none';
+      panel.style.display = isOpen ? 'none' : 'block';
+      if (btn) btn.classList.toggle('aberto', !isOpen);
     }
 
     // ─── Modal ───────────────────────────────

@@ -468,11 +468,11 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard } from './js/api.js';
+    import { getDashboard, bootstrapAdmin } from './js/api.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
-      signOut
+      signOut,
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     // ─── Auth guard ───────────────────────────────
@@ -491,14 +491,27 @@
     });
 
     // ─── Init ─────────────────────────────────────
+    const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
+
     async function init(user) {
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
-      const admin = await isAdmin();
+      let admin = await isAdmin();
       if (admin) document.getElementById('linkAdmin').style.display = 'inline';
 
       const ok = await loadDashboard(user);
 
-      // Admin sem documento de mentorada → redireciona para painel admin
+      // getDashboard falhou → verifica se é a conta master sem claim ainda
+      if (!ok && user.email === ADMIN_MASTER_EMAIL && !admin) {
+        try {
+          await bootstrapAdmin();              // define claim admin=true no servidor
+          await user.getIdToken(true);         // força refresh do token local
+          admin = true;
+        } catch (e) {
+          console.warn('bootstrapAdmin falhou:', e);
+        }
+      }
+
+      // Admin (por claim ou recém-configurada) sem documento de mentorada
       if (!ok && admin) {
         window.location.href = 'admin.html';
         return;

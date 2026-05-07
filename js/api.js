@@ -132,6 +132,12 @@ export async function savePerfil(perfil) {
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
+/**
+ * Bootstrap: configura claim admin=true para a conta master (flaviasch@gmail.com).
+ * Só funciona para esse e-mail — chamado automaticamente em index.html quando necessário.
+ */
+export const bootstrapAdmin = call('bootstrapAdmin');
+
 export const getMentoradas = call('getMentoradas');
 
 /**

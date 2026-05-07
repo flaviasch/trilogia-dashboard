@@ -351,6 +351,27 @@ exports.reativarMentorada = onCall(async (request) => {
   return { ok: true };
 });
 
+// ─── ADMIN — Bootstrap inicial ───────────────────────────────────────────────
+
+/**
+ * Auto-configura a claim admin=true para a conta master (flaviasch@gmail.com).
+ * Chamado uma vez pelo próprio usuário master quando ainda não tem a claim.
+ * Não exige claim prévia — verifica o e-mail diretamente no token JWT.
+ */
+const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
+
+exports.bootstrapAdmin = onCall(async (request) => {
+  const auth = requireAuth(request);
+  if (auth.token.email !== ADMIN_MASTER_EMAIL) {
+    throw new HttpsError('permission-denied', 'Endpoint reservado para a conta master.');
+  }
+  const uid  = auth.uid;
+  const user = await admin.auth().getUser(uid);
+  const claimsAtuais = user.customClaims || {};
+  await admin.auth().setCustomUserClaims(uid, { ...claimsAtuais, admin: true });
+  return { ok: true };
+});
+
 // ─── ADMIN — Custom Claims ────────────────────────────────────────────────────
 
 /**
