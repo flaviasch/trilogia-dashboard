@@ -37,12 +37,12 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
 
-  // Lê o doc Firestore para obter sheetId e o campo 'inicio'
+  // Lê o doc Firestore para obter sheetId, inicio e perfil (fallback)
   const docSnap = await db.collection('mentoradas').doc(uid).get();
   if (!docSnap.exists) {
     throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
   }
-  const { sheetId, inicio } = docSnap.data();
+  const { sheetId, inicio, perfil: perfilFirestore } = docSnap.data();
   if (!sheetId) {
     throw new HttpsError('failed-precondition', 'Planilha ainda não configurada para esta mentorada.');
   }
@@ -53,14 +53,35 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const mes   = agora.getMonth() + 1;
   const ano   = agora.getFullYear();
 
-  const [orcamento, patrimonio, investimentos, dividas, reservas, perfil] = await Promise.all([
-    sheets.getOrcamento(mes, ano),
-    sheets.getPatrimonio(),
-    sheets.getInvestimentos(),
-    sheets.getDividas(),
-    sheets.getReservas(),
-    sheets.getPerfil(),
-  ]);
+  // allSettled: falha no acesso à planilha não derruba o dashboard inteiro.
+  // inicio e perfil vêm do Firestore como fallback.
+  const [orcResult, patResult, invResult, divResult, resResult, perfilResult] =
+    await Promise.allSettled([
+      sheets.getOrcamento(mes, ano),
+      sheets.getPatrimonio(),
+      sheets.getInvestimentos(),
+      sheets.getDividas(),
+      sheets.getReservas(),
+      sheets.getPerfil(),
+    ]);
+
+  const orcamento     = orcResult.status === 'fulfilled'   ? orcResult.value    : [];
+  const patrimonio    = patResult.status === 'fulfilled'   ? patResult.value    : [];
+  const investimentos = invResult.status === 'fulfilled'   ? invResult.value    : [];
+  const dividas       = divResult.status === 'fulfilled'   ? divResult.value    : [];
+  const reservas      = resResult.status === 'fulfilled'   ? resResult.value    : [];
+  // Perfil: prefere dado da planilha, cai para Firestore se planilha inacessível
+  const perfil = perfilResult.status === 'fulfilled'
+    ? perfilResult.value
+    : { perfil: perfilFirestore || null, dataAtualizacao: null };
+
+  const sheetError = [orcResult, patResult, invResult, divResult, resResult, perfilResult]
+    .some(r => r.status === 'rejected');
+  if (sheetError) {
+    const motivo = [orcResult, patResult, invResult, divResult, resResult, perfilResult]
+      .find(r => r.status === 'rejected')?.reason?.message || 'erro desconhecido';
+    console.warn(`[getDashboard] Falha parcial na planilha (uid=${uid}): ${motivo}`);
+  }
 
   // Consolida ativos = patrimônio declarado no IR + posição da corretora
   const ativosConsolidados = consolidarAtivos(patrimonio, investimentos);
@@ -75,7 +96,8 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     patrimonio: { ativos: totalAtivos, dividas: totalDividas, pl: totalAtivos - totalDividas },
     reservas,
     perfil,
-    inicio: inicio || null,   // AAAA-MM (ex: "2025-03")
+    inicio:     inicio || null,   // AAAA-MM (ex: "2025-03")
+    sheetError: sheetError,       // true se planilha estava inacessível
   };
 });
 
@@ -226,6 +248,11 @@ exports.savePerfil = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 
   const sheetId = await getSheetId(db, uid);
   await new SheetsClient(sheetId).savePerfil(perfil, hoje());
+
+  // Espelha no Firestore para servir de fallback no getDashboard
+  // quando a planilha estiver temporariamente inacessível.
+  await db.collection('mentoradas').doc(uid).update({ perfil });
+
   return { ok: true };
 });
 

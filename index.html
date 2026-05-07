@@ -384,9 +384,13 @@
     <span>Carregando seus dados...</span>
   </div>
 
-  <!-- Banner de erro (oculto por default) -->
+  <!-- Banner de erro total (Firestore inacessível) -->
   <div id="erroBanner" style="display:none; background:rgba(248,113,113,0.12); border-bottom:1px solid rgba(248,113,113,0.3); padding:12px 32px; font-size:13px; color:#f87171;">
     Não foi possível carregar seus dados. Verifique sua conexão e <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">tente novamente</a>.
+  </div>
+  <!-- Aviso leve (planilha inacessível, mas dados do Firestore estão ok) -->
+  <div id="avisoSheet" style="display:none; background:rgba(251,191,36,0.08); border-bottom:1px solid rgba(251,191,36,0.2); padding:10px 32px; font-size:13px; color:rgba(251,191,36,0.85);">
+    Alguns dados da planilha estão temporariamente indisponíveis. Orçamento, patrimônio e reservas podem estar em branco.
   </div>
 
   <!-- Conteúdo principal (oculto até carregar) -->
@@ -603,7 +607,12 @@
       } catch (err) {
         console.error('Erro ao carregar dashboard:', err);
         document.getElementById('erroBanner').style.display = 'block';
-        return false;   // sinaliza falha para o init()
+        return false;   // sinaliza falha total para o init()
+      }
+
+      // Planilha inacessível mas dados do Firestore (inicio, perfil) estão disponíveis
+      if (data.sheetError) {
+        document.getElementById('avisoSheet').style.display = 'block';
       }
 
       const NOMES_MESES = ['janeiro','fevereiro','março','abril','maio','junho',
