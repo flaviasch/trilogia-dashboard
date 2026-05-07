@@ -652,22 +652,37 @@
 
       const total = patrimonioAtual.reduce((s, a) => s + a.valor, 0);
 
-      const atualMap = {};
+      const atualMap    = {};  // label → % (dentro da alocação sugerida)
+      const foraMap     = {};  // nome original → % (fora da alocação sugerida)
+      const labelsNaAloc = new Set(sugerida.map(i => i.label));
+
       for (const a of patrimonioAtual) {
         if (!total) continue;
-        // 1. Tenta código interno direto (pos, rv, …)
-        // 2. Se não encontrar, usa PATRIMONIO_COR para resolver nome livre → código
         const codigo = CLASS_TO_LABEL[a.classe]
           ? a.classe
           : (PATRIMONIO_COR[a.classe.toLowerCase()] || null);
         const label = codigo ? CLASS_TO_LABEL[codigo] : null;
-        if (label) atualMap[label] = (atualMap[label] || 0) + (a.valor / total) * 100;
+        const pct   = (a.valor / total) * 100;
+
+        if (label && labelsNaAloc.has(label)) {
+          atualMap[label] = (atualMap[label] || 0) + pct;
+        } else {
+          // Classe existe no patrimônio mas não faz parte da alocação sugerida
+          const nomeExib = label || a.classe; // usa label se resolvido, senão nome bruto
+          foraMap[nomeExib] = (foraMap[nomeExib] || 0) + pct;
+        }
       }
 
-      return sugerida.map(item => {
+      const linhas = sugerida.map(item => {
         const atualPct = atualMap[item.label] || 0;
         return { ...item, atualPct, delta: atualPct - item.pct };
       });
+
+      // Agrega os ativos fora da alocação
+      const foraPct    = Object.values(foraMap).reduce((s, v) => s + v, 0);
+      const foraNomes  = Object.keys(foraMap).join(', ');
+
+      return { linhas, foraPct, foraNomes };
     }
 
     function renderExpansaoHTML(r) {
@@ -681,7 +696,11 @@
         </div>`;
       }
 
-      const linhas = (comp || []).map(item => {
+      const linhasArr = comp ? comp.linhas : [];
+      const foraPct   = comp ? comp.foraPct   : 0;
+      const foraNomes = comp ? comp.foraNomes : '';
+
+      const linhas = linhasArr.map(item => {
         const atualStr = temDados ? item.atualPct.toFixed(0) + '%' : '—';
         let deltaStr = '—', deltaClass = 'delta-ok';
         if (temDados) {
@@ -702,6 +721,18 @@
           </div>`;
       }).join('');
 
+      // Linha de rodapé: ativos fora da alocação sugerida
+      const foraLinha = (temDados && foraPct > 0.5) ? `
+          <div class="comp-row" style="opacity:0.55; border-top:1px solid var(--border); margin-top:4px; padding-top:4px;">
+            <div class="comp-label" style="flex:1">
+              <div class="alocacao-dot" style="background:#94a3b8"></div>
+              <span style="font-size:11px">Fora da alocação sugerida<br><span style="color:var(--text-muted);font-size:10px">${foraNomes}</span></span>
+            </div>
+            <div class="comp-num">—</div>
+            <div class="comp-num">${foraPct.toFixed(0)}%</div>
+            <div class="comp-num">—</div>
+          </div>` : '';
+
       const aviso = !temDados
         ? `<div class="comp-aviso">Importe sua posição em <a href="patrimonio.html">Patrimônio</a> para ver os valores atuais.</div>`
         : '';
@@ -717,6 +748,7 @@
               <div class="comp-num">Diferença</div>
             </div>
             ${linhas}
+            ${foraLinha}
           </div>
           ${aviso}
         </div>`;
