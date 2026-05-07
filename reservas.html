@@ -386,7 +386,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio } from './js/api.js';
+    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR } from './js/api.js';
     import {
       onAuthStateChanged,
       signOut
@@ -654,8 +654,14 @@
 
       const atualMap = {};
       for (const a of patrimonioAtual) {
-        const label = CLASS_TO_LABEL[a.classe];
-        if (label && total > 0) atualMap[label] = (a.valor / total) * 100;
+        if (!total) continue;
+        // 1. Tenta código interno direto (pos, rv, …)
+        // 2. Se não encontrar, usa PATRIMONIO_COR para resolver nome livre → código
+        const codigo = CLASS_TO_LABEL[a.classe]
+          ? a.classe
+          : (PATRIMONIO_COR[a.classe.toLowerCase()] || null);
+        const label = codigo ? CLASS_TO_LABEL[codigo] : null;
+        if (label) atualMap[label] = (atualMap[label] || 0) + (a.valor / total) * 100;
       }
 
       return sugerida.map(item => {
