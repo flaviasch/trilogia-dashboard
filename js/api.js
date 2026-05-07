@@ -218,35 +218,53 @@ export function parsearCsvPatrimonio(csvText) {
 
   // Aliases gerados pelos agentes → classe interna
   const ALIAS = {
-    // Imóveis
+    // ── Imóveis ──
     'imoveis': 'alt', 'imovel': 'alt', 'imóveis': 'alt', 'imóvel': 'alt',
-    'imoveis e direitos': 'alt', 'bens imoveis': 'alt',
-    // Ações / Renda Variável
+    'imoveis e direitos': 'alt', 'bens imoveis': 'alt', 'bens imóveis': 'alt',
+    // ── Veículos / bens físicos ──
+    'veiculos': 'alt', 'veículos': 'alt', 'veiculo': 'alt', 'veículo': 'alt',
+    'automovel': 'alt', 'automóvel': 'alt', 'carro': 'alt',
+    'embarcacao': 'alt', 'embarcação': 'alt', 'aeronave': 'alt',
+    'bens moveis': 'alt', 'bens móveis': 'alt',
+    'outros bens': 'alt', 'outros': 'alt',
+    // ── Ações / Renda Variável ──
     'acoes': 'rv', 'ações': 'rv', 'acao': 'rv', 'ação': 'rv',
     'fii': 'rv', 'fiis': 'rv', 'fundos imobiliarios': 'rv', 'fundos imobiliários': 'rv',
     'renda variavel': 'rv', 'renda variável': 'rv',
-    // RF Pós
+    'participacoes societarias': 'rv', 'participações societárias': 'rv',
+    'participacao societaria': 'rv', 'participação societária': 'rv',
+    'acoes e participacoes': 'rv', 'ações e participações': 'rv',
+    'etf': 'rv', 'etfs': 'rv',
+    // ── RF Pós ──
     'rf pos': 'pos', 'rf pós': 'pos',
     'renda fixa pos': 'pos', 'renda fixa pós': 'pos',
-    'tesouro selic': 'pos', 'cdb pos': 'pos',
-    // RF Inflação
+    'tesouro selic': 'pos', 'cdb pos': 'pos', 'cdb pós': 'pos',
+    'conta bancaria': 'pos', 'conta bancária': 'pos',
+    'contas bancarias': 'pos', 'contas bancárias': 'pos',
+    'aplicacoes financeiras': 'pos', 'aplicações financeiras': 'pos',
+    'poupanca': 'pos', 'poupança': 'pos',
+    // ── RF Inflação ──
     'rf inflacao': 'infl', 'rf inflação': 'infl',
     'renda fixa inflacao': 'infl', 'renda fixa inflação': 'infl',
     'inflacao': 'infl', 'inflação': 'infl',
     'tesouro ipca': 'infl', 'ipca': 'infl',
-    // RF Pré
+    'tesouro ipca+': 'infl',
+    // ── RF Pré ──
     'rf pre': 'pre', 'rf pré': 'pre',
     'renda fixa pre': 'pre', 'renda fixa pré': 'pre',
     'prefixado': 'pre', 'pre-fixado': 'pre', 'pré-fixado': 'pre',
-    // Multimercado
+    'tesouro prefixado': 'pre', 'tesouro pre': 'pre', 'tesouro pré': 'pre',
+    // ── Multimercado ──
     'multimercado': 'mm', 'multi': 'mm', 'fundos multimercado': 'mm',
-    // Internacional
+    'fundos de investimento': 'mm', 'fundos': 'mm',
+    // ── Internacional ──
     'internacional': 'int', 'internacionais': 'int', 'exterior': 'int',
-    'bdr': 'int', 'bdrs': 'int',
-    // Alternativos
+    'bdr': 'int', 'bdrs': 'int', 'ativos no exterior': 'int',
+    // ── Alternativos ──
     'alternativos': 'alt', 'alternativo': 'alt',
     'cripto': 'alt', 'criptomoedas': 'alt', 'criptoativos': 'alt',
     'coe': 'alt', 'fip': 'alt', 'fips': 'alt',
+    'ouro': 'alt', 'commodities': 'alt',
   };
 
   const linhas = csvText.trim().split('\n').map(l => l.trim()).filter(Boolean);
