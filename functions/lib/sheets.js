@@ -121,7 +121,7 @@ class SheetsClient {
 
   // ─── Patrimônio ────────────────────────────────────────────────────────────
   // Aba: patrimonio | Colunas: classe | valor | atualizado (AAAA-MM-DD)
-  // Classes: pos | infl | pre | rv | mm | int | alt
+  // Classes: pos | infl | pre | rv | mm | int | imov | alt
 
   async getPatrimonio() {
     const rows = await this.read('patrimonio!A2:C');

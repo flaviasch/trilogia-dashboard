@@ -35,7 +35,7 @@ const ABAS = {
     headers: ['classe', 'valor', 'atualizado'],
     colWidths: [160, 150, 130],
     validacoes: [
-      { colIndex: 0, valores: ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'alt'] },
+      { colIndex: 0, valores: ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'imov', 'alt'] },
     ],
   },
   investimentos: {

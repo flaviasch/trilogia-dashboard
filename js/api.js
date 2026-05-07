@@ -214,20 +214,23 @@ export function parsearCsvRaioX(csvText) {
  * @returns {Array<{classe, valor}>}
  */
 export function parsearCsvPatrimonio(csvText) {
-  const CLASSES_VALIDAS = ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'alt'];
+  const CLASSES_VALIDAS = ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'imov', 'alt'];
 
   // Aliases gerados pelos agentes → classe interna
   // Cobre: grupos do IR (DIRPF), nomes usados por corretoras e agentes de IA.
   const ALIAS = {
 
-    // ════ BENS FÍSICOS (→ alt) ════════════════════════════════════════════
+    // ════ IMÓVEIS (→ imov) ════════════════════════════════════════════════
 
-    // Imóveis
-    'imoveis': 'alt', 'imovel': 'alt', 'imóveis': 'alt', 'imóvel': 'alt',
-    'imoveis e direitos': 'alt', 'bens imoveis': 'alt', 'bens imóveis': 'alt',
-    'apartamento': 'alt', 'casa': 'alt', 'terreno': 'alt', 'lote': 'alt',
-    'sala comercial': 'alt', 'imovel rural': 'alt', 'imóvel rural': 'alt',
-    'galpao': 'alt', 'galpão': 'alt', 'predio': 'alt', 'prédio': 'alt',
+    'imoveis': 'imov', 'imovel': 'imov', 'imóveis': 'imov', 'imóvel': 'imov',
+    'imoveis e direitos': 'imov', 'bens imoveis': 'imov', 'bens imóveis': 'imov',
+    'apartamento': 'imov', 'casa': 'imov', 'terreno': 'imov', 'lote': 'imov',
+    'sala comercial': 'imov', 'imovel rural': 'imov', 'imóvel rural': 'imov',
+    'galpao': 'imov', 'galpão': 'imov', 'predio': 'imov', 'prédio': 'imov',
+    'imovel residencial': 'imov', 'imóvel residencial': 'imov',
+    'imovel comercial': 'imov', 'imóvel comercial': 'imov',
+
+    // ════ BENS FÍSICOS / VEÍCULOS (→ alt) ════════════════════════════════
 
     // Veículos
     'veiculos': 'alt', 'veículos': 'alt', 'veiculo': 'alt', 'veículo': 'alt',
