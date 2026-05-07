@@ -381,15 +381,15 @@
 
     <!-- Disclaimer -->
     <p class="import-disclaimer">
-      Os ativos podem ser adicionados manualmente pelo botão abaixo ou importados automaticamente via agente — basta conversar com o agente, exportar o arquivo gerado e importar aqui. A importação facilita o processo e reduz erros.
+      Os dados podem ser adicionados manualmente ou importados via agente. O <strong style="color:var(--text-secondary)">Agente de Patrimônio</strong> gera dois arquivos separados: um CSV de patrimônio (ativos do IR ou posição da corretora) e um CSV de dívidas. Importe cada arquivo no cartão correspondente abaixo.
     </p>
 
     <!-- Importar dados -->
-    <div class="import-row">
+    <div class="import-row" style="grid-template-columns: repeat(3, 1fr)">
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar declaração IR</strong>
-          <span>CSV ou TXT gerado pelo Agente de Patrimônio · <a id="linkAgenteIR" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <span>CSV de ativos gerado pelo Agente de Patrimônio · <a id="linkAgenteIR" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
         </div>
         <div>
           <input type="file" id="csvIR" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
@@ -399,11 +399,21 @@
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar posição da corretora</strong>
-          <span>CSV ou TXT gerado pelo Agente de Investimentos · <a id="linkAgenteInv" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <span>CSV de investimentos gerado pelo Agente de Patrimônio · <a id="linkAgenteInv" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
         </div>
         <div>
           <input type="file" id="csvCorretora" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
           <button class="btn-import" id="btnImportCorretora">Importar CSV</button>
+        </div>
+      </div>
+      <div class="import-card">
+        <div class="import-card-text">
+          <strong>Importar dívidas</strong>
+          <span>CSV de dívidas gerado pelo Agente de Patrimônio · <a id="linkAgenteDividas" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+        </div>
+        <div>
+          <input type="file" id="csvDividas" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
+          <button class="btn-import" id="btnImportDividas">Importar CSV</button>
         </div>
       </div>
     </div>
@@ -469,7 +479,7 @@
   <!-- Modal dívida -->
   <div class="modal-overlay hidden" id="modalDivida">
     <div class="modal-card">
-      <h2 class="modal-title">Nova dívida</h2>
+      <h2 class="modal-title" id="modalDividaTitle">Nova dívida</h2>
 
       <div class="field-group">
         <label for="dividaNome">Descrição</label>
@@ -508,7 +518,8 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import {
-      getPatrimonio, savePatrimonio, saveDivida, parsearCsvPatrimonio, PATRIMONIO_COR,
+      getPatrimonio, savePatrimonio,
+      saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
     } from './js/api.js';
     import {
@@ -534,10 +545,12 @@
 
     // Aplica links nos banners (esconde o link se URL vazia)
     function aplicarLinksAgentes() {
-      const ir  = document.getElementById('linkAgenteIR');
-      const inv = document.getElementById('linkAgenteInv');
+      const ir   = document.getElementById('linkAgenteIR');
+      const inv  = document.getElementById('linkAgenteInv');
+      const div  = document.getElementById('linkAgenteDividas');
       if (AGENTE_PATRIMONIO_URL)    { ir.href  = AGENTE_PATRIMONIO_URL;    } else { ir.style.display  = 'none'; }
       if (AGENTE_INVESTIMENTOS_URL) { inv.href = AGENTE_INVESTIMENTOS_URL; } else { inv.style.display = 'none'; }
+      if (AGENTE_PATRIMONIO_URL)    { div.href = AGENTE_PATRIMONIO_URL;    } else { div.style.display = 'none'; }
     }
     aplicarLinksAgentes();
 
@@ -952,8 +965,18 @@
               </div>
             </div>
             <div class="divida-value">${brl(d.saldo)}</div>
+            <div class="ativo-actions">
+              <button class="btn-icon" data-edit-divida="${d.id}" title="Editar">${IC_EDIT}</button>
+              <button class="btn-icon btn-delete" data-del-divida="${d.id}" title="Excluir">${IC_DELETE}</button>
+            </div>
           </div>`;
       }).join('');
+
+      // Listeners dos botões de dívida
+      lista.querySelectorAll('[data-edit-divida]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModalDivida(btn.dataset.editDivida)));
+      lista.querySelectorAll('[data-del-divida]').forEach(btn =>
+        btn.addEventListener('click', () => deletarDivida(btn.dataset.delDivida)));
     }
 
     // ─── Imports ─────────────────────────────
@@ -1065,18 +1088,35 @@
 
     // ─── Modal de dívida ──────────────────────
     const modalEl = document.getElementById('modalDivida');
+    let editandoDividaId = null; // null = nova dívida
 
-    document.getElementById('btnAddDivida').addEventListener('click', () =>
-      modalEl.classList.remove('hidden'));
+    function abrirModalDivida(id = null) {
+      editandoDividaId = id;
+      document.getElementById('modalDividaTitle').textContent = id ? 'Editar dívida' : 'Nova dívida';
+      if (id) {
+        const d = dividas.find(x => x.id === id);
+        if (d) {
+          document.getElementById('dividaNome').value    = d.nome;
+          document.getElementById('dividaTipo').value    = d.tipo;
+          document.getElementById('dividaSaldo').value   = d.saldo;
+          document.getElementById('dividaParcela').value = d.parcela || '';
+          document.getElementById('dividaTermino').value = d.termino || '';
+        }
+      } else {
+        resetModal();
+      }
+      modalEl.classList.remove('hidden');
+    }
 
-    document.getElementById('btnCancelDivida').addEventListener('click', () => {
+    function fecharModalDivida() {
       modalEl.classList.add('hidden');
+      editandoDividaId = null;
       resetModal();
-    });
+    }
 
-    modalEl.addEventListener('click', (e) => {
-      if (e.target === modalEl) { modalEl.classList.add('hidden'); resetModal(); }
-    });
+    document.getElementById('btnAddDivida').addEventListener('click', () => abrirModalDivida());
+    document.getElementById('btnCancelDivida').addEventListener('click', fecharModalDivida);
+    modalEl.addEventListener('click', (e) => { if (e.target === modalEl) fecharModalDivida(); });
 
     function resetModal() {
       document.getElementById('dividaNome').value    = '';
@@ -1098,16 +1138,18 @@
         return;
       }
 
-      const nova = {
-        id: 'd' + Date.now(),
-        nome, tipo, saldo, parcela, termino
-      };
-
-      dividas.push(nova);
-      try {
-        await saveDivida(nova);
-      } catch (err) {
-        alert(`Erro ao salvar dívida: ${err.message || err}`);
+      if (editandoDividaId) {
+        // Edição
+        const idx = dividas.findIndex(d => d.id === editandoDividaId);
+        if (idx !== -1) dividas[idx] = { ...dividas[idx], nome, tipo, saldo, parcela, termino };
+        try { await saveDivida(dividas[idx !== -1 ? idx : 0]); }
+        catch (err) { alert(`Erro ao salvar dívida: ${err.message || err}`); }
+      } else {
+        // Nova
+        const nova = { id: 'd' + Date.now(), nome, tipo, saldo, parcela, termino };
+        dividas.push(nova);
+        try { await saveDivida(nova); }
+        catch (err) { alert(`Erro ao salvar dívida: ${err.message || err}`); }
       }
 
       const totalAtivos  = ativos.reduce((s, a) => s + a.valor, 0);
@@ -1121,8 +1163,48 @@
       renderDividas(dividas, totalDividas);
       snapshotHistorico();
 
-      modalEl.classList.add('hidden');
-      resetModal();
+      fecharModalDivida();
+    });
+
+    async function deletarDivida(id) {
+      const d = dividas.find(x => x.id === id);
+      if (!d) return;
+      if (!confirm(`Excluir "${d.nome}" (${brl(d.saldo)})?`)) return;
+      dividas = dividas.filter(x => x.id !== id);
+      try { await deleteDivida(id); }
+      catch (err) { console.error('Erro ao excluir dívida:', err); alert(`Erro: ${err.message || err}`); }
+      render(ativos, dividas);
+      snapshotHistorico();
+    }
+
+    // ─── Import CSV de dívidas ────────────────
+    document.getElementById('btnImportDividas').addEventListener('click', () =>
+      document.getElementById('csvDividas').click());
+
+    document.getElementById('csvDividas').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      e.target.value = '';
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        try {
+          const novasDividas = parsearCsvDividas(ev.target.result);
+          if (!novasDividas.length) { alert('Nenhuma dívida encontrada no CSV.'); return; }
+          // Apaga todas as dívidas existentes e substitui pelo CSV
+          for (const d of dividas) {
+            try { await deleteDivida(d.id); } catch { /* ignora erros individuais */ }
+          }
+          dividas = novasDividas;
+          for (const d of dividas) {
+            try { await saveDivida(d); } catch (err) { console.warn('Erro ao salvar dívida:', err); }
+          }
+          render(ativos, dividas);
+          snapshotHistorico();
+        } catch (err) {
+          alert(`Erro ao importar CSV de dívidas: ${err.message || err}`);
+        }
+      };
+      reader.readAsText(file, 'utf-8');
     });
   </script>
 

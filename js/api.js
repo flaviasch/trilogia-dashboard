@@ -148,6 +148,87 @@ export async function upsertHistoricoPatrimonio(ativos, dividas) {
   return call('upsertHistoricoPatrimonio')({ uid: uidAtual(), ativos, dividas });
 }
 
+/**
+ * Parseia o CSV de dívidas gerado pelo Agente de Patrimônio.
+ *
+ * Formato esperado:
+ *   nome,tipo,saldo,parcela,termino
+ *   Financiamento imobiliário,financiamento,250000,2500,2035-06
+ *
+ * Colunas obrigatórias: nome, tipo, saldo
+ * Colunas opcionais: parcela (default 0), termino (default '')
+ *
+ * Tipos aceitos: financiamento | carro | emprestimo | cartao | outro
+ * (o parser normaliza variações como "empréstimo", "cartão de crédito", etc.)
+ *
+ * @param {string} csvText
+ * @returns {Array<{id, nome, tipo, saldo, parcela, termino}>}
+ */
+export function parsearCsvDividas(csvText) {
+  const TIPO_ALIAS = {
+    'financiamento': 'financiamento', 'financiamento imobiliario': 'financiamento',
+    'financiamento imobiliário': 'financiamento', 'hipoteca': 'financiamento',
+    'carro': 'carro', 'veiculo': 'carro', 'veículo': 'carro',
+    'financiamento de veiculo': 'carro', 'financiamento de veículo': 'carro',
+    'financiamento auto': 'carro', 'automovel': 'carro', 'automóvel': 'carro',
+    'emprestimo': 'emprestimo', 'empréstimo': 'emprestimo',
+    'emprestimo pessoal': 'emprestimo', 'empréstimo pessoal': 'emprestimo',
+    'consignado': 'emprestimo', 'credito pessoal': 'emprestimo', 'crédito pessoal': 'emprestimo',
+    'cartao': 'cartao', 'cartão': 'cartao',
+    'cartao de credito': 'cartao', 'cartão de crédito': 'cartao',
+    'fatura': 'cartao',
+    'outro': 'outro', 'outros': 'outro', 'other': 'outro',
+  };
+
+  const linhas = csvText.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  if (linhas.length < 2) throw new Error('CSV vazio ou sem dados.');
+
+  const primeiraLinha = linhas[0];
+  const sep = primeiraLinha.includes('\t') ? '\t'
+            : primeiraLinha.includes(';')  ? ';'
+            : ',';
+
+  const cabecalho = primeiraLinha.split(sep).map(c => c.trim().toLowerCase());
+
+  const ALIAS_NOME    = ['nome', 'descricao', 'descrição', 'description', 'divida', 'dívida', 'credito', 'crédito'];
+  const ALIAS_TIPO    = ['tipo', 'type', 'category', 'categoria'];
+  const ALIAS_SALDO   = ['saldo', 'saldo_devedor', 'valor', 'value', 'amount', 'montante', 'divida_total', 'dívida_total'];
+  const ALIAS_PARCELA = ['parcela', 'parcela_mensal', 'prestacao', 'prestação', 'mensalidade', 'installment'];
+  const ALIAS_TERMINO = ['termino', 'término', 'termino_previsto', 'término_previsto', 'vencimento', 'end_date', 'data_termino'];
+
+  const idxNome    = ALIAS_NOME   .map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
+  const idxTipo    = ALIAS_TIPO   .map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
+  const idxSaldo   = ALIAS_SALDO  .map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
+  const idxParcela = ALIAS_PARCELA.map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
+  const idxTermino = ALIAS_TERMINO.map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
+
+  if (idxNome === -1 || idxSaldo === -1) {
+    throw new Error(`CSV inválido: colunas esperadas são "nome" e "saldo". Colunas encontradas: ${cabecalho.join(', ')}.`);
+  }
+
+  return linhas.slice(1).map((linha, i) => {
+    const cols   = linha.split(sep).map(c => c.trim());
+    const nome   = cols[idxNome]?.trim() || '';
+    if (!nome) return null;
+
+    const tipoRaw = idxTipo !== -1 ? (cols[idxTipo]?.trim().toLowerCase() || '') : '';
+    const tipo    = TIPO_ALIAS[tipoRaw] || 'outro';
+
+    const saldo   = parseFloat(cols[idxSaldo]?.replace(',', '.'));
+    if (isNaN(saldo)) throw new Error(`Linha ${i + 2}: saldo inválido "${cols[idxSaldo]}".`);
+
+    const parcelaRaw = idxParcela !== -1 ? cols[idxParcela] : '';
+    const parcela    = parseFloat(parcelaRaw?.replace(',', '.')) || 0;
+
+    const termino = idxTermino !== -1 ? (cols[idxTermino]?.trim() || '') : '';
+
+    return {
+      id: `d${Date.now()}_${i}`,
+      nome, tipo, saldo, parcela, termino,
+    };
+  }).filter(Boolean);
+}
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 /**
