@@ -130,6 +130,24 @@ export async function savePerfil(perfil) {
   return call('savePerfil')({ uid: uidAtual(), perfil });
 }
 
+// ─── Histórico de PL ──────────────────────────────────────────────────────────
+
+/**
+ * @returns {Promise<Array<{data: string, ativos: number, dividas: number, pl: number}>>}
+ */
+export async function getHistoricoPatrimonio() {
+  return call('getHistoricoPatrimonio')({ uid: uidAtual() });
+}
+
+/**
+ * Grava snapshot do mês atual. Chamar após qualquer alteração de patrimônio.
+ * @param {number} ativos  - total de ativos em R$
+ * @param {number} dividas - total de dívidas em R$
+ */
+export async function upsertHistoricoPatrimonio(ativos, dividas) {
+  return call('upsertHistoricoPatrimonio')({ uid: uidAtual(), ativos, dividas });
+}
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 /**

@@ -227,6 +227,65 @@ class SheetsClient {
     if (filtradas.length > 0) await this.write('reservas!A2', filtradas);
   }
 
+  // ─── Histórico de PL ───────────────────────────────────────────────────────
+  // Aba: historico | Colunas: data | ativos | dividas | pl
+  // data: AAAA-MM (ex: 2025-03) — uma linha por mês, upsert por data.
+
+  async getHistorico() {
+    try {
+      const rows = await this.read('historico!A2:D');
+      return rows
+        .filter(r => r[0])
+        .map(r => ({
+          data:    r[0],
+          ativos:  parseFloat(r[1]) || 0,
+          dividas: parseFloat(r[2]) || 0,
+          pl:      parseFloat(r[3]) || 0,
+        }))
+        .sort((a, b) => a.data.localeCompare(b.data));
+    } catch {
+      return []; // aba pode não existir em planilhas antigas
+    }
+  }
+
+  async upsertHistorico(data, ativos, dividas) {
+    const pl = ativos - dividas;
+    try {
+      let rows;
+      try {
+        rows = await this.read('historico!A2:D');
+      } catch {
+        // Aba não existe — cria e adiciona cabeçalho
+        await this._criarAbaHistorico();
+        rows = [];
+      }
+      const idx = rows.findIndex(r => r[0] === data);
+      const row = [data, ativos, dividas, pl];
+      if (idx === -1) {
+        await this.append('historico!A2', [row]);
+      } else {
+        await this.write(`historico!A${idx + 2}:D${idx + 2}`, [row]);
+      }
+    } catch {
+      // Silencioso: não bloqueia o restante
+    }
+  }
+
+  async _criarAbaHistorico() {
+    try {
+      const api = await this._api();
+      // 1. Adiciona a aba
+      await api.spreadsheets.batchUpdate({
+        spreadsheetId: this.sheetId,
+        requestBody: {
+          requests: [{ addSheet: { properties: { title: 'historico' } } }],
+        },
+      });
+      // 2. Escreve o cabeçalho
+      await this.write('historico!A1', [['data', 'ativos', 'dividas', 'pl']]);
+    } catch { /* ignora se a aba já existir com outro erro */ }
+  }
+
   // ─── Perfil de investidor ───────────────────────────────────────────────────
   // Aba: perfil | Colunas: perfil | dataAtualizacao
   // Apenas uma linha de dados (A2:B2).

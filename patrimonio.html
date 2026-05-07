@@ -160,6 +160,68 @@
     .btn-icon:hover { border-color: var(--border-gold); color: var(--white); background: rgba(207,174,101,0.08); }
     .btn-icon.btn-delete:hover { border-color: rgba(248,113,113,0.5); color: var(--negative); background: rgba(248,113,113,0.08); }
 
+    /* ─── Balanço patrimonial ───────────────── */
+    .balanco-card {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px; margin-bottom: 32px;
+    }
+    .balanco-header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .balanco-header h2 { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; }
+    .balanco-header span { font-size: 12px; color: var(--text-muted); }
+    .balanco-cols {
+      display: grid; grid-template-columns: 1fr 1px 1fr; gap: 24px; align-items: start;
+    }
+    .balanco-divider { background: var(--border); align-self: stretch; }
+    .balanco-col-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;
+    }
+    .balanco-bar {
+      display: flex; height: 14px; border-radius: 7px; overflow: hidden; gap: 2px;
+      margin-bottom: 16px;
+    }
+    .balanco-segment { height: 100%; transition: width 0.6s ease; border-radius: 2px; }
+    .balanco-total {
+      font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700;
+      letter-spacing: -0.5px; margin-bottom: 14px;
+    }
+    .balanco-total.positivo { color: var(--positive); }
+    .balanco-total.negativo { color: var(--negative); }
+    .balanco-itens { display: flex; flex-direction: column; gap: 8px; }
+    .balanco-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .balanco-item-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .balanco-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .balanco-label { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .balanco-valor { font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .balanco-pct { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
+
+    /* ─── Gráfico histórico PL ─────────────── */
+    .historico-card {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px; margin-bottom: 32px;
+    }
+    .historico-header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .historico-header h2 { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; }
+    .historico-header span { font-size: 12px; color: var(--text-muted); }
+    .historico-svg-wrap { width: 100%; overflow: hidden; position: relative; }
+    .historico-svg-wrap svg { display: block; width: 100%; }
+    .historico-tooltip {
+      position: absolute; background: var(--navy-dark); border: 1px solid var(--border-gold);
+      border-radius: 8px; padding: 8px 12px; font-size: 12px; pointer-events: none;
+      white-space: nowrap; transform: translate(-50%, -110%); transition: opacity 0.15s;
+      z-index: 10; color: var(--white);
+    }
+    .historico-tooltip.oculto { opacity: 0; }
+    .historico-vazio { font-size: 13px; color: var(--text-muted); text-align: center; padding: 32px 0; }
+
     /* ─── Link agente ───────────────────────── */
     .link-agente { color: var(--gold); text-decoration: none; font-size: 11px; opacity: 0.8; transition: opacity 0.2s; }
     .link-agente:hover { opacity: 1; }
@@ -314,6 +376,12 @@
       </div>
     </div>
 
+    <!-- Balanço patrimonial -->
+    <div id="balancoBox"></div>
+
+    <!-- Evolução do PL -->
+    <div id="historicoBox"></div>
+
     <!-- Ativos por classe -->
     <div class="section">
       <div class="section-header">
@@ -407,7 +475,10 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getPatrimonio, savePatrimonio, saveDivida, parsearCsvPatrimonio, PATRIMONIO_COR } from './js/api.js';
+    import {
+      getPatrimonio, savePatrimonio, saveDivida, parsearCsvPatrimonio, PATRIMONIO_COR,
+      getHistoricoPatrimonio, upsertHistoricoPatrimonio,
+    } from './js/api.js';
     import {
       onAuthStateChanged,
       signOut
@@ -497,20 +568,50 @@
       ]
     };
 
-    let ativos = [];
-    let dividas = [];
+    let ativos   = [];
+    let dividas  = [];
+    let historico = [];
 
     async function init(user) {
       try {
-        const data = await getPatrimonio();
-        ativos  = data.ativos  || [];
-        dividas = data.dividas || [];
+        const [patrimonioData, hist] = await Promise.allSettled([
+          getPatrimonio(),
+          getHistoricoPatrimonio(),
+        ]);
+        if (patrimonioData.status === 'fulfilled') {
+          ativos  = patrimonioData.value.ativos  || [];
+          dividas = patrimonioData.value.dividas || [];
+        }
+        if (hist.status === 'fulfilled') historico = hist.value || [];
       } catch (err) {
         console.error('Erro ao carregar patrimônio:', err);
       }
       render(ativos, dividas);
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
+      // Grava (ou atualiza) o snapshot deste mês em background
+      snapshotHistorico();
+    }
+
+    /** Grava snapshot do mês atual em background. */
+    async function snapshotHistorico() {
+      const ta = ativos.reduce((s, a) => s + a.valor, 0);
+      const td = dividas.reduce((s, d) => s + d.saldo, 0);
+      const mesAtual = new Date().toISOString().slice(0, 7);
+
+      // Atualiza o histórico local imediatamente (sem esperar backend)
+      const idx = historico.findIndex(h => h.data === mesAtual);
+      const novoPonto = { data: mesAtual, ativos: ta, dividas: td, pl: ta - td };
+      if (idx === -1) historico = [...historico, novoPonto].sort((a, b) => a.data.localeCompare(b.data));
+      else            { historico = [...historico]; historico[idx] = novoPonto; }
+      renderHistorico(historico);
+
+      // Persiste na planilha (erros visíveis no console para debug)
+      try {
+        await upsertHistoricoPatrimonio(ta, td);
+      } catch (err) {
+        console.warn('[histórico] Falha ao salvar snapshot:', err?.message || err);
+      }
     }
 
     function render(ativos, divs) {
@@ -587,8 +688,263 @@
       lista.querySelectorAll('[data-del-ativo]').forEach(btn =>
         btn.addEventListener('click', () => deletarAtivo(btn.dataset.delAtivo)));
 
+      // Balanço patrimonial
+      try { renderBalanco(ativos, divs, totalAtivos, totalDividas, pl); }
+      catch(e) { console.error('[renderBalanco]', e); }
+
+      // Evolução do PL
+      try { renderHistorico(historico); }
+      catch(e) { console.error('[renderHistorico]', e); }
+
+      console.log('[render] balanco:', document.getElementById('balancoBox')?.innerHTML?.length, 'historico:', document.getElementById('historicoBox')?.innerHTML?.length, 'totalAtivos:', totalAtivos);
+
       // Dívidas
       renderDividas(divs, totalDividas);
+    }
+
+    function renderBalanco(ativos, divs, totalAtivos, totalDividas, pl) {
+      const box = document.getElementById('balancoBox');
+      if (!totalAtivos && !totalDividas) { box.innerHTML = ''; return; }
+
+      // ── Lado ATIVO: cada classe proporcional ao total ──
+      const ativosOrdenados = [...ativos].filter(a => a.valor > 0).sort((a, b) => b.valor - a.valor);
+      const segAtivos = ativosOrdenados.map(a => {
+        const cls = resolverClasse(a.classe);
+        const p   = (a.valor / (totalAtivos || 1)) * 100;
+        return { cor: cls.cor, pct: p, label: cls.label, valor: a.valor };
+      });
+
+      // ── Lado PASSIVO + PL ──
+      const pctPassivo = totalAtivos > 0 ? (totalDividas / totalAtivos) * 100 : 0;
+      const pctPL      = 100 - pctPassivo;  // pode ser <0 se PL negativo
+      const segPassivo = [];
+      if (totalDividas > 0) segPassivo.push({ cor: 'var(--negative)', pct: Math.max(0, pctPassivo), label: 'Dívidas', valor: totalDividas });
+      if (pl > 0)           segPassivo.push({ cor: 'var(--gold)',     pct: Math.max(0, pctPL),      label: 'Patrimônio Líquido', valor: pl });
+      if (pl < 0)           segPassivo.push({ cor: 'var(--negative)', pct: 100, label: 'Passivo a descoberto', valor: Math.abs(pl) });
+
+      function barHTML(segs) {
+        if (!segs.length) return '<div style="width:100%;height:14px;background:rgba(255,255,255,0.06);border-radius:7px"></div>';
+        return `<div class="balanco-bar">
+          ${segs.map(s => `<div class="balanco-segment" style="width:${s.pct.toFixed(1)}%; background:${s.cor};" title="${s.label}"></div>`).join('')}
+        </div>`;
+      }
+
+      function itensHTML(segs, total) {
+        return segs.map(s => `
+          <div class="balanco-item">
+            <div class="balanco-item-left">
+              <div class="balanco-dot" style="background:${s.cor}"></div>
+              <span class="balanco-label">${s.label}</span>
+            </div>
+            <div>
+              <span class="balanco-valor">${brl(s.valor)}</span>
+              <span class="balanco-pct">${pct(s.valor, total || s.valor)}</span>
+            </div>
+          </div>`).join('');
+      }
+
+      const plClass   = pl >= 0 ? 'positivo' : 'negativo';
+      const plTotal   = Math.max(totalAtivos, totalDividas); // referência para pct PL
+
+      box.innerHTML = `
+        <div class="balanco-card">
+          <div class="balanco-header">
+            <h2>Balanço Patrimonial</h2>
+            <span>Ativo = Passivo + Patrimônio Líquido</span>
+          </div>
+          <div class="balanco-cols">
+
+            <div>
+              <div class="balanco-col-title">Ativo</div>
+              ${barHTML(segAtivos)}
+              <div class="balanco-total">${brl(totalAtivos)}</div>
+              <div class="balanco-itens">${itensHTML(segAtivos, totalAtivos)}</div>
+            </div>
+
+            <div class="balanco-divider"></div>
+
+            <div>
+              <div class="balanco-col-title">Passivo + PL</div>
+              ${barHTML(segPassivo)}
+              <div class="balanco-total ${plClass}">${brl(pl)}<span style="font-size:13px;font-weight:400;margin-left:8px;color:var(--text-muted);">PL</span></div>
+              <div class="balanco-itens">${itensHTML(segPassivo, totalAtivos)}</div>
+            </div>
+
+          </div>
+        </div>`;
+    }
+
+    function renderHistorico(pontos) {
+      const box = document.getElementById('historicoBox');
+      if (!pontos || pontos.length === 0) {
+        box.innerHTML = '';
+        return;
+      }
+
+      // Com apenas 1 ponto duplica para ter pelo menos 2 e mostrar barra/linha
+      const dados = pontos.length === 1
+        ? [pontos[0], pontos[0]]
+        : [...pontos].sort((a, b) => a.data.localeCompare(b.data));
+      const unico = pontos.length === 1;
+
+      const dados = [...pontos].sort((a, b) => a.data.localeCompare(b.data));
+      const n     = dados.length;
+
+      // Dimensões lógicas (viewBox)
+      const VW  = 880, VH = 220;
+      const PAD = { top: 16, right: 20, bottom: 40, left: 72 };
+      const CW  = VW - PAD.left - PAD.right;
+      const CH  = VH - PAD.top  - PAD.bottom;
+
+      const pls    = dados.map(d => d.pl);
+      const ativos = dados.map(d => d.ativos);
+
+      const rawMax = Math.max(...pls, ...ativos, 0);
+      const rawMin = Math.min(...pls, 0);
+
+      // Arredonda escala para valores "redondos"
+      function niceMax(v) {
+        if (v === 0) return 100000;
+        const mag = Math.pow(10, Math.floor(Math.log10(v)));
+        return Math.ceil(v / mag) * mag;
+      }
+      const yMax  = niceMax(rawMax);
+      const yMin  = rawMin < 0 ? -niceMax(Math.abs(rawMin)) : 0;
+      const yRange = yMax - yMin || 1;
+
+      const xPos = i => PAD.left + (n > 1 ? (i / (n - 1)) * CW : CW / 2);
+      const yPos = v => PAD.top + CH - ((v - yMin) / yRange) * CH;
+
+      // Linhas de grade horizontais
+      const yTicks = 4;
+      let gridLines = '';
+      let yLabels   = '';
+      for (let t = 0; t <= yTicks; t++) {
+        const v  = yMin + (yRange / yTicks) * t;
+        const y  = yPos(v);
+        const lbl = v >= 1e6 ? `${(v/1e6).toFixed(1)}M`
+                  : v >= 1e3 ? `${(v/1e3).toFixed(0)}k`
+                  : v < 0    ? `-${Math.abs(v) >= 1e3 ? (Math.abs(v)/1e3).toFixed(0)+'k' : Math.abs(v)}`
+                  : '0';
+        gridLines += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + CW}" y2="${y}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`;
+        yLabels   += `<text x="${PAD.left - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="rgba(255,255,255,0.35)">${lbl}</text>`;
+      }
+
+      // Linha do zero (se PL pode ser negativo)
+      const zeroY = yPos(0);
+      const zeroLine = yMin < 0
+        ? `<line x1="${PAD.left}" y1="${zeroY}" x2="${PAD.left + CW}" y2="${zeroY}" stroke="rgba(255,255,255,0.18)" stroke-width="1" stroke-dasharray="4,3"/>`
+        : '';
+
+      // Rótulos do eixo X
+      let xLabels = '';
+      if (!unico) {
+        const maxLabels = Math.min(n, 12);
+        const step = Math.ceil(n / maxLabels);
+        dados.forEach((d, i) => {
+          if (i % step !== 0 && i !== n - 1) return;
+          const [ano, mes] = d.data.split('-');
+          const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+          const lbl = `${meses[parseInt(mes) - 1]}/${ano.slice(2)}`;
+          xLabels += `<text x="${xPos(i)}" y="${VH - PAD.bottom + 16}" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.35)">${lbl}</text>`;
+        });
+      } else {
+        // Único ponto: mostra o mês centralizado
+        const [ano, mes] = dados[0].data.split('-');
+        const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        xLabels = `<text x="${PAD.left + CW / 2}" y="${VH - PAD.bottom + 16}" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.35)">${meses[parseInt(mes)-1]}/${ano.slice(2)}</text>`;
+      }
+
+      // Path PL (gold)
+      const plPts = dados.map((d, i) => `${i === 0 ? 'M' : 'L'}${xPos(i)},${yPos(d.pl)}`).join(' ');
+
+      // Área PL
+      const areaPath = `${plPts} L${xPos(n-1)},${yPos(yMin < 0 ? 0 : yMin)} L${xPos(0)},${yPos(yMin < 0 ? 0 : yMin)} Z`;
+
+      // Path Ativos (verde, sutil)
+      const ativPts = dados.map((d, i) => `${i === 0 ? 'M' : 'L'}${xPos(i)},${yPos(d.ativos)}`).join(' ');
+
+      // Pontos interativos (PL) — no caso único, dot central; caso múltiplo, todos
+      let dots = '';
+      if (unico) {
+        const cx = PAD.left + CW / 2;
+        const cy = yPos(dados[0].pl);
+        dots = `<circle cx="${cx}" cy="${cy}" r="6" fill="var(--gold)" stroke="var(--navy)" stroke-width="2" class="hl-dot" data-idx="0"/>`;
+      } else {
+        dados.forEach((d, i) => {
+          dots += `<circle cx="${xPos(i)}" cy="${yPos(d.pl)}" r="4" fill="var(--gold)" stroke="var(--navy)" stroke-width="2" class="hl-dot" data-idx="${i}"/>`;
+        });
+      }
+
+      // Rótulo do último valor
+      const ultimo = dados[n - 1];
+      const lblPL = ultimo.pl >= 1e6 ? `R$${(ultimo.pl/1e6).toFixed(2)}M`
+                  : ultimo.pl >= 1e3 ? `R$${(ultimo.pl/1e3).toFixed(0)}k`
+                  : brl(ultimo.pl);
+
+      box.innerHTML = `
+        <div class="historico-card">
+          <div class="historico-header">
+            <h2>Evolução do Patrimônio Líquido</h2>
+            <span>${unico ? '1º registro — acompanhe mês a mês' : `Últimos ${pontos.length} meses`}</span>
+          </div>
+          <div class="historico-svg-wrap" id="historicoWrap">
+            <svg viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="none" id="historicoSvg">
+              <defs>
+                <linearGradient id="gradPL" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stop-color="#CFAE65" stop-opacity="0.22"/>
+                  <stop offset="100%" stop-color="#CFAE65" stop-opacity="0.01"/>
+                </linearGradient>
+              </defs>
+              ${gridLines}
+              ${zeroLine}
+              ${yLabels}
+              ${xLabels}
+              <!-- Ativos (verde sutil) -->
+              <path d="${ativPts}" fill="none" stroke="var(--positive)" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.35"/>
+              <!-- Área PL -->
+              <path d="${areaPath}" fill="url(#gradPL)"/>
+              <!-- Linha PL -->
+              <path d="${plPts}" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              ${dots}
+              <!-- Rótulo do valor -->
+              <text x="${unico ? PAD.left + CW / 2 : xPos(n-1) - 4}" y="${yPos(ultimo.pl) - 14}" text-anchor="${unico ? 'middle' : 'end'}" font-size="11" fill="var(--gold)" font-weight="600">${lblPL}</text>
+            </svg>
+            <div class="historico-tooltip oculto" id="historicoTooltip"></div>
+          </div>
+        </div>`;
+
+      // Tooltip interativo
+      const svgEl     = document.getElementById('historicoSvg');
+      const tooltipEl = document.getElementById('historicoTooltip');
+      const wrap      = document.getElementById('historicoWrap');
+
+      svgEl.querySelectorAll('.hl-dot').forEach(dot => {
+        dot.addEventListener('mouseenter', (e) => {
+          const i   = parseInt(dot.dataset.idx);
+          const d   = dados[i];
+          const [ano, mes] = d.data.split('-');
+          const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                         'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+          tooltipEl.innerHTML = `
+            <div style="font-weight:600;margin-bottom:4px">${meses[parseInt(mes)-1]} ${ano}</div>
+            <div style="color:var(--gold)">PL ${brl(d.pl)}</div>
+            <div style="color:var(--positive);opacity:.7;font-size:11px">Ativos ${brl(d.ativos)}</div>
+            ${d.dividas > 0 ? `<div style="color:var(--negative);opacity:.7;font-size:11px">Dívidas ${brl(d.dividas)}</div>` : ''}`;
+
+          // Posição relativa ao wrap
+          const rect   = wrap.getBoundingClientRect();
+          const dotRect = dot.getBoundingClientRect();
+          tooltipEl.style.left = `${dotRect.left - rect.left + dotRect.width / 2}px`;
+          tooltipEl.style.top  = `${dotRect.top  - rect.top}px`;
+          tooltipEl.classList.remove('oculto');
+          dot.setAttribute('r', '6');
+        });
+        dot.addEventListener('mouseleave', () => {
+          tooltipEl.classList.add('oculto');
+          dot.setAttribute('r', unico ? '6' : '4');
+        });
+      });
     }
 
     function renderDividas(divs, totalDividas) {
@@ -640,6 +996,7 @@
             ativos  = data.ativos  || [];
             dividas = data.dividas || [];
             render(ativos, dividas);
+            snapshotHistorico();
           } catch (err) {
             alert(`Erro ao importar CSV: ${err.message || err}`);
           }
@@ -711,6 +1068,7 @@
       fecharModalAtivo();
       render(ativos, dividas);
       await gravarAtivos();
+      snapshotHistorico();
     });
 
     async function deletarAtivo(classe) {
@@ -720,6 +1078,7 @@
       ativos = ativos.filter(x => x.classe !== classe);
       render(ativos, dividas);
       await gravarAtivos();
+      snapshotHistorico();
     }
 
     // ─── Modal de dívida ──────────────────────
@@ -778,6 +1137,7 @@
       document.getElementById('subDividas').textContent   = `${dividas.length} dívida${dividas.length !== 1 ? 's' : ''}`;
       document.getElementById('totalDividasHeader').textContent = brl(totalDividas);
       renderDividas(dividas, totalDividas);
+      snapshotHistorico();
 
       modalEl.classList.add('hidden');
       resetModal();

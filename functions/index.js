@@ -177,6 +177,33 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
   return { ok: true };
 });
 
+// ─── HISTÓRICO DE PL ─────────────────────────────────────────────────────────
+
+exports.getHistoricoPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const sheetId = await getSheetId(db, uid);
+  return new SheetsClient(sheetId).getHistorico();
+});
+
+/**
+ * Grava (ou atualiza) o snapshot mensal de ativos/dívidas/PL.
+ * Chamado pelo frontend após qualquer alteração de patrimônio.
+ * Espera: { uid, ativos: number, dividas: number }
+ */
+exports.upsertHistoricoPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const { uid, ativos, dividas } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const data = hoje().slice(0, 7); // AAAA-MM
+  const sheetId = await getSheetId(db, uid);
+  await new SheetsClient(sheetId).upsertHistorico(data, ativos ?? 0, dividas ?? 0);
+  return { ok: true };
+});
+
 // ─── DÍVIDAS ──────────────────────────────────────────────────────────────────
 
 exports.saveDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {

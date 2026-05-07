@@ -64,6 +64,11 @@ const ABAS = {
       { colIndex: 0, valores: ['conservador', 'moderado', 'arrojado'] },
     ],
   },
+  historico: {
+    headers: ['data', 'ativos', 'dividas', 'pl'],
+    colWidths: [100, 150, 150, 150],
+    validacoes: [],
+  },
 };
 
 const COR_HEADER = { red: 0.051, green: 0.169, blue: 0.271 };
