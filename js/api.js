@@ -217,58 +217,118 @@ export function parsearCsvPatrimonio(csvText) {
   const CLASSES_VALIDAS = ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'alt'];
 
   // Aliases gerados pelos agentes → classe interna
+  // Cobre: grupos do IR (DIRPF), nomes usados por corretoras e agentes de IA.
   const ALIAS = {
-    // ── Imóveis ──
+
+    // ════ BENS FÍSICOS (→ alt) ════════════════════════════════════════════
+
+    // Imóveis
     'imoveis': 'alt', 'imovel': 'alt', 'imóveis': 'alt', 'imóvel': 'alt',
     'imoveis e direitos': 'alt', 'bens imoveis': 'alt', 'bens imóveis': 'alt',
-    // ── Veículos / bens físicos ──
+    'apartamento': 'alt', 'casa': 'alt', 'terreno': 'alt', 'lote': 'alt',
+    'sala comercial': 'alt', 'imovel rural': 'alt', 'imóvel rural': 'alt',
+    'galpao': 'alt', 'galpão': 'alt', 'predio': 'alt', 'prédio': 'alt',
+
+    // Veículos
     'veiculos': 'alt', 'veículos': 'alt', 'veiculo': 'alt', 'veículo': 'alt',
     'automovel': 'alt', 'automóvel': 'alt', 'carro': 'alt',
-    'embarcacao': 'alt', 'embarcação': 'alt', 'aeronave': 'alt',
+    'motocicleta': 'alt', 'moto': 'alt',
+    'caminhao': 'alt', 'caminhão': 'alt', 'onibus': 'alt', 'ônibus': 'alt',
+    'embarcacao': 'alt', 'embarcação': 'alt', 'lancha': 'alt', 'barco': 'alt',
+    'aeronave': 'alt', 'aviao': 'alt', 'avião': 'alt',
+
+    // Bens móveis / outros bens físicos
     'bens moveis': 'alt', 'bens móveis': 'alt',
-    'outros bens': 'alt', 'outros': 'alt',
-    // ── Ações / Renda Variável ──
+    'joias': 'alt', 'jóias': 'alt', 'joia': 'alt', 'jóia': 'alt',
+    'obras de arte': 'alt', 'obra de arte': 'alt',
+    'antiguidades': 'alt', 'objetos de valor': 'alt', 'colecionaveis': 'alt',
+    'animais': 'alt', 'semoventes': 'alt', 'gado': 'alt',
+    'benfeitoria': 'alt', 'benfeitorias': 'alt',
+    'consorcio': 'alt', 'consórcio': 'alt', 'consorcio nao contemplado': 'alt',
+    'outros bens': 'alt', 'outros': 'alt', 'outros bens e direitos': 'alt',
+
+    // ════ RENDA VARIÁVEL (→ rv) ════════════════════════════════════════════
+
     'acoes': 'rv', 'ações': 'rv', 'acao': 'rv', 'ação': 'rv',
+    'acoes sa': 'rv', 'ações s.a.': 'rv',
     'fii': 'rv', 'fiis': 'rv', 'fundos imobiliarios': 'rv', 'fundos imobiliários': 'rv',
     'renda variavel': 'rv', 'renda variável': 'rv',
     'participacoes societarias': 'rv', 'participações societárias': 'rv',
     'participacao societaria': 'rv', 'participação societária': 'rv',
+    'cotas de ltda': 'rv', 'cotas ltda': 'rv',
     'acoes e participacoes': 'rv', 'ações e participações': 'rv',
     'etf': 'rv', 'etfs': 'rv',
-    // ── RF Pós ──
+    'stock': 'rv', 'stocks': 'rv',
+    'opcoes': 'rv', 'opções': 'rv', 'derivativos': 'rv',
+
+    // ════ RF PÓS / LIQUIDEZ (→ pos) ═══════════════════════════════════════
+
     'rf pos': 'pos', 'rf pós': 'pos',
     'renda fixa pos': 'pos', 'renda fixa pós': 'pos',
-    'tesouro selic': 'pos', 'cdb pos': 'pos', 'cdb pós': 'pos',
+    'tesouro selic': 'pos', 'lft': 'pos',
+    'cdb': 'pos', 'cdb pos': 'pos', 'cdb pós': 'pos',
+    'lci': 'pos', 'lca': 'pos', 'lci lca': 'pos', 'lci/lca': 'pos',
+    'cri pos': 'pos', 'cra pos': 'pos',
     'conta bancaria': 'pos', 'conta bancária': 'pos',
     'contas bancarias': 'pos', 'contas bancárias': 'pos',
     'conta corrente': 'pos', 'contas correntes': 'pos',
     'conta salario': 'pos', 'conta salário': 'pos',
     'conta pagamento': 'pos', 'conta investimento': 'pos',
     'aplicacoes financeiras': 'pos', 'aplicações financeiras': 'pos',
+    'aplicacao financeira': 'pos', 'aplicação financeira': 'pos',
     'poupanca': 'pos', 'poupança': 'pos',
     'deposito bancario': 'pos', 'depósito bancário': 'pos',
-    // ── RF Inflação ──
+    'fgts': 'pos',
+    'caixa': 'pos', 'dinheiro em especie': 'pos', 'dinheiro em espécie': 'pos',
+    'disponibilidades': 'pos',
+
+    // ════ RF INFLAÇÃO (→ infl) ════════════════════════════════════════════
+
     'rf inflacao': 'infl', 'rf inflação': 'infl',
     'renda fixa inflacao': 'infl', 'renda fixa inflação': 'infl',
     'inflacao': 'infl', 'inflação': 'infl',
-    'tesouro ipca': 'infl', 'ipca': 'infl',
-    'tesouro ipca+': 'infl',
-    // ── RF Pré ──
+    'tesouro ipca': 'infl', 'tesouro ipca+': 'infl', 'ntnb': 'infl',
+    'ipca': 'infl', 'cdb ipca': 'infl',
+    'debentures': 'infl', 'debêntures': 'infl',
+    'cri': 'infl', 'cra': 'infl',
+
+    // ════ RF PRÉ-FIXADO (→ pre) ════════════════════════════════════════════
+
     'rf pre': 'pre', 'rf pré': 'pre',
     'renda fixa pre': 'pre', 'renda fixa pré': 'pre',
     'prefixado': 'pre', 'pre-fixado': 'pre', 'pré-fixado': 'pre',
     'tesouro prefixado': 'pre', 'tesouro pre': 'pre', 'tesouro pré': 'pre',
-    // ── Multimercado ──
+    'ltn': 'pre', 'ntnf': 'pre',
+    'cdb pre': 'pre', 'cdb pré': 'pre',
+
+    // ════ MULTIMERCADO (→ mm) ══════════════════════════════════════════════
+
     'multimercado': 'mm', 'multi': 'mm', 'fundos multimercado': 'mm',
     'fundos de investimento': 'mm', 'fundos': 'mm',
-    // ── Internacional ──
+    'previdencia privada': 'mm', 'previdência privada': 'mm',
+    'pgbl': 'mm', 'vgbl': 'mm',
+    'fundo de pensao': 'mm', 'fundo de pensão': 'mm',
+    'plano de previdencia': 'mm', 'plano de previdência': 'mm',
+
+    // ════ INTERNACIONAL (→ int) ════════════════════════════════════════════
+
     'internacional': 'int', 'internacionais': 'int', 'exterior': 'int',
-    'bdr': 'int', 'bdrs': 'int', 'ativos no exterior': 'int',
-    // ── Alternativos ──
+    'ativos no exterior': 'int', 'investimentos no exterior': 'int',
+    'bdr': 'int', 'bdrs': 'int',
+    'moeda estrangeira': 'int', 'dolar': 'int', 'dólar': 'int',
+    'euro': 'int', 'libra': 'int',
+
+    // ════ ALTERNATIVOS (→ alt) ════════════════════════════════════════════
+
     'alternativos': 'alt', 'alternativo': 'alt',
     'cripto': 'alt', 'criptomoedas': 'alt', 'criptoativos': 'alt',
+    'bitcoin': 'alt', 'ethereum': 'alt',
     'coe': 'alt', 'fip': 'alt', 'fips': 'alt',
-    'ouro': 'alt', 'commodities': 'alt',
+    'ouro': 'alt', 'ouro ativo financeiro': 'alt',
+    'commodities': 'alt', 'commodity': 'alt',
+    'direitos': 'alt', 'direitos autorais': 'alt', 'propriedade intelectual': 'alt',
+    'creditos': 'alt', 'créditos': 'alt', 'creditos a receber': 'alt',
+    'emprestimos concedidos': 'alt', 'empréstimos concedidos': 'alt',
   };
 
   const linhas = csvText.trim().split('\n').map(l => l.trim()).filter(Boolean);
