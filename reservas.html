@@ -695,32 +695,45 @@
       return CLASSES_NAO_FINANCEIRAS.has(a.classe.toLowerCase());
     }
 
+    // Todas as classes de ativos financeiros — ordem e cores fixas.
+    // Sugerido e Atual podem ser 0% quando não há alocação/posição naquela classe.
+    const TODAS_CLASSES = [
+      { label: 'RF Pós',         codigo: 'pos',  cor: '#60a5fa' },
+      { label: 'RF Inflação',    codigo: 'infl', cor: '#34d399' },
+      { label: 'RF Pré',         codigo: 'pre',  cor: '#a78bfa' },
+      { label: 'Multimercado',   codigo: 'mm',   cor: '#fb7185' },
+      { label: 'Renda Variável', codigo: 'rv',   cor: '#f59e0b' },
+      { label: 'Internacional',  codigo: 'int',  cor: '#22d3ee' },
+      { label: 'Alternativos',   codigo: 'alt',  cor: '#c084fc' },
+    ];
+
     function calcularComparacao() {
-      const sugerida = perfilInvestidor && ALOCACAO_PERFIL[perfilInvestidor];
-      if (!sugerida) return null;
+      if (!perfilInvestidor) return null;
+
+      const sugerida = ALOCACAO_PERFIL[perfilInvestidor] || [];
+
+      // Mapa label → % sugerido pelo perfil (0 para classes fora do perfil)
+      const sugeridoMap = {};
+      for (const item of sugerida) sugeridoMap[item.label] = item.pct;
 
       // Exclui imóveis, veículos e demais bens físicos antes de calcular percentuais
       const ativosFinanceiros = patrimonioAtual.filter(a => !ehNaoFinanceiro(a));
-
       const total = ativosFinanceiros.reduce((s, a) => s + a.valor, 0);
 
-      const atualMap     = {};
-      const labelsNaAloc = new Set(sugerida.map(i => i.label));
-
+      // Mapa label → % atual (todas as classes financeiras, inclusive as fora do perfil)
+      const atualMap = {};
       for (const a of ativosFinanceiros) {
         if (!total) continue;
         const codigo = resolverCodigo(a.classe);
         const label  = codigo ? CLASS_TO_LABEL[codigo] : null;
-        const p      = (a.valor / total) * 100;
-
-        if (label && labelsNaAloc.has(label)) {
-          atualMap[label] = (atualMap[label] || 0) + p;
-        }
+        if (!label) continue;
+        atualMap[label] = (atualMap[label] || 0) + (a.valor / total) * 100;
       }
 
-      const linhas = sugerida.map(item => {
-        const atualPct = atualMap[item.label] || 0;
-        return { ...item, atualPct, delta: atualPct - item.pct };
+      const linhas = TODAS_CLASSES.map(({ label, cor }) => {
+        const sugeridoPct = sugeridoMap[label] || 0;
+        const atualPct    = atualMap[label]    || 0;
+        return { label, cor, pct: sugeridoPct, atualPct, delta: atualPct - sugeridoPct };
       });
 
       return { linhas };
