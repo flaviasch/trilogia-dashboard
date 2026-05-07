@@ -158,6 +158,10 @@
       text-align: center;
     }
 
+    /* ─── Link agente ───────────────────────── */
+    .link-agente { color: var(--gold); text-decoration: none; font-size: 11px; opacity: 0.8; transition: opacity 0.2s; }
+    .link-agente:hover { opacity: 1; }
+
     /* ─── Upload banner ──────────────────────── */
     .upload-banner {
       background: var(--gold-dim);
@@ -584,7 +588,7 @@
     <div class="upload-banner">
       <div class="upload-banner-text">
         <strong>Importar novo Raio-X</strong>
-        Exporte o CSV do Raio-X e importe aqui para atualizar seu orçamento.
+        CSV gerado pelo Agente Raio-X Financeiro · <a id="linkAgenteRaioX" href="#" target="_blank" class="link-agente">Abrir agente →</a>
       </div>
       <div>
         <input type="file" id="csvInput" class="upload-input" accept=".csv" />
@@ -707,6 +711,13 @@
       onAuthStateChanged,
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // ─── URL do agente (preencher quando disponível) ──────────────────────────
+    const AGENTE_RAIOX_URL = '';
+    (function aplicarLinkAgente() {
+      const link = document.getElementById('linkAgenteRaioX');
+      if (AGENTE_RAIOX_URL) { link.href = AGENTE_RAIOX_URL; } else { link.style.display = 'none'; }
+    })();
 
     // ─── Auth guard ───────────────────────────
     onAuthStateChanged(auth, (user) => {
