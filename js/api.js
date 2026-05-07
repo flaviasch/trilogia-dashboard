@@ -215,10 +215,50 @@ export function parsearCsvRaioX(csvText) {
  */
 export function parsearCsvPatrimonio(csvText) {
   const CLASSES_VALIDAS = ['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'alt'];
+
+  // Aliases gerados pelos agentes → classe interna
+  const ALIAS = {
+    // Imóveis
+    'imoveis': 'alt', 'imovel': 'alt', 'imóveis': 'alt', 'imóvel': 'alt',
+    'imoveis e direitos': 'alt', 'bens imoveis': 'alt',
+    // Ações / Renda Variável
+    'acoes': 'rv', 'ações': 'rv', 'acao': 'rv', 'ação': 'rv',
+    'fii': 'rv', 'fiis': 'rv', 'fundos imobiliarios': 'rv', 'fundos imobiliários': 'rv',
+    'renda variavel': 'rv', 'renda variável': 'rv',
+    // RF Pós
+    'rf pos': 'pos', 'rf pós': 'pos',
+    'renda fixa pos': 'pos', 'renda fixa pós': 'pos',
+    'tesouro selic': 'pos', 'cdb pos': 'pos',
+    // RF Inflação
+    'rf inflacao': 'infl', 'rf inflação': 'infl',
+    'renda fixa inflacao': 'infl', 'renda fixa inflação': 'infl',
+    'inflacao': 'infl', 'inflação': 'infl',
+    'tesouro ipca': 'infl', 'ipca': 'infl',
+    // RF Pré
+    'rf pre': 'pre', 'rf pré': 'pre',
+    'renda fixa pre': 'pre', 'renda fixa pré': 'pre',
+    'prefixado': 'pre', 'pre-fixado': 'pre', 'pré-fixado': 'pre',
+    // Multimercado
+    'multimercado': 'mm', 'multi': 'mm', 'fundos multimercado': 'mm',
+    // Internacional
+    'internacional': 'int', 'internacionais': 'int', 'exterior': 'int',
+    'bdr': 'int', 'bdrs': 'int',
+    // Alternativos
+    'alternativos': 'alt', 'alternativo': 'alt',
+    'cripto': 'alt', 'criptomoedas': 'alt', 'criptoativos': 'alt',
+    'coe': 'alt', 'fip': 'alt', 'fips': 'alt',
+  };
+
   const linhas = csvText.trim().split('\n').map(l => l.trim()).filter(Boolean);
   if (linhas.length < 2) throw new Error('CSV vazio ou sem dados.');
 
-  const cabecalho = linhas[0].split(',').map(c => c.trim().toLowerCase());
+  // Detecta separador automaticamente: tab, ponto-e-vírgula ou vírgula
+  const primeiraLinha = linhas[0];
+  const sep = primeiraLinha.includes('\t') ? '\t'
+            : primeiraLinha.includes(';')  ? ';'
+            : ',';
+
+  const cabecalho = primeiraLinha.split(sep).map(c => c.trim().toLowerCase());
   const idxClasse = cabecalho.indexOf('classe');
   const idxValor  = cabecalho.indexOf('valor');
 
@@ -227,11 +267,17 @@ export function parsearCsvPatrimonio(csvText) {
   }
 
   return linhas.slice(1).map((linha, i) => {
-    const cols   = linha.split(',').map(c => c.trim());
-    const classe = cols[idxClasse]?.toLowerCase();
-    if (!CLASSES_VALIDAS.includes(classe)) {
-      throw new Error(`Linha ${i + 2}: classe inválida "${cols[idxClasse]}". Use: ${CLASSES_VALIDAS.join(', ')}.`);
+    const cols      = linha.split(sep).map(c => c.trim());
+    const classeRaw = cols[idxClasse]?.trim() || '';
+    const chave     = classeRaw.toLowerCase();
+
+    // Aceita o código direto (pos, rv…) ou busca no mapa de aliases
+    const classe = CLASSES_VALIDAS.includes(chave) ? chave : (ALIAS[chave] || null);
+
+    if (!classe) {
+      throw new Error(`Linha ${i + 2}: classe inválida "${classeRaw}". Use: ${CLASSES_VALIDAS.join(', ')}.`);
     }
+
     const valor = parseFloat(cols[idxValor]?.replace(',', '.'));
     if (isNaN(valor)) throw new Error(`Linha ${i + 2}: valor inválido "${cols[idxValor]}".`);
     return { classe, valor };
