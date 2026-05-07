@@ -224,6 +224,36 @@
     .barras-legenda span { font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
     .barras-legenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 
+    /* ─── Gráfico evolução 12 meses ─────────── */
+    .evolucao-card {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px; margin-bottom: 32px;
+    }
+    .evolucao-header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .evolucao-header h2 { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; }
+    .evolucao-header span { font-size: 12px; color: var(--text-muted); }
+    .evolucao-chart {
+      display: flex; gap: 6px; height: 180px; align-items: flex-end;
+    }
+    .ev-col {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      gap: 4px; height: 100%;
+    }
+    .ev-spacer { flex: 1; }
+    .ev-val {
+      font-size: 9px; font-weight: 600; white-space: nowrap;
+      color: var(--text-secondary); text-align: center; line-height: 1.2;
+    }
+    .ev-bar { width: 80%; border-radius: 4px 4px 0 0; min-height: 3px; transition: height 0.5s ease; }
+    .ev-label { font-size: 9px; color: var(--text-muted); text-align: center; margin-top: 2px; }
+    .ev-vazio {
+      text-align: center; padding: 32px 0;
+      font-size: 12px; color: var(--text-muted);
+    }
+
     /* ─── Link agente ───────────────────────── */
     .link-agente { color: var(--gold); text-decoration: none; font-size: 11px; opacity: 0.8; transition: opacity 0.2s; }
     .link-agente:hover { opacity: 1; }
@@ -381,8 +411,11 @@
     <!-- Balanço patrimonial -->
     <div id="balancoBox"></div>
 
-    <!-- Evolução do PL -->
+    <!-- Balanço em perspectiva -->
     <div id="historicoBox"></div>
+
+    <!-- Evolução 12 meses -->
+    <div id="evolucaoBox"></div>
 
     <!-- Ativos por classe -->
     <div class="section">
@@ -607,6 +640,9 @@
       if (idx === -1) historico = [...historico, novoPonto].sort((a, b) => a.data.localeCompare(b.data));
       else            { historico = [...historico]; historico[idx] = novoPonto; }
 
+      // Re-renderiza o gráfico com o ponto do mês atualizado
+      renderEvolucao(historico);
+
       // Persiste na planilha (erros visíveis no console para debug)
       try {
         await upsertHistoricoPatrimonio(ta, td);
@@ -694,6 +730,9 @@
 
       // Gráfico de barras do patrimônio
       renderBarrasPatrimonio(totalAtivos, totalDividas, pl);
+
+      // Evolução 12 meses
+      renderEvolucao(historico);
 
       // Dívidas
       renderDividas(divs, totalDividas);
@@ -837,6 +876,58 @@
         </div>`;
     }
 
+
+    /** Mostra os últimos 12 meses de PL como barras verticais. */
+    function renderEvolucao(pontos) {
+      const box = document.getElementById('evolucaoBox');
+      if (!box) return;
+
+      // Últimos 12 meses, do mais antigo ao mais recente
+      const ultimos = [...pontos]
+        .sort((a, b) => a.data.localeCompare(b.data))
+        .slice(-12);
+
+      if (!ultimos.length) {
+        box.innerHTML = '';
+        return;
+      }
+
+      const maxPL   = Math.max(...ultimos.map(p => Math.abs(p.pl))) || 1;
+      const maxBarH = 120; // px
+
+      const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      const fmtMes = data => {
+        const [ano, mes] = data.split('-');
+        return `${meses[parseInt(mes) - 1]}/${ano.slice(2)}`;
+      };
+      const fmtVal = v => v >= 1e6
+        ? `${(v/1e6).toFixed(1).replace('.',',')}M`
+        : v >= 1e3 ? `${(v/1e3).toFixed(0)}k` : brl(v);
+
+      const cols = ultimos.map(p => {
+        const h     = Math.max(3, (Math.abs(p.pl) / maxPL) * maxBarH);
+        const pos   = p.pl >= 0;
+        const cor   = pos
+          ? 'linear-gradient(to top,rgba(74,222,128,0.85),rgba(74,222,128,0.4))'
+          : 'linear-gradient(to top,rgba(248,113,113,0.85),rgba(248,113,113,0.4))';
+        return `
+          <div class="ev-col">
+            <div class="ev-spacer"></div>
+            <div class="ev-val" style="color:${pos ? 'var(--positive)' : 'var(--negative)'}">${fmtVal(p.pl)}</div>
+            <div class="ev-bar" style="height:${h}px; background:${cor}"></div>
+            <div class="ev-label">${fmtMes(p.data)}</div>
+          </div>`;
+      }).join('');
+
+      box.innerHTML = `
+        <div class="evolucao-card">
+          <div class="evolucao-header">
+            <h2>Evolução do Patrimônio Líquido</h2>
+            <span>Últimos ${ultimos.length} ${ultimos.length === 1 ? 'mês' : 'meses'}</span>
+          </div>
+          <div class="evolucao-chart">${cols}</div>
+        </div>`;
+    }
     // ── função renderHistorico removida (substituída por renderBarrasPatrimonio) ──
     // Snapshot mantido para histórico futuro
     function _renderHistoricoLegado(pontos) {
