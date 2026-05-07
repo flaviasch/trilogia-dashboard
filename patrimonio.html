@@ -214,7 +214,7 @@
     /* Duas barras largas estilo balanco contabil */
     .barras-chart  { display: flex; gap: 28px; justify-content: center; align-items: flex-end; padding: 8px 0 4px; }
     .balanco-col   { flex: 1; max-width: 300px; display: flex; flex-direction: column; }
-    .balanco-seg   { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 14px 16px; transition: height 0.55s ease; overflow: hidden; }
+    .balanco-seg   { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 8px 16px; transition: height 0.55s ease; overflow: hidden; }
     .balanco-seg-lbl { font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: rgba(255,255,255,0.6); text-align: center; }
     .balanco-seg-num { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: #fff; text-align: center; margin-top: 5px; line-height: 1.1; }
     .balanco-pl-neg  { text-align: center; font-size: 12px; color: var(--negative); margin-top: 12px; opacity: 0.85; }
@@ -816,14 +816,15 @@
       const box = document.getElementById("historicoBox");
       if (!totalAtivos && !totalDividas) { box.innerHTML = ""; return; }
 
-      const plPos  = pl >= 0;
-      const maxH   = 260;
-      const minSeg = 64;
+      const plPos = pl >= 0;
+      const maxH  = 260; // px — altura de ambas as barras (sempre igual)
 
-      const ref = plPos ? totalAtivos : totalDividas;
-      const ativosH  = plPos ? maxH : Math.max(minSeg, (totalAtivos / ref) * maxH);
-      const dividasH = plPos ? Math.max(minSeg, (totalDividas / ref) * maxH) : maxH;
-      const plH      = plPos ? Math.max(minSeg, (pl / ref) * maxH) : 0;
+      // PL positivo: ambos os lados têm exatamente maxH px
+      //   dividasH + plH = maxH  →  os dois lados equilibram visualmente
+      // PL negativo: dívidas > ativos → barra direita = maxH, esquerda proporcional
+      const ativosH  = plPos ? maxH : Math.round((totalAtivos / totalDividas) * maxH);
+      const dividasH = plPos ? Math.round((totalDividas / totalAtivos) * maxH) : maxH;
+      const plH      = plPos ? maxH - dividasH : 0; // preenche o resto → iguala as alturas
 
       const fmt = v => v >= 1e6
         ? `R$ ${(v/1e6).toFixed(2).replace(".",",")}M`
