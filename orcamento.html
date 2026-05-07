@@ -411,13 +411,108 @@
     .ritmo-status.em-dia   { background: var(--positive-dim); color: var(--positive); }
     .ritmo-status.atrasada { background: var(--negative-dim); color: var(--negative); }
 
+    /* ─── Botões de ação por linha ──────────── */
+    .item-row {
+      grid-template-columns: 1fr auto auto auto;
+    }
+    .item-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .item-row:hover .item-actions { opacity: 1; }
+    .btn-item {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+    .btn-item:hover { border-color: var(--border-gold); color: var(--white); }
+    .btn-item.del:hover { border-color: rgba(248,113,113,0.5); color: var(--negative); }
+
+    /* ─── Botão adicionar na seção ──────────── */
+    .btn-add-item {
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      width: 100%;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      text-align: left;
+      margin-top: 4px;
+      transition: all 0.2s;
+    }
+    .btn-add-item:hover { border-color: var(--border-gold); color: var(--gold); }
+
+    /* ─── Modal ─────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 24px;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-card {
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%; max-width: 440px;
+    }
+    .modal-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px; margin-bottom: 6px;
+    }
+    .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .field-group label { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.6); }
+    .field-group input, .field-group select {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 14px; color: var(--white);
+      font-family: 'Inter', sans-serif;
+      width: 100%;
+      transition: border-color 0.2s;
+    }
+    .field-group input:focus, .field-group select:focus {
+      outline: none; border-color: rgba(207,174,101,0.5);
+    }
+    .field-group input::placeholder { color: rgba(255,255,255,0.25); }
+    .field-group select option { background: var(--navy); }
+    .modal-actions { display: flex; gap: 12px; margin-top: 24px; }
+    .btn-cancel {
+      flex: 1; background: transparent;
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px; font-size: 14px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-cancel:hover { border-color: var(--border-gold); color: var(--white); }
+    .btn-save {
+      flex: 2; background: var(--gold); color: var(--navy);
+      border: none; border-radius: 8px;
+      padding: 12px; font-size: 14px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-save:hover { background: var(--gold-light); }
+
     /* ─── Responsive ─────────────────────────── */
     @media (max-width: 640px) {
       .navbar { padding: 0 16px; }
       .main { padding: 24px 16px 60px; }
       .resumo-grid { grid-template-columns: 1fr; }
       .item-bar-col { display: none; }
-      .item-row { grid-template-columns: 1fr auto; }
+      .item-row { grid-template-columns: 1fr auto auto; }
+      .item-actions { opacity: 1; }
     }
   </style>
 </head>
@@ -517,6 +612,35 @@
 
   </main>
 
+  <!-- Modal adicionar / editar item -->
+  <div class="modal-overlay hidden" id="modalItem">
+    <div class="modal-card">
+      <h2 class="modal-title" id="modalItemTitle">Novo item</h2>
+      <p class="modal-sub" id="modalItemSub">Preencha os dados do lançamento.</p>
+
+      <div class="field-group">
+        <label for="mCategoria">Categoria</label>
+        <input type="text" id="mCategoria" placeholder="ex: Salário, Moradia, Alimentação…" />
+      </div>
+      <div class="field-group">
+        <label for="mTipo">Tipo</label>
+        <select id="mTipo">
+          <option value="receita">Receita</option>
+          <option value="despesa">Despesa</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label for="mValor">Valor (R$)</label>
+        <input type="number" id="mValor" placeholder="0" min="0" step="10" />
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarItem">Cancelar</button>
+        <button class="btn-save" id="btnSalvarItem">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas } from './js/api.js';
@@ -541,32 +665,84 @@
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
     const pct = (v, total) => total > 0 ? `${((v / total) * 100).toFixed(1)}%` : '0%';
 
-    // ─── Mock data ────────────────────────────
-    const MOCK = {
-      periodo: { mes: 4, ano: 2025 },
-      receitas: [
-        { categoria: 'Salário CLT',   valor: 15000 },
-        { categoria: 'Renda variável (assessoria)', valor: 2500 },
-        { categoria: 'Mentoria',      valor: 1000  },
-      ],
-      despesas: [
-        { categoria: 'Moradia',       valor: 4200 },
-        { categoria: 'Alimentação',   valor: 2100 },
-        { categoria: 'Saúde',         valor: 1200 },
-        { categoria: 'Lazer',         valor: 1000 },
-        { categoria: 'Transporte',    valor: 800  },
-        { categoria: 'Educação',      valor: 600  },
-        { categoria: 'Assinaturas',   valor: 350  },
-        { categoria: 'Vestuário',     valor: 400  },
-        { categoria: 'Outros',        valor: 1650 },
-      ]
-    };
-
     const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-    let currentData = MOCK;
+    let currentData = { periodo: { mes: new Date().getMonth() + 1, ano: new Date().getFullYear() }, receitas: [], despesas: [] };
     let reservas = [];
+
+    // ─── Modal ────────────────────────────────
+    const modal     = document.getElementById('modalItem');
+    let editandoIdx = null;  // { tipo: 'receita'|'despesa', idx: number } ou null
+
+    function abrirModal(tipo, idx = null) {
+      editandoIdx = idx !== null ? { tipo, idx } : null;
+      document.getElementById('modalItemTitle').textContent = idx !== null ? 'Editar item' : 'Novo item';
+      document.getElementById('modalItemSub').textContent =
+        tipo === 'receita' ? 'Lançamento de receita.' : 'Lançamento de despesa.';
+      document.getElementById('mTipo').value = tipo;
+
+      if (idx !== null) {
+        const item = currentData[tipo === 'receita' ? 'receitas' : 'despesas'][idx];
+        document.getElementById('mCategoria').value = item.categoria;
+        document.getElementById('mValor').value     = item.valor;
+      } else {
+        document.getElementById('mCategoria').value = '';
+        document.getElementById('mValor').value     = '';
+      }
+      modal.classList.remove('hidden');
+      document.getElementById('mCategoria').focus();
+    }
+
+    function fecharModal() {
+      modal.classList.add('hidden');
+      editandoIdx = null;
+    }
+
+    document.getElementById('btnCancelarItem').addEventListener('click', fecharModal);
+    modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
+
+    document.getElementById('btnSalvarItem').addEventListener('click', async () => {
+      const categoria = document.getElementById('mCategoria').value.trim();
+      const tipo      = document.getElementById('mTipo').value;
+      const valor     = parseFloat(document.getElementById('mValor').value);
+
+      if (!categoria) { alert('Preencha a categoria.'); return; }
+      if (isNaN(valor) || valor <= 0) { alert('Preencha um valor válido.'); return; }
+
+      const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
+
+      if (editandoIdx !== null && editandoIdx.tipo === tipo) {
+        lista[editandoIdx.idx] = { categoria, valor };
+      } else {
+        lista.push({ categoria, valor });
+      }
+
+      fecharModal();
+      await salvarEAtualizar();
+    });
+
+    async function excluirItem(tipo, idx) {
+      const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
+      const item  = lista[idx];
+      if (!confirm(`Excluir "${item.categoria}"?`)) return;
+      lista.splice(idx, 1);
+      await salvarEAtualizar();
+    }
+
+    async function salvarEAtualizar() {
+      const { mes, ano } = currentData.periodo;
+      const itens = [
+        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor })),
+        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor })),
+      ];
+      try {
+        await saveOrcamento(mes, ano, itens);
+      } catch (err) {
+        console.error('Erro ao salvar:', err);
+      }
+      render(currentData);
+    }
 
     async function init(user) {
       const agora = new Date();
@@ -626,12 +802,16 @@
       document.getElementById('receitaTotal').textContent = brl(totalReceita);
       document.getElementById('despesaTotal').textContent = brl(totalDespesa);
 
+      // SVG icons
+      const IC_EDIT = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
+      const IC_DEL  = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
+
       // Lista receitas
       const recList = document.getElementById('receitasList');
-      recList.innerHTML = data.receitas
-        .sort((a, b) => b.valor - a.valor)
-        .map(r => {
-          const p = (r.valor / totalReceita) * 100;
+      const recOrdenadas = [...data.receitas].sort((a, b) => b.valor - a.valor);
+      recList.innerHTML = recOrdenadas.map((r, i) => {
+          const idxOriginal = data.receitas.indexOf(r);
+          const p = totalReceita > 0 ? (r.valor / totalReceita) * 100 : 0;
           return `
             <div class="item-row">
               <div>
@@ -644,20 +824,24 @@
                 <div class="item-pct">${p.toFixed(1)}% da receita</div>
               </div>
               <div class="item-value receita">${brl(r.valor)}</div>
+              <div class="item-actions">
+                <button class="btn-item" data-edit-rec="${idxOriginal}" title="Editar">${IC_EDIT}</button>
+                <button class="btn-item del" data-del-rec="${idxOriginal}" title="Excluir">${IC_DEL}</button>
+              </div>
             </div>`;
         }).join('') +
         `<div class="total-row">
           <span class="total-label">Total receitas</span>
           <span class="total-value receita">${brl(totalReceita)}</span>
-        </div>`;
+        </div>
+        <button class="btn-add-item" id="btnAddReceita">+ Adicionar receita</button>`;
 
-      // Lista despesas (ordenadas por valor desc)
+      // Lista despesas
       const despList = document.getElementById('despesasList');
-      despList.innerHTML = data.despesas
-        .sort((a, b) => b.valor - a.valor)
-        .map(d => {
-          const pDesp = (d.valor / totalDespesa) * 100;
-          const pRec  = (d.valor / totalReceita) * 100;
+      const despOrdenadas = [...data.despesas].sort((a, b) => b.valor - a.valor);
+      despList.innerHTML = despOrdenadas.map((d, i) => {
+          const idxOriginal = data.despesas.indexOf(d);
+          const pDesp = totalDespesa > 0 ? (d.valor / totalDespesa) * 100 : 0;
           return `
             <div class="item-row">
               <div>
@@ -671,12 +855,30 @@
                 <div class="item-pct">${pDesp.toFixed(1)}% das despesas</div>
               </div>
               <div class="item-value despesa">${brl(d.valor)}</div>
+              <div class="item-actions">
+                <button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_EDIT}</button>
+                <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_DEL}</button>
+              </div>
             </div>`;
         }).join('') +
         `<div class="total-row">
           <span class="total-label">Total despesas</span>
           <span class="total-value despesa">${brl(totalDespesa)}</span>
-        </div>`;
+        </div>
+        <button class="btn-add-item" id="btnAddDespesa">+ Adicionar despesa</button>`;
+
+      // Listeners dos botões de linha
+      recList.querySelectorAll('[data-edit-rec]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModal('receita', +btn.dataset.editRec)));
+      recList.querySelectorAll('[data-del-rec]').forEach(btn =>
+        btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec)));
+      despList.querySelectorAll('[data-edit-desp]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
+      despList.querySelectorAll('[data-del-desp]').forEach(btn =>
+        btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
+
+      document.getElementById('btnAddReceita').addEventListener('click', () => abrirModal('receita'));
+      document.getElementById('btnAddDespesa').addEventListener('click', () => abrirModal('despesa'));
 
       // Sobra box
       const sobraBoxEl = document.getElementById('sobraBox');
