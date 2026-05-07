@@ -128,10 +128,12 @@
     /* ─── Lista de ativos ───────────────────── */
     .ativo-row {
       background: var(--navy); border: 1px solid var(--border); border-radius: 10px;
-      padding: 16px 20px; margin-bottom: 4px;
-      display: grid; grid-template-columns: 16px 1fr auto auto;
-      align-items: center; gap: 14px;
+      padding: 14px 16px; margin-bottom: 4px;
+      display: grid; grid-template-columns: 16px 1fr auto auto auto;
+      align-items: center; gap: 12px;
+      transition: border-color 0.2s;
     }
+    .ativo-row:hover { border-color: rgba(255,255,255,0.14); }
     .ativo-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     .ativo-info {}
     .ativo-classe { font-size: 14px; color: var(--white); }
@@ -140,7 +142,21 @@
     .ativo-bar-track { background: rgba(255,255,255,0.07); border-radius: 4px; height: 4px; overflow: hidden; }
     .ativo-bar-fill { height: 100%; border-radius: 4px; }
     .ativo-pct-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-align: right; }
-    .ativo-value { font-size: 15px; font-weight: 600; text-align: right; white-space: nowrap; min-width: 110px; }
+    .ativo-value { font-size: 15px; font-weight: 600; text-align: right; white-space: nowrap; min-width: 100px; }
+    .ativo-acoes { display: flex; gap: 6px; flex-shrink: 0; }
+
+    /* ─── Botões de ação (ativo + dívida) ───── */
+    .btn-icon {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.2s; color: var(--text-secondary); flex-shrink: 0;
+    }
+    .btn-icon:hover { border-color: var(--border-gold); color: var(--white); background: rgba(207,174,101,0.08); }
+    .btn-icon.btn-delete:hover { border-color: rgba(248,113,113,0.5); color: var(--negative); background: rgba(248,113,113,0.08); }
+
+    /* ─── Link agente ───────────────────────── */
+    .link-agente { color: var(--gold); text-decoration: none; font-size: 11px; opacity: 0.8; transition: opacity 0.2s; }
+    .link-agente:hover { opacity: 1; }
 
     /* ─── Dívidas ───────────────────────────── */
     .divida-row {
@@ -268,7 +284,7 @@
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar declaração IR</strong>
-          <span>CSV ou TXT gerado pelo Agente de Patrimônio</span>
+          <span>CSV ou TXT gerado pelo Agente de Patrimônio · <a id="linkAgenteIR" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
         </div>
         <div>
           <input type="file" id="csvIR" class="file-input" accept=".csv,.txt" />
@@ -278,7 +294,7 @@
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar posição da corretora</strong>
-          <span>CSV ou TXT gerado pelo Agente de Investimentos</span>
+          <span>CSV ou TXT gerado pelo Agente de Investimentos · <a id="linkAgenteInv" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
         </div>
         <div>
           <input type="file" id="csvCorretora" class="file-input" accept=".csv,.txt" />
@@ -302,6 +318,7 @@
 
       <!-- Lista de classes -->
       <div id="ativosList"></div>
+      <button class="btn-add-divida" id="btnAddAtivo">+ Adicionar ativo manualmente</button>
     </div>
 
     <!-- Dívidas -->
@@ -315,6 +332,28 @@
     </div>
 
   </main>
+
+  <!-- Modal ativo -->
+  <div class="modal-overlay hidden" id="modalAtivo">
+    <div class="modal-card">
+      <h2 class="modal-title" id="modalAtivoTitle">Novo ativo</h2>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:24px; margin-top:-8px;">
+        Use o nome que preferir: "Imóveis", "CDB pós", "Ações"…
+      </p>
+      <div class="field-group">
+        <label for="ativoNome">Nome / classe</label>
+        <input type="text" id="ativoNome" placeholder="ex: Imóveis, Tesouro IPCA+, Ações…" />
+      </div>
+      <div class="field-group">
+        <label for="ativoValor">Valor (R$)</label>
+        <input type="number" id="ativoValor" placeholder="0" min="0" step="100" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelAtivo">Cancelar</button>
+        <button class="btn-save" id="btnSaveAtivo">Salvar ativo</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal dívida -->
   <div class="modal-overlay hidden" id="modalDivida">
@@ -374,6 +413,23 @@
       await signOut(auth);
       window.location.href = 'login.html';
     });
+
+    // ─── URLs dos agentes (altere aqui quando tiver os links definitivos) ────
+    const AGENTE_PATRIMONIO_URL = '';   // ex: 'https://claude.ai/agents/...'
+    const AGENTE_INVESTIMENTOS_URL = '';
+
+    // Aplica links nos banners (esconde o link se URL vazia)
+    function aplicarLinksAgentes() {
+      const ir  = document.getElementById('linkAgenteIR');
+      const inv = document.getElementById('linkAgenteInv');
+      if (AGENTE_PATRIMONIO_URL)    { ir.href  = AGENTE_PATRIMONIO_URL;    } else { ir.style.display  = 'none'; }
+      if (AGENTE_INVESTIMENTOS_URL) { inv.href = AGENTE_INVESTIMENTOS_URL; } else { inv.style.display = 'none'; }
+    }
+    aplicarLinksAgentes();
+
+    // ─── SVG icons ───────────────────────────
+    const IC_EDIT   = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
+    const IC_DELETE = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10M6 7v4M10 7v4"/></svg>`;
 
     // ─── Helpers ────────────────────────────
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -491,7 +547,7 @@
         .sort((a, b) => b.valor - a.valor)
         .map(a => {
           const cls = resolverClasse(a.classe);
-          if (!cls || cls.valor === 0) return '';
+          if (!cls || a.valor === 0) return '';
           const p = (a.valor / totalAtivos) * 100;
           return `
             <div class="ativo-row">
@@ -507,8 +563,18 @@
                 <div class="ativo-pct-label">${pct(a.valor, totalAtivos)}</div>
               </div>
               <div class="ativo-value">${brl(a.valor)}</div>
+              <div class="ativo-acoes">
+                <button class="btn-icon" data-edit-ativo="${a.classe}" title="Editar">${IC_EDIT}</button>
+                <button class="btn-icon btn-delete" data-del-ativo="${a.classe}" title="Excluir">${IC_DELETE}</button>
+              </div>
             </div>`;
         }).join('');
+
+      // Listeners dos botões de ativo
+      lista.querySelectorAll('[data-edit-ativo]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModalAtivo(btn.dataset.editAtivo)));
+      lista.querySelectorAll('[data-del-ativo]').forEach(btn =>
+        btn.addEventListener('click', () => deletarAtivo(btn.dataset.delAtivo)));
 
       // Dívidas
       renderDividas(divs, totalDividas);
@@ -570,6 +636,80 @@
         reader.readAsText(file, 'utf-8');
       });
     });
+
+    // ─── CRUD de ativos ───────────────────────
+    const modalAtivo = document.getElementById('modalAtivo');
+    let editandoClasse = null; // classe sendo editada (null = novo)
+
+    function abrirModalAtivo(classe = null) {
+      editandoClasse = classe;
+      document.getElementById('modalAtivoTitle').textContent = classe ? 'Editar ativo' : 'Novo ativo';
+      if (classe) {
+        const a = ativos.find(x => x.classe === classe);
+        document.getElementById('ativoNome').value  = a ? a.classe : '';
+        document.getElementById('ativoValor').value = a ? a.valor  : '';
+      } else {
+        document.getElementById('ativoNome').value  = '';
+        document.getElementById('ativoValor').value = '';
+      }
+      modalAtivo.classList.remove('hidden');
+      document.getElementById('ativoNome').focus();
+    }
+
+    function fecharModalAtivo() {
+      modalAtivo.classList.add('hidden');
+      editandoClasse = null;
+    }
+
+    async function gravarAtivos() {
+      try { await savePatrimonio(ativos, 'ir'); }
+      catch (err) { console.error('Erro ao salvar ativos:', err); alert(`Erro ao salvar: ${err.message || err}`); }
+    }
+
+    document.getElementById('btnAddAtivo').addEventListener('click', () => abrirModalAtivo());
+    document.getElementById('btnCancelAtivo').addEventListener('click', fecharModalAtivo);
+    modalAtivo.addEventListener('click', e => { if (e.target === modalAtivo) fecharModalAtivo(); });
+
+    document.getElementById('btnSaveAtivo').addEventListener('click', async () => {
+      const nome  = document.getElementById('ativoNome').value.trim();
+      const valor = parseFloat(document.getElementById('ativoValor').value);
+
+      if (!nome)         { alert('Preencha o nome do ativo.'); return; }
+      if (isNaN(valor) || valor < 0) { alert('Preencha um valor válido.'); return; }
+
+      if (editandoClasse) {
+        // Edição: pode renomear a classe e/ou alterar o valor
+        const idx = ativos.findIndex(a => a.classe === editandoClasse);
+        if (idx !== -1) {
+          // Se renomeou E já existe a nova classe, soma
+          if (nome !== editandoClasse) {
+            const dup = ativos.findIndex(a => a.classe === nome);
+            if (dup !== -1) { ativos[dup].valor += valor; ativos.splice(idx, 1); }
+            else            { ativos[idx] = { classe: nome, valor }; }
+          } else {
+            ativos[idx].valor = valor;
+          }
+        }
+      } else {
+        // Novo: se já existe, soma
+        const existente = ativos.find(a => a.classe.toLowerCase() === nome.toLowerCase());
+        if (existente) { existente.valor += valor; }
+        else           { ativos.push({ classe: nome, valor }); }
+      }
+
+      fecharModalAtivo();
+      render(ativos, dividas);
+      await gravarAtivos();
+    });
+
+    async function deletarAtivo(classe) {
+      const a = ativos.find(x => x.classe === classe);
+      if (!a) return;
+      if (!confirm(`Excluir "${a.classe}" (${brl(a.valor)})?`)) return;
+      ativos = ativos.filter(x => x.classe !== classe);
+      render(ativos, dividas);
+      await gravarAtivos();
+    }
 
     // ─── Modal de dívida ──────────────────────
     const modalEl = document.getElementById('modalDivida');
