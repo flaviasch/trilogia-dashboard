@@ -539,6 +539,28 @@
     .aporte-distribuido strong { color: var(--white); }
     .modal-card.wide { max-width: 520px; }
 
+    /* ─── Modal passo 2 — classe por reserva ─── */
+    .classe-aporte-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 4px; border-bottom: 1px solid var(--border); gap: 12px;
+    }
+    .classe-aporte-row:last-child { border-bottom: none; }
+    .classe-aporte-info { flex: 1; min-width: 0; }
+    .classe-aporte-nome { font-size: 14px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .classe-aporte-valor { font-size: 12px; color: var(--gold); margin-top: 2px; font-weight: 600; }
+    .classe-aporte-prazo { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    .classe-select {
+      flex-shrink: 0; width: 185px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 6px; padding: 7px 10px;
+      font-size: 13px; color: var(--white);
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.2s; cursor: pointer;
+    }
+    .classe-select:focus { outline: none; border-color: rgba(207,174,101,0.5); }
+    .classe-select option { background: var(--navy-dark); }
+
     /* ─── Input aporte efetivado ─────────────── */
     .aporte-input-wrap { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
     .aporte-input {
@@ -695,23 +717,12 @@
     </div>
   </div>
 
-  <!-- Modal passo 2: classe do aporte -->
+  <!-- Modal passo 2: classe por reserva -->
   <div class="modal-overlay hidden" id="modalClasse">
-    <div class="modal-card">
+    <div class="modal-card wide">
       <h2 class="modal-title">Em qual classe foi investido?</h2>
       <p class="modal-sub" id="modalClasseSub">—</p>
-      <div class="field-group">
-        <label for="mClasse">Classe do ativo</label>
-        <select id="mClasse">
-          <option value="RF Pós">RF Pós (liquidez diária)</option>
-          <option value="RF Inflação">RF Inflação (IPCA+, NTN-B)</option>
-          <option value="RF Pré">RF Pré (Prefixado)</option>
-          <option value="Multimercado">Multimercado / Previdência</option>
-          <option value="Renda Variável">Renda Variável (ações, FIIs)</option>
-          <option value="Internacional">Internacional (BDRs, exterior)</option>
-          <option value="Alternativos">Alternativos (cripto, ouro, COE)</option>
-        </select>
-      </div>
+      <div id="classeAporteList"></div>
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelarClasse">Cancelar</button>
         <button class="btn-save" id="btnConfirmarClasse">Confirmar aporte</button>
@@ -750,7 +761,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio } from './js/api.js';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil } from './js/api.js';
     import {
       onAuthStateChanged,
       signOut
@@ -784,6 +795,51 @@
 
     let currentData = { periodo: { mes: new Date().getMonth() + 1, ano: new Date().getFullYear() }, receitas: [], despesas: [] };
     let reservas = [];
+    let perfilInvestidor = null;
+
+    // ─── Classes por prazo da reserva ────────────────────────────────────────
+    const CLASSES_LABEL = {
+      pos:  'RF Pós (liquidez diária)',
+      infl: 'RF Inflação (IPCA+, NTN-B)',
+      pre:  'RF Pré (Prefixado)',
+      mm:   'Multimercado / Previdência',
+      rv:   'Renda Variável (ações, FIIs)',
+      int:  'Internacional (BDRs, exterior)',
+      alt:  'Alternativos (cripto, ouro, COE)',
+    };
+    const CLASSES_POR_PERFIL = {
+      conservador: ['pos', 'infl', 'pre'],
+      moderado:    ['pos', 'infl', 'pre', 'mm', 'rv', 'int'],
+      arrojado:    ['pos', 'infl', 'pre', 'mm', 'rv', 'int', 'alt'],
+    };
+
+    function mesesAteData(dataMeta) {
+      if (!dataMeta) return null;
+      // aceita YYYY-MM ou YYYY-MM-DD
+      const partes = dataMeta.split('-');
+      const ano  = parseInt(partes[0]);
+      const mes  = parseInt(partes[1]) - 1; // 0-based
+      const hoje = new Date();
+      return (ano - hoje.getFullYear()) * 12 + (mes - hoje.getMonth());
+    }
+
+    function classesPorPrazo(dataMeta) {
+      const meses = mesesAteData(dataMeta);
+      if (meses === null || meses <= 12) return ['pos'];
+      if (meses <= 48)  return ['pos', 'infl', 'pre'];
+      if (meses <= 120) return ['pos', 'infl', 'pre', 'mm'];
+      // > 10 anos: usa perfil; sem perfil carregado → moderado como padrão
+      return CLASSES_POR_PERFIL[perfilInvestidor] || CLASSES_POR_PERFIL.moderado;
+    }
+
+    function descricaoPrazo(dataMeta) {
+      const meses = mesesAteData(dataMeta);
+      if (meses === null) return 'prazo não definido';
+      if (meses <= 12)  return `${meses} mes${meses !== 1 ? 'es' : ''} · só RF Pós`;
+      if (meses <= 48)  return `${meses} meses · RF Pós, Inflação, Pré`;
+      if (meses <= 120) return `${meses} meses · + Multimercado`;
+      return `${Math.floor(meses / 12)} anos · conforme perfil (${perfilInvestidor || 'moderado'})`;
+    }
 
     // ─── Modal ────────────────────────────────
     const modal     = document.getElementById('modalItem');
@@ -950,9 +1006,47 @@
 
       modalReservas.classList.add('hidden');
 
-      // Abre o passo 2
+      // ── Monta passo 2: uma linha por reserva + resto não alocado ─────────
+      const naoAlocado = (valorAportePendente || 0) - distribuido;
+      const listEl = document.getElementById('classeAporteList');
+
+      // Linhas das reservas alocadas
+      const linhas = alocacoesPendentes.map((al, i) => {
+        const r = reservas.find(x => x.id === al.reservaId);
+        const nome    = r ? r.nome : 'Reserva';
+        const classes = r ? classesPorPrazo(r.dataMeta) : ['pos'];
+        const prazo   = r ? descricaoPrazo(r.dataMeta) : '';
+        const opts = classes.map(c =>
+          `<option value="${c}">${CLASSES_LABEL[c]}</option>`).join('');
+        return `
+          <div class="classe-aporte-row">
+            <div class="classe-aporte-info">
+              <div class="classe-aporte-nome">${nome}</div>
+              <div class="classe-aporte-valor">${brl(al.valor)}</div>
+              <div class="classe-aporte-prazo">${prazo}</div>
+            </div>
+            <select class="classe-select" data-idx="${i}">${opts}</select>
+          </div>`;
+      });
+
+      // Linha extra para o não-alocado (se houver)
+      if (naoAlocado > 0.01) {
+        const todasOpts = Object.entries(CLASSES_LABEL)
+          .map(([c, l]) => `<option value="${c}">${l}</option>`).join('');
+        linhas.push(`
+          <div class="classe-aporte-row">
+            <div class="classe-aporte-info">
+              <div class="classe-aporte-nome" style="color:var(--text-muted)">Não alocado a reserva</div>
+              <div class="classe-aporte-valor">${brl(naoAlocado)}</div>
+              <div class="classe-aporte-prazo">livre escolha</div>
+            </div>
+            <select class="classe-select" data-idx="resto">${todasOpts}</select>
+          </div>`);
+      }
+
+      listEl.innerHTML = linhas.join('');
       document.getElementById('modalClasseSub').textContent =
-        `Valor total: ${brl(valorAportePendente)} — selecione a classe do ativo investido.`;
+        `Confirme a classe de cada alocação — total ${brl(valorAportePendente)}.`;
       modalClasse.classList.remove('hidden');
     });
 
@@ -972,8 +1066,7 @@
 
     document.getElementById('btnConfirmarClasse').addEventListener('click', async () => {
       if (valorAportePendente == null) return;
-      const classe = document.getElementById('mClasse').value;
-      const valor  = valorAportePendente;
+      const valor = valorAportePendente;
       modalClasse.classList.add('hidden');
       valorAportePendente = null;
 
@@ -982,7 +1075,26 @@
 
       currentData.aporteEfetivado = valor;
 
-      // Prepara updates de reservas: incrementa acumulado
+      // Lê as classes selecionadas para cada linha
+      const selects = document.querySelectorAll('#classeAporteList .classe-select');
+      // Mapeia índice → classe escolhida
+      const classeMap = {};
+      selects.forEach(sel => { classeMap[sel.dataset.idx] = sel.value; });
+
+      // Agrupa valor por classe para chamar aportePatrimonio uma vez por classe
+      const porClasse = {};
+      alocacoes.forEach((al, i) => {
+        const c = classeMap[String(i)] || 'pos';
+        porClasse[c] = (porClasse[c] || 0) + al.valor;
+      });
+      // Resto não alocado
+      const naoAlocado = valor - alocacoes.reduce((s, a) => s + a.valor, 0);
+      if (naoAlocado > 0.01 && classeMap['resto']) {
+        const c = classeMap['resto'];
+        porClasse[c] = (porClasse[c] || 0) + naoAlocado;
+      }
+
+      // Prepara updates de reservas
       const reservasAtualizadas = alocacoes
         .map(({ reservaId, valor: v }) => {
           const r = reservas.find(x => x.id === reservaId);
@@ -992,23 +1104,25 @@
         .filter(Boolean);
 
       // Executa tudo em paralelo
-      const resultados = await Promise.allSettled([
-        salvarEAtualizar(),                              // orçamento
-        aportePatrimonio(classe, valor),                 // patrimônio/investimentos
-        ...reservasAtualizadas.map(r => saveReserva(r)), // acumulado de cada reserva
-      ]);
+      const chamadas = [
+        salvarEAtualizar(),
+        ...Object.entries(porClasse).map(([c, v]) => aportePatrimonio(c, v)),
+        ...reservasAtualizadas.map(r => saveReserva(r)),
+      ];
 
+      const resultados = await Promise.allSettled(chamadas);
       const erros = resultados.filter(r => r.status === 'rejected');
       if (erros.length > 0) {
         console.error('Erros ao confirmar aporte:', erros.map(e => e.reason));
-        alert('Aporte salvo parcialmente. Verifique as páginas de Patrimônio e Reservas.');
+        alert('Aporte salvo parcialmente. Verifique Patrimônio e Reservas.');
       }
 
-      // Atualiza array local para o ritmoBox refletir na mesma sessão
+      // Atualiza array local
       for (const r of reservasAtualizadas) {
         const idx = reservas.findIndex(x => x.id === r.id);
         if (idx !== -1) reservas[idx] = r;
       }
+      render(currentData);
     });
 
     // Botão ✓ — inicia fluxo pelo modal de reservas
@@ -1026,9 +1140,10 @@
       const mes = agora.getMonth() + 1;
       const ano = agora.getFullYear();
 
-      const [orcResult, resResult] = await Promise.allSettled([
+      const [orcResult, resResult, perfilResult] = await Promise.allSettled([
         getOrcamento(mes, ano),
         getReservas(),
+        getPerfil(),
       ]);
 
       if (orcResult.status === 'fulfilled') {
@@ -1045,7 +1160,8 @@
         currentData = { periodo: { mes, ano }, receitas: [], despesas: [], aporteEfetivado: null };
       }
 
-      if (resResult.status === 'fulfilled') reservas = resResult.value || [];
+      if (resResult.status === 'fulfilled')   reservas = resResult.value || [];
+      if (perfilResult.status === 'fulfilled') perfilInvestidor = perfilResult.value?.perfil || null;
 
       try {
         render(currentData);
