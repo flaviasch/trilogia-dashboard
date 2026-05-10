@@ -180,9 +180,9 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
 // ─── APORTE PATRIMÔNIO (orcamento.html) ──────────────────────────────────────
 
 /**
- * Soma o valor aportado à classe informada na aba `patrimônio`.
- * Lê só a aba IR (não investimentos) para não perder a separação entre fontes.
- * Cria a linha se a classe ainda não existir.
+ * Soma o valor aportado à classe indicada.
+ * Prioridade: investimentos (posição corretora) > patrimônio (IR).
+ * Assim o efeito é visível no consolidado exibido em patrimônio.html e reservas.html.
  */
 exports.aportePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
@@ -196,22 +196,34 @@ exports.aportePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) =
   const sheetId = await getSheetId(db, uid);
   const sheets  = new SheetsClient(sheetId);
 
-  const itens = await sheets.getPatrimonio();
-  const classeLC = classe.toLowerCase();
-  const idx = itens.findIndex(i => i.classe.toLowerCase() === classeLC);
+  const [patrimonio, investimentos] = await Promise.all([
+    sheets.getPatrimonio(),
+    sheets.getInvestimentos(),
+  ]);
 
-  if (idx !== -1) {
-    itens[idx].valor += valor;
+  const classeLC = classe.toLowerCase();
+
+  // Investimentos tem prioridade no consolidado — atualiza lá se já existir
+  const idxInv = investimentos.findIndex(i => i.classe.toLowerCase() === classeLC);
+  if (idxInv !== -1) {
+    investimentos[idxInv].valor += valor;
+    await sheets.saveInvestimentos(investimentos);
   } else {
-    itens.push({ classe, valor });
+    // Classe está em patrimônio (IR) ou é nova — grava em patrimônio
+    const idxPat = patrimonio.findIndex(i => i.classe.toLowerCase() === classeLC);
+    if (idxPat !== -1) {
+      patrimonio[idxPat].valor += valor;
+    } else {
+      patrimonio.push({ classe, valor });
+    }
+    await sheets.savePatrimonio(patrimonio);
   }
 
-  await sheets.savePatrimonio(itens);
-
-  // Upsert histórico de PL com o novo total
-  const totalAtivos = itens.reduce((s, i) => s + i.valor, 0);
+  // Upsert histórico com o total consolidado
+  const consolidado = consolidarAtivos(patrimonio, investimentos);
+  const totalAtivos = consolidado.reduce((s, i) => s + i.valor, 0);
   const data = hoje().slice(0, 7);
-  await sheets.upsertHistorico(data, totalAtivos, 0); // dividas não mudam
+  await sheets.upsertHistorico(data, totalAtivos, 0);
 
   return { ok: true };
 });

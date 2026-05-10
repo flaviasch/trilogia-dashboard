@@ -509,6 +509,36 @@
     }
     .btn-save:hover { background: var(--gold-light); }
 
+    /* ─── Modal reservas — distribuição do aporte ── */
+    .reserva-aporte-list { margin: 0 -4px; }
+    .reserva-aporte-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 4px; border-bottom: 1px solid var(--border); gap: 12px;
+    }
+    .reserva-aporte-row:last-child { border-bottom: none; }
+    .reserva-aporte-info { flex: 1; min-width: 0; }
+    .reserva-aporte-nome { font-size: 14px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .reserva-aporte-plan { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .reserva-aporte-input {
+      width: 110px; flex-shrink: 0;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 10px;
+      font-size: 13px; color: var(--white);
+      font-family: 'Inter', sans-serif; text-align: right;
+      transition: border-color 0.2s;
+    }
+    .reserva-aporte-input:focus { outline: none; border-color: rgba(207,174,101,0.5); }
+    .aporte-distribuido {
+      margin-top: 14px; padding: 10px 12px; border-radius: 8px;
+      background: rgba(255,255,255,0.04); font-size: 12px;
+      display: flex; justify-content: space-between; align-items: center;
+      color: var(--text-muted);
+    }
+    .aporte-distribuido.over { color: var(--negative); background: var(--negative-dim); }
+    .aporte-distribuido strong { color: var(--white); }
+    .modal-card.wide { max-width: 520px; }
+
     /* ─── Input aporte efetivado ─────────────── */
     .aporte-input-wrap { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
     .aporte-input {
@@ -651,10 +681,24 @@
 
   </main>
 
-  <!-- Modal de classe do aporte -->
+  <!-- Modal passo 1: distribuição entre reservas -->
+  <div class="modal-overlay hidden" id="modalReservas">
+    <div class="modal-card wide">
+      <h2 class="modal-title">Como foi distribuído o aporte?</h2>
+      <p class="modal-sub" id="modalReservasSub">—</p>
+      <div class="reserva-aporte-list" id="reservasAporteList"></div>
+      <div class="aporte-distribuido" id="aporteDistribuido">—</div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarReservas">Cancelar</button>
+        <button class="btn-save" id="btnProximoClasse">Próximo →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal passo 2: classe do aporte -->
   <div class="modal-overlay hidden" id="modalClasse">
     <div class="modal-card">
-      <h2 class="modal-title">Em qual classe foi aportado?</h2>
+      <h2 class="modal-title">Em qual classe foi investido?</h2>
       <p class="modal-sub" id="modalClasseSub">—</p>
       <div class="field-group">
         <label for="mClasse">Classe do ativo</label>
@@ -706,7 +750,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, aportePatrimonio } from './js/api.js';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio } from './js/api.js';
     import {
       onAuthStateChanged,
       signOut
@@ -817,23 +861,113 @@
       render(currentData);
     }
 
-    // ─── Modal de classe do aporte ────────────────────────────────────────────
-    const modalClasse   = document.getElementById('modalClasse');
-    let valorAportePendente = null;
+    // ─── Aporte efetivado — fluxo em 2 passos ────────────────────────────────
+    // Passo 1: distribuir entre reservas  →  passo 2: escolher classe do ativo
 
-    function abrirModalClasse(valor) {
+    const modalReservas = document.getElementById('modalReservas');
+    const modalClasse   = document.getElementById('modalClasse');
+
+    let valorAportePendente  = null;
+    let alocacoesPendentes   = []; // [{ reservaId, valor }]
+
+    // ── Passo 1: modal de reservas ────────────────────────────────────────────
+    function abrirModalReservas(valor) {
       valorAportePendente = valor;
-      document.getElementById('modalClasseSub').textContent =
-        `Valor: ${brl(valor)} — selecione onde foi investido para atualizar o patrimônio.`;
-      modalClasse.classList.remove('hidden');
+      document.getElementById('modalReservasSub').textContent =
+        `Aporte de ${brl(valor)} — distribua entre as reservas ativas (pode deixar zero).`;
+
+      const ativas = reservas.filter(r => r.aporte > 0 && r.acumulado < r.meta);
+      const listEl = document.getElementById('reservasAporteList');
+
+      if (ativas.length === 0) {
+        listEl.innerHTML = `<p style="color:var(--text-muted);font-size:13px;padding:12px 0">
+          Nenhuma reserva com aporte programado. Clique em Próximo para registrar só o patrimônio.</p>`;
+      } else {
+        listEl.innerHTML = ativas.map(r => {
+          const restante = r.meta - r.acumulado;
+          const sugerido = Math.min(r.aporte, restante);
+          return `
+          <div class="reserva-aporte-row">
+            <div class="reserva-aporte-info">
+              <div class="reserva-aporte-nome">${r.nome}</div>
+              <div class="reserva-aporte-plan">
+                planejado ${brl(r.aporte)} · faltam ${brl(restante)}
+              </div>
+            </div>
+            <input type="number" class="reserva-aporte-input"
+                   data-reserva-id="${r.id}"
+                   value="${sugerido}" min="0" step="100" />
+          </div>`;
+        }).join('');
+
+        listEl.querySelectorAll('.reserva-aporte-input').forEach(inp =>
+          inp.addEventListener('input', atualizarDistribuido));
+      }
+
+      atualizarDistribuido();
+      modalReservas.classList.remove('hidden');
     }
 
+    function atualizarDistribuido() {
+      const total = valorAportePendente || 0;
+      const inputs = document.querySelectorAll('#reservasAporteList .reserva-aporte-input');
+      const distribuido = [...inputs].reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+      const naoAlocado  = total - distribuido;
+      const over        = distribuido > total + 0.01;
+      const el = document.getElementById('aporteDistribuido');
+      el.className = 'aporte-distribuido' + (over ? ' over' : '');
+      el.innerHTML = over
+        ? `<span>⚠ Total distribuído excede o aporte em <strong>${brl(distribuido - total)}</strong></span>`
+        : `<span>Distribuído: <strong>${brl(distribuido)}</strong> de <strong>${brl(total)}</strong></span>
+           <span>Não alocado: <strong>${brl(Math.max(0, naoAlocado))}</strong></span>`;
+    }
+
+    document.getElementById('btnCancelarReservas').addEventListener('click', () => {
+      modalReservas.classList.add('hidden');
+      valorAportePendente = null;
+      alocacoesPendentes  = [];
+    });
+    modalReservas.addEventListener('click', e => {
+      if (e.target === modalReservas) {
+        modalReservas.classList.add('hidden');
+        valorAportePendente = null;
+        alocacoesPendentes  = [];
+      }
+    });
+
+    document.getElementById('btnProximoClasse').addEventListener('click', () => {
+      const inputs = document.querySelectorAll('#reservasAporteList .reserva-aporte-input');
+      const distribuido = [...inputs].reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+
+      if (distribuido > (valorAportePendente || 0) + 0.01) {
+        alert(`O total distribuído (${brl(distribuido)}) excede o aporte (${brl(valorAportePendente)}).`);
+        return;
+      }
+
+      alocacoesPendentes = [...inputs]
+        .map(inp => ({ reservaId: inp.dataset.reservaId, valor: parseFloat(inp.value) || 0 }))
+        .filter(a => a.valor > 0);
+
+      modalReservas.classList.add('hidden');
+
+      // Abre o passo 2
+      document.getElementById('modalClasseSub').textContent =
+        `Valor total: ${brl(valorAportePendente)} — selecione a classe do ativo investido.`;
+      modalClasse.classList.remove('hidden');
+    });
+
+    // ── Passo 2: modal de classe ──────────────────────────────────────────────
     document.getElementById('btnCancelarClasse').addEventListener('click', () => {
       modalClasse.classList.add('hidden');
       valorAportePendente = null;
+      alocacoesPendentes  = [];
     });
     modalClasse.addEventListener('click', e => {
-      if (e.target === modalClasse) { modalClasse.classList.add('hidden'); valorAportePendente = null; }
+      if (e.target === modalClasse) {
+        modalClasse.classList.add('hidden');
+        valorAportePendente = null;
+        alocacoesPendentes  = [];
+      }
     });
 
     document.getElementById('btnConfirmarClasse').addEventListener('click', async () => {
@@ -843,24 +977,45 @@
       modalClasse.classList.add('hidden');
       valorAportePendente = null;
 
+      const alocacoes = [...alocacoesPendentes];
+      alocacoesPendentes = [];
+
       currentData.aporteEfetivado = valor;
 
-      // Salva aporte no orçamento e soma ao patrimônio em paralelo
-      const [, patErr] = await Promise.allSettled([
-        salvarEAtualizar(),
-        aportePatrimonio(classe, valor),
+      // Prepara updates de reservas: incrementa acumulado
+      const reservasAtualizadas = alocacoes
+        .map(({ reservaId, valor: v }) => {
+          const r = reservas.find(x => x.id === reservaId);
+          if (!r) return null;
+          return { ...r, acumulado: Math.min(r.acumulado + v, r.meta) };
+        })
+        .filter(Boolean);
+
+      // Executa tudo em paralelo
+      const resultados = await Promise.allSettled([
+        salvarEAtualizar(),                              // orçamento
+        aportePatrimonio(classe, valor),                 // patrimônio/investimentos
+        ...reservasAtualizadas.map(r => saveReserva(r)), // acumulado de cada reserva
       ]);
-      if (patErr?.status === 'rejected') {
-        console.error('Erro ao atualizar patrimônio:', patErr.reason);
-        alert('Aporte salvo no orçamento, mas houve erro ao atualizar o patrimônio. Verifique a página de Patrimônio.');
+
+      const erros = resultados.filter(r => r.status === 'rejected');
+      if (erros.length > 0) {
+        console.error('Erros ao confirmar aporte:', erros.map(e => e.reason));
+        alert('Aporte salvo parcialmente. Verifique as páginas de Patrimônio e Reservas.');
+      }
+
+      // Atualiza array local para o ritmoBox refletir na mesma sessão
+      for (const r of reservasAtualizadas) {
+        const idx = reservas.findIndex(x => x.id === r.id);
+        if (idx !== -1) reservas[idx] = r;
       }
     });
 
-    // Botão ✓ — abre modal de classe antes de salvar
+    // Botão ✓ — inicia fluxo pelo modal de reservas
     document.getElementById('btnSalvarAporte').addEventListener('click', () => {
       const val = parseFloat(document.getElementById('aporteEfetivadoInput').value);
       if (isNaN(val) || val <= 0) { alert('Digite um valor válido para o aporte.'); return; }
-      abrirModalClasse(val);
+      abrirModalReservas(val);
     });
     document.getElementById('aporteEfetivadoInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('btnSalvarAporte').click();
