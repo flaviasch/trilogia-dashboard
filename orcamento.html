@@ -561,6 +561,38 @@
     .classe-select:focus { outline: none; border-color: rgba(207,174,101,0.5); }
     .classe-select option { background: var(--navy-dark); }
 
+    /* ─── Gráfico de aportes ────────────────── */
+    .grafico-section { margin-top: 24px; }
+    .grafico-card {
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .grafico-header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 20px; gap: 12px; flex-wrap: wrap;
+    }
+    .grafico-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 16px; font-weight: 600;
+    }
+    .grafico-ano { font-size: 13px; color: var(--text-muted); }
+    .grafico-canvas-wrap { position: relative; height: 260px; }
+    .grafico-legenda {
+      display: flex; gap: 20px; margin-top: 14px; flex-wrap: wrap;
+    }
+    .grafico-leg-item {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 12px; color: var(--text-muted);
+    }
+    .grafico-leg-dot {
+      width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0;
+    }
+    .grafico-leg-dot.linha {
+      border-radius: 50%;
+    }
+
     /* ─── Input aporte efetivado ─────────────── */
     .aporte-input-wrap { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
     .aporte-input {
@@ -701,6 +733,29 @@
     <!-- Ritmo dos aportes nas reservas -->
     <div id="ritmoBox"></div>
 
+    <!-- Gráfico aportes: realizado × planejado -->
+    <div class="grafico-section" id="graficoSection" style="display:none">
+      <div class="grafico-card">
+        <div class="grafico-header">
+          <h2 class="grafico-title">Aportes — Realizado × Planejado</h2>
+          <span class="grafico-ano" id="graficoAno"></span>
+        </div>
+        <div class="grafico-canvas-wrap">
+          <canvas id="graficoCanvas"></canvas>
+        </div>
+        <div class="grafico-legenda">
+          <div class="grafico-leg-item">
+            <div class="grafico-leg-dot" style="background:rgba(207,174,101,0.75)"></div>
+            Aporte realizado (acumulado)
+          </div>
+          <div class="grafico-leg-item">
+            <div class="grafico-leg-dot linha" style="background:#4ade80"></div>
+            Meta acumulada (planejado)
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Modal passo 1: distribuição entre reservas -->
@@ -766,6 +821,7 @@
       onAuthStateChanged,
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import Chart from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/+esm';
 
     // ─── URL do agente (preencher quando disponível) ──────────────────────────
     const AGENTE_RAIOX_URL = '';
@@ -1170,6 +1226,11 @@
       }
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
+
+      // Carrega histórico anual em paralelo e renderiza o gráfico ao terminar
+      carregarHistoricoAnual(new Date().getFullYear())
+        .then(historico => renderGrafico(historico))
+        .catch(err => console.error('Erro ao carregar histórico do gráfico:', err));
     }
 
     function render(data) {
@@ -1344,6 +1405,123 @@
       } else {
         ritmoBoxEl.innerHTML = '';
       }
+    }
+
+    // ─── Gráfico aportes ─────────────────────────────────────────────────────
+    let graficoInstance = null;
+
+    async function carregarHistoricoAnual(ano) {
+      const mesAtual = new Date().getMonth() + 1;
+      const promises = [];
+      for (let m = 1; m <= mesAtual; m++) {
+        promises.push(
+          getOrcamento(m, ano)
+            .then(itens => {
+              const a = itens.find(i => i.tipo === 'aporte');
+              return { mes: m, valor: a ? a.valor : 0 };
+            })
+            .catch(() => ({ mes: m, valor: 0 }))
+        );
+      }
+      return Promise.all(promises);
+    }
+
+    function renderGrafico(historico) {
+      if (!historico || historico.length === 0) return;
+
+      document.getElementById('graficoAno').textContent = new Date().getFullYear();
+
+      const labels = historico.map(({ mes }) => MESES[mes - 1].slice(0, 3));
+
+      // Barras: aporte realizado acumulado
+      let cumReal = 0;
+      const dataReal = historico.map(({ valor }) => {
+        cumReal += valor || 0;
+        return cumReal;
+      });
+
+      // Linha: aporte planejado acumulado (totalPlanejado × n meses)
+      const reservasAtivas = reservas.filter(r => r.acumulado < r.meta && r.aporte > 0);
+      const planoMensal = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
+      let cumPlano = 0;
+      const dataPlano = historico.map(() => {
+        cumPlano += planoMensal;
+        return cumPlano;
+      });
+
+      const ctx = document.getElementById('graficoCanvas').getContext('2d');
+
+      if (graficoInstance) { graficoInstance.destroy(); graficoInstance = null; }
+
+      graficoInstance = new Chart(ctx, {
+        data: {
+          labels,
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Realizado (acumulado)',
+              data: dataReal,
+              backgroundColor: 'rgba(207,174,101,0.65)',
+              borderColor: '#CFAE65',
+              borderWidth: 1,
+              borderRadius: 5,
+              order: 2,
+            },
+            {
+              type: 'line',
+              label: 'Planejado (acumulado)',
+              data: dataPlano,
+              borderColor: '#4ade80',
+              backgroundColor: 'rgba(74,222,128,0.07)',
+              borderWidth: 2,
+              pointRadius: 3,
+              pointBackgroundColor: '#4ade80',
+              tension: 0.25,
+              fill: false,
+              order: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#0D2B45',
+              borderColor: 'rgba(207,174,101,0.25)',
+              borderWidth: 1,
+              titleColor: '#fff',
+              bodyColor: 'rgba(255,255,255,0.65)',
+              padding: 12,
+              callbacks: {
+                label: ctx => `  ${ctx.dataset.label}: ${brl(ctx.parsed.y)}`,
+              },
+            },
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 12 } },
+              border: { color: 'rgba(255,255,255,0.06)' },
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: {
+                color: 'rgba(255,255,255,0.45)',
+                font: { size: 11 },
+                callback: v => brl(v),
+                maxTicksLimit: 6,
+              },
+              border: { color: 'rgba(255,255,255,0.06)' },
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+
+      document.getElementById('graficoSection').style.display = 'block';
     }
 
     // ─── Navegação de período ─────────────────
