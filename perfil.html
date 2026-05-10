@@ -311,6 +311,7 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { getPerfil, savePerfil, getReservas } from './js/api.js';
+    import { toast, setLoading } from './js/ui.js';
     import {
       onAuthStateChanged,
       signOut
@@ -646,17 +647,15 @@
       perfilAtual = { perfil, dataAtualizacao: hoje };
 
       const btn = document.getElementById('btnConfirmar');
-      btn.disabled = true;
-      btn.textContent = 'Salvando…';
+      setLoading(btn, true);
 
       try {
         await savePerfil(perfil);
         // Redireciona para o dashboard para refletir o perfil atualizado
         window.location.href = 'index.html';
       } catch (err) {
-        alert(`Erro ao salvar perfil: ${err.message || err}`);
-        btn.disabled = false;
-        btn.textContent = 'Confirmar e salvar';
+        toast(`Erro ao salvar perfil: ${err.message || err}`, 'error');
+        setLoading(btn, false);
 
         document.getElementById('resultado').classList.remove('ativo');
         document.getElementById('validadeBanner').style.display = '';

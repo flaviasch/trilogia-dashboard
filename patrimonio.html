@@ -313,8 +313,25 @@
     }
     .btn-save:hover { background: var(--gold-light); }
 
+    /* ─── Bottom nav (mobile) ──────────────────── */
+    .bottom-nav {
+      display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 150;
+      background: var(--navy); border-top: 1px solid var(--border);
+      height: 60px; padding: 0 8px;
+      align-items: stretch; justify-content: space-around;
+    }
+    .bnav-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px; flex: 1; text-decoration: none; color: var(--text-muted);
+      font-size: 10px; font-weight: 500; transition: color .2s; padding: 4px 0;
+    }
+    .bnav-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+    .bnav-item.active, .bnav-item:hover { color: var(--gold); }
+
     /* ─── Responsive ────────────────────────── */
     @media (max-width: 640px) {
+      .bottom-nav { display: flex; }
+      body { padding-bottom: 60px; }
       .navbar { padding: 0 16px; }
       .user-name { display: none; }
       .main { padding: 24px 16px 60px; }
@@ -526,6 +543,26 @@
     </div>
   </div>
 
+  <!-- Bottom nav (mobile) -->
+  <nav class="bottom-nav">
+    <a href="index.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Início
+    </a>
+    <a href="orcamento.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/></svg>
+      Orçamento
+    </a>
+    <a href="patrimonio.html" class="bnav-item active">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Patrimônio
+    </a>
+    <a href="reservas.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Reservas
+    </a>
+  </nav>
+
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import {
@@ -533,6 +570,7 @@
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
     } from './js/api.js';
+    import { toast, setLoading } from './js/ui.js';
     import {
       onAuthStateChanged,
       signOut
@@ -1024,7 +1062,7 @@
             render(ativos, dividas);
             snapshotHistorico();
           } catch (err) {
-            alert(`Erro ao importar CSV: ${err.message || err}`);
+            toast(`Erro ao importar CSV: ${err.message || err}`, 'error');
           }
         };
         reader.readAsText(file, 'utf-8');
@@ -1057,7 +1095,7 @@
 
     async function gravarAtivos() {
       try { await savePatrimonio(ativos, 'ir'); }
-      catch (err) { console.error('Erro ao salvar ativos:', err); alert(`Erro ao salvar: ${err.message || err}`); }
+      catch (err) { console.error('Erro ao salvar ativos:', err); toast(`Erro ao salvar: ${err.message || err}`, 'error'); }
     }
 
     document.getElementById('btnAddAtivo').addEventListener('click', () => abrirModalAtivo());
@@ -1065,11 +1103,12 @@
     modalAtivo.addEventListener('click', e => { if (e.target === modalAtivo) fecharModalAtivo(); });
 
     document.getElementById('btnSaveAtivo').addEventListener('click', async () => {
+      const btnSaveAtivo = document.getElementById('btnSaveAtivo');
       const nome  = document.getElementById('ativoNome').value.trim();
       const valor = readMoney(document.getElementById('ativoValor'));
 
-      if (!nome)       { alert('Preencha o nome do ativo.'); return; }
-      if (valor < 0)   { alert('Preencha um valor válido.'); return; }
+      if (!nome)       { toast('Preencha o nome do ativo.', 'warning'); return; }
+      if (valor < 0)   { toast('Preencha um valor válido.', 'warning'); return; }
 
       if (editandoClasse) {
         // Edição: pode renomear a classe e/ou alterar o valor
@@ -1093,7 +1132,10 @@
 
       fecharModalAtivo();
       render(ativos, dividas);
+      setLoading(btnSaveAtivo, true);
       await gravarAtivos();
+      setLoading(btnSaveAtivo, false);
+      toast('Ativo salvo!', 'success');
       snapshotHistorico();
     });
 
@@ -1155,22 +1197,27 @@
       const termino = document.getElementById('dividaTermino').value;
 
       if (!nome || isNaN(saldo) || saldo <= 0) {
-        alert('Preencha pelo menos a descrição e o saldo devedor.');
+        toast('Preencha pelo menos a descrição e o saldo devedor.', 'warning');
         return;
       }
 
-      if (editandoDividaId) {
-        // Edição
-        const idx = dividas.findIndex(d => d.id === editandoDividaId);
-        if (idx !== -1) dividas[idx] = { ...dividas[idx], nome, tipo, saldo, parcela, termino };
-        try { await saveDivida(dividas[idx !== -1 ? idx : 0]); }
-        catch (err) { alert(`Erro ao salvar dívida: ${err.message || err}`); }
-      } else {
-        // Nova
-        const nova = { id: 'd' + Date.now(), nome, tipo, saldo, parcela, termino };
-        dividas.push(nova);
-        try { await saveDivida(nova); }
-        catch (err) { alert(`Erro ao salvar dívida: ${err.message || err}`); }
+      const btnSaveDivida = document.getElementById('btnSaveDivida');
+      setLoading(btnSaveDivida, true);
+      try {
+        if (editandoDividaId) {
+          const idx = dividas.findIndex(d => d.id === editandoDividaId);
+          if (idx !== -1) dividas[idx] = { ...dividas[idx], nome, tipo, saldo, parcela, termino };
+          await saveDivida(dividas[idx !== -1 ? idx : 0]);
+        } else {
+          const nova = { id: 'd' + Date.now(), nome, tipo, saldo, parcela, termino };
+          dividas.push(nova);
+          await saveDivida(nova);
+        }
+        toast('Dívida salva!', 'success');
+      } catch (err) {
+        toast(`Erro ao salvar dívida: ${err.message || err}`, 'error');
+      } finally {
+        setLoading(btnSaveDivida, false);
       }
 
       const totalAtivos  = ativos.reduce((s, a) => s + a.valor, 0);
@@ -1193,7 +1240,7 @@
       if (!confirm(`Excluir "${d.nome}" (${brl(d.saldo)})?`)) return;
       dividas = dividas.filter(x => x.id !== id);
       try { await deleteDivida(id); }
-      catch (err) { console.error('Erro ao excluir dívida:', err); alert(`Erro: ${err.message || err}`); }
+      catch (err) { console.error('Erro ao excluir dívida:', err); toast(`Erro: ${err.message || err}`, 'error'); }
       render(ativos, dividas);
       snapshotHistorico();
     }
@@ -1210,7 +1257,7 @@
       reader.onload = async (ev) => {
         try {
           const novasDividas = parsearCsvDividas(ev.target.result);
-          if (!novasDividas.length) { alert('Nenhuma dívida encontrada no CSV.'); return; }
+          if (!novasDividas.length) { toast('Nenhuma dívida encontrada no CSV.', 'warning'); return; }
           // Apaga todas as dívidas existentes e substitui pelo CSV
           for (const d of dividas) {
             try { await deleteDivida(d.id); } catch { /* ignora erros individuais */ }
@@ -1222,7 +1269,7 @@
           render(ativos, dividas);
           snapshotHistorico();
         } catch (err) {
-          alert(`Erro ao importar CSV de dívidas: ${err.message || err}`);
+          toast(`Erro ao importar CSV de dívidas: ${err.message || err}`, 'error');
         }
       };
       reader.readAsText(file, 'utf-8');
