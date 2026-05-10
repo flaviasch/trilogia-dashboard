@@ -410,11 +410,11 @@
       <div class="field-row">
         <div class="field-group">
           <label for="rMeta">Meta total (R$)</label>
-          <input type="number" id="rMeta" placeholder="0" min="0" step="100" />
+          <input type="text" inputmode="numeric" id="rMeta" placeholder="0" />
         </div>
         <div class="field-group">
           <label for="rAcumulado">Já acumulado (R$)</label>
-          <input type="number" id="rAcumulado" placeholder="0" min="0" step="100" />
+          <input type="text" inputmode="numeric" id="rAcumulado" placeholder="0" />
         </div>
       </div>
 
@@ -431,7 +431,7 @@
         </div>
         <div class="field-group">
           <label for="rAporte">Aporte mensal (R$)</label>
-          <input type="number" id="rAporte" placeholder="0" min="0" step="50" />
+          <input type="text" inputmode="numeric" id="rAporte" placeholder="0" />
         </div>
       </div>
 
@@ -556,6 +556,28 @@
       const nomes = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
       return `${nomes[mes - 1]} de ${ano}`;
     }
+
+    // ─── Formatação monetária em inputs ──────────────────────────────────────
+    function bindMoneyInput(el) {
+      el.addEventListener('input', () => {
+        const raw = el.value.replace(/\D/g, '');
+        if (!raw) { el.value = ''; return; }
+        el.value = parseInt(raw, 10).toLocaleString('pt-BR');
+      });
+    }
+    function readMoney(el) {
+      const v = typeof el === 'string' ? el : (el.value || '');
+      return parseFloat(v.replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    function setMoney(el, v) {
+      if (v == null || v === '' || isNaN(+v)) { el.value = ''; return; }
+      el.value = Math.round(+v).toLocaleString('pt-BR');
+    }
+
+    // Bind nos inputs do modal (existem no DOM desde o carregamento)
+    bindMoneyInput(document.getElementById('rMeta'));
+    bindMoneyInput(document.getElementById('rAcumulado'));
+    bindMoneyInput(document.getElementById('rAporte'));
 
     // ─── Mock data ────────────────────────────
     let reservas = [];
@@ -1037,11 +1059,11 @@
       if (id) {
         const r = reservas.find(x => x.id === id);
         if (r) {
-          document.getElementById('rNome').value      = r.nome;
-          document.getElementById('rMeta').value      = r.meta;
-          document.getElementById('rAcumulado').value = r.acumulado;
-          document.getElementById('rDataMeta').value  = r.dataMeta;
-          document.getElementById('rAporte').value    = r.aporte;
+          document.getElementById('rNome').value     = r.nome;
+          setMoney(document.getElementById('rMeta'),      r.meta);
+          setMoney(document.getElementById('rAcumulado'), r.acumulado);
+          document.getElementById('rDataMeta').value = r.dataMeta;
+          setMoney(document.getElementById('rAporte'),    r.aporte);
           atualizarPreview();
         }
         // Edição: oculta dica
@@ -1056,7 +1078,7 @@
           dica.classList.remove('hidden');
           // Botão "Usar este valor" → preenche o campo acumulado
           document.getElementById('btnUsarSaldo').onclick = () => {
-            document.getElementById('rAcumulado').value = Math.round(livre);
+            setMoney(document.getElementById('rAcumulado'), livre);
           };
         } else {
           dica.classList.add('hidden');
@@ -1092,12 +1114,12 @@
 
     document.getElementById('btnSalvarModal').addEventListener('click', async () => {
       const nome      = document.getElementById('rNome').value.trim();
-      const meta      = parseFloat(document.getElementById('rMeta').value);
-      const acumulado = parseFloat(document.getElementById('rAcumulado').value) || 0;
+      const meta      = readMoney(document.getElementById('rMeta'));
+      const acumulado = readMoney(document.getElementById('rAcumulado'));
       const dataMeta  = document.getElementById('rDataMeta').value;
-      const aporte    = parseFloat(document.getElementById('rAporte').value) || 0;
+      const aporte    = readMoney(document.getElementById('rAporte'));
 
-      if (!nome || isNaN(meta) || meta <= 0) {
+      if (!nome || !meta || meta <= 0) {
         alert('Preencha nome e valor da meta.'); return;
       }
 

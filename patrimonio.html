@@ -462,7 +462,7 @@
       </div>
       <div class="field-group">
         <label for="ativoValor">Valor (R$)</label>
-        <input type="number" id="ativoValor" placeholder="0" min="0" step="100" />
+        <input type="text" inputmode="numeric" id="ativoValor" placeholder="0" />
       </div>
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelAtivo">Cancelar</button>
@@ -492,11 +492,11 @@
       </div>
       <div class="field-group">
         <label for="dividaSaldo">Saldo devedor (R$)</label>
-        <input type="number" id="dividaSaldo" placeholder="0,00" min="0" step="0.01" />
+        <input type="text" inputmode="numeric" id="dividaSaldo" placeholder="0" />
       </div>
       <div class="field-group">
         <label for="dividaParcela">Parcela mensal (R$)</label>
-        <input type="number" id="dividaParcela" placeholder="0,00" min="0" step="0.01" />
+        <input type="text" inputmode="numeric" id="dividaParcela" placeholder="0" />
       </div>
       <div class="field-group">
         <label for="dividaTermino">Término previsto</label>
@@ -556,6 +556,27 @@
     // ─── Helpers ────────────────────────────
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
     const pct = (v, t) => t > 0 ? `${((v / t) * 100).toFixed(1)}%` : '0%';
+
+    // ─── Formatação monetária em inputs ──────
+    function bindMoneyInput(el) {
+      el.addEventListener('input', () => {
+        const raw = el.value.replace(/\D/g, '');
+        if (!raw) { el.value = ''; return; }
+        el.value = parseInt(raw, 10).toLocaleString('pt-BR');
+      });
+    }
+    function readMoney(el) {
+      const v = typeof el === 'string' ? el : (el.value || '');
+      return parseFloat(v.replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    function setMoney(el, v) {
+      if (v == null || v === '' || isNaN(+v)) { el.value = ''; return; }
+      el.value = Math.round(+v).toLocaleString('pt-BR');
+    }
+
+    bindMoneyInput(document.getElementById('ativoValor'));
+    bindMoneyInput(document.getElementById('dividaSaldo'));
+    bindMoneyInput(document.getElementById('dividaParcela'));
 
     // ─── Classes de ativos ───────────────────
     const CLASSES = [
@@ -1003,8 +1024,8 @@
       document.getElementById('modalAtivoTitle').textContent = classe ? 'Editar ativo' : 'Novo ativo';
       if (classe) {
         const a = ativos.find(x => x.classe === classe);
-        document.getElementById('ativoNome').value  = a ? a.classe : '';
-        document.getElementById('ativoValor').value = a ? a.valor  : '';
+        document.getElementById('ativoNome').value = a ? a.classe : '';
+        setMoney(document.getElementById('ativoValor'), a ? a.valor : null);
       } else {
         document.getElementById('ativoNome').value  = '';
         document.getElementById('ativoValor').value = '';
@@ -1029,10 +1050,10 @@
 
     document.getElementById('btnSaveAtivo').addEventListener('click', async () => {
       const nome  = document.getElementById('ativoNome').value.trim();
-      const valor = parseFloat(document.getElementById('ativoValor').value);
+      const valor = readMoney(document.getElementById('ativoValor'));
 
-      if (!nome)         { alert('Preencha o nome do ativo.'); return; }
-      if (isNaN(valor) || valor < 0) { alert('Preencha um valor válido.'); return; }
+      if (!nome)       { alert('Preencha o nome do ativo.'); return; }
+      if (valor < 0)   { alert('Preencha um valor válido.'); return; }
 
       if (editandoClasse) {
         // Edição: pode renomear a classe e/ou alterar o valor
@@ -1082,8 +1103,8 @@
         if (d) {
           document.getElementById('dividaNome').value    = d.nome;
           document.getElementById('dividaTipo').value    = d.tipo;
-          document.getElementById('dividaSaldo').value   = d.saldo;
-          document.getElementById('dividaParcela').value = d.parcela || '';
+          setMoney(document.getElementById('dividaSaldo'),   d.saldo);
+          setMoney(document.getElementById('dividaParcela'), d.parcela || null);
           document.getElementById('dividaTermino').value = d.termino || '';
         }
       } else {
@@ -1113,8 +1134,8 @@
     document.getElementById('btnSaveDivida').addEventListener('click', async () => {
       const nome    = document.getElementById('dividaNome').value.trim();
       const tipo    = document.getElementById('dividaTipo').value;
-      const saldo   = parseFloat(document.getElementById('dividaSaldo').value);
-      const parcela = parseFloat(document.getElementById('dividaParcela').value) || 0;
+      const saldo   = readMoney(document.getElementById('dividaSaldo'));
+      const parcela = readMoney(document.getElementById('dividaParcela'));
       const termino = document.getElementById('dividaTermino').value;
 
       if (!nome || isNaN(saldo) || saldo <= 0) {

@@ -701,7 +701,7 @@
         <div class="resumo-card" style="border-color: rgba(207,174,101,0.3);">
           <div class="resumo-label">Aporte Efetivado</div>
           <div class="aporte-input-wrap">
-            <input type="number" class="aporte-input" id="aporteEfetivadoInput" placeholder="R$ 0" min="0" step="100" />
+            <input type="text" inputmode="numeric" class="aporte-input" id="aporteEfetivadoInput" placeholder="0" />
             <button class="aporte-save-btn" id="btnSalvarAporte">✓</button>
           </div>
           <div class="resumo-sub" id="aporteSubLabel" style="margin-top:8px">valor investido no mês</div>
@@ -804,7 +804,7 @@
       </div>
       <div class="field-group">
         <label for="mValor">Valor (R$)</label>
-        <input type="number" id="mValor" placeholder="0" min="0" step="10" />
+        <input type="text" inputmode="numeric" id="mValor" placeholder="0" />
       </div>
 
       <div class="modal-actions">
@@ -814,6 +814,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil } from './js/api.js';
@@ -821,7 +822,6 @@
       onAuthStateChanged,
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import Chart from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/+esm';
 
     // ─── URL do agente (preencher quando disponível) ──────────────────────────
     const AGENTE_RAIOX_URL = '';
@@ -848,6 +848,27 @@
 
     const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+    // ─── Formatação monetária em inputs ──────────────────────────────────────
+    function bindMoneyInput(el) {
+      el.addEventListener('input', () => {
+        const raw = el.value.replace(/\D/g, '');
+        if (!raw) { el.value = ''; return; }
+        el.value = parseInt(raw, 10).toLocaleString('pt-BR');
+      });
+    }
+    function readMoney(el) {
+      const v = typeof el === 'string' ? el : (el.value || '');
+      return parseFloat(v.replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    function setMoney(el, v) {
+      if (v == null || v === '' || isNaN(+v)) { el.value = ''; return; }
+      el.value = Math.round(+v).toLocaleString('pt-BR');
+    }
+
+    // Bind nos inputs estáticos de valor
+    bindMoneyInput(document.getElementById('aporteEfetivadoInput'));
+    bindMoneyInput(document.getElementById('mValor'));
 
     let currentData = { periodo: { mes: new Date().getMonth() + 1, ano: new Date().getFullYear() }, receitas: [], despesas: [] };
     let reservas = [];
@@ -911,7 +932,7 @@
       if (idx !== null) {
         const item = currentData[tipo === 'receita' ? 'receitas' : 'despesas'][idx];
         document.getElementById('mCategoria').value = item.categoria;
-        document.getElementById('mValor').value     = item.valor;
+        setMoney(document.getElementById('mValor'), item.valor);
       } else {
         document.getElementById('mCategoria').value = '';
         document.getElementById('mValor').value     = '';
@@ -931,10 +952,10 @@
     document.getElementById('btnSalvarItem').addEventListener('click', async () => {
       const categoria = document.getElementById('mCategoria').value.trim();
       const tipo      = document.getElementById('mTipo').value;
-      const valor     = parseFloat(document.getElementById('mValor').value);
+      const valor     = readMoney(document.getElementById('mValor'));
 
       if (!categoria) { alert('Preencha a categoria.'); return; }
-      if (isNaN(valor) || valor <= 0) { alert('Preencha um valor válido.'); return; }
+      if (!valor || valor <= 0) { alert('Preencha um valor válido.'); return; }
 
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
 
@@ -1006,14 +1027,16 @@
                 planejado ${brl(r.aporte)} · faltam ${brl(restante)}
               </div>
             </div>
-            <input type="number" class="reserva-aporte-input"
+            <input type="text" inputmode="numeric" class="reserva-aporte-input"
                    data-reserva-id="${r.id}"
-                   value="${sugerido}" min="0" step="100" />
+                   value="${Math.round(sugerido).toLocaleString('pt-BR')}" />
           </div>`;
         }).join('');
 
-        listEl.querySelectorAll('.reserva-aporte-input').forEach(inp =>
-          inp.addEventListener('input', atualizarDistribuido));
+        listEl.querySelectorAll('.reserva-aporte-input').forEach(inp => {
+          inp.addEventListener('input', atualizarDistribuido);
+          bindMoneyInput(inp);
+        });
       }
 
       atualizarDistribuido();
@@ -1023,7 +1046,7 @@
     function atualizarDistribuido() {
       const total = valorAportePendente || 0;
       const inputs = document.querySelectorAll('#reservasAporteList .reserva-aporte-input');
-      const distribuido = [...inputs].reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+      const distribuido = [...inputs].reduce((s, i) => s + readMoney(i), 0);
       const naoAlocado  = total - distribuido;
       const over        = distribuido > total + 0.01;
       const el = document.getElementById('aporteDistribuido');
@@ -1049,7 +1072,7 @@
 
     document.getElementById('btnProximoClasse').addEventListener('click', () => {
       const inputs = document.querySelectorAll('#reservasAporteList .reserva-aporte-input');
-      const distribuido = [...inputs].reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+      const distribuido = [...inputs].reduce((s, i) => s + readMoney(i), 0);
 
       if (distribuido > (valorAportePendente || 0) + 0.01) {
         alert(`O total distribuído (${brl(distribuido)}) excede o aporte (${brl(valorAportePendente)}).`);
@@ -1057,7 +1080,7 @@
       }
 
       alocacoesPendentes = [...inputs]
-        .map(inp => ({ reservaId: inp.dataset.reservaId, valor: parseFloat(inp.value) || 0 }))
+        .map(inp => ({ reservaId: inp.dataset.reservaId, valor: readMoney(inp) }))
         .filter(a => a.valor > 0);
 
       modalReservas.classList.add('hidden');
@@ -1183,8 +1206,8 @@
 
     // Botão ✓ — inicia fluxo pelo modal de reservas
     document.getElementById('btnSalvarAporte').addEventListener('click', () => {
-      const val = parseFloat(document.getElementById('aporteEfetivadoInput').value);
-      if (isNaN(val) || val <= 0) { alert('Digite um valor válido para o aporte.'); return; }
+      const val = readMoney(document.getElementById('aporteEfetivadoInput'));
+      if (!val || val <= 0) { alert('Digite um valor válido para o aporte.'); return; }
       abrirModalReservas(val);
     });
     document.getElementById('aporteEfetivadoInput').addEventListener('keydown', e => {
@@ -1261,7 +1284,7 @@
       // Aporte efetivado — preenche input e sublabel
       const aporteInput = document.getElementById('aporteEfetivadoInput');
       if (data.aporteEfetivado != null) {
-        aporteInput.value = data.aporteEfetivado;
+        setMoney(aporteInput, data.aporteEfetivado);
         const pctAporte = totalReceita > 0 ? ((data.aporteEfetivado / totalReceita) * 100).toFixed(1) : 0;
         document.getElementById('aporteSubLabel').textContent = `${pctAporte}% da receita`;
       } else {
