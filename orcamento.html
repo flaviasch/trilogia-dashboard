@@ -730,6 +730,9 @@
     <!-- Sobra destacada -->
     <div id="sobraBox"></div>
 
+    <!-- Histórico de aportes do mês -->
+    <div id="aportesList"></div>
+
     <!-- Ritmo dos aportes nas reservas -->
     <div id="ritmoBox"></div>
 
@@ -781,6 +784,26 @@
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelarClasse">Cancelar</button>
         <button class="btn-save" id="btnConfirmarClasse">Confirmar aporte</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal editar aporte -->
+  <div class="modal-overlay hidden" id="modalAporteEdit">
+    <div class="modal-card">
+      <h2 class="modal-title">Editar aporte</h2>
+      <p class="modal-sub">Ajuste o valor ou adicione uma descrição.</p>
+      <div class="field-group">
+        <label for="aeNota">Descrição (opcional)</label>
+        <input type="text" id="aeNota" placeholder="ex: CDB Nubank, Tesouro IPCA+…" />
+      </div>
+      <div class="field-group">
+        <label for="aeValor">Valor (R$)</label>
+        <input type="text" inputmode="numeric" id="aeValor" placeholder="0" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarAporteEdit">Cancelar</button>
+        <button class="btn-save" id="btnSalvarAporteEdit">Salvar</button>
       </div>
     </div>
   </div>
@@ -870,7 +893,7 @@
     bindMoneyInput(document.getElementById('aporteEfetivadoInput'));
     bindMoneyInput(document.getElementById('mValor'));
 
-    let currentData = { periodo: { mes: new Date().getMonth() + 1, ano: new Date().getFullYear() }, receitas: [], despesas: [] };
+    let currentData = { periodo: { mes: new Date().getMonth() + 1, ano: new Date().getFullYear() }, receitas: [], despesas: [], aportes: [] };
     let reservas = [];
     let perfilInvestidor = null;
 
@@ -982,9 +1005,7 @@
       const itens = [
         ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor })),
         ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor })),
-        ...(currentData.aporteEfetivado != null
-          ? [{ categoria: 'Aporte efetivado', tipo: 'aporte', valor: currentData.aporteEfetivado }]
-          : []),
+        ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
       ];
       try {
         await saveOrcamento(mes, ano, itens);
@@ -1152,7 +1173,9 @@
       const alocacoes = [...alocacoesPendentes];
       alocacoesPendentes = [];
 
-      currentData.aporteEfetivado = valor;
+      // Adiciona ao histórico de aportes do mês (permite múltiplos aportes)
+      if (!currentData.aportes) currentData.aportes = [];
+      currentData.aportes.push({ id: 'a' + Date.now(), valor, nota: '' });
 
       // Lê as classes selecionadas para cada linha
       const selects = document.querySelectorAll('#classeAporteList .classe-select');
@@ -1202,10 +1225,6 @@
         if (idx !== -1) reservas[idx] = r;
       }
       render(currentData);
-
-      // Zera o campo para permitir novo aporte no mesmo mês
-      document.getElementById('aporteEfetivadoInput').value = '';
-      document.getElementById('aporteSubLabel').textContent = 'valor investido no mês';
     });
 
     // Botão ✓ — inicia fluxo pelo modal de reservas
@@ -1231,16 +1250,19 @@
 
       if (orcResult.status === 'fulfilled') {
         const itens = orcResult.value;
-        const aporteItem = itens.find(i => i.tipo === 'aporte');
         currentData = {
-          periodo:          { mes, ano },
-          receitas:         itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor })),
-          despesas:         itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor })),
-          aporteEfetivado:  aporteItem ? aporteItem.valor : null,
+          periodo:  { mes, ano },
+          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor })),
+          aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
+            id: 'a' + idx + '_' + mes + ano,
+            valor: a.valor,
+            nota: a.categoria !== 'Aporte efetivado' ? a.categoria : '',
+          })),
         };
       } else {
         console.error('Erro ao carregar orçamento:', orcResult.reason);
-        currentData = { periodo: { mes, ano }, receitas: [], despesas: [], aporteEfetivado: null };
+        currentData = { periodo: { mes, ano }, receitas: [], despesas: [], aportes: [] };
       }
 
       if (resResult.status === 'fulfilled')   reservas = resResult.value || [];
@@ -1285,14 +1307,15 @@
         ${sobraPct.toFixed(1)}% da receita
       </span>`;
 
-      // Aporte efetivado — preenche input e sublabel
-      const aporteInput = document.getElementById('aporteEfetivadoInput');
-      if (data.aporteEfetivado != null) {
-        setMoney(aporteInput, data.aporteEfetivado);
-        const pctAporte = totalReceita > 0 ? ((data.aporteEfetivado / totalReceita) * 100).toFixed(1) : 0;
-        document.getElementById('aporteSubLabel').textContent = `${pctAporte}% da receita`;
+      // Aporte efetivado — campo sempre em branco (pronto para novo aporte)
+      document.getElementById('aporteEfetivadoInput').value = '';
+      const totalAp = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
+      if (totalAp > 0) {
+        const n = data.aportes.length;
+        const pctAp = totalReceita > 0 ? ((totalAp / totalReceita) * 100).toFixed(1) : 0;
+        document.getElementById('aporteSubLabel').textContent =
+          `${n} aporte${n > 1 ? 's' : ''} · total ${pctAp}% da receita`;
       } else {
-        aporteInput.value = '';
         document.getElementById('aporteSubLabel').textContent = 'valor investido no mês';
       }
 
@@ -1378,6 +1401,8 @@
       document.getElementById('btnAddReceita').addEventListener('click', () => abrirModal('receita'));
       document.getElementById('btnAddDespesa').addEventListener('click', () => abrirModal('despesa'));
 
+      renderAportesList(data);
+
       // Sobra box
       const sobraBoxEl = document.getElementById('sobraBox');
       sobraBoxEl.innerHTML = `
@@ -1394,10 +1419,10 @@
 
       // Ritmo dos aportes — Planejado × Realizado
       const ritmoBoxEl = document.getElementById('ritmoBox');
-      const reservasAtivas = reservas.filter(r => r.acumulado < r.meta && r.aporte > 0);
-      const totalPlanejado = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
-      const aporte         = data.aporteEfetivado;
-      const temAporte      = aporte != null;
+      const reservasAtivas  = reservas.filter(r => r.acumulado < r.meta && r.aporte > 0);
+      const totalPlanejado  = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
+      const totalApRitmo    = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
+      const temAporte       = totalApRitmo > 0;
 
       if (totalPlanejado > 0 || temAporte) {
         const qtdReservas = reservasAtivas.length;
@@ -1405,7 +1430,7 @@
 
         let statusHTML = '';
         if (temAporte) {
-          const difReal = aporte - totalPlanejado;
+          const difReal = totalApRitmo - totalPlanejado;
           if (difReal >= 0) {
             statusHTML = `<div class="ritmo-status em-dia">✓ Aporte realizado cobre o planejado${difReal > 0 ? ` · ${brl(difReal)} acima` : ''}</div>`;
           } else {
@@ -1421,9 +1446,9 @@
               <div class="ritmo-valor">${brl(totalPlanejado)}</div>
               <div class="ritmo-label">Sobra prevista do mês</div>
               <div class="ritmo-valor" style="color:${difPrevisao >= 0 ? 'var(--positive)' : 'var(--negative)'}">${brl(sobra)}</div>
-              <div class="ritmo-label">Aporte efetivado</div>
-              <div class="ritmo-valor" style="color:${!temAporte ? 'var(--text-muted)' : aporte >= totalPlanejado ? 'var(--positive)' : 'var(--negative)'}">
-                ${temAporte ? brl(aporte) : '—'}
+              <div class="ritmo-label">Total aportado no mês</div>
+              <div class="ritmo-valor" style="color:${!temAporte ? 'var(--text-muted)' : totalApRitmo >= totalPlanejado ? 'var(--positive)' : 'var(--negative)'}">
+                ${temAporte ? brl(totalApRitmo) : '—'}
               </div>
             </div>
             ${qtdReservas > 0 ? `<div class="ritmo-reservas">${qtdReservas} reserva${qtdReservas !== 1 ? 's' : ''} ativa${qtdReservas !== 1 ? 's' : ''} · <a href="reservas.html">ver detalhes</a></div>` : ''}
@@ -1432,6 +1457,89 @@
       } else {
         ritmoBoxEl.innerHTML = '';
       }
+    }
+
+    // ─── Lista de aportes do mês ─────────────────────────────────────────────
+    const IC_EDIT_AP = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
+    const IC_DEL_AP  = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
+
+    function renderAportesList(data) {
+      const container = document.getElementById('aportesList');
+      const aportes   = data.aportes || [];
+      if (aportes.length === 0) { container.innerHTML = ''; return; }
+
+      const total = aportes.reduce((s, a) => s + a.valor, 0);
+      container.innerHTML = `
+        <div class="section" style="margin-top:0">
+          <div class="section-header">
+            <h2 class="section-title">Aportes realizados este mês</h2>
+            <span class="section-total" style="color:var(--gold)">${brl(total)}</span>
+          </div>
+          <div class="items-list">
+            ${aportes.map((a, i) => `
+              <div class="item-row">
+                <div>
+                  <div class="item-categoria">${a.nota || 'Aporte efetivado'}</div>
+                </div>
+                <div></div>
+                <div class="item-value" style="color:var(--gold)">${brl(a.valor)}</div>
+                <div class="item-actions">
+                  <button class="btn-item" data-edit-aporte="${i}" title="Editar">${IC_EDIT_AP}</button>
+                  <button class="btn-item del" data-del-aporte="${i}" title="Excluir">${IC_DEL_AP}</button>
+                </div>
+              </div>`).join('')}
+            <div class="total-row">
+              <span class="total-label">Total investido no mês</span>
+              <span class="total-value" style="color:var(--gold)">${brl(total)}</span>
+            </div>
+          </div>
+        </div>`;
+
+      container.querySelectorAll('[data-edit-aporte]').forEach(btn =>
+        btn.addEventListener('click', () => editarAporte(+btn.dataset.editAporte)));
+      container.querySelectorAll('[data-del-aporte]').forEach(btn =>
+        btn.addEventListener('click', () => deletarAporte(+btn.dataset.delAporte)));
+    }
+
+    // ─── Editar / excluir aporte ─────────────────────────────────────────────
+    let editandoAporteIdx = null;
+    const modalAporteEdit = document.getElementById('modalAporteEdit');
+
+    bindMoneyInput(document.getElementById('aeValor'));
+
+    function editarAporte(idx) {
+      editandoAporteIdx = idx;
+      const a = currentData.aportes[idx];
+      document.getElementById('aeNota').value = a.nota || '';
+      setMoney(document.getElementById('aeValor'), a.valor);
+      modalAporteEdit.classList.remove('hidden');
+      document.getElementById('aeValor').focus();
+    }
+
+    document.getElementById('btnCancelarAporteEdit').addEventListener('click', () => {
+      modalAporteEdit.classList.add('hidden');
+      editandoAporteIdx = null;
+    });
+    modalAporteEdit.addEventListener('click', e => {
+      if (e.target === modalAporteEdit) { modalAporteEdit.classList.add('hidden'); editandoAporteIdx = null; }
+    });
+
+    document.getElementById('btnSalvarAporteEdit').addEventListener('click', async () => {
+      if (editandoAporteIdx === null) return;
+      const nota  = document.getElementById('aeNota').value.trim();
+      const valor = readMoney(document.getElementById('aeValor'));
+      if (!valor || valor <= 0) { alert('Preencha um valor válido.'); return; }
+      currentData.aportes[editandoAporteIdx] = { ...currentData.aportes[editandoAporteIdx], nota, valor };
+      modalAporteEdit.classList.add('hidden');
+      editandoAporteIdx = null;
+      await salvarEAtualizar();
+    });
+
+    async function deletarAporte(idx) {
+      const a = currentData.aportes[idx];
+      if (!confirm(`Excluir aporte de ${brl(a.valor)}${a.nota ? ' (' + a.nota + ')' : ''}?`)) return;
+      currentData.aportes.splice(idx, 1);
+      await salvarEAtualizar();
     }
 
     // ─── Gráfico aportes ─────────────────────────────────────────────────────
@@ -1444,10 +1552,11 @@
         promises.push(
           getOrcamento(m, ano)
             .then(itens => {
-              const a = itens.find(i => i.tipo === 'aporte');
-              return { mes: m, valor: a ? a.valor : 0 };
+              const totalAp = itens.filter(i => i.tipo === 'aporte').reduce((s, a) => s + a.valor, 0);
+              const temDados = itens.some(i => i.tipo === 'receita' || i.tipo === 'despesa') || totalAp > 0;
+              return { mes: m, valor: totalAp, temDados };
             })
-            .catch(() => ({ mes: m, valor: 0 }))
+            .catch(() => ({ mes: m, valor: 0, temDados: false }))
         );
       }
       return Promise.all(promises);
@@ -1456,13 +1565,18 @@
     function renderGrafico(historico) {
       if (!historico || historico.length === 0) return;
 
+      // Começa do primeiro mês com dados reais — evita meses vazios no início
+      const primeiroComDados = historico.findIndex(h => h.temDados);
+      const hist = primeiroComDados >= 0 ? historico.slice(primeiroComDados) : historico.slice(-1);
+      if (hist.length === 0) return;
+
       document.getElementById('graficoAno').textContent = new Date().getFullYear();
 
-      const labels = historico.map(({ mes }) => MESES[mes - 1].slice(0, 3));
+      const labels = hist.map(({ mes }) => MESES[mes - 1].slice(0, 3));
 
       // Barras: aporte realizado acumulado
       let cumReal = 0;
-      const dataReal = historico.map(({ valor }) => {
+      const dataReal = hist.map(({ valor }) => {
         cumReal += valor || 0;
         return cumReal;
       });
@@ -1471,7 +1585,7 @@
       const reservasAtivas = reservas.filter(r => r.acumulado < r.meta && r.aporte > 0);
       const planoMensal = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
       let cumPlano = 0;
-      const dataPlano = historico.map(() => {
+      const dataPlano = hist.map(() => {
         cumPlano += planoMensal;
         return cumPlano;
       });
@@ -1555,16 +1669,19 @@
     async function buscarPeriodo(mes, ano) {
       try {
         const itens = await getOrcamento(mes, ano);
-        const aporteItem = itens.find(i => i.tipo === 'aporte');
         return {
-          periodo:         { mes, ano },
-          receitas:        itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor })),
-          despesas:        itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor })),
-          aporteEfetivado: aporteItem ? aporteItem.valor : null,
+          periodo:  { mes, ano },
+          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor })),
+          aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
+            id: 'a' + idx + '_' + mes + ano,
+            valor: a.valor,
+            nota: a.categoria !== 'Aporte efetivado' ? a.categoria : '',
+          })),
         };
       } catch (err) {
         console.error('Erro ao carregar período:', err);
-        return { periodo: { mes, ano }, receitas: [], despesas: [], aporteEfetivado: null };
+        return { periodo: { mes, ano }, receitas: [], despesas: [], aportes: [] };
       }
     }
 
