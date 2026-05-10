@@ -638,11 +638,23 @@
     }
     @media (max-width: 640px) {
       .navbar { padding: 0 16px; }
+      .user-name { display: none; }
       .main { padding: 24px 16px 60px; }
       .resumo-grid { grid-template-columns: 1fr; }
       .item-bar-col { display: none; }
       .item-row { grid-template-columns: 1fr auto auto; }
       .item-actions { opacity: 1; }
+
+      /* Modais: efeito bottom-sheet */
+      .modal-overlay { padding: 0; align-items: flex-end; }
+      .modal-card,
+      .modal-card.wide {
+        border-radius: 20px 20px 0 0; padding: 24px 20px 32px;
+        max-height: 88vh; overflow-y: auto; max-width: 100%;
+      }
+
+      /* Gráfico um pouco menor para caber na tela */
+      .grafico-canvas-wrap { height: 200px; }
     }
   </style>
 </head>

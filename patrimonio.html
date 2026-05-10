@@ -316,11 +316,27 @@
     /* ─── Responsive ────────────────────────── */
     @media (max-width: 640px) {
       .navbar { padding: 0 16px; }
+      .user-name { display: none; }
       .main { padding: 24px 16px 60px; }
       .resumo-grid { grid-template-columns: 1fr; }
       .import-row { grid-template-columns: 1fr; }
       .ativo-row { grid-template-columns: 16px 1fr auto; }
       .ativo-bar-col { display: none; }
+
+      /* Modais: efeito bottom-sheet */
+      .modal-overlay { padding: 0; align-items: flex-end; }
+      .modal-card {
+        border-radius: 20px 20px 0 0; padding: 24px 20px 32px;
+        max-height: 88vh; overflow-y: auto; max-width: 100%;
+      }
+
+      /* Balanço patrimonial: empilha verticalmente */
+      .barras-chart { flex-direction: column; align-items: stretch; gap: 12px; }
+      .balanco-col { max-width: 100%; }
+
+      /* Evolução: scroll horizontal se precisar */
+      .evolucao-chart { overflow-x: auto; padding-bottom: 4px; }
+      .ev-col { min-width: 38px; flex: none; }
     }
   </style>
 </head>

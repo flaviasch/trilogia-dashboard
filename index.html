@@ -437,6 +437,7 @@
     /* ─── Responsive ──────────────────────────── */
     @media (max-width: 640px) {
       .navbar { padding: 0 16px; }
+      .user-name { display: none; }
       .main { padding: 24px 16px 60px; }
       .cards-grid,
       .patrimonio-row { grid-template-columns: 1fr; }
@@ -445,6 +446,8 @@
       .welcome-steps { grid-template-columns: 1fr; }
       .welcome-title { font-size: 22px; }
       .welcome-screen { padding: 32px 16px 60px; }
+      .meta-row { flex-direction: column; gap: 8px; align-items: flex-start; }
+      .meta-dot { display: none; }
     }
   </style>
 </head>
