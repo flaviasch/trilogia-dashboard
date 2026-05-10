@@ -570,7 +570,7 @@
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
     } from './js/api.js';
-    import { toast, setLoading } from './js/ui.js';
+    import { toast, setLoading, confirmDelete } from './js/ui.js';
     import {
       onAuthStateChanged,
       signOut
@@ -1142,7 +1142,7 @@
     async function deletarAtivo(classe) {
       const a = ativos.find(x => x.classe === classe);
       if (!a) return;
-      if (!confirm(`Excluir "${a.classe}" (${brl(a.valor)})?`)) return;
+      if (!(await confirmDelete(`Excluir "${a.classe}" (${brl(a.valor)})?`))) return;
       ativos = ativos.filter(x => x.classe !== classe);
       render(ativos, dividas);
       await gravarAtivos();
@@ -1237,7 +1237,7 @@
     async function deletarDivida(id) {
       const d = dividas.find(x => x.id === id);
       if (!d) return;
-      if (!confirm(`Excluir "${d.nome}" (${brl(d.saldo)})?`)) return;
+      if (!(await confirmDelete(`Excluir "${d.nome}" (${brl(d.saldo)})?`))) return;
       dividas = dividas.filter(x => x.id !== id);
       try { await deleteDivida(id); }
       catch (err) { console.error('Erro ao excluir dívida:', err); toast(`Erro: ${err.message || err}`, 'error'); }

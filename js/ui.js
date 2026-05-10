@@ -55,6 +55,43 @@ export function toast(msg, type = 'success', duration = 3500) {
   }, duration);
 }
 
+// ─── Confirm delete dialog ────────────────────────────────────────────────────
+// Substitui o confirm() nativo por um diálogo estilizado.
+// Uso: if (!(await confirmDelete('Excluir "Viagem Europa"?'))) return;
+
+export function confirmDelete(msg) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:10000',
+      'background:rgba(0,0,0,.65)', 'display:flex',
+      'align-items:center', 'justify-content:center', 'padding:24px',
+    ].join(';');
+
+    overlay.innerHTML = `
+      <div style="background:#0D2B45;border:1px solid rgba(255,255,255,.1);border-radius:14px;
+                  padding:24px;max-width:320px;width:100%;font-family:'Inter',sans-serif">
+        <p style="font-size:14px;color:#fff;margin-bottom:20px;line-height:1.5">${msg}</p>
+        <div style="display:flex;gap:10px">
+          <button id="_cfNo"  style="flex:1;background:transparent;border:1px solid rgba(255,255,255,.1);
+            border-radius:8px;padding:10px;font-size:13px;color:rgba(255,255,255,.5);
+            cursor:pointer;font-family:'Inter',sans-serif">Cancelar</button>
+          <button id="_cfYes" style="flex:1;background:rgba(248,113,113,.12);
+            border:1px solid rgba(248,113,113,.35);border-radius:8px;padding:10px;
+            font-size:13px;font-weight:600;color:#f87171;cursor:pointer;
+            font-family:'Inter',sans-serif">Excluir</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(overlay);
+
+    const done = r => { overlay.remove(); resolve(r); };
+    overlay.querySelector('#_cfNo').onclick  = () => done(false);
+    overlay.querySelector('#_cfYes').onclick = () => done(true);
+    overlay.onclick = e => { if (e.target === overlay) done(false); };
+  });
+}
+
 // ─── Button loading state ─────────────────────────────────────────────────────
 // Uso: setLoading(btn, true)  → desabilita e mostra spinner
 //      setLoading(btn, false) → restaura estado original

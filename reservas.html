@@ -495,7 +495,7 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR } from './js/api.js';
-    import { toast, setLoading } from './js/ui.js';
+    import { toast, setLoading, confirmDelete } from './js/ui.js';
     import {
       onAuthStateChanged,
       signOut
@@ -644,6 +644,15 @@
       renderAll();
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
+
+      // Scroll para reserva específica se vier do dashboard via âncora (#id)
+      const hash = window.location.hash.slice(1);
+      if (hash) {
+        requestAnimationFrame(() => {
+          const el = document.getElementById(hash);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
 
       // Scroll para âncora se veio do index (#r1 etc.)
       const hash = window.location.hash.slice(1);
@@ -1201,7 +1210,7 @@
     async function deletarReserva(id) {
       const r = reservas.find(x => x.id === id);
       if (!r) return;
-      if (!confirm(`Excluir a reserva "${r.nome}"?`)) return;
+      if (!(await confirmDelete(`Excluir a reserva "${r.nome}"?`))) return;
 
       // Remove localmente de imediato para feedback rápido
       reservas = reservas.filter(x => x.id !== id);

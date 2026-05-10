@@ -137,25 +137,34 @@
     .period-selector {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 0;
+      background: var(--navy);
+      border: 1px solid var(--border-gold);
+      border-radius: 8px;
+      overflow: hidden;
     }
     .period-btn {
       background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 10px;
-      color: var(--text-muted);
+      border: none;
+      border-radius: 0;
+      padding: 7px 12px;
+      color: var(--gold);
       cursor: pointer;
       font-size: 16px;
       line-height: 1;
-      transition: all 0.2s;
+      transition: background 0.2s;
     }
-    .period-btn:hover { color: var(--gold); border-color: var(--border-gold); }
+    .period-btn:hover { background: var(--gold-dim); }
     .period-label {
-      font-size: 14px;
-      color: var(--text-secondary);
-      min-width: 140px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--white);
+      min-width: 130px;
       text-align: center;
+      padding: 0 4px;
+      border-left: 1px solid var(--border-gold);
+      border-right: 1px solid var(--border-gold);
+      line-height: 32px;
     }
 
     /* ─── Link agente ───────────────────────── */
@@ -743,7 +752,7 @@
           <div class="resumo-sub" id="pctDespesa">—</div>
         </div>
         <div class="resumo-card destaque">
-          <div class="resumo-label">Sobra do Mês (previsão)</div>
+          <div class="resumo-label">Sobra do Mês</div>
           <div class="resumo-value" id="totalSobra">—</div>
           <div id="sobraIndicador"></div>
         </div>
@@ -911,7 +920,7 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil } from './js/api.js';
-    import { toast, setLoading } from './js/ui.js';
+    import { toast, setLoading, confirmDelete } from './js/ui.js';
     import {
       onAuthStateChanged,
       signOut
@@ -1066,7 +1075,7 @@
     async function excluirItem(tipo, idx) {
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
       const item  = lista[idx];
-      if (!confirm(`Excluir "${item.categoria}"?`)) return;
+      if (!(await confirmDelete(`Excluir "${item.categoria}"?`))) return;
       lista.splice(idx, 1);
       await salvarEAtualizar();
     }
@@ -1097,6 +1106,10 @@
 
     // ── Passo 1: modal de reservas ────────────────────────────────────────────
     function abrirModalReservas(valor) {
+      if (!reservas || reservas.length === 0) {
+        toast('Cadastre ao menos uma reserva antes de registrar o aporte.', 'info');
+        return;
+      }
       valorAportePendente = valor;
       document.getElementById('modalReservasSub').textContent =
         `Aporte de ${brl(valor)} — distribua entre as reservas ativas (pode deixar zero).`;
@@ -1613,7 +1626,7 @@
 
     async function deletarAporte(idx) {
       const a = currentData.aportes[idx];
-      if (!confirm(`Excluir aporte de ${brl(a.valor)}${a.nota ? ' (' + a.nota + ')' : ''}?`)) return;
+      if (!(await confirmDelete(`Excluir aporte de ${brl(a.valor)}${a.nota ? ' (' + a.nota + ')' : ''}?`))) return;
       currentData.aportes.splice(idx, 1);
       await salvarEAtualizar();
     }
