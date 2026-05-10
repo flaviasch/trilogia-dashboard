@@ -422,6 +422,44 @@
     }
     .setup-etapa.pendente:hover { background: rgba(207,174,101,0.25); }
 
+    /* ─── Notificações in-app ────────────────── */
+    .notif-box {
+      display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px;
+    }
+    .notif-card {
+      border-radius: 12px; padding: 14px 18px;
+      display: flex; align-items: flex-start; gap: 12px; position: relative;
+    }
+    .notif-card.perfil {
+      background: rgba(207,174,101,0.1); border: 1px solid rgba(207,174,101,0.3);
+    }
+    .notif-card.orcamento {
+      background: rgba(147,197,253,0.07); border: 1px solid rgba(147,197,253,0.22);
+    }
+    .notif-card.aporte {
+      background: rgba(74,222,128,0.07); border: 1px solid rgba(74,222,128,0.22);
+    }
+    .notif-icon { font-size: 17px; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+    .notif-body { flex: 1; min-width: 0; }
+    .notif-titulo { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+    .notif-card.perfil   .notif-titulo { color: var(--gold); }
+    .notif-card.orcamento .notif-titulo { color: #93C5FD; }
+    .notif-card.aporte   .notif-titulo { color: var(--positive); }
+    .notif-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+    .notif-cta {
+      display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600;
+      text-decoration: none; padding: 4px 12px; border-radius: 6px;
+    }
+    .notif-card.perfil   .notif-cta { color: var(--gold);    border: 1px solid rgba(207,174,101,0.3); }
+    .notif-card.orcamento .notif-cta { color: #93C5FD;        border: 1px solid rgba(147,197,253,0.3); }
+    .notif-card.aporte   .notif-cta { color: var(--positive); border: 1px solid rgba(74,222,128,0.3); }
+    .notif-dismiss {
+      background: none; border: none; color: var(--text-muted); font-size: 14px;
+      cursor: pointer; line-height: 1; padding: 2px 4px; flex-shrink: 0;
+      opacity: 0.5; transition: opacity .2s; font-family: 'Inter', sans-serif;
+    }
+    .notif-dismiss:hover { opacity: 1; }
+
     /* ─── Empty state ─────────────────────────── */
     .empty-state {
       background: var(--navy);
@@ -526,6 +564,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Notificações in-app -->
+    <div id="notificacoesBox" class="notif-box"></div>
 
     <!-- Saudação + perfil -->
     <div class="greeting-section">
@@ -830,6 +871,9 @@
       // Onboarding
       checkOnboarding(data);
 
+      // Notificações
+      renderNotificacoes(data);
+
       return true;   // sucesso
     }
 
@@ -905,6 +949,85 @@
           ? `<span class="setup-etapa done">✓ ${s.titulo}</span>`
           : `<a href="${s.href}" class="setup-etapa pendente">${s.titulo} →</a>`
       ).join('');
+    }
+
+    // ─── Notificações in-app ─────────────────────
+    function renderNotificacoes(data) {
+      const agora  = new Date();
+      const dia    = agora.getDate();
+      const mesKey = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+
+      const notifs = [];
+
+      // ① Perfil de investidor — ausente ou > 180 dias sem atualizar
+      const perfilKey = `notif_perfil_${mesKey}`;
+      if (!localStorage.getItem(perfilKey)) {
+        const da = data.perfil?.dataAtualizacao;
+        let mostrar = false, desc = '';
+
+        if (!data.perfil?.perfil) {
+          mostrar = true;
+          desc = 'Você ainda não cadastrou seu perfil de investidor. Ele define a estratégia de alocação das suas reservas.';
+        } else if (da) {
+          const [pA, pM, pD] = da.split('-').map(Number);
+          const dias = Math.floor((agora - new Date(pA, pM - 1, pD)) / 86400000);
+          if (dias > 180) {
+            mostrar = true;
+            desc = `Seu perfil foi atualizado há ${Math.floor(dias / 30)} meses. Recomenda-se revisar a cada 6 meses.`;
+          }
+        }
+
+        if (mostrar) notifs.push({
+          id: 'perfil', type: 'perfil', key: perfilKey, icon: '🔔',
+          titulo: 'Revise seu perfil de investidor',
+          desc, cta: { label: 'Atualizar perfil', href: 'perfil.html' },
+        });
+      }
+
+      // ② Orçamento — dias 1-7 sem receita lançada
+      const orcKey = `notif_orcamento_${mesKey}`;
+      if (dia >= 1 && dia <= 7 && (data.orcamento?.receita || 0) === 0
+          && !localStorage.getItem(orcKey)) {
+        notifs.push({
+          id: 'orcamento', type: 'orcamento', key: orcKey, icon: '📋',
+          titulo: 'Registre o orçamento do mês',
+          desc: 'Nenhuma receita lançada ainda este mês. Mantenha seu fluxo de caixa atualizado.',
+          cta: { label: 'Lançar orçamento', href: 'orcamento.html' },
+        });
+      }
+
+      // ③ Aporte — dias 25-31
+      const aporteKey = `notif_aporte_${mesKey}`;
+      if (dia >= 25 && !localStorage.getItem(aporteKey)) {
+        notifs.push({
+          id: 'aporte', type: 'aporte', key: aporteKey, icon: '💰',
+          titulo: 'Efetive o aporte do mês',
+          desc: 'Fim de mês chegando. Confirme se o aporte nas suas reservas já foi realizado.',
+          cta: { label: 'Ver reservas', href: 'reservas.html' },
+        });
+      }
+
+      const box = document.getElementById('notificacoesBox');
+      if (!box || notifs.length === 0) { box && (box.innerHTML = ''); return; }
+
+      box.innerHTML = notifs.map(n => `
+        <div class="notif-card ${n.type}" id="notif_${n.id}">
+          <span class="notif-icon">${n.icon}</span>
+          <div class="notif-body">
+            <div class="notif-titulo">${n.titulo}</div>
+            <div class="notif-desc">${n.desc}</div>
+            <a href="${n.cta.href}" class="notif-cta">${n.cta.label} →</a>
+          </div>
+          <button class="notif-dismiss" data-key="${n.key}" data-id="${n.id}" title="Dispensar">✕</button>
+        </div>
+      `).join('');
+
+      box.querySelectorAll('.notif-dismiss').forEach(btn => {
+        btn.addEventListener('click', () => {
+          localStorage.setItem(btn.dataset.key, '1');
+          document.getElementById(`notif_${btn.dataset.id}`)?.remove();
+        });
+      });
     }
 
     function renderReservas(reservas) {

@@ -1,11 +1,19 @@
 'use strict';
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onSchedule }         = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
 
 const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId } = require('./lib/auth');
 const { SheetsClient } = require('./lib/sheets');
 const { provisionar }  = require('./lib/provisionar');
+const {
+  sendEmail,
+  emailRenovacaoPerfil,
+  emailSemPerfil,
+  emailLembreteOrcamento,
+  emailLembreteAporte,
+} = require('./lib/mailer');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -539,3 +547,104 @@ function gerarSenhaTemporaria() {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#';
   return Array.from({ length: 16 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
+
+// ─── Helpers de e-mail ────────────────────────────────────────────────────────
+
+const NOMES_MESES_PT = [
+  'janeiro','fevereiro','março','abril','maio','junho',
+  'julho','agosto','setembro','outubro','novembro','dezembro',
+];
+
+function nomeMesPt(mes, ano) {
+  return `${NOMES_MESES_PT[mes - 1]} de ${ano}`;
+}
+
+/**
+ * Retorna todas as mentoradas ativas do Firestore.
+ * @returns {Promise<Array<{id, nome, email, perfil}>>}
+ */
+async function getAtivas() {
+  const snap = await db.collection('mentoradas').where('status', '==', 'ativa').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// ─── NOTIFICAÇÕES AGENDADAS ───────────────────────────────────────────────────
+
+const SECRETS_EMAIL = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN'];
+
+/**
+ * Dia 1 de cada mês às 08h (Brasília):
+ *   • Lembrete de orçamento (todas as ativas)
+ *   • Renovação de perfil (perfil ausente ou > 180 dias)
+ */
+exports.notifDia1 = onSchedule(
+  { schedule: '0 8 1 * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
+  async () => {
+    const agora   = new Date();
+    const mes     = agora.getMonth() + 1;
+    const ano     = agora.getFullYear();
+    const nomesMes = nomeMesPt(mes, ano);
+
+    const mentoradas = await getAtivas();
+
+    for (const m of mentoradas) {
+      if (!m.email) continue;
+      const tarefas = [];
+
+      // Lembrete de orçamento — todas as ativas
+      tarefas.push(sendEmail({
+        to:      m.email,
+        subject: `Registre o orçamento de ${nomesMes}`,
+        html:    emailLembreteOrcamento(m.nome || 'mentorada', nomesMes),
+      }));
+
+      // Perfil ausente → convite para cadastrar
+      if (!m.perfil?.perfil) {
+        tarefas.push(sendEmail({
+          to:      m.email,
+          subject: 'Configure seu perfil de investidor',
+          html:    emailSemPerfil(m.nome || 'mentorada'),
+        }));
+      }
+      // Perfil desatualizado (> 180 dias) → aviso de renovação
+      else if (m.perfil?.dataAtualizacao) {
+        const [pA, pM, pD] = m.perfil.dataAtualizacao.split('-').map(Number);
+        const dias = Math.floor((agora - new Date(pA, pM - 1, pD)) / 86400000);
+        if (dias > 180) {
+          tarefas.push(sendEmail({
+            to:      m.email,
+            subject: 'Seu perfil de investidor precisa de revisão',
+            html:    emailRenovacaoPerfil(m.nome || 'mentorada', Math.floor(dias / 30)),
+          }));
+        }
+      }
+
+      await Promise.allSettled(tarefas);
+    }
+  },
+);
+
+/**
+ * Dia 28 de cada mês às 08h (Brasília):
+ *   • Lembrete de aporte (todas as ativas)
+ */
+exports.notifDia28 = onSchedule(
+  { schedule: '0 8 28 * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
+  async () => {
+    const agora    = new Date();
+    const mes      = agora.getMonth() + 1;
+    const ano      = agora.getFullYear();
+    const nomesMes = nomeMesPt(mes, ano);
+
+    const mentoradas = await getAtivas();
+
+    for (const m of mentoradas) {
+      if (!m.email) continue;
+      await sendEmail({
+        to:      m.email,
+        subject: `Efetive o aporte de ${nomesMes}`,
+        html:    emailLembreteAporte(m.nome || 'mentorada', nomesMes),
+      }).catch(err => console.error(`Erro ao enviar aporte para ${m.email}:`, err));
+    }
+  },
+);
