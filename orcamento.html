@@ -592,6 +592,21 @@
     .grafico-leg-dot.linha {
       border-radius: 50%;
     }
+    .velocidade-box {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap;
+      margin-top: 16px; padding: 12px 16px; border-radius: 8px;
+      border: 1px solid;
+    }
+    .velocidade-box.adequada  { background: var(--positive-dim); border-color: rgba(74,222,128,0.2); }
+    .velocidade-box.inadequada { background: var(--negative-dim); border-color: rgba(248,113,113,0.2); }
+    .velocidade-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; }
+    .velocidade-box.adequada  .velocidade-label { color: var(--positive); }
+    .velocidade-box.inadequada .velocidade-label { color: var(--negative); }
+    .velocidade-status { font-size: 14px; font-weight: 700; }
+    .velocidade-box.adequada  .velocidade-status { color: var(--positive); }
+    .velocidade-box.inadequada .velocidade-status { color: var(--negative); }
+    .velocidade-detalhe { font-size: 12px; color: var(--text-muted); text-align: right; }
 
     /* ─── Input aporte efetivado ─────────────── */
     .aporte-input-wrap { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
@@ -680,6 +695,11 @@
       </div>
     </div>
 
+    <!-- Disclaimer inserção manual -->
+    <p style="font-size:12px; color:var(--text-muted); margin-top:-20px; margin-bottom:28px; padding: 0 4px;">
+      💡 Prefere inserir manualmente? Use os botões <strong style="color:rgba(255,255,255,0.5)">+ Adicionar</strong> em cada seção abaixo — receitas, despesas e aporte do mês podem ser lançados diretamente, sem CSV.
+    </p>
+
     <!-- Resumo -->
     <div class="resumo-section">
       <div class="resumo-grid">
@@ -756,6 +776,7 @@
             Meta acumulada (planejado)
           </div>
         </div>
+        <div id="graficoVelocidade"></div>
       </div>
     </div>
 
@@ -1663,6 +1684,31 @@
       });
 
       document.getElementById('graficoSection').style.display = 'block';
+
+      // ── Indicador de velocidade de aporte ────────────────────────────────
+      const realAtual  = dataReal[dataReal.length - 1]  || 0;
+      const planoAtual = dataPlano[dataPlano.length - 1] || 0;
+      const velEl      = document.getElementById('graficoVelocidade');
+
+      if (planoAtual === 0) {
+        velEl.innerHTML = '';
+        return;
+      }
+
+      const adequada = realAtual >= planoAtual;
+      const diff     = Math.abs(realAtual - planoAtual);
+      const detalhe  = adequada
+        ? `${brl(realAtual)} realizado · ${brl(planoAtual)} planejado${diff > 0 ? ` · ${brl(diff)} acima da meta` : ''}`
+        : `${brl(realAtual)} realizado · ${brl(planoAtual)} planejado · faltam ${brl(diff)} para atingir a meta acumulada`;
+
+      velEl.innerHTML = `
+        <div class="velocidade-box ${adequada ? 'adequada' : 'inadequada'}">
+          <div>
+            <div class="velocidade-label">Velocidade de aporte</div>
+            <div class="velocidade-status">${adequada ? '✓ Adequada' : '⚠ Inadequada'}</div>
+          </div>
+          <div class="velocidade-detalhe">${detalhe}</div>
+        </div>`;
     }
 
     // ─── Navegação de período ─────────────────
