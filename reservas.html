@@ -91,6 +91,54 @@
     .resumo-value { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
     .resumo-sub { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
 
+    /* ─── Painel de cobertura ──────────────── */
+    .cobertura-painel {
+      border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;
+      border: 1px solid var(--border);
+    }
+    .cobertura-painel.ok      { background: var(--positive-dim); border-color: rgba(74,222,128,0.2); }
+    .cobertura-painel.aviso   { background: var(--warning-dim);  border-color: rgba(251,191,36,0.25); }
+    .cobertura-painel.excesso { background: var(--negative-dim); border-color: rgba(248,113,113,0.2); }
+    .cobertura-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px; gap: 12px; flex-wrap: wrap;
+    }
+    .cobertura-titulo { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .cobertura-painel.ok      .cobertura-titulo { color: var(--positive); }
+    .cobertura-painel.aviso   .cobertura-titulo { color: var(--warning); }
+    .cobertura-painel.excesso .cobertura-titulo { color: var(--negative); }
+    .cobertura-valores { display: flex; gap: 24px; font-size: 13px; flex-wrap: wrap; }
+    .cobertura-val span { color: var(--text-muted); }
+    .cobertura-val strong { color: var(--white); }
+    .cobertura-track {
+      background: rgba(255,255,255,0.08); border-radius: 6px; height: 8px;
+      overflow: hidden; margin-bottom: 10px;
+    }
+    .cobertura-fill { height: 100%; border-radius: 6px; transition: width 0.5s ease; }
+    .cobertura-painel.ok      .cobertura-fill { background: var(--positive); }
+    .cobertura-painel.aviso   .cobertura-fill { background: var(--warning); }
+    .cobertura-painel.excesso .cobertura-fill { background: var(--negative); }
+    .cobertura-msg { font-size: 13px; line-height: 1.5; }
+    .cobertura-painel.ok      .cobertura-msg { color: var(--positive); }
+    .cobertura-painel.aviso   .cobertura-msg { color: var(--warning); }
+    .cobertura-painel.excesso .cobertura-msg { color: var(--negative); }
+
+    /* ─── Dica no modal ─────────────────────── */
+    .modal-dica {
+      background: rgba(207,174,101,0.08); border: 1px solid rgba(207,174,101,0.25);
+      border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .modal-dica.hidden { display: none; }
+    .modal-dica-texto { font-size: 12px; color: var(--gold-light); line-height: 1.4; }
+    .btn-usar-saldo {
+      background: var(--gold); color: var(--navy); border: none; border-radius: 6px;
+      padding: 6px 12px; font-size: 12px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap;
+      transition: background 0.2s; flex-shrink: 0;
+    }
+    .btn-usar-saldo:hover { background: var(--gold-light); }
+
     /* ─── Legenda de alocação ───────────────── */
     .legenda-alocacao {
       background: var(--navy); border: 1px solid var(--border); border-radius: 12px;
@@ -311,6 +359,9 @@
       </div>
     </div>
 
+    <!-- Cobertura do patrimônio pelas reservas -->
+    <div id="coberturaPainel"></div>
+
     <!-- Legenda de alocação -->
     <div class="legenda-alocacao">
       <div class="legenda-title">Alocação automática por prazo</div>
@@ -359,6 +410,12 @@
           <label for="rAcumulado">Já acumulado (R$)</label>
           <input type="number" id="rAcumulado" placeholder="0" min="0" step="100" />
         </div>
+      </div>
+
+      <!-- Dica de patrimônio não alocado (só em nova reserva) -->
+      <div class="modal-dica hidden" id="modalDicaAcumulado">
+        <span class="modal-dica-texto" id="dicaAcumuladoTexto">—</span>
+        <button class="btn-usar-saldo" id="btnUsarSaldo">Usar este valor</button>
       </div>
 
       <div class="field-row">
@@ -522,6 +579,64 @@
       }
     }
 
+    // ─── Cobertura: patrimônio financeiro × soma de acumulados ───────────────
+    function totalFinanceiro() {
+      return patrimonioAtual
+        .filter(a => !ehNaoFinanceiro(a))
+        .reduce((s, a) => s + a.valor, 0);
+    }
+
+    function naoAlocado() {
+      const fin  = totalFinanceiro();
+      const acum = reservas.reduce((s, r) => s + r.acumulado, 0);
+      return fin - acum;  // positivo = sobra; negativo = excesso nas reservas
+    }
+
+    function renderCobertura() {
+      const fin  = totalFinanceiro();
+      const acum = reservas.reduce((s, r) => s + r.acumulado, 0);
+      const el   = document.getElementById('coberturaPainel');
+
+      // Sem dados de patrimônio ainda: oculta o painel
+      if (fin === 0 && acum === 0) { el.innerHTML = ''; return; }
+
+      const diff   = fin - acum;
+      const pctCob = fin > 0 ? Math.min((acum / fin) * 100, 100) : 100;
+      const absDiff = Math.abs(diff);
+
+      let tipo, titulo, msg;
+
+      if (Math.abs(diff) < 1) {
+        tipo   = 'ok';
+        titulo = '✓ Patrimônio 100% alocado nas reservas';
+        msg    = 'Todo o patrimônio financeiro está coberto por uma reserva.';
+      } else if (diff > 0) {
+        tipo   = 'aviso';
+        titulo = `⚠ ${brl(absDiff)} do patrimônio não estão em nenhuma reserva`;
+        msg    = `Crie uma nova reserva ou ajuste o acumulado de uma existente para cobrir os ${brl(absDiff)} restantes.`;
+      } else {
+        tipo   = 'excesso';
+        titulo = `⚠ Reservas excedem o patrimônio em ${brl(absDiff)}`;
+        msg    = `A soma dos acumulados nas reservas é maior que o patrimônio financeiro. Revise os valores das reservas.`;
+      }
+
+      el.innerHTML = `
+        <div class="cobertura-painel ${tipo}">
+          <div class="cobertura-header">
+            <span class="cobertura-titulo">${titulo}</span>
+            <div class="cobertura-valores">
+              <div class="cobertura-val"><span>Patrimônio financeiro: </span><strong>${brl(fin)}</strong></div>
+              <div class="cobertura-val"><span>Nas reservas: </span><strong>${brl(acum)}</strong></div>
+              <div class="cobertura-val"><span>Cobertura: </span><strong>${pctCob.toFixed(1)}%</strong></div>
+            </div>
+          </div>
+          <div class="cobertura-track">
+            <div class="cobertura-fill" style="width:${pctCob}%"></div>
+          </div>
+          <div class="cobertura-msg">${msg}</div>
+        </div>`;
+    }
+
     function renderAll() {
       // Resumo
       const totalAcum   = reservas.reduce((s, r) => s + r.acumulado, 0);
@@ -534,6 +649,8 @@
       document.getElementById('qtdCompletas').textContent = `${completas} de ${reservas.length}`;
       document.getElementById('subCompletas').textContent = completas > 0 ? 'reservas concluídas 🎉' : 'ainda nenhuma concluída';
       document.getElementById('aporteMensal').textContent = brl(totalAporte);
+
+      renderCobertura();
 
       // Lista
       const container = document.getElementById('reservasList');
@@ -820,7 +937,25 @@
           document.getElementById('rAporte').value    = r.aporte;
           atualizarPreview();
         }
+        // Edição: oculta dica
+        document.getElementById('modalDicaAcumulado').classList.add('hidden');
+      } else {
+        // Nova reserva: mostra dica se houver patrimônio não alocado
+        const livre = naoAlocado();
+        const dica  = document.getElementById('modalDicaAcumulado');
+        if (livre > 1) {
+          document.getElementById('dicaAcumuladoTexto').textContent =
+            `💡 ${brl(livre)} do seu patrimônio financeiro ainda não está em nenhuma reserva.`;
+          dica.classList.remove('hidden');
+          // Botão "Usar este valor" → preenche o campo acumulado
+          document.getElementById('btnUsarSaldo').onclick = () => {
+            document.getElementById('rAcumulado').value = Math.round(livre);
+          };
+        } else {
+          dica.classList.add('hidden');
+        }
       }
+
       modal.classList.remove('hidden');
     }
 
