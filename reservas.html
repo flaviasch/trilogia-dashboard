@@ -694,7 +694,7 @@
       const progresso = pct(r.acumulado, r.meta);
       const completa  = r.acumulado >= r.meta;
       const alertaEsgotando = meses !== null && meses <= 3 && !completa && progresso < 90;
-      const isLongoMuitoPrazo = meses !== null && meses > 120;
+      const { temComparativo } = alocacaoPorPrazo(meses);
 
       const cardClass = completa ? 'reserva-card completa' : alertaEsgotando ? 'reserva-card alerta' : 'reserva-card';
 
@@ -713,8 +713,8 @@
 
       const falta = r.meta - r.acumulado;
 
-      // Botão de expansão só para reservas de muito longo prazo (> 10 anos)
-      const expandBtn = isLongoMuitoPrazo
+      // Botão de expansão para reservas com diversificação (temComparativo)
+      const expandBtn = temComparativo
         ? `<button class="btn-icon btn-expand" data-expand="${r.id}" title="Ver carteira vs. sugerida">${IC_CHEVRON}</button>`
         : '';
 
@@ -767,7 +767,7 @@
             <div class="alocacao-itens">${alocHTML}</div>
           </div>
 
-          ${isLongoMuitoPrazo ? renderExpansaoHTML(r) : ''}
+          ${temComparativo ? renderExpansaoHTML(r) : ''}
         </div>`;
     }
 
@@ -831,12 +831,39 @@
     ];
 
     /**
-     * Como distribuir o acumulado de uma reserva para subtraí-lo do portfólio.
-     * - Prazo ≤ 12 meses  → 100% RF Pós
-     * - 13-48 meses       → 70% RF Pós / 25% RF Inflação / 5% RF Pré
-     * - 49-120 meses / indefinido / outra longa prazo →
-     *   distribui proporcionalmente à composição atual do portfólio
-     *   (preserva os percentuais — neutro na direção)
+     * Retorna a alocação sugerida para um prazo E se há diversificação (≥ 2 classes).
+     * Usa os mesmos labels de ALOCACAO_PERFIL / atualMap para que o comparativo bata.
+     */
+    function alocacaoPorPrazo(meses) {
+      // Prazo indefinido ou ≤ 12 meses: única classe, sem diversificação
+      if (meses === null || meses <= 12) {
+        return { itens: [{ label: 'RF Pós', pct: 100, cor: '#60a5fa' }], temComparativo: false };
+      }
+      if (meses <= 48) {
+        return {
+          itens: [
+            { label: 'RF Pós',      pct: 70, cor: '#60a5fa' },
+            { label: 'RF Inflação', pct: 25, cor: '#34d399' },
+            { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
+          ],
+          temComparativo: true,
+        };
+      }
+      if (meses <= 120) {
+        // "Orientação da mentora" — sem percentuais definidos em código
+        return { itens: [], temComparativo: false };
+      }
+      // > 120 meses: perfil do investidor (tem diversificação se perfil tiver ≥ 2 classes)
+      const perfil = perfilInvestidor ? ALOCACAO_PERFIL[perfilInvestidor] : null;
+      if (!perfil) return { itens: [], temComparativo: false };
+      return { itens: perfil, temComparativo: perfil.length > 1 };
+    }
+
+    /**
+     * Como distribuir o acumulado de uma reserva para subtraí-la do portfólio.
+     * - ≤ 12 meses  → 100% RF Pós
+     * - 13–48 meses → 70% RF Pós / 25% RF Inflação / 5% RF Pré
+     * - Demais      → proporcional ao portfólio atual (neutro — preserva percentuais)
      */
     function alocacaoParaSubtracao(meses, portfolioMap) {
       if (meses !== null && meses <= 12) {
@@ -849,7 +876,8 @@
           { label: 'RF Pré',      pct:  5 },
         ];
       }
-      // 49-120 meses ou indefinido: distribui proporcional ao portfólio atual
+      // 49-120 meses ("orientação da mentora"), > 120 meses ou prazo indefinido:
+      // distribui proporcional ao portfólio atual → não distorce os percentuais
       const total = Object.values(portfolioMap).reduce((s, v) => s + v, 0);
       if (!total) return [];
       return Object.entries(portfolioMap)
@@ -858,18 +886,17 @@
     }
 
     /**
-     * Calcula a comparação sugerida × atual para uma reserva de LONGO PRAZO.
-     * Subtrai as demais reservas do portfólio usando a alocação sugerida de cada uma,
-     * depois calcula os percentuais só sobre o resíduo.
+     * Calcula o comparativo sugerida × atual para qualquer reserva com diversificação.
+     * Subtrai todas as OUTRAS reservas do portfólio (pela alocação delas)
+     * e calcula os percentuais do resíduo para as classes desta reserva.
      */
     function calcularComparacaoResidual(reservaAtual) {
-      if (!perfilInvestidor) return null;
+      const m = mesesAte(reservaAtual.dataMeta);
+      const { itens: sugerida, temComparativo } = alocacaoPorPrazo(m);
 
-      const sugerida = ALOCACAO_PERFIL[perfilInvestidor] || [];
-      const sugeridoMap = {};
-      for (const item of sugerida) sugeridoMap[item.label] = item.pct;
+      if (!temComparativo || sugerida.length === 0) return null;
 
-      // Portfólio financeiro como mapa label → valor (em R$)
+      // Portfólio financeiro → mapa label → valor R$
       const ativosFinanceiros = patrimonioAtual.filter(a => !ehNaoFinanceiro(a));
       const portfolioMap = {};
       for (const a of ativosFinanceiros) {
@@ -881,7 +908,7 @@
 
       const totalOriginal = Object.values(portfolioMap).reduce((s, v) => s + v, 0);
 
-      // Subtrai cada OUTRA reserva pelo método adequado ao seu prazo
+      // Subtrai cada OUTRA reserva pelo método do seu prazo
       const outrasReservas = reservas.filter(r => r.id !== reservaAtual.id && r.acumulado > 0);
       let totalSubtraido = 0;
 
@@ -897,7 +924,7 @@
 
       const totalResidual = Object.values(portfolioMap).reduce((s, v) => s + v, 0);
 
-      // Mapa label → % atual baseado no resíduo
+      // % atual baseado no resíduo total
       const atualMap = {};
       if (totalResidual > 0) {
         for (const [label, valor] of Object.entries(portfolioMap)) {
@@ -905,38 +932,38 @@
         }
       }
 
-      const linhas = TODAS_CLASSES.map(({ label, cor }) => {
-        const sugeridoPct = sugeridoMap[label] || 0;
-        const atualPct    = atualMap[label]    || 0;
+      // Linhas: apenas as classes da alocação sugerida deste prazo
+      const linhas = sugerida.map(({ label, cor, pct: sugeridoPct }) => {
+        const atualPct = atualMap[label] || 0;
         return { label, cor, pct: sugeridoPct, atualPct, delta: atualPct - sugeridoPct };
       });
 
-      return { linhas, totalResidual, totalOriginal, totalSubtraido };
+      return { linhas, totalResidual, totalOriginal, totalSubtraido, meses: m };
     }
 
     function renderExpansaoHTML(r) {
-      const hasPerfil  = !!perfilInvestidor;
-      const temDados   = patrimonioAtual.length > 0;
-      const m          = mesesAte(r.dataMeta);
-      const isLongoPrazo = m !== null && m > 120;
+      const m        = mesesAte(r.dataMeta);
+      const temDados = patrimonioAtual.length > 0;
+      const { temComparativo } = alocacaoPorPrazo(m);
 
-      // ── Reservas de curto/médio prazo: alocação já definida pelo prazo ────────
-      if (!isLongoPrazo) {
-        return `<div class="expansao-panel" id="exp-${r.id}">
-          <div class="comp-aviso" style="font-size:12px;color:var(--text-muted)">
-            Alocação definida pelo prazo da reserva — nenhum comparativo necessário.
-          </div>
-        </div>`;
-      }
+      // Segurança: só deve ser chamada quando temComparativo === true
+      if (!temComparativo) return '';
 
-      // ── Reservas de longo prazo (> 10 anos) ───────────────────────────────────
-      if (!hasPerfil) {
+      const isLongoPrazo = m !== null && m > 120;  // > 10 anos usa perfil
+
+      // Título dinâmico conforme o horizonte
+      const titulo = isLongoPrazo
+        ? 'Carteira de longo prazo: sugerida × atual'
+        : 'Carteira desta reserva: sugerida × atual';
+
+      // Perfil necessário apenas para > 10 anos
+      if (isLongoPrazo && !perfilInvestidor) {
         return `<div class="expansao-panel" id="exp-${r.id}">
           <div class="comp-aviso">Defina seu <a href="perfil.html">perfil de investidor</a> para ver a alocação comparativa.</div>
         </div>`;
       }
 
-      const comp = calcularComparacaoResidual(r);
+      const comp      = calcularComparacaoResidual(r);
       const linhasArr = comp ? comp.linhas : [];
 
       const linhas = linhasArr.map(item => {
@@ -960,7 +987,7 @@
           </div>`;
       }).join('');
 
-      // Subtítulo explicando a base do cálculo
+      // Rodapé com base do cálculo
       const baseHTML = (temDados && comp && comp.totalResidual > 0)
         ? `<div class="comp-base">
             Base: <strong>${brl(comp.totalResidual)}</strong>
@@ -975,7 +1002,7 @@
 
       return `
         <div class="expansao-panel" id="exp-${r.id}">
-          <div class="expansao-titulo">Carteira de longo prazo: sugerida × atual</div>
+          <div class="expansao-titulo">${titulo}</div>
           ${baseHTML}
           <div class="comp-grid">
             <div class="comp-row comp-header">
