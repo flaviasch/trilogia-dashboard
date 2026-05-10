@@ -343,6 +343,85 @@
       color: var(--text-muted);
     }
 
+    /* ─── Onboarding: tela de boas-vindas ───────── */
+    .welcome-screen {
+      max-width: 720px; margin: 0 auto; padding: 48px 24px 80px;
+    }
+    .welcome-hero { margin-bottom: 40px; }
+    .welcome-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 30px; font-weight: 600; margin-bottom: 12px;
+    }
+    .welcome-title span { color: var(--gold); }
+    .welcome-sub { font-size: 15px; color: var(--text-secondary); line-height: 1.6; max-width: 500px; }
+    .welcome-steps {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .step-card {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 14px;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .step-card:hover { border-color: var(--border-gold); transform: translateY(-2px); }
+    .step-card.done { border-color: rgba(74,222,128,0.25); background: rgba(74,222,128,0.03); }
+    .step-top { display: flex; align-items: flex-start; gap: 14px; }
+    .step-num {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700;
+      background: var(--gold-dim); border: 1px solid var(--border-gold); color: var(--gold);
+    }
+    .step-card.done .step-num {
+      background: rgba(74,222,128,0.12); border-color: rgba(74,222,128,0.3); color: var(--positive);
+    }
+    .step-info {}
+    .step-titulo { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .step-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+    .step-cta {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--gold); color: var(--navy);
+      border: none; border-radius: 8px; padding: 9px 18px;
+      font-size: 13px; font-weight: 700; font-family: 'Inter', sans-serif;
+      cursor: pointer; text-decoration: none;
+      transition: background 0.2s; align-self: flex-start;
+    }
+    .step-cta:hover { background: var(--gold-light); }
+    .step-cta.feito {
+      background: transparent; color: var(--positive);
+      border: 1px solid rgba(74,222,128,0.3); cursor: default;
+    }
+
+    /* ─── Setup progress (setup parcial) ─────── */
+    .setup-progress {
+      background: var(--navy); border: 1px solid var(--border-gold);
+      border-radius: 12px; padding: 18px 24px; margin-bottom: 32px;
+    }
+    .setup-progress-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+    }
+    .setup-progress-titulo { font-size: 12px; font-weight: 600; color: var(--gold); text-transform: uppercase; letter-spacing: 0.07em; }
+    .setup-progress-pct { font-size: 12px; color: var(--text-muted); }
+    .setup-track {
+      background: rgba(255,255,255,0.07); border-radius: 6px; height: 4px; margin-bottom: 16px; overflow: hidden;
+    }
+    .setup-fill { height: 100%; border-radius: 6px; background: var(--gold); transition: width 0.5s ease; }
+    .setup-etapas { display: flex; gap: 8px; flex-wrap: wrap; }
+    .setup-etapa {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; text-decoration: none;
+      padding: 5px 12px; border-radius: 20px; border: 1px solid;
+      transition: all 0.2s;
+    }
+    .setup-etapa.done {
+      color: var(--positive); border-color: rgba(74,222,128,0.25);
+      background: rgba(74,222,128,0.07); cursor: default;
+    }
+    .setup-etapa.pendente {
+      color: var(--gold); border-color: var(--border-gold);
+      background: var(--gold-dim);
+    }
+    .setup-etapa.pendente:hover { background: rgba(207,174,101,0.25); }
+
     /* ─── Empty state ─────────────────────────── */
     .empty-state {
       background: var(--navy);
@@ -363,6 +442,9 @@
       .patrimonio-row { grid-template-columns: 1fr; }
       .greeting { font-size: 20px; }
       .pat-value { font-size: 22px; }
+      .welcome-steps { grid-template-columns: 1fr; }
+      .welcome-title { font-size: 22px; }
+      .welcome-screen { padding: 32px 16px 60px; }
     }
   </style>
 </head>
@@ -393,8 +475,37 @@
     Alguns dados da planilha estão temporariamente indisponíveis. Orçamento, patrimônio e reservas podem estar em branco.
   </div>
 
+  <!-- Onboarding: tela de boas-vindas (0 etapas concluídas) -->
+  <div id="welcomeScreen" style="display:none">
+    <div class="welcome-screen">
+      <div class="welcome-hero">
+        <h1 class="welcome-title">Bem-vinda ao <span>Trilogia Dashboard</span></h1>
+        <p class="welcome-sub">Configure seu painel em 4 etapas simples para começar a acompanhar sua saúde financeira.</p>
+      </div>
+      <div class="welcome-steps" id="welcomeSteps">
+        <!-- preenchido por JS -->
+      </div>
+    </div>
+  </div>
+
   <!-- Conteúdo principal (oculto até carregar) -->
   <main class="main" id="mainContent" style="display:none">
+
+    <!-- Setup progress (1–3 etapas concluídas) -->
+    <div id="setupProgress" style="display:none">
+      <div class="setup-progress">
+        <div class="setup-progress-header">
+          <span class="setup-progress-titulo">Configuração do painel</span>
+          <span class="setup-progress-pct" id="setupPct"></span>
+        </div>
+        <div class="setup-track">
+          <div class="setup-fill" id="setupFill" style="width:0%"></div>
+        </div>
+        <div class="setup-etapas" id="setupEtapas">
+          <!-- preenchido por JS -->
+        </div>
+      </div>
+    </div>
 
     <!-- Saudação + perfil -->
     <div class="greeting-section">
@@ -522,7 +633,7 @@
       }
 
       document.getElementById('loadingOverlay').style.display = 'none';
-      document.getElementById('mainContent').style.display = 'block';
+      // Visibilidade de mainContent / welcomeScreen é gerenciada por checkOnboarding()
     }
 
     // ─── Format helpers ───────────────────────────
@@ -675,7 +786,85 @@
         return { ...r, mesesRestantes, dataMeta };
       });
       renderReservas(reservasFormatadas);
+
+      // Onboarding
+      checkOnboarding(data);
+
       return true;   // sucesso
+    }
+
+    // ─── Onboarding ──────────────────────────────
+    function checkOnboarding(data) {
+      const temPerfil     = !!data.perfil?.perfil;
+      const temPatrimonio = (data.patrimonio?.ativos || 0) > 0;
+      const temReservas   = (data.reservas || []).length > 0;
+      const temOrcamento  = (data.orcamento?.receita || 0) > 0;
+
+      const steps = [
+        {
+          num: 1, titulo: 'Perfil de Investidor', href: 'perfil.html', done: temPerfil,
+          desc: 'Defina seu perfil para receber alocações de carteira personalizadas.'
+        },
+        {
+          num: 2, titulo: 'Patrimônio', href: 'patrimonio.html', done: temPatrimonio,
+          desc: 'Cadastre seus ativos e dívidas para calcular seu patrimônio líquido.'
+        },
+        {
+          num: 3, titulo: 'Reservas', href: 'reservas.html', done: temReservas,
+          desc: 'Configure suas reservas financeiras com metas e prazos definidos.'
+        },
+        {
+          num: 4, titulo: 'Orçamento', href: 'orcamento.html', done: temOrcamento,
+          desc: 'Registre receitas e despesas para acompanhar seu fluxo de caixa.'
+        },
+      ];
+
+      const totalDone = steps.filter(s => s.done).length;
+
+      document.getElementById('loadingOverlay').style.display = 'none';
+
+      if (totalDone === 0) {
+        renderWelcomeScreen(steps);
+        document.getElementById('welcomeScreen').style.display = 'block';
+        // mainContent permanece oculto
+      } else {
+        document.getElementById('mainContent').style.display = 'block';
+        if (totalDone < 4) {
+          renderSetupProgress(steps, totalDone);
+          document.getElementById('setupProgress').style.display = 'block';
+        }
+      }
+    }
+
+    function renderWelcomeScreen(steps) {
+      const stepsEl = document.getElementById('welcomeSteps');
+      stepsEl.innerHTML = steps.map(s => `
+        <div class="step-card${s.done ? ' done' : ''}">
+          <div class="step-top">
+            <div class="step-num">${s.done ? '✓' : s.num}</div>
+            <div class="step-info">
+              <div class="step-titulo">${s.titulo}</div>
+              <div class="step-desc">${s.desc}</div>
+            </div>
+          </div>
+          ${s.done
+            ? `<span class="step-cta feito">✓ Concluído</span>`
+            : `<a href="${s.href}" class="step-cta">Configurar →</a>`
+          }
+        </div>
+      `).join('');
+    }
+
+    function renderSetupProgress(steps, totalDone) {
+      const pct = Math.round((totalDone / steps.length) * 100);
+      document.getElementById('setupPct').textContent = `${totalDone} de ${steps.length} etapas`;
+      document.getElementById('setupFill').style.width = pct + '%';
+
+      document.getElementById('setupEtapas').innerHTML = steps.map(s =>
+        s.done
+          ? `<span class="setup-etapa done">✓ ${s.titulo}</span>`
+          : `<a href="${s.href}" class="setup-etapa pendente">${s.titulo} →</a>`
+      ).join('');
     }
 
     function renderReservas(reservas) {
