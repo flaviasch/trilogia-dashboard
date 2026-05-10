@@ -1202,6 +1202,10 @@
         if (idx !== -1) reservas[idx] = r;
       }
       render(currentData);
+
+      // Zera o campo para permitir novo aporte no mesmo mês
+      document.getElementById('aporteEfetivadoInput').value = '';
+      document.getElementById('aporteSubLabel').textContent = 'valor investido no mês';
     });
 
     // Botão ✓ — inicia fluxo pelo modal de reservas
