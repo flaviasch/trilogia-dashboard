@@ -309,6 +309,58 @@
     .inline-edit-actions .btn-save-small:hover { background: var(--gold-light); }
     .inline-edit-actions .btn-save-small:disabled { opacity: 0.6; cursor: not-allowed; }
 
+    /* ─── Tabela financeiro ──────────────────── */
+    .th-fin {
+      font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--text-muted); text-align: left; padding: 10px 14px;
+      font-weight: 500; white-space: nowrap;
+    }
+    .td-fin {
+      font-size: 13px; color: var(--text-secondary);
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .td-fin.nome { color: var(--white); font-weight: 500; }
+    .td-fin.valor { text-align: right; color: var(--white); font-weight: 600; }
+    .td-fin.recebido { text-align: right; color: var(--positive); font-weight: 600; }
+    .td-fin.pendente-val { text-align: right; color: var(--text-muted); }
+    .badge-pago    { background: rgba(74,222,128,.12); color: var(--positive); font-size:11px; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+    .badge-pendente{ background: rgba(207,174,101,.12); color: var(--gold);    font-size:11px; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+    .badge-vencido { background: rgba(248,113,113,.12); color: var(--negative);font-size:11px; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+
+    /* ─── Contratos no detalhe ───────────────── */
+    .contrato-card {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 10px; margin-bottom: 10px; overflow: hidden;
+    }
+    .contrato-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; cursor: pointer;
+      border-bottom: 1px solid transparent; transition: border-color .2s;
+    }
+    .contrato-header:hover { background: rgba(255,255,255,.02); }
+    .contrato-header.aberto { border-bottom-color: var(--border); }
+    .contrato-titulo { font-size: 14px; font-weight: 600; flex: 1; }
+    .contrato-status-tag {
+      font-size: 11px; padding: 2px 10px; border-radius: 20px; font-weight: 500;
+    }
+    .status-ativo    { background: rgba(74,222,128,.12);  color: var(--positive); }
+    .status-quitado  { background: rgba(207,174,101,.12); color: var(--gold); }
+    .status-cancelado{ background: rgba(255,255,255,.06); color: var(--text-muted); }
+    .contrato-body { padding: 0 16px 12px; }
+    .parcelas-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    .parcelas-table th { font-size:11px; color:var(--text-muted); text-align:left; padding:4px 8px; font-weight:500; }
+    .parcelas-table td { padding: 6px 8px; border-top: 1px solid var(--border); color: var(--text-secondary); }
+    .parcelas-table td.pago  { color: var(--positive); }
+    .parcelas-table td.valor-parc { color: var(--white); font-weight: 600; }
+    .btn-pagar {
+      background: transparent; border: 1px solid rgba(207,174,101,.4);
+      border-radius: 6px; padding: 3px 10px; font-size: 11px; color: var(--gold);
+      cursor: pointer; font-family: 'Inter', sans-serif; white-space: nowrap;
+      transition: all .2s;
+    }
+    .btn-pagar:hover { background: rgba(207,174,101,.08); }
+
     @media (max-width: 768px) {
       .navbar { padding: 0 16px; }
       .navbar-center { display: none; }
@@ -525,6 +577,15 @@
         </div>
       </div>
 
+      <!-- Contratos -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h2 class="detalhe-section-title" style="margin-bottom:0">Contratos</h2>
+        <button class="btn-edit-inline" id="btnNovoContrato" style="padding:5px 14px;font-size:12px">+ Novo contrato</button>
+      </div>
+      <div id="detContratos" style="margin-bottom:28px">
+        <p style="font-size:13px;color:var(--text-muted)">Carregando…</p>
+      </div>
+
       <!-- Alertas -->
       <h2 class="detalhe-section-title" style="margin-bottom:12px">Alertas</h2>
       <div id="detAlertas" style="margin-bottom:28px"></div>
@@ -551,44 +612,174 @@
       <div class="page-header">
         <div>
           <h1>Financeiro</h1>
-          <p>Receita recorrente e projeções do dashboard.</p>
+          <p>Conciliação de recebimentos por mês.</p>
         </div>
       </div>
 
-      <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">
+      <!-- Seletor de mês -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button class="btn-edit-inline" id="finMesAnterior" style="padding:6px 14px">‹</button>
+        <span id="finMesLabel" style="font-size:15px;font-weight:600;min-width:140px;text-align:center">—</span>
+        <button class="btn-edit-inline" id="finMesProximo"  style="padding:6px 14px">›</button>
+      </div>
+
+      <!-- KPIs do mês -->
+      <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
         <div class="kpi-card">
-          <div class="kpi-label">MRR atual</div>
-          <div class="kpi-value" id="finMRR">—</div>
-          <div class="kpi-sub" id="finMRRSub">—</div>
+          <div class="kpi-label">Previsto no mês</div>
+          <div class="kpi-value" id="finPrevisto">—</div>
+          <div class="kpi-sub" id="finPrevistoSub">—</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">ARR projetado</div>
-          <div class="kpi-value" id="finARR">—</div>
-          <div class="kpi-sub">receita anual recorrente</div>
+          <div class="kpi-label">Recebido</div>
+          <div class="kpi-value green" id="finRecebido">—</div>
+          <div class="kpi-sub" id="finRecebidoSub">líquido</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Ticket médio</div>
-          <div class="kpi-value" id="finTicket">—</div>
-          <div class="kpi-sub">por assinatura ativa</div>
+          <div class="kpi-label">A receber</div>
+          <div class="kpi-value" id="finPendente">—</div>
+          <div class="kpi-sub" id="finPendenteSub">pendente</div>
         </div>
       </div>
 
-      <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;padding:24px;margin-top:8px">
-        <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin-bottom:16px">Distribuição por produto</h3>
-        <table style="width:100%;border-collapse:collapse">
-          <thead>
-            <tr>
-              <th style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);text-align:left;padding:0 0 12px">Produto</th>
-              <th style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);text-align:right;padding:0 0 12px">Ativas</th>
-              <th style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);text-align:right;padding:0 0 12px">MRR</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaFinanceiro"></tbody>
-        </table>
+      <!-- Tabela de cobranças do mês -->
+      <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin:0">Cobranças do mês</h3>
+          <span id="finCarregando" style="font-size:12px;color:var(--text-muted)"></span>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse" id="tabelaCobrancas">
+            <thead>
+              <tr style="background:rgba(255,255,255,.03)">
+                <th class="th-fin">Aluna</th>
+                <th class="th-fin">Produto</th>
+                <th class="th-fin">Parc.</th>
+                <th class="th-fin">Vencimento</th>
+                <th class="th-fin">Forma</th>
+                <th class="th-fin" style="text-align:right">Valor</th>
+                <th class="th-fin" style="text-align:right">Recebido</th>
+                <th class="th-fin" style="text-align:center">Status</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaFinanceiro"></tbody>
+          </table>
+          <div id="finVazio" style="display:none;padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
+            Nenhuma cobrança neste mês.
+          </div>
+        </div>
       </div>
     </div>
 
   </main>
+
+  <!-- Modal novo contrato -->
+  <div class="modal-overlay hidden" id="modalContrato">
+    <div class="modal-card" style="max-width:500px;overflow-y:auto;max-height:90vh">
+      <h2 class="modal-title">Novo contrato</h2>
+
+      <div class="field-group">
+        <label>Produto</label>
+        <select id="cProduto">
+          <option value="mentoria">Mentoria</option>
+          <option value="private">Private</option>
+          <option value="clube">Clube</option>
+          <option value="dashboard">Dashboard</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Tipo</label>
+        <select id="cTipo">
+          <option value="parcelado">Parcelado / único</option>
+          <option value="recorrente">Recorrente (assinatura)</option>
+        </select>
+      </div>
+      <div id="cCampoPeriodicidade" style="display:none">
+        <div class="field-group">
+          <label>Periodicidade</label>
+          <select id="cPeriodicidade">
+            <option value="mensal">Mensal</option>
+            <option value="anual">Anual</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Forma de pagamento</label>
+        <select id="cPagamento">
+          <option value="pix">PIX</option>
+          <option value="transferencia">Transferência</option>
+          <option value="kiwify">Kiwify</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+
+      <!-- Parcelado -->
+      <div id="cCamposParcelado">
+        <div style="display:flex;gap:12px">
+          <div class="field-group" style="flex:1">
+            <label>Nº de parcelas</label>
+            <input type="number" id="cNumParcelas" value="1" min="1" max="48" />
+          </div>
+          <div class="field-group" style="flex:1">
+            <label>Valor por parcela (R$)</label>
+            <input type="number" id="cValorParcela" placeholder="0" min="0" step="0.01" />
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Data do 1º vencimento</label>
+          <input type="date" id="cPrimeiraParcela" />
+        </div>
+        <div class="field-group">
+          <label>Intervalo entre parcelas</label>
+          <select id="cIntervalo">
+            <option value="mensal">Mensal</option>
+            <option value="anual">Anual</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Recorrente -->
+      <div id="cCamposRecorrente" style="display:none">
+        <div class="field-group">
+          <label>Valor (R$)</label>
+          <input type="number" id="cValorRecorrente" placeholder="0" min="0" step="0.01" />
+        </div>
+        <div class="field-group">
+          <label>Data do 1º vencimento</label>
+          <input type="date" id="cPrimeiraRecorrente" />
+        </div>
+      </div>
+
+      <!-- Preview das parcelas geradas -->
+      <div id="cPreviewParcelas" style="margin-top:4px;margin-bottom:16px;font-size:12px;color:var(--text-muted);max-height:120px;overflow-y:auto"></div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarContrato">Cancelar</button>
+        <button class="btn-save"   id="btnSalvarContrato">Criar contrato</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal registrar pagamento -->
+  <div class="modal-overlay hidden" id="modalPagamento">
+    <div class="modal-card" style="max-width:380px">
+      <h2 class="modal-title">Registrar pagamento</h2>
+      <p id="pagDescricao" style="font-size:13px;color:var(--text-muted);margin-bottom:20px"></p>
+      <div class="field-group">
+        <label>Data de recebimento</label>
+        <input type="date" id="pagData" />
+      </div>
+      <div class="field-group">
+        <label>Valor recebido (R$)</label>
+        <input type="number" id="pagValor" placeholder="0" min="0" step="0.01" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarPagamento">Cancelar</button>
+        <button class="btn-save"   id="btnConfirmarPagamento">Confirmar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal nova mentorada -->
   <div class="modal-overlay hidden" id="modalNova">
@@ -656,7 +847,8 @@
 
   <script type="module">
     import { exigirAdmin, logout, refreshAdmin } from './js/admin-guard.js';
-    import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada } from './js/api.js';
+    import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada,
+             createContrato, getContratos, pagarParcela, cancelarContrato, getCobrancas } from './js/api.js';
 
     // ─── Auth guard via Custom Claim ─────────────
     const user = await exigirAdmin();
@@ -756,7 +948,6 @@
         // Mock mantido como fallback durante desenvolvimento
       }
       renderMentoradas();
-      renderFinanceiro();
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
     }
@@ -769,6 +960,7 @@
         const nome = tab.dataset.tab;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('ativo'));
         document.getElementById(`view-${nome}`)?.classList.add('ativo');
+        if (nome === 'financeiro') renderFinanceiro();
       });
     });
 
@@ -943,6 +1135,10 @@
           <span class="alerta-icon">${a.icon}</span>
           <span class="alerta-texto">${a.texto}</span>
         </div>`).join('');
+
+      // Carrega contratos em background
+      const uid = m.uid || m.id;
+      carregarContratos(uid);
 
       // Botões contextuais
       const inativa  = m.status === 'inativa';
@@ -1128,7 +1324,6 @@
         mentoradas = mentoradas.filter(m => (m.uid || m.id) !== uid);
         document.getElementById('btnVoltarLista').click();
         renderMentoradas();
-        renderFinanceiro();
       } catch (err) {
         alert(`Erro ao apagar: ${err.message}`);
         btn.disabled = false;
@@ -1172,7 +1367,6 @@
         document.getElementById('modalNova').classList.add('hidden');
         limparModal();
         renderMentoradas();
-        renderFinanceiro();
         alert(`Conta criada! Um e-mail de boas-vindas foi enviado para ${email}.`);
       } catch (err) {
         alert(`Erro ao criar conta: ${err.message}`);
@@ -1182,47 +1376,334 @@
       }
     });
 
-    // ─── Financeiro ──────────────────────────
-    function renderFinanceiro() {
-      const ativasEAlertas = mentoradas.filter(m => m.status !== 'inativa');
-      const mrr = ativasEAlertas.reduce((s, m) => s + (m.valorMensal || 0), 0);
-      const ticket = ativasEAlertas.length > 0
-        ? Math.round(mrr / ativasEAlertas.length)
-        : 0;
+    // ─── Financeiro — hub de conciliação ─────
+    const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                        'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    let finMesAtual = new Date().getMonth() + 1;
+    let finAnoAtual = new Date().getFullYear();
 
-      document.getElementById('finMRR').textContent    = brl(mrr);
-      document.getElementById('finMRRSub').textContent = `${ativasEAlertas.length} assinatura${ativasEAlertas.length !== 1 ? 's' : ''} ativa${ativasEAlertas.length !== 1 ? 's' : ''}`;
-      document.getElementById('finARR').textContent    = brl(mrr * 12);
-      document.getElementById('finTicket').textContent = ticket ? brl(ticket) : '—';
-
-      // Distribuição por produto
-      const porProduto = {};
-      ativasEAlertas.forEach(m => {
-        const key = m.produto || 'sem_produto';
-        if (!porProduto[key]) porProduto[key] = { qtd: 0, mrr: 0 };
-        porProduto[key].qtd++;
-        porProduto[key].mrr += m.valorMensal || 0;
-      });
-
-      const produtoOrdem = ['mentoria', 'private', 'clube', 'dashboard', 'outro', 'sem_produto'];
-      const linhas = produtoOrdem
-        .filter(k => porProduto[k])
-        .map(k => ({ label: PRODUTO_LABEL[k] || 'Sem produto', ...porProduto[k] }));
-
-      // Adiciona produtos não mapeados (segurança)
-      Object.keys(porProduto).forEach(k => {
-        if (!produtoOrdem.includes(k)) linhas.push({ label: k, ...porProduto[k] });
-      });
-
-      document.getElementById('tabelaFinanceiro').innerHTML = linhas.length
-        ? linhas.map(h => `
-          <tr>
-            <td style="font-size:14px;padding:10px 0;color:var(--text-secondary);border-top:1px solid var(--border)">${h.label}</td>
-            <td style="font-size:14px;text-align:right;padding:10px 0;border-top:1px solid var(--border)">${h.qtd}</td>
-            <td style="font-size:14px;text-align:right;padding:10px 0;color:var(--gold);border-top:1px solid var(--border)">${brl(h.mrr)}</td>
-          </tr>`).join('')
-        : `<tr><td colspan="3" style="padding:20px 0;color:var(--text-muted);font-size:13px;border-top:1px solid var(--border)">Nenhuma assinatura ativa.</td></tr>`;
+    function fmtData(iso) {
+      if (!iso) return '—';
+      const [a, m, d] = iso.split('-');
+      return `${d}/${m}/${a}`;
     }
+
+    function badgeStatus(cob) {
+      if (cob.pago) return `<span class="badge-pago">Pago</span>`;
+      const hoje = new Date().toISOString().slice(0, 10);
+      if (cob.vencimento < hoje) return `<span class="badge-vencido">Vencido</span>`;
+      return `<span class="badge-pendente">Pendente</span>`;
+    }
+
+    async function renderFinanceiro() {
+      document.getElementById('finMesLabel').textContent =
+        `${MESES_NOME[finMesAtual - 1]} ${finAnoAtual}`;
+      document.getElementById('finCarregando').textContent = 'Carregando…';
+      document.getElementById('tabelaFinanceiro').innerHTML = '';
+      document.getElementById('finVazio').style.display = 'none';
+
+      let cobrancas = [];
+      try {
+        cobrancas = await getCobrancas(finMesAtual, finAnoAtual);
+      } catch (e) {
+        document.getElementById('finCarregando').textContent = 'Erro ao carregar.';
+        return;
+      }
+      document.getElementById('finCarregando').textContent = '';
+
+      if (!cobrancas.length) {
+        document.getElementById('finVazio').style.display = '';
+        document.getElementById('finPrevisto').textContent = brl(0);
+        document.getElementById('finRecebido').textContent = brl(0);
+        document.getElementById('finPendente').textContent = brl(0);
+        document.getElementById('finPrevistoSub').textContent = '0 cobranças';
+        document.getElementById('finRecebidoSub').textContent = 'líquido';
+        document.getElementById('finPendenteSub').textContent = '0 pendentes';
+        return;
+      }
+
+      const previsto  = cobrancas.reduce((s, c) => s + (c.valor || 0), 0);
+      const recebido  = cobrancas.filter(c => c.pago).reduce((s, c) => s + (c.valorRecebido || 0), 0);
+      const pendente  = cobrancas.filter(c => !c.pago).reduce((s, c) => s + (c.valor || 0), 0);
+      const nPendente = cobrancas.filter(c => !c.pago).length;
+
+      document.getElementById('finPrevisto').textContent    = brl(previsto);
+      document.getElementById('finRecebido').textContent    = brl(recebido);
+      document.getElementById('finPendente').textContent    = brl(pendente);
+      document.getElementById('finPrevistoSub').textContent = `${cobrancas.length} cobrança${cobrancas.length !== 1 ? 's' : ''}`;
+      document.getElementById('finRecebidoSub').textContent = 'líquido';
+      document.getElementById('finPendenteSub').textContent = `${nPendente} pendente${nPendente !== 1 ? 's' : ''}`;
+
+      document.getElementById('tabelaFinanceiro').innerHTML = cobrancas.map(c => `
+        <tr>
+          <td class="td-fin nome">${c.nomeAluna}</td>
+          <td class="td-fin">${PRODUTO_LABEL[c.produto] || c.produto}</td>
+          <td class="td-fin" style="color:var(--text-muted)">${c.tipo === 'recorrente' ? '∞' : `${c.numero}/${c.total}`}</td>
+          <td class="td-fin">${fmtData(c.vencimento)}</td>
+          <td class="td-fin">${PAGAMENTO_LABEL[c.formaPagamento] || c.formaPagamento || '—'}</td>
+          <td class="td-fin valor">${brl(c.valor)}</td>
+          <td class="${c.pago ? 'td-fin recebido' : 'td-fin pendente-val'}">${c.pago ? brl(c.valorRecebido) : '—'}</td>
+          <td class="td-fin" style="text-align:center">${badgeStatus(c)}</td>
+        </tr>`).join('');
+    }
+
+    document.getElementById('finMesAnterior').addEventListener('click', () => {
+      finMesAtual--;
+      if (finMesAtual < 1) { finMesAtual = 12; finAnoAtual--; }
+      renderFinanceiro();
+    });
+    document.getElementById('finMesProximo').addEventListener('click', () => {
+      finMesAtual++;
+      if (finMesAtual > 12) { finMesAtual = 1; finAnoAtual++; }
+      renderFinanceiro();
+    });
+
+    // ─── Contratos ────────────────────────────
+
+    // Helpers de geração de datas
+    function gerarDatasParcelado(primeiro, numParcelas, intervalo) {
+      const datas = [];
+      let d = new Date(primeiro + 'T12:00:00Z');
+      for (let i = 0; i < numParcelas; i++) {
+        datas.push(d.toISOString().slice(0, 10));
+        if (intervalo === 'mensal') d.setUTCMonth(d.getUTCMonth() + 1);
+        else                        d.setUTCFullYear(d.getUTCFullYear() + 1);
+      }
+      return datas;
+    }
+
+    // Atualiza preview das parcelas geradas
+    function atualizarPreviewParcelas() {
+      const tipo = document.getElementById('cTipo').value;
+      const preview = document.getElementById('cPreviewParcelas');
+      if (tipo === 'recorrente') {
+        const v = parseFloat(document.getElementById('cValorRecorrente').value);
+        const d = document.getElementById('cPrimeiraRecorrente').value;
+        if (!v || !d) { preview.textContent = ''; return; }
+        const per = document.getElementById('cPeriodicidade').value;
+        preview.textContent = `Primeira cobrança: ${fmtData(d)} · R$ ${v.toLocaleString('pt-BR')} · renova automaticamente (${per === 'mensal' ? 'todo mês' : 'todo ano'})`;
+        return;
+      }
+      const n = parseInt(document.getElementById('cNumParcelas').value);
+      const v = parseFloat(document.getElementById('cValorParcela').value);
+      const d = document.getElementById('cPrimeiraParcela').value;
+      const i = document.getElementById('cIntervalo').value;
+      if (!n || !v || !d) { preview.textContent = ''; return; }
+      const datas = gerarDatasParcelado(d, n, i);
+      preview.innerHTML = datas.map((dt, idx) =>
+        `<div>Parc. ${idx + 1}: ${fmtData(dt)} · ${brl(v)}</div>`).join('');
+    }
+
+    ['cTipo','cNumParcelas','cValorParcela','cPrimeiraParcela','cIntervalo',
+     'cValorRecorrente','cPrimeiraRecorrente','cPeriodicidade'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', atualizarPreviewParcelas);
+      document.getElementById(id)?.addEventListener('change', atualizarPreviewParcelas);
+    });
+
+    document.getElementById('cTipo').addEventListener('change', () => {
+      const tipo = document.getElementById('cTipo').value;
+      document.getElementById('cCamposParcelado').style.display  = tipo === 'parcelado'  ? '' : 'none';
+      document.getElementById('cCamposRecorrente').style.display = tipo === 'recorrente' ? '' : 'none';
+      document.getElementById('cCampoPeriodicidade').style.display = tipo === 'recorrente' ? '' : 'none';
+      atualizarPreviewParcelas();
+    });
+
+    document.getElementById('btnNovoContrato').addEventListener('click', () => {
+      document.getElementById('modalContrato').classList.remove('hidden');
+      // Valores default
+      document.getElementById('cTipo').value = 'parcelado';
+      document.getElementById('cCamposParcelado').style.display  = '';
+      document.getElementById('cCamposRecorrente').style.display = 'none';
+      document.getElementById('cCampoPeriodicidade').style.display = 'none';
+      document.getElementById('cPreviewParcelas').textContent = '';
+      document.getElementById('cNumParcelas').value = '1';
+      document.getElementById('cValorParcela').value = '';
+      document.getElementById('cPrimeiraParcela').value = '';
+      document.getElementById('cValorRecorrente').value = '';
+      document.getElementById('cPrimeiraRecorrente').value = '';
+    });
+    document.getElementById('btnCancelarContrato').addEventListener('click', () => {
+      document.getElementById('modalContrato').classList.add('hidden');
+    });
+
+    document.getElementById('btnSalvarContrato').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid  = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const tipo = document.getElementById('cTipo').value;
+      const produto        = document.getElementById('cProduto').value;
+      const formaPagamento = document.getElementById('cPagamento').value;
+      const periodicidade  = document.getElementById('cPeriodicidade').value;
+
+      let parcelas = [];
+      if (tipo === 'parcelado') {
+        const n = parseInt(document.getElementById('cNumParcelas').value);
+        const v = parseFloat(document.getElementById('cValorParcela').value);
+        const d = document.getElementById('cPrimeiraParcela').value;
+        const i = document.getElementById('cIntervalo').value;
+        if (!n || !v || !d) { alert('Preencha número de parcelas, valor e data.'); return; }
+        parcelas = gerarDatasParcelado(d, n, i).map(venc => ({ valor: v, vencimento: venc }));
+      } else {
+        const v = parseFloat(document.getElementById('cValorRecorrente').value);
+        const d = document.getElementById('cPrimeiraRecorrente').value;
+        if (!v || !d) { alert('Preencha valor e data.'); return; }
+        parcelas = [{ valor: v, vencimento: d }];
+      }
+
+      const btn = document.getElementById('btnSalvarContrato');
+      btn.disabled = true; btn.textContent = 'Criando…';
+      try {
+        await createContrato({ uid, produto, tipo, periodicidade, formaPagamento, parcelas });
+        document.getElementById('modalContrato').classList.add('hidden');
+        await carregarContratos(uid);
+      } catch (err) {
+        alert(`Erro ao criar contrato: ${err.message}`);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Criar contrato';
+      }
+    });
+
+    // Carrega e renderiza contratos no detalhe
+    async function carregarContratos(uid) {
+      const el = document.getElementById('detContratos');
+      el.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Carregando…</p>';
+      try {
+        const contratos = await getContratos(uid);
+        if (!contratos.length) {
+          el.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Nenhum contrato cadastrado.</p>';
+          return;
+        }
+        el.innerHTML = contratos.map(c => renderContrato(c, uid)).join('');
+        // Accordion toggle
+        el.querySelectorAll('.contrato-header').forEach(h => {
+          h.addEventListener('click', () => {
+            const body = h.nextElementSibling;
+            const aberto = body.style.display !== 'none';
+            body.style.display = aberto ? 'none' : '';
+            h.classList.toggle('aberto', !aberto);
+          });
+        });
+        // Botões cancelar contrato
+        el.querySelectorAll('[data-cancelar-contrato]').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (!confirm('Cancelar este contrato? As cobranças pagas serão mantidas.')) return;
+            try {
+              await cancelarContrato(uid, btn.dataset.cancelarContrato);
+              await carregarContratos(uid);
+            } catch (err) { alert(`Erro: ${err.message}`); }
+          });
+        });
+        // Botões pagar parcela
+        el.querySelectorAll('[data-cob-id]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            abrirModalPagamento(btn.dataset.cobId, btn.dataset.cobValor, btn.dataset.cobDesc);
+          });
+        });
+      } catch (err) {
+        el.innerHTML = `<p style="font-size:13px;color:var(--negative)">Erro ao carregar contratos.</p>`;
+      }
+    }
+
+    function renderContrato(c, uid) {
+      const STATUS_LABEL = { ativo: 'Ativo', quitado: 'Quitado', cancelado: 'Cancelado' };
+      const periodoLabel = c.periodicidade === 'anual' ? 'anual' : 'mensal';
+      const tipoLabel    = c.tipo === 'recorrente' ? `Recorrente ${periodoLabel}` : `${c.parcelas?.length || 0}x`;
+      const totalStr     = brl(c.valorTotal);
+      const parcelas     = c.parcelas || [];
+      const hoje         = new Date().toISOString().slice(0, 10);
+
+      const linhasParcelas = parcelas.map((p, i) => {
+        const vencido = !p.pago && p.vencimento < hoje;
+        return `
+          <tr>
+            <td style="padding:6px 8px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)">
+              ${c.tipo === 'recorrente' ? `#${p.numero}` : `${p.numero}/${parcelas.length}`}
+            </td>
+            <td style="padding:6px 8px;border-top:1px solid var(--border);font-size:13px">${fmtData(p.vencimento)}</td>
+            <td style="padding:6px 8px;border-top:1px solid var(--border);font-size:13px;font-weight:600;color:var(--white)">${brl(p.valor)}</td>
+            <td style="padding:6px 8px;border-top:1px solid var(--border);font-size:13px;color:${p.pago ? 'var(--positive)' : vencido ? 'var(--negative)' : 'var(--text-muted)'}">
+              ${p.pago ? `✓ Recebido ${fmtData(p.dataPagamento)}<br><span style="font-size:11px">${brl(p.valorRecebido)}</span>` : vencido ? 'Vencido' : 'Pendente'}
+            </td>
+            <td style="padding:6px 8px;border-top:1px solid var(--border);text-align:right">
+              ${!p.pago && c.status !== 'cancelado'
+                ? `<button class="btn-pagar"
+                     data-cob-id="${p.id}"
+                     data-cob-valor="${p.valor}"
+                     data-cob-desc="${PRODUTO_LABEL[c.produto] || c.produto} · ${fmtData(p.vencimento)}">
+                     Registrar pagamento
+                   </button>`
+                : ''}
+            </td>
+          </tr>`;
+      }).join('');
+
+      const cancelarBtn = c.status === 'ativo'
+        ? `<button class="btn-edit-inline" data-cancelar-contrato="${c.id}" style="margin-left:8px;border-color:rgba(248,113,113,.3);color:var(--negative)" onclick="event.stopPropagation()">Cancelar</button>`
+        : '';
+
+      return `
+        <div class="contrato-card">
+          <div class="contrato-header">
+            <span class="contrato-titulo">${PRODUTO_LABEL[c.produto] || c.produto} · ${tipoLabel} · ${totalStr}</span>
+            <span class="contrato-status-tag status-${c.status}">${STATUS_LABEL[c.status] || c.status}</span>
+            ${cancelarBtn}
+          </div>
+          <div class="contrato-body" style="display:none">
+            <p style="font-size:12px;color:var(--text-muted);margin-top:8px;margin-bottom:4px">
+              ${PAGAMENTO_LABEL[c.formaPagamento] || c.formaPagamento || '—'}
+            </p>
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr>
+                  <th style="font-size:11px;color:var(--text-muted);text-align:left;padding:4px 8px;font-weight:500">Parc.</th>
+                  <th style="font-size:11px;color:var(--text-muted);text-align:left;padding:4px 8px;font-weight:500">Vencimento</th>
+                  <th style="font-size:11px;color:var(--text-muted);text-align:left;padding:4px 8px;font-weight:500">Valor</th>
+                  <th style="font-size:11px;color:var(--text-muted);text-align:left;padding:4px 8px;font-weight:500">Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>${linhasParcelas}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    // Modal registrar pagamento
+    let pagCobrancaId = null;
+    function abrirModalPagamento(cobId, valorBruto, descricao) {
+      pagCobrancaId = cobId;
+      document.getElementById('pagDescricao').textContent = descricao;
+      document.getElementById('pagData').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('pagValor').value = parseFloat(valorBruto) || '';
+      document.getElementById('modalPagamento').classList.remove('hidden');
+    }
+    document.getElementById('btnCancelarPagamento').addEventListener('click', () => {
+      document.getElementById('modalPagamento').classList.add('hidden');
+    });
+    document.getElementById('btnConfirmarPagamento').addEventListener('click', async () => {
+      const dataPagamento = document.getElementById('pagData').value;
+      const valorRecebido = parseFloat(document.getElementById('pagValor').value);
+      if (!dataPagamento || isNaN(valorRecebido)) {
+        alert('Preencha data e valor recebido.');
+        return;
+      }
+      const uid = mentoradaEmDetalhe?.uid || mentoradaEmDetalhe?.id;
+      const btn = document.getElementById('btnConfirmarPagamento');
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await pagarParcela({ cobrancaId: pagCobrancaId, dataPagamento, valorRecebido });
+        document.getElementById('modalPagamento').classList.add('hidden');
+        await carregarContratos(uid);
+        // Atualiza dataExpiracao no cache local se necessário
+        mentoradas = await getMentoradas();
+      } catch (err) {
+        alert(`Erro ao registrar pagamento: ${err.message}`);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Confirmar';
+      }
+    });
+
   </script>
 
 </body>

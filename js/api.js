@@ -285,6 +285,33 @@ export const registrarAcesso = call('registrarAcesso');
 /** Registra aceite do termo LGPD. */
 export const aceitarLGPD = call('aceitarLGPD');
 
+// ─── Contratos & Cobranças ────────────────────────────────────────────────────
+
+/** Cria contrato com parcelas. */
+export async function createContrato(dados) {
+  return call('createContrato')(dados);
+}
+
+/** Lista contratos de uma mentorada com suas cobranças. */
+export async function getContratos(uid) {
+  return call('getContratos')({ uid });
+}
+
+/** Registra pagamento de uma parcela. */
+export async function pagarParcela(dados) {
+  return call('pagarParcela')(dados);
+}
+
+/** Cancela um contrato. */
+export async function cancelarContrato(uid, contratoId) {
+  return call('cancelarContrato')({ uid, contratoId });
+}
+
+/** Retorna cobranças do mês para o hub financeiro. */
+export async function getCobrancas(mes, ano, uid) {
+  return call('getCobrancas')({ mes, ano, uid: uid || null });
+}
+
 // ─── Mapa de cores para patrimônio (usado por patrimonio.html) ─────────────────
 // Nome original do IR → código de categoria para cor na UI.
 // Não usado pelo parser — apenas exportado para consulta visual.

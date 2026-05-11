@@ -17,6 +17,7 @@ const {
   emailReenvioAcesso,
   emailBoasVindas,
   emailExpiracaoProxima,
+  emailCobrancasDia,
 } = require('./lib/mailer');
 
 admin.initializeApp();
@@ -662,6 +663,238 @@ exports.setAdminClaim = onCall({ cors: true }, async (request) => {
   await admin.auth().setCustomUserClaims(uid, { ...claimsAtuais, admin: conceder === true });
 
   return { ok: true, uid, admin: conceder === true };
+});
+
+// ─── CONTRATOS & COBRANÇAS ───────────────────────────────────────────────────
+
+const ADMIN_EMAIL       = 'flaviasch@gmail.com';
+const PRODUTOS_RECORRENTES = ['clube', 'dashboard'];
+
+/** Avança uma data YYYY-MM-DD por uma periodicidade. */
+function proximoVencimento(iso, periodicidade) {
+  const d = new Date(iso + 'T12:00:00Z');
+  if (periodicidade === 'mensal') d.setUTCMonth(d.getUTCMonth() + 1);
+  else                            d.setUTCFullYear(d.getUTCFullYear() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Cria um contrato e suas parcelas (cobrancas).
+ * Para parcelado: recebe array de { valor, vencimento }.
+ * Para recorrente: recebe { valor, vencimento } (só a primeira parcela).
+ */
+exports.createContrato = onCall({ cors: true }, async (request) => {
+  requireAdmin(request);
+  const { uid, produto, tipo, periodicidade, formaPagamento, parcelas } = request.data;
+  if (!uid || !produto || !tipo || !formaPagamento || !parcelas?.length) {
+    throw new HttpsError('invalid-argument', 'Campos obrigatórios ausentes.');
+  }
+
+  const mDoc = await db.collection('mentoradas').doc(uid).get();
+  if (!mDoc.exists) throw new HttpsError('not-found', 'Mentorada não encontrada.');
+  const { nome, email } = mDoc.data();
+
+  const valorTotal = parcelas.reduce((s, p) => s + (p.valor || 0), 0);
+  const contratoRef = db.collection('mentoradas').doc(uid).collection('contratos').doc();
+
+  const batch = db.batch();
+  batch.set(contratoRef, {
+    produto, tipo,
+    periodicidade: tipo === 'recorrente' ? (periodicidade || 'mensal') : null,
+    valorTotal, formaPagamento, status: 'ativo',
+    criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  parcelas.forEach((p, i) => {
+    const cobRef = db.collection('cobrancas').doc();
+    batch.set(cobRef, {
+      uidMentorada: uid, nomeAluna: nome, emailAluna: email,
+      contratoId: contratoRef.id, produto, formaPagamento,
+      tipo, periodicidade: tipo === 'recorrente' ? (periodicidade || 'mensal') : null,
+      numero: i + 1, total: parcelas.length,
+      valor: p.valor, vencimento: p.vencimento,
+      pago: false, dataPagamento: null, valorRecebido: null,
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  await batch.commit();
+  return { contratoId: contratoRef.id };
+});
+
+/**
+ * Lista contratos de uma mentorada com suas cobranças.
+ */
+exports.getContratos = onCall({ cors: true }, async (request) => {
+  requireAdmin(request);
+  const { uid } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid obrigatório.');
+
+  const contratosSnap = await db.collection('mentoradas').doc(uid)
+    .collection('contratos').orderBy('criadoEm', 'desc').get();
+
+  const contratos = [];
+  for (const doc of contratosSnap.docs) {
+    const cobSnap = await db.collection('cobrancas')
+      .where('uidMentorada', '==', uid)
+      .where('contratoId', '==', doc.id)
+      .orderBy('numero').get();
+    contratos.push({
+      id: doc.id,
+      ...doc.data(),
+      parcelas: cobSnap.docs.map(c => ({ id: c.id, ...c.data() })),
+    });
+  }
+  return contratos;
+});
+
+/**
+ * Registra pagamento de uma parcela (cobrança).
+ * Para recorrente: gera próxima cobrança automaticamente.
+ * Para dashboard/clube recorrente: atualiza dataExpiracao da mentorada.
+ */
+exports.pagarParcela = onCall({ cors: true }, async (request) => {
+  requireAdmin(request);
+  const { cobrancaId, dataPagamento, valorRecebido } = request.data;
+  if (!cobrancaId || !dataPagamento || valorRecebido == null) {
+    throw new HttpsError('invalid-argument', 'cobrancaId, dataPagamento e valorRecebido são obrigatórios.');
+  }
+
+  const cobRef  = db.collection('cobrancas').doc(cobrancaId);
+  const cobSnap = await cobRef.get();
+  if (!cobSnap.exists) throw new HttpsError('not-found', 'Cobrança não encontrada.');
+  const cob = cobSnap.data();
+  if (cob.pago) throw new HttpsError('failed-precondition', 'Esta cobrança já foi paga.');
+
+  await cobRef.update({ pago: true, dataPagamento, valorRecebido });
+
+  // Recorrente: gera próxima cobrança
+  if (cob.tipo === 'recorrente') {
+    const proxVenc = proximoVencimento(cob.vencimento, cob.periodicidade);
+
+    await db.collection('cobrancas').add({
+      uidMentorada:  cob.uidMentorada,
+      nomeAluna:     cob.nomeAluna,
+      emailAluna:    cob.emailAluna,
+      contratoId:    cob.contratoId,
+      produto:       cob.produto,
+      formaPagamento: cob.formaPagamento,
+      tipo:          'recorrente',
+      periodicidade: cob.periodicidade,
+      numero:        cob.numero + 1,
+      total:         cob.total,
+      valor:         cob.valor,
+      vencimento:    proxVenc,
+      pago: false, dataPagamento: null, valorRecebido: null,
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Atualiza dataExpiracao para produtos de acesso
+    if (PRODUTOS_RECORRENTES.includes(cob.produto)) {
+      await db.collection('mentoradas').doc(cob.uidMentorada).update({
+        dataExpiracao: proxVenc,
+      });
+    }
+  }
+
+  // Verifica se todas as parcelas do contrato estão pagas (parcelado)
+  if (cob.tipo === 'parcelado') {
+    const abertas = await db.collection('cobrancas')
+      .where('contratoId', '==', cob.contratoId)
+      .where('pago', '==', false)
+      .get();
+    if (abertas.empty) {
+      // Quita o contrato
+      await db.collection('mentoradas').doc(cob.uidMentorada)
+        .collection('contratos').doc(cob.contratoId)
+        .update({ status: 'quitado' });
+    }
+  }
+
+  return { ok: true };
+});
+
+/**
+ * Cancela um contrato (não apaga histórico de cobranças pagas).
+ */
+exports.cancelarContrato = onCall({ cors: true }, async (request) => {
+  requireAdmin(request);
+  const { uid, contratoId } = request.data;
+  if (!uid || !contratoId) throw new HttpsError('invalid-argument', 'uid e contratoId obrigatórios.');
+
+  await db.collection('mentoradas').doc(uid)
+    .collection('contratos').doc(contratoId)
+    .update({ status: 'cancelado' });
+
+  // Cancela cobranças futuras não pagas
+  const futuras = await db.collection('cobrancas')
+    .where('contratoId', '==', contratoId)
+    .where('pago', '==', false)
+    .get();
+  const batch = db.batch();
+  futuras.docs.forEach(d => batch.update(d.ref, { cancelada: true }));
+  await batch.commit();
+
+  return { ok: true };
+});
+
+/**
+ * Retorna cobranças filtradas por mês/ano (hub financeiro).
+ * Opcionalmente filtra por uid de mentorada.
+ */
+exports.getCobrancas = onCall({ cors: true }, async (request) => {
+  requireAdmin(request);
+  const { mes, ano, uid } = request.data;
+  if (!mes || !ano) throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
+
+  const mm     = String(mes).padStart(2, '0');
+  const inicio = `${ano}-${mm}-01`;
+  const fim    = `${ano}-${mm}-31`;
+
+  let q = db.collection('cobrancas')
+    .where('vencimento', '>=', inicio)
+    .where('vencimento', '<=', fim)
+    .where('cancelada', '!=', true)
+    .orderBy('cancelada')
+    .orderBy('vencimento');
+
+  if (uid) q = db.collection('cobrancas')
+    .where('uidMentorada', '==', uid)
+    .where('vencimento', '>=', inicio)
+    .where('vencimento', '<=', fim)
+    .where('cancelada', '!=', true)
+    .orderBy('cancelada')
+    .orderBy('vencimento');
+
+  const snap = await q.get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+/**
+ * Notificação diária de cobranças com vencimento hoje.
+ * Enviada para a Flávia às 8h (horário de Brasília = 11h UTC).
+ */
+exports.notifCobrancasDia = onSchedule('every day 11:00', async () => {
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  const snap = await db.collection('cobrancas')
+    .where('vencimento', '==', hoje)
+    .where('pago', '==', false)
+    .get();
+
+  if (snap.empty) return;
+
+  const cobrancas = snap.docs
+    .map(d => d.data())
+    .filter(c => !c.cancelada);
+
+  if (!cobrancas.length) return;
+
+  await sendEmail({
+    to:      ADMIN_EMAIL,
+    subject: `Cobranças de hoje — ${hoje}`,
+    html:    emailCobrancasDia(cobrancas),
+  });
 });
 
 // ─── Helpers internos ─────────────────────────────────────────────────────────
