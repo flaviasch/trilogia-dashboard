@@ -975,6 +975,17 @@
       }
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
+
+      // Atualiza MRR com o previsto real do mês atual (baseado em cobranças, não valorMensal)
+      const agora = new Date();
+      getCobrancas(agora.getMonth() + 1, agora.getFullYear())
+        .then(cobs => {
+          const previsto = cobs.reduce((s, c) => s + (c.valor || 0), 0);
+          document.getElementById('kpiMRR').textContent = brl(previsto);
+          const sub = document.querySelector('#kpiMRR')?.closest('.kpi-card')?.querySelector('.kpi-sub');
+          if (sub) sub.textContent = `${cobs.length} cobrança${cobs.length !== 1 ? 's' : ''} este mês`;
+        })
+        .catch(() => { /* mantém estimativa do valorMensal */ });
     }
 
     // ─── Tabs ────────────────────────────────
@@ -1010,13 +1021,12 @@
       const alertas = mentoradas.filter(m => m.status === 'alerta').length;
       const ativasEAlertas = mentoradas.filter(m => m.status !== 'inativa');
       const semAcesso = ativasEAlertas.filter(m => diasSemAcesso(m.ultimoAcesso) >= 14).length;
-      const mrr     = ativasEAlertas.reduce((s, m) => s + num(m.valorMensal), 0);
       const plMedio = ativasEAlertas.length > 0
         ? Math.round(ativasEAlertas.reduce((s, m) => s + num(m.pl), 0) / ativasEAlertas.length)
         : 0;
 
       document.getElementById('kpiAtivas').textContent   = ativas;
-      document.getElementById('kpiMRR').textContent      = brl(mrr);
+      // kpiMRR é atualizado em init() via getCobrancas — não sobrescreve aqui
       document.getElementById('kpiAlertas').textContent  = alertas;
       document.getElementById('kpiPLMedio').textContent  = brl(plMedio);
 
