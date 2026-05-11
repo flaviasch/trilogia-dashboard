@@ -271,6 +271,44 @@
 
     .btn-acao.reativar:hover { border-color: rgba(74,222,128,0.4); color: var(--positive); }
 
+    /* ─── Edição inline nos cards de detalhe ─── */
+    .card-header-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px;
+    }
+    .card-header-row .detalhe-card-label { margin-bottom: 0; }
+    .btn-edit-inline {
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 6px; padding: 3px 10px; font-size: 11px;
+      color: var(--text-muted); cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: all 0.2s;
+    }
+    .btn-edit-inline:hover { border-color: var(--border-gold); color: var(--gold); }
+    .inline-edit-fields {
+      display: flex; flex-direction: column; gap: 8px; margin-top: 4px;
+    }
+    .inline-edit-fields select,
+    .inline-edit-fields input[type="number"],
+    .inline-edit-fields input[type="date"] {
+      padding: 8px 12px; font-size: 13px;
+    }
+    .inline-edit-actions {
+      display: flex; gap: 8px; margin-top: 8px;
+    }
+    .inline-edit-actions .btn-cancel-small {
+      flex: 1; background: transparent; border: 1px solid var(--border);
+      border-radius: 6px; padding: 7px; font-size: 12px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .inline-edit-actions .btn-cancel-small:hover { color: var(--white); border-color: rgba(255,255,255,0.2); }
+    .inline-edit-actions .btn-save-small {
+      flex: 2; background: var(--gold); color: var(--navy); border: none;
+      border-radius: 6px; padding: 7px; font-size: 12px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.2s;
+    }
+    .inline-edit-actions .btn-save-small:hover { background: var(--gold-light); }
+    .inline-edit-actions .btn-save-small:disabled { opacity: 0.6; cursor: not-allowed; }
+
     @media (max-width: 768px) {
       .navbar { padding: 0 16px; }
       .navbar-center { display: none; }
@@ -418,14 +456,71 @@
           </div>
         </div>
         <div class="detalhe-card">
-          <div class="detalhe-card-label">Produto &amp; Pagamento</div>
-          <div class="detalhe-card-value" id="detProduto" style="font-size:15px">—</div>
-          <div class="detalhe-card-sub" id="detPagamento">—</div>
+          <div class="card-header-row">
+            <div class="detalhe-card-label">Produto &amp; Pagamento</div>
+            <button class="btn-edit-inline" id="btnEditProduto">Editar</button>
+          </div>
+          <!-- exibição -->
+          <div id="prodDisplay" style="display:flex;gap:20px;flex-wrap:wrap">
+            <div class="detalhe-card-pair">
+              <span class="label">Produto</span>
+              <span class="valor" id="detProduto">—</span>
+            </div>
+            <div class="detalhe-card-pair">
+              <span class="label">Pagamento</span>
+              <span class="valor" id="detPagamento">—</span>
+            </div>
+            <div class="detalhe-card-pair">
+              <span class="label">Valor mensal</span>
+              <span class="valor" id="detValorMensal">—</span>
+            </div>
+          </div>
+          <!-- edição inline -->
+          <div id="prodEdit" style="display:none">
+            <div class="inline-edit-fields">
+              <select id="editProduto">
+                <option value="">Sem produto</option>
+                <option value="trilha10k">Trilha 10K</option>
+                <option value="private">Trilogia Private</option>
+                <option value="pos_mentoria">Pós-mentoria</option>
+                <option value="outro">Outro</option>
+              </select>
+              <select id="editPagamento">
+                <option value="">Sem forma de pagamento</option>
+                <option value="kiwify">Kiwify</option>
+                <option value="pix">PIX</option>
+                <option value="transferencia">Transferência</option>
+                <option value="outro">Outro</option>
+              </select>
+              <input type="number" id="editValorMensal" placeholder="Valor mensal (R$)" min="0" step="1" />
+            </div>
+            <div class="inline-edit-actions">
+              <button class="btn-cancel-small" id="btnCancelProduto">Cancelar</button>
+              <button class="btn-save-small"   id="btnSalvarProduto">Salvar</button>
+            </div>
+          </div>
         </div>
+
         <div class="detalhe-card">
-          <div class="detalhe-card-label">Expiração</div>
-          <div class="detalhe-card-value" id="detExpiracao" style="font-size:15px">—</div>
-          <div class="detalhe-card-sub" id="detExpiracaoSub"></div>
+          <div class="card-header-row">
+            <div class="detalhe-card-label">Expiração</div>
+            <button class="btn-edit-inline" id="btnEditExpiracao">Editar</button>
+          </div>
+          <!-- exibição -->
+          <div id="expDisplay">
+            <div class="detalhe-card-value" id="detExpiracao">—</div>
+            <div class="detalhe-card-sub"   id="detExpiracaoSub"></div>
+          </div>
+          <!-- edição inline -->
+          <div id="expEdit" style="display:none">
+            <div class="inline-edit-fields">
+              <input type="date" id="editExpiracao" />
+            </div>
+            <div class="inline-edit-actions">
+              <button class="btn-cancel-small" id="btnCancelExp">Cancelar</button>
+              <button class="btn-save-small"   id="btnSalvarExp">Salvar</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -800,11 +895,19 @@
       setText('detUltimoAcesso', formatarUltimoAcesso(m.ultimoAcesso));
       setText('detAcessosMes',   m.acessosMes != null ? m.acessosMes : '—');
 
-      // Produto & Pagamento
-      setText('detProduto',   PRODUTO_LABEL[m.produto]        || m.produto        || '—');
-      setText('detPagamento', PAGAMENTO_LABEL[m.formaPagamento] || m.formaPagamento || '—');
+      // Produto & Pagamento — exibição
+      setText('detProduto',     PRODUTO_LABEL[m.produto]          || m.produto          || '—');
+      setText('detPagamento',   PAGAMENTO_LABEL[m.formaPagamento] || m.formaPagamento   || '—');
+      setText('detValorMensal', m.valorMensal ? brl(m.valorMensal) + '/mês' : '—');
+      // pré-preenche campos de edição
+      document.getElementById('editProduto').value     = m.produto          || '';
+      document.getElementById('editPagamento').value   = m.formaPagamento   || '';
+      document.getElementById('editValorMensal').value = m.valorMensal      || '';
+      // garante modo exibição
+      document.getElementById('prodDisplay').style.display = '';
+      document.getElementById('prodEdit').style.display    = 'none';
 
-      // Expiração
+      // Expiração — exibição
       const exp   = formatarExpiracao(m.dataExpiracao);
       const expEl = document.getElementById('detExpiracao');
       if (expEl) {
@@ -812,6 +915,12 @@
         expEl.className   = `detalhe-card-value ${exp.cls}`.trim();
       }
       setText('detExpiracaoSub', exp.sub || '');
+      // pré-preenche campo de edição
+      document.getElementById('editExpiracao').value = m.dataExpiracao
+        ? String(m.dataExpiracao).slice(0, 10) : '';
+      // garante modo exibição
+      document.getElementById('expDisplay').style.display = '';
+      document.getElementById('expEdit').style.display    = 'none';
 
       // Alertas
       const alertas = [];
@@ -863,6 +972,78 @@
       document.getElementById('view-detalhe').classList.remove('ativo');
       document.getElementById('view-mentoradas').classList.add('ativo');
       document.querySelector('[data-tab="mentoradas"]').classList.add('ativo');
+    });
+
+    // ─── Edição inline: Produto & Pagamento ──────────────────────────────────────
+    document.getElementById('btnEditProduto').addEventListener('click', () => {
+      document.getElementById('prodDisplay').style.display = 'none';
+      document.getElementById('prodEdit').style.display    = '';
+    });
+    document.getElementById('btnCancelProduto').addEventListener('click', () => {
+      document.getElementById('prodDisplay').style.display = '';
+      document.getElementById('prodEdit').style.display    = 'none';
+    });
+    document.getElementById('btnSalvarProduto').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid    = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const btn    = document.getElementById('btnSalvarProduto');
+      const produto        = document.getElementById('editProduto').value    || null;
+      const formaPagamento = document.getElementById('editPagamento').value  || null;
+      const valor          = parseFloat(document.getElementById('editValorMensal').value);
+      const valorMensal    = isNaN(valor) || valor <= 0 ? null : valor;
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await updateMentorada({ uid, campos: { produto, formaPagamento, valorMensal } });
+        // Atualiza cache local
+        Object.assign(mentoradaEmDetalhe, { produto, formaPagamento, valorMensal });
+        const idx = mentoradas.findIndex(m => (m.uid || m.id) === uid);
+        if (idx >= 0) Object.assign(mentoradas[idx], { produto, formaPagamento, valorMensal });
+        // Atualiza exibição
+        setText('detProduto',     PRODUTO_LABEL[produto]          || produto          || '—');
+        setText('detPagamento',   PAGAMENTO_LABEL[formaPagamento] || formaPagamento   || '—');
+        setText('detValorMensal', valorMensal ? brl(valorMensal) + '/mês' : '—');
+        document.getElementById('prodDisplay').style.display = '';
+        document.getElementById('prodEdit').style.display    = 'none';
+      } catch (err) {
+        alert(`Erro ao salvar: ${err.message}`);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+
+    // ─── Edição inline: Expiração ─────────────────────────────────────────────────
+    document.getElementById('btnEditExpiracao').addEventListener('click', () => {
+      document.getElementById('expDisplay').style.display = 'none';
+      document.getElementById('expEdit').style.display    = '';
+    });
+    document.getElementById('btnCancelExp').addEventListener('click', () => {
+      document.getElementById('expDisplay').style.display = '';
+      document.getElementById('expEdit').style.display    = 'none';
+    });
+    document.getElementById('btnSalvarExp').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid          = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const btn          = document.getElementById('btnSalvarExp');
+      const dataExpiracao = document.getElementById('editExpiracao').value || null;
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await updateMentorada({ uid, campos: { dataExpiracao } });
+        Object.assign(mentoradaEmDetalhe, { dataExpiracao });
+        const idx = mentoradas.findIndex(m => (m.uid || m.id) === uid);
+        if (idx >= 0) mentoradas[idx].dataExpiracao = dataExpiracao;
+        // Atualiza exibição
+        const exp   = formatarExpiracao(dataExpiracao);
+        const expEl = document.getElementById('detExpiracao');
+        expEl.textContent = exp.texto;
+        expEl.className   = `detalhe-card-value ${exp.cls}`.trim();
+        setText('detExpiracaoSub', exp.sub || '');
+        document.getElementById('expDisplay').style.display = '';
+        document.getElementById('expEdit').style.display    = 'none';
+      } catch (err) {
+        alert(`Erro ao salvar: ${err.message}`);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
     });
 
     document.getElementById('btnAbrirDashboard').addEventListener('click', () => {
