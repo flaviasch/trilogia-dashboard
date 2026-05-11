@@ -270,6 +270,10 @@ export async function reativarMentorada(uid) {
   return call('reativarMentorada')({ uid });
 }
 
+export async function deletarMentorada(uid) {
+  return call('deletarMentorada')({ uid });
+}
+
 /** Reenvía o link de definição de senha para a mentorada (admin only). */
 export async function reenviarAcesso(uid) {
   return call('reenviarAcesso')({ uid });

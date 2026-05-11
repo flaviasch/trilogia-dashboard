@@ -446,6 +446,7 @@
         <button class="btn-acao" id="btnReenviarAcesso">Reenviar link de acesso</button>
         <button class="btn-acao reativar" id="btnReativar" style="display:none">Reativar acesso</button>
         <button class="btn-acao danger" id="btnBloquear">Bloquear acesso</button>
+        <button class="btn-acao danger" id="btnDeletar" style="margin-left:auto">Apagar mentorada</button>
       </div>
     </div>
 
@@ -558,7 +559,7 @@
 
   <script type="module">
     import { exigirAdmin, logout, refreshAdmin } from './js/admin-guard.js';
-    import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso } from './js/api.js';
+    import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada } from './js/api.js';
 
     // ─── Auth guard via Custom Claim ─────────────
     const user = await exigirAdmin();
@@ -910,6 +911,31 @@
         alert(`Erro ao reativar: ${err.message}`);
         btnReat.disabled = false;
         btnReat.textContent = 'Reativar acesso';
+      }
+    });
+
+    document.getElementById('btnDeletar').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const { nome } = mentoradaEmDetalhe;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+
+      if (!confirm(`Apagar permanentemente "${nome}"?\n\nIsso remove a conta de acesso e todos os dados dela. Esta ação não pode ser desfeita.`)) return;
+      if (!confirm(`Confirmar exclusão de "${nome}"?\n\nA planilha no Google Drive NÃO será removida automaticamente — apague manualmente se necessário.`)) return;
+
+      const btn = document.getElementById('btnDeletar');
+      btn.disabled = true;
+      btn.textContent = 'Apagando…';
+
+      try {
+        await deletarMentorada(uid);
+        mentoradas = mentoradas.filter(m => (m.uid || m.id) !== uid);
+        document.getElementById('btnVoltarLista').click();
+        renderMentoradas();
+        renderFinanceiro();
+      } catch (err) {
+        alert(`Erro ao apagar: ${err.message}`);
+        btn.disabled = false;
+        btn.textContent = 'Apagar mentorada';
       }
     });
 

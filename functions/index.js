@@ -13,6 +13,10 @@ const {
   emailSemPerfil,
   emailLembreteOrcamento,
   emailLembreteAporte,
+  emailIR,
+  emailReenvioAcesso,
+  emailBoasVindas,
+  emailExpiracaoProxima,
 } = require('./lib/mailer');
 
 admin.initializeApp();
@@ -50,7 +54,7 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   if (!docSnap.exists) {
     throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
   }
-  const { sheetId, inicio, perfil: perfilFirestore } = docSnap.data();
+  const { sheetId, inicio, perfil: perfilFirestore, lgpdAceite } = docSnap.data();
   if (!sheetId) {
     throw new HttpsError('failed-precondition', 'Planilha ainda não configurada para esta mentorada.');
   }
@@ -109,13 +113,27 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const receita      = orcamento.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
   const despesa      = orcamento.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
 
+  const pl           = totalAtivos - totalDividas;
+  const sobra        = receita - despesa;
+  const totalReservas = reservas.reduce((s, r) => s + (r.acumulado || 0), 0);
+
+  // Cacheia snapshot financeiro no Firestore para o painel admin.
+  // Executa em background — não bloqueia a resposta para a aluna.
+  docSnap.ref.update({
+    pl,
+    sobra,
+    totalReservas,
+    dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(e => console.warn(`[getDashboard] Falha ao cachear snapshot (uid=${uid}):`, e.message));
+
   return {
-    orcamento: { receita, despesa, sobra: receita - despesa, mes, ano },
-    patrimonio: { ativos: totalAtivos, dividas: totalDividas, pl: totalAtivos - totalDividas },
+    orcamento: { receita, despesa, sobra, mes, ano },
+    patrimonio: { ativos: totalAtivos, dividas: totalDividas, pl },
     reservas,
     perfil,
-    inicio:     inicio || null,   // AAAA-MM (ex: "2025-03")
-    sheetError: sheetError,       // true se planilha estava inacessível
+    inicio:     inicio     || null,
+    lgpdAceite: lgpdAceite || false,
+    sheetError: sheetError,
   };
 });
 
@@ -372,7 +390,7 @@ exports.getMentoradas = onCall(async (request) => {
 exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
   requireAdmin(request);
 
-  const { nome, email, inicio, perfil } = request.data;
+  const { nome, email, inicio, perfil, produto, valorMensal, formaPagamento, dataExpiracao } = request.data;
   if (!nome || !email) throw new HttpsError('invalid-argument', 'nome e email são obrigatórios.');
 
   // 1. Criar usuária no Firebase Auth
@@ -398,24 +416,31 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
   await db.collection('mentoradas').doc(userRecord.uid).set({
     nome,
     email,
-    inicio:    inicio || hoje().slice(0, 7), // AAAA-MM
-    perfil:    perfil || null,
-    status:    'ativa',
+    inicio:          inicio          || hoje().slice(0, 7),
+    perfil:          perfil          || null,
+    produto:         produto         || null,
+    valorMensal:     valorMensal     || null,
+    formaPagamento:  formaPagamento  || null,
+    dataExpiracao:   dataExpiracao   || null,
+    status:          'ativa',
     sheetId,
-    nota:      '',
-    criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    nota:            '',
+    ultimoAcesso:    null,
+    totalAcessos:    0,
+    lgpdAceite:      false,
+    lgpdAceiteData:  null,
+    criadoEm:        admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // 4. Enviar e-mail de redefinição de senha via Firebase Auth REST API
-  const FIREBASE_API_KEY = 'AIzaSyCbgekmh90OPhr7DZJsVS-GXAYMOqtZ3Ds';
-  await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_API_KEY}`,
-    {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ requestType: 'PASSWORD_RESET', email }),
-    }
-  );
+  // 4. Gerar link de redefinição de senha
+  const linkSenha = await admin.auth().generatePasswordResetLink(email);
+
+  // 5. Enviar e-mail de boas-vindas com o link
+  await sendEmail({
+    to:      email,
+    subject: 'Bem-vinda ao Trilogia Dashboard',
+    html:    emailBoasVindas(nome, linkSenha),
+  });
 
   return { uid: userRecord.uid, sheetId };
 });
@@ -430,7 +455,10 @@ exports.updateMentorada = onCall(async (request) => {
   const { uid, campos } = request.data;
   if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
 
-  const permitidos = ['status', 'nota', 'perfil', 'inicio'];
+  const permitidos = [
+    'status', 'nota', 'perfil', 'inicio',
+    'produto', 'valorMensal', 'formaPagamento', 'dataExpiracao',
+  ];
   const atualizacao = {};
   for (const [k, v] of Object.entries(campos || {})) {
     if (permitidos.includes(k)) atualizacao[k] = v;
@@ -471,6 +499,97 @@ exports.reativarMentorada = onCall(async (request) => {
 
   await admin.auth().updateUser(uid, { disabled: false });
   await db.collection('mentoradas').doc(uid).update({ status: 'ativa' });
+  return { ok: true };
+});
+
+/**
+ * Remove permanentemente a mentorada: apaga a conta do Firebase Auth
+ * e o documento Firestore. A planilha no Google Drive não é removida
+ * automaticamente (pode ser feita manualmente se necessário).
+ * Exclusivo para admin.
+ */
+exports.deletarMentorada = onCall(async (request) => {
+  requireAdmin(request);
+
+  const { uid } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+
+  // Apaga Auth e Firestore em paralelo
+  await Promise.all([
+    admin.auth().deleteUser(uid),
+    db.collection('mentoradas').doc(uid).delete(),
+  ]);
+
+  return { ok: true };
+});
+
+/**
+ * Reenvía o link de acesso (definição de senha) para a mentorada.
+ * Útil quando o e-mail inicial caiu no spam ou o link expirou.
+ * Exclusivo para admin.
+ */
+exports.reenviarAcesso = onCall({ secrets: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN'] }, async (request) => {
+  requireAdmin(request);
+
+  const { uid } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+
+  const userRecord = await admin.auth().getUser(uid);
+  if (!userRecord.email) throw new HttpsError('failed-precondition', 'Mentorada sem e-mail cadastrado.');
+
+  const link = await admin.auth().generatePasswordResetLink(userRecord.email);
+
+  const snap = await db.collection('mentoradas').doc(uid).get();
+  const nome = snap.exists ? (snap.data().nome || userRecord.displayName || 'Mentorada') : (userRecord.displayName || 'Mentorada');
+
+  await sendEmail({
+    to: userRecord.email,
+    subject: 'Seu link de acesso — Trilogia Dashboard',
+    html: emailReenvioAcesso(nome, link),
+  });
+
+  return { ok: true };
+});
+
+/**
+ * Registra acesso da aluna: atualiza ultimoAcesso e incrementa contadores.
+ * Chamado pelo client no load do dashboard.
+ */
+exports.registrarAcesso = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const uid  = auth.uid;
+
+  const agora = admin.firestore.FieldValue.serverTimestamp();
+  const mesAtual = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+  const docRef = db.collection('mentoradas').doc(uid);
+  const snap   = await docRef.get();
+  if (!snap.exists) return { ok: true }; // segurança
+
+  const dados = snap.data();
+  const ultimoMes = (dados.ultimoAcessoMes || '');
+
+  await docRef.update({
+    ultimoAcesso:  agora,
+    totalAcessos:  admin.firestore.FieldValue.increment(1),
+    // Reinicia contador mensal se mudou o mês
+    acessosMes:    ultimoMes === mesAtual
+      ? admin.firestore.FieldValue.increment(1)
+      : 1,
+    ultimoAcessoMes: mesAtual,
+  });
+  return { ok: true };
+});
+
+/**
+ * Registra aceite do termo LGPD pela aluna.
+ */
+exports.aceitarLGPD = onCall(async (request) => {
+  const auth = requireAuth(request);
+  await db.collection('mentoradas').doc(auth.uid).update({
+    lgpdAceite:     true,
+    lgpdAceiteData: admin.firestore.FieldValue.serverTimestamp(),
+  });
   return { ok: true };
 });
 
@@ -645,6 +764,76 @@ exports.notifDia28 = onSchedule(
         subject: `Efetive o aporte de ${nomesMes}`,
         html:    emailLembreteAporte(m.nome || 'mentorada', nomesMes),
       }).catch(err => console.error(`Erro ao enviar aporte para ${m.email}:`, err));
+    }
+  },
+);
+
+/**
+ * notifMaioIR — todo dia 5 de maio, 08h (Sao_Paulo)
+ *   • Lembrete de importação da declaração de IR
+ */
+exports.notifMaioIR = onSchedule(
+  { schedule: '0 8 5 5 *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
+  async () => {
+    const mentoradas = await getAtivas();
+
+    for (const m of mentoradas) {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Atualize seu patrimônio com a declaração de IR',
+        html:    emailIR(m.nome || 'mentorada'),
+      }).catch(err => console.error(`Erro ao enviar IR para ${m.email}:`, err));
+    }
+  },
+);
+
+/**
+ * verificarExpiracoes — diariamente às 07h (Sao_Paulo)
+ * Inativa contas cuja dataExpiracao já passou.
+ */
+exports.verificarExpiracoes = onSchedule(
+  { schedule: '0 7 * * *', timeZone: 'America/Sao_Paulo' },
+  async () => {
+    const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const snap = await db.collection('mentoradas')
+      .where('status', '==', 'ativa')
+      .where('dataExpiracao', '<=', hoje)
+      .get();
+
+    for (const doc of snap.docs) {
+      const { dataExpiracao } = doc.data();
+      if (!dataExpiracao) continue; // sem expiração definida: ignora
+      await admin.auth().updateUser(doc.id, { disabled: true }).catch(() => {});
+      await doc.ref.update({ status: 'inativa' });
+      console.log(`Conta expirada e inativada: ${doc.id} (${dataExpiracao})`);
+    }
+  },
+);
+
+/**
+ * notifExpiracaoProxima — diariamente às 08h (Sao_Paulo)
+ * Avisa alunas cuja dataExpiracao é daqui a 7 dias.
+ */
+exports.notifExpiracaoProxima = onSchedule(
+  { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
+  async () => {
+    const em7Dias = new Date();
+    em7Dias.setDate(em7Dias.getDate() + 7);
+    const alvo = em7Dias.toISOString().slice(0, 10);
+
+    const snap = await db.collection('mentoradas')
+      .where('status', '==', 'ativa')
+      .where('dataExpiracao', '==', alvo)
+      .get();
+
+    for (const doc of snap.docs) {
+      const m = doc.data();
+      if (!m.email) continue;
+      await sendEmail({
+        to:      m.email,
+        subject: 'Seu acesso ao Dashboard expira em 7 dias',
+        html:    emailExpiracaoProxima(m.nome || 'mentorada'),
+      }).catch(err => console.error(`Erro ao enviar expiração para ${m.email}:`, err));
     }
   },
 );
