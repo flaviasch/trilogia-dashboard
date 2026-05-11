@@ -264,6 +264,14 @@
     .expiracao-alerta { color: var(--warning); font-size: 13px; font-weight: 600; }
     .expiracao-vencida { color: var(--negative); font-size: 13px; font-weight: 600; }
 
+    .badge-sem-acesso {
+      display: inline-flex; align-items: center;
+      background: rgba(251,191,36,.13); color: var(--warning);
+      border: 1px solid rgba(251,191,36,.22);
+      font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 10px;
+      vertical-align: middle; margin-left: 6px; white-space: nowrap;
+    }
+
     .detalhe-card-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
     .detalhe-card-pair { display: flex; flex-direction: column; gap: 2px; }
     .detalhe-card-pair .label { font-size: 11px; color: var(--text-muted); }
@@ -444,6 +452,7 @@
         <button class="filter-btn ativo" data-filtro="todas">Todas</button>
         <button class="filter-btn" data-filtro="ativas">Ativas</button>
         <button class="filter-btn" data-filtro="alertas">Com alerta</button>
+        <button class="filter-btn" data-filtro="sem-acesso">Sem acesso</button>
       </div>
 
       <!-- Tabela -->
@@ -897,6 +906,18 @@
       return { texto: fmt, cls: 'expiracao-ok', sub: `${dias} dias restantes` };
     }
 
+    /** Retorna dias desde o último acesso, ou Infinity se nunca acessou. */
+    function diasSemAcesso(ts) {
+      if (!ts) return Infinity;
+      let d;
+      if (typeof ts.toDate === 'function') d = ts.toDate();
+      else if (ts.seconds  != null) d = new Date(ts.seconds  * 1000);
+      else if (ts._seconds != null) d = new Date(ts._seconds * 1000);
+      else d = new Date(ts);
+      if (!d || isNaN(d.getTime())) return Infinity;
+      return Math.floor((Date.now() - d.getTime()) / 86_400_000);
+    }
+
     function formatarUltimoAcesso(ts) {
       if (!ts) return 'Nunca';
       let d;
@@ -947,7 +968,11 @@
         console.warn('Erro ao carregar mentoradas, usando mock:', err.message);
         // Mock mantido como fallback durante desenvolvimento
       }
-      renderMentoradas();
+      try {
+        renderMentoradas();
+      } catch (err) {
+        console.error('[admin] Erro em renderMentoradas:', err);
+      }
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
     }
@@ -967,8 +992,12 @@
     // ─── Mentoradas ──────────────────────────
     function mentoradasFiltradas() {
       return mentoradas.filter(m => {
-        const matchFiltro = filtroAtual === 'todas' ? true : filtroAtual === 'alertas' ? m.status === 'alerta' : m.status === filtroAtual;
-        const matchBusca  = buscaAtual === '' || m.nome.toLowerCase().includes(buscaAtual) || m.email.toLowerCase().includes(buscaAtual);
+        let matchFiltro;
+        if      (filtroAtual === 'todas')      matchFiltro = true;
+        else if (filtroAtual === 'alertas')    matchFiltro = m.status === 'alerta';
+        else if (filtroAtual === 'sem-acesso') matchFiltro = m.status !== 'inativa' && diasSemAcesso(m.ultimoAcesso) >= 14;
+        else                                   matchFiltro = m.status === filtroAtual;
+        const matchBusca = buscaAtual === '' || m.nome.toLowerCase().includes(buscaAtual) || m.email.toLowerCase().includes(buscaAtual);
         return matchFiltro && matchBusca;
       });
     }
@@ -980,6 +1009,7 @@
       const ativas  = mentoradas.filter(m => m.status === 'ativa').length;
       const alertas = mentoradas.filter(m => m.status === 'alerta').length;
       const ativasEAlertas = mentoradas.filter(m => m.status !== 'inativa');
+      const semAcesso = ativasEAlertas.filter(m => diasSemAcesso(m.ultimoAcesso) >= 14).length;
       const mrr     = ativasEAlertas.reduce((s, m) => s + num(m.valorMensal), 0);
       const plMedio = ativasEAlertas.length > 0
         ? Math.round(ativasEAlertas.reduce((s, m) => s + num(m.pl), 0) / ativasEAlertas.length)
@@ -990,6 +1020,14 @@
       document.getElementById('kpiAlertas').textContent  = alertas;
       document.getElementById('kpiPLMedio').textContent  = brl(plMedio);
 
+      // Sub-label dinâmico: mostra quantas ativas estão sem acesso há 14+ dias
+      const kpiAlertasSub = document.querySelector('#kpiAlertas')?.closest('.kpi-card')?.querySelector('.kpi-sub');
+      if (kpiAlertasSub) {
+        kpiAlertasSub.textContent = semAcesso > 0
+          ? `atenção necessária · ${semAcesso} sem acesso`
+          : 'atenção necessária';
+      }
+
       const lista = mentoradasFiltradas();
       document.getElementById('subtituloMentoradas').textContent = `${lista.length} mentorada${lista.length !== 1 ? 's' : ''} exibida${lista.length !== 1 ? 's' : ''}`;
 
@@ -998,12 +1036,16 @@
       const perfilLabel = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' };
 
       document.getElementById('tabelaMentoradas').innerHTML = lista.map(m => {
-        const exp = formatarExpiracao(m.dataExpiracao);
+        const exp   = formatarExpiracao(m.dataExpiracao);
         const rowId = m.uid || m.id;
+        const dias  = diasSemAcesso(m.ultimoAcesso);
+        const badgeAcesso = m.status !== 'inativa' && dias >= 14
+          ? `<span class="badge-sem-acesso">${dias === Infinity ? 'Nunca acessou' : `${dias}d sem acesso`}</span>`
+          : '';
         return `
         <tr data-id="${rowId}">
           <td class="td-nome">
-            <strong>${m.nome}</strong>
+            <strong>${m.nome}</strong>${badgeAcesso}
             <span>${m.email} · desde ${formatMesAno(m.inicio)}</span>
           </td>
           <td>
@@ -1137,7 +1179,6 @@
         </div>`).join('');
 
       // Carrega contratos em background
-      const uid = m.uid || m.id;
       carregarContratos(uid);
 
       // Botões contextuais
