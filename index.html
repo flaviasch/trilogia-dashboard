@@ -732,7 +732,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, bootstrapAdmin, registrarAcesso, aceitarLGPD } from './js/api.js';
+    import { getDashboard, bootstrapAdmin, aceitarLGPD } from './js/api.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
@@ -784,8 +784,7 @@
       document.getElementById('loadingOverlay').style.display = 'none';
       // Visibilidade de mainContent / welcomeScreen é gerenciada por checkOnboarding()
 
-      // Registra acesso em background (não bloqueia UI)
-      registrarAcesso().catch(err => console.warn('[registrarAcesso]', err));
+      // Acesso registrado automaticamente dentro de getDashboard (sem round-trip extra)
     }
 
     // ─── LGPD ─────────────────────────────────────

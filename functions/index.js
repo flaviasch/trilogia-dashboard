@@ -54,14 +54,15 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   if (!docSnap.exists) {
     throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
   }
-  const { sheetId, inicio, perfil: perfilFirestore, lgpdAceite } = docSnap.data();
+  const { sheetId, inicio, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes } = docSnap.data();
   if (!sheetId) {
     throw new HttpsError('failed-precondition', 'Planilha ainda não configurada para esta mentorada.');
   }
 
-  const agora = new Date();
-  const mes   = agora.getMonth() + 1;
-  const ano   = agora.getFullYear();
+  const agora    = new Date();
+  const mes      = agora.getMonth() + 1;
+  const ano      = agora.getFullYear();
+  const mesAtual = agora.toISOString().slice(0, 7); // YYYY-MM
 
   // Fallback: dados da planilha zerados enquanto SA não tem acesso
   let orcamento = [], patrimonio = [], investimentos = [], dividas = [], reservas = [];
@@ -117,13 +118,24 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const sobra        = receita - despesa;
   const totalReservas = reservas.reduce((s, r) => s + (r.acumulado || 0), 0);
 
-  // Cacheia snapshot financeiro no Firestore para o painel admin.
+  // Cacheia snapshot financeiro + registra acesso no Firestore para o painel admin.
   // Executa em background — não bloqueia a resposta para a aluna.
+  // Acesso só é registrado quando a mentorada carrega o próprio dashboard (não quando admin visualiza).
+  const acessoFields = uid === auth.uid ? {
+    ultimoAcesso:    admin.firestore.FieldValue.serverTimestamp(),
+    totalAcessos:    admin.firestore.FieldValue.increment(1),
+    acessosMes:      ultimoAcessoMes === mesAtual
+                       ? admin.firestore.FieldValue.increment(1)
+                       : 1,
+    ultimoAcessoMes: mesAtual,
+  } : {};
+
   docSnap.ref.update({
     pl,
     sobra,
     totalReservas,
     dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    ...acessoFields,
   }).catch(e => console.warn(`[getDashboard] Falha ao cachear snapshot (uid=${uid}):`, e.message));
 
   return {
@@ -376,7 +388,7 @@ exports.savePerfil = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
  * Retorna a lista de todas as mentoradas com dados resumidos.
  * Exclusivo para admin.
  */
-exports.getMentoradas = onCall(async (request) => {
+exports.getMentoradas = onCall({ cors: true }, async (request) => {
   requireAdmin(request);
 
   const snap = await db.collection('mentoradas').orderBy('nome').get();
@@ -449,7 +461,7 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
  * Atualiza campos editáveis de uma mentorada (status, nota, perfil).
  * Exclusivo para admin.
  */
-exports.updateMentorada = onCall(async (request) => {
+exports.updateMentorada = onCall({ cors: true }, async (request) => {
   requireAdmin(request);
 
   const { uid, campos } = request.data;
@@ -476,7 +488,7 @@ exports.updateMentorada = onCall(async (request) => {
  * Bloqueia o acesso de uma mentorada (desabilita no Firebase Auth).
  * Exclusivo para admin.
  */
-exports.bloquearMentorada = onCall(async (request) => {
+exports.bloquearMentorada = onCall({ cors: true }, async (request) => {
   requireAdmin(request);
 
   const { uid } = request.data;
@@ -491,7 +503,7 @@ exports.bloquearMentorada = onCall(async (request) => {
  * Reativa o acesso de uma mentorada.
  * Exclusivo para admin.
  */
-exports.reativarMentorada = onCall(async (request) => {
+exports.reativarMentorada = onCall({ cors: true }, async (request) => {
   requireAdmin(request);
 
   const { uid } = request.data;
@@ -508,7 +520,7 @@ exports.reativarMentorada = onCall(async (request) => {
  * automaticamente (pode ser feita manualmente se necessário).
  * Exclusivo para admin.
  */
-exports.deletarMentorada = onCall(async (request) => {
+exports.deletarMentorada = onCall({ cors: true }, async (request) => {
   requireAdmin(request);
 
   const { uid } = request.data;
@@ -566,7 +578,7 @@ exports.reenviarAcesso = onCall({ secrets: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_S
  * Registra acesso da aluna: atualiza ultimoAcesso e incrementa contadores.
  * Chamado pelo client no load do dashboard.
  */
-exports.registrarAcesso = onCall(async (request) => {
+exports.registrarAcesso = onCall({ cors: true }, async (request) => {
   const auth = requireAuth(request);
   const uid  = auth.uid;
 
@@ -595,7 +607,7 @@ exports.registrarAcesso = onCall(async (request) => {
 /**
  * Registra aceite do termo LGPD pela aluna.
  */
-exports.aceitarLGPD = onCall(async (request) => {
+exports.aceitarLGPD = onCall({ cors: true }, async (request) => {
   const auth = requireAuth(request);
   await db.collection('mentoradas').doc(auth.uid).update({
     lgpdAceite:     true,
@@ -613,7 +625,7 @@ exports.aceitarLGPD = onCall(async (request) => {
  */
 const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
 
-exports.bootstrapAdmin = onCall(async (request) => {
+exports.bootstrapAdmin = onCall({ cors: true }, async (request) => {
   const auth = requireAuth(request);
   if (auth.token.email !== ADMIN_MASTER_EMAIL) {
     throw new HttpsError('permission-denied', 'Endpoint reservado para a conta master.');
@@ -634,7 +646,7 @@ exports.bootstrapAdmin = onCall(async (request) => {
  *
  * Uso: { uid, conceder: true } ou { uid, conceder: false }
  */
-exports.setAdminClaim = onCall(async (request) => {
+exports.setAdminClaim = onCall({ cors: true }, async (request) => {
   requireAdmin(request);
 
   const { uid, conceder } = request.data;
