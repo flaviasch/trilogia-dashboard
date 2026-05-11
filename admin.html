@@ -480,9 +480,10 @@
             <div class="inline-edit-fields">
               <select id="editProduto">
                 <option value="">Sem produto</option>
-                <option value="trilha10k">Trilha 10K</option>
-                <option value="private">Trilogia Private</option>
-                <option value="pos_mentoria">Pós-mentoria</option>
+                <option value="mentoria">Mentoria</option>
+                <option value="private">Private</option>
+                <option value="clube">Clube</option>
+                <option value="dashboard">Dashboard</option>
                 <option value="outro">Outro</option>
               </select>
               <select id="editPagamento">
@@ -615,9 +616,10 @@
           <label for="mProduto">Produto</label>
           <select id="mProduto">
             <option value="">A definir</option>
-            <option value="trilha10k">Trilha 10K</option>
-            <option value="private">Trilogia Private</option>
-            <option value="pos_mentoria">Pós-mentoria</option>
+            <option value="mentoria">Mentoria</option>
+            <option value="private">Private</option>
+            <option value="clube">Clube</option>
+            <option value="dashboard">Dashboard</option>
             <option value="outro">Outro</option>
           </select>
         </div>
@@ -676,8 +678,8 @@
     const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
     const PRODUTO_LABEL = {
-      trilha10k: 'Trilha 10K', private: 'Trilogia Private',
-      pos_mentoria: 'Pós-mentoria', outro: 'Outro',
+      mentoria: 'Mentoria', private: 'Private',
+      clube: 'Clube', dashboard: 'Dashboard', outro: 'Outro',
     };
     const PAGAMENTO_LABEL = {
       kiwify: 'Kiwify', pix: 'PIX', transferencia: 'Transferência', outro: 'Outro',
@@ -1202,7 +1204,7 @@
         porProduto[key].mrr += m.valorMensal || 0;
       });
 
-      const produtoOrdem = ['trilha10k', 'private', 'pos_mentoria', 'outro', 'sem_produto'];
+      const produtoOrdem = ['mentoria', 'private', 'clube', 'dashboard', 'outro', 'sem_produto'];
       const linhas = produtoOrdem
         .filter(k => porProduto[k])
         .map(k => ({ label: PRODUTO_LABEL[k] || 'Sem produto', ...porProduto[k] }));
