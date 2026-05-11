@@ -271,6 +271,11 @@
       font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 10px;
       vertical-align: middle; margin-left: 6px; white-space: nowrap;
     }
+    .badge-alerta-motivo {
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 13px; vertical-align: middle; margin-left: 5px;
+      cursor: default;
+    }
 
     .detalhe-card-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
     .detalhe-card-pair { display: flex; flex-direction: column; gap: 2px; }
@@ -957,8 +962,9 @@
       { id: 'm5', nome: 'Eduarda Lima',         email: 'edu@email.com',   status: 'inativa', inicio: '2023-08', perfil: 'moderado',     pl: 310000, sobra: 0,     reservas: 210000, nota: 'Cancelou em fevereiro. Exportou dados.' },
     ];
 
-    let filtroAtual = 'todas';
-    let buscaAtual  = '';
+    let filtroAtual    = 'todas';
+    let buscaAtual     = '';
+    let cobrancasDoMes = [];  // cache para cálculo de alertas e MRR
 
     // ─── Init ─────────────────────────────────
     async function init(user) {
@@ -976,16 +982,18 @@
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
 
-      // Atualiza MRR com o previsto real do mês atual (baseado em cobranças, não valorMensal)
+      // Carrega cobranças do mês: alimenta MRR e alertas de cobrança vencida
       const agora = new Date();
       getCobrancas(agora.getMonth() + 1, agora.getFullYear())
         .then(cobs => {
+          cobrancasDoMes = cobs;
           const previsto = cobs.reduce((s, c) => s + (c.valor || 0), 0);
           document.getElementById('kpiMRR').textContent = brl(previsto);
           const sub = document.querySelector('#kpiMRR')?.closest('.kpi-card')?.querySelector('.kpi-sub');
           if (sub) sub.textContent = `${cobs.length} cobrança${cobs.length !== 1 ? 's' : ''} este mês`;
+          renderMentoradas(); // re-renderiza com dados de alertas completos
         })
-        .catch(() => { /* mantém estimativa do valorMensal */ });
+        .catch(() => { /* MRR e alertas de cobrança ficam sem dados de cobrança */ });
     }
 
     // ─── Tabs ────────────────────────────────
@@ -1005,7 +1013,7 @@
       return mentoradas.filter(m => {
         let matchFiltro;
         if      (filtroAtual === 'todas')      matchFiltro = true;
-        else if (filtroAtual === 'alertas')    matchFiltro = m.status === 'alerta';
+        else if (filtroAtual === 'alertas')    matchFiltro = hasAlerta(m);
         else if (filtroAtual === 'sem-acesso') matchFiltro = m.status !== 'inativa' && diasSemAcesso(m.ultimoAcesso) >= 14;
         else                                   matchFiltro = m.status === filtroAtual;
         const matchBusca = buscaAtual === '' || m.nome.toLowerCase().includes(buscaAtual) || m.email.toLowerCase().includes(buscaAtual);
@@ -1016,9 +1024,46 @@
     // Parse financeiro seguro — evita NaN quando o campo ainda não foi cacheado no Firestore
     function num(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; }
 
+    // ─── Alertas computados ───────────────────────────────────────────────────────
+    function motivosAlerta(m) {
+      if (m.status === 'inativa') return [];
+      const uid  = m.uid || m.id;
+      const hoje = new Date().toISOString().slice(0, 10);
+      const motivos = [];
+
+      // Cobrança vencida (não paga, vencimento < hoje)
+      const vencida = cobrancasDoMes.find(c =>
+        c.uidMentorada === uid && !c.pago && c.vencimento < hoje);
+      if (vencida) motivos.push({ icon: '💸', texto: `Cobrança vencida (${fmtDataSimples(vencida.vencimento)})` });
+
+      // Acesso expirado ou expirando em ≤ 7 dias
+      if (m.dataExpiracao) {
+        const d    = new Date(String(m.dataExpiracao).slice(0, 10) + 'T00:00:00');
+        const dias = Math.round((d - new Date()) / 86_400_000);
+        if      (dias < 0)    motivos.push({ icon: '🔴', texto: 'Acesso expirado' });
+        else if (dias <= 7)   motivos.push({ icon: '⏳', texto: `Acesso expira em ${dias} dia${dias !== 1 ? 's' : ''}` });
+      }
+
+      // Perfil de investidor não preenchido (onboarding incompleto)
+      if (!m.perfil) motivos.push({ icon: '📋', texto: 'Perfil de investidor não preenchido' });
+
+      // Marcada manualmente como alerta
+      if (m.status === 'alerta') motivos.push({ icon: '⚠️', texto: 'Marcada com atenção' });
+
+      return motivos;
+    }
+
+    function hasAlerta(m) { return motivosAlerta(m).length > 0; }
+
+    function fmtDataSimples(iso) {
+      if (!iso) return '—';
+      const [, m, d] = iso.split('-');
+      return `${d}/${m}`;
+    }
+
     function renderMentoradas() {
       const ativas  = mentoradas.filter(m => m.status === 'ativa').length;
-      const alertas = mentoradas.filter(m => m.status === 'alerta').length;
+      const alertas = mentoradas.filter(m => hasAlerta(m)).length;
       const ativasEAlertas = mentoradas.filter(m => m.status !== 'inativa');
       const semAcesso = ativasEAlertas.filter(m => diasSemAcesso(m.ultimoAcesso) >= 14).length;
       const plMedio = ativasEAlertas.length > 0
@@ -1046,16 +1091,20 @@
       const perfilLabel = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' };
 
       document.getElementById('tabelaMentoradas').innerHTML = lista.map(m => {
-        const exp   = formatarExpiracao(m.dataExpiracao);
-        const rowId = m.uid || m.id;
-        const dias  = diasSemAcesso(m.ultimoAcesso);
+        const exp     = formatarExpiracao(m.dataExpiracao);
+        const rowId   = m.uid || m.id;
+        const dias    = diasSemAcesso(m.ultimoAcesso);
+        const motivos = motivosAlerta(m);
         const badgeAcesso = m.status !== 'inativa' && dias >= 14
           ? `<span class="badge-sem-acesso">${dias === Infinity ? 'Nunca acessou' : `${dias}d sem acesso`}</span>`
           : '';
+        const badgesAlerta = motivos.map(a =>
+          `<span class="badge-alerta-motivo" title="${a.texto}">${a.icon}</span>`
+        ).join('');
         return `
         <tr data-id="${rowId}">
           <td class="td-nome">
-            <strong>${m.nome}</strong>${badgeAcesso}
+            <strong>${m.nome}</strong>${badgesAlerta}${badgeAcesso}
             <span>${m.email} · desde ${formatMesAno(m.inicio)}</span>
           </td>
           <td>
