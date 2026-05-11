@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin — Trilogia Dashboard</title>
+  <title>Admin v2 — Trilogia Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -256,6 +256,21 @@
     }
     .btn-save:hover { background: var(--gold-light); }
 
+    .produto-tag {
+      font-size: 11px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px; padding: 2px 10px; color: var(--text-secondary);
+    }
+    .expiracao-ok     { color: var(--text-secondary); font-size: 13px; }
+    .expiracao-alerta { color: var(--warning); font-size: 13px; font-weight: 600; }
+    .expiracao-vencida { color: var(--negative); font-size: 13px; font-weight: 600; }
+
+    .detalhe-card-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .detalhe-card-pair { display: flex; flex-direction: column; gap: 2px; }
+    .detalhe-card-pair .label { font-size: 11px; color: var(--text-muted); }
+    .detalhe-card-pair .valor { font-size: 15px; font-weight: 600; }
+
+    .btn-acao.reativar:hover { border-color: rgba(74,222,128,0.4); color: var(--positive); }
+
     @media (max-width: 768px) {
       .navbar { padding: 0 16px; }
       .navbar-center { display: none; }
@@ -348,10 +363,11 @@
             <tr>
               <th>Nome</th>
               <th>Status</th>
+              <th>Produto</th>
+              <th>Expira em</th>
               <th>Perfil</th>
               <th class="td-num">PL</th>
               <th class="td-num">Sobra/mês</th>
-              <th class="td-num">Reservas</th>
               <th></th>
             </tr>
           </thead>
@@ -370,6 +386,7 @@
         </div>
       </div>
 
+      <!-- Financeiro -->
       <div class="detalhe-grid">
         <div class="detalhe-card">
           <div class="detalhe-card-label">Patrimônio Líquido</div>
@@ -385,6 +402,33 @@
         </div>
       </div>
 
+      <!-- Assinatura e acesso -->
+      <div class="detalhe-grid" id="detGridAssinatura">
+        <div class="detalhe-card">
+          <div class="detalhe-card-label">Engajamento</div>
+          <div style="display:flex;gap:20px;margin-top:6px">
+            <div class="detalhe-card-pair">
+              <span class="label">Último acesso</span>
+              <span class="valor" id="detUltimoAcesso">—</span>
+            </div>
+            <div class="detalhe-card-pair">
+              <span class="label">Acessos no mês</span>
+              <span class="valor" id="detAcessosMes">—</span>
+            </div>
+          </div>
+        </div>
+        <div class="detalhe-card">
+          <div class="detalhe-card-label">Produto &amp; Pagamento</div>
+          <div class="detalhe-card-value" id="detProduto" style="font-size:15px">—</div>
+          <div class="detalhe-card-sub" id="detPagamento">—</div>
+        </div>
+        <div class="detalhe-card">
+          <div class="detalhe-card-label">Expiração</div>
+          <div class="detalhe-card-value" id="detExpiracao" style="font-size:15px">—</div>
+          <div class="detalhe-card-sub" id="detExpiracaoSub"></div>
+        </div>
+      </div>
+
       <!-- Alertas -->
       <h2 class="detalhe-section-title" style="margin-bottom:12px">Alertas</h2>
       <div id="detAlertas" style="margin-bottom:28px"></div>
@@ -397,8 +441,10 @@
 
       <!-- Ações rápidas -->
       <div style="margin-top:32px;display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn-acao" id="btnAbrirDashboard">Abrir dashboard dela</button>
+        <button class="btn-acao" id="btnAbrirDashboard">Ver dashboard dela</button>
         <button class="btn-acao" id="btnEnviarEmail">Enviar e-mail</button>
+        <button class="btn-acao" id="btnReenviarAcesso">Reenviar link de acesso</button>
+        <button class="btn-acao reativar" id="btnReativar" style="display:none">Reativar acesso</button>
         <button class="btn-acao danger" id="btnBloquear">Bloquear acesso</button>
       </div>
     </div>
@@ -416,7 +462,7 @@
         <div class="kpi-card">
           <div class="kpi-label">MRR atual</div>
           <div class="kpi-value" id="finMRR">—</div>
-          <div class="kpi-sub">R$ 197/mentorada/mês</div>
+          <div class="kpi-sub" id="finMRRSub">—</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">ARR projetado</div>
@@ -425,17 +471,17 @@
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Ticket médio</div>
-          <div class="kpi-value">R$ 197</div>
-          <div class="kpi-sub">por assinatura</div>
+          <div class="kpi-value" id="finTicket">—</div>
+          <div class="kpi-sub">por assinatura ativa</div>
         </div>
       </div>
 
       <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;padding:24px;margin-top:8px">
-        <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin-bottom:16px">Histórico de assinaturas</h3>
+        <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin-bottom:16px">Distribuição por produto</h3>
         <table style="width:100%;border-collapse:collapse">
           <thead>
             <tr>
-              <th style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);text-align:left;padding:0 0 12px">Mês</th>
+              <th style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);text-align:left;padding:0 0 12px">Produto</th>
               <th style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);text-align:right;padding:0 0 12px">Ativas</th>
               <th style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);text-align:right;padding:0 0 12px">MRR</th>
             </tr>
@@ -449,28 +495,59 @@
 
   <!-- Modal nova mentorada -->
   <div class="modal-overlay hidden" id="modalNova">
-    <div class="modal-card">
+    <div class="modal-card" style="max-width:520px;overflow-y:auto;max-height:90vh">
       <h2 class="modal-title">Nova mentorada</h2>
-      <div class="field-group">
-        <label for="mNome">Nome completo</label>
-        <input type="text" id="mNome" placeholder="Nome da mentorada" />
-      </div>
-      <div class="field-group">
-        <label for="mEmail">E-mail</label>
-        <input type="email" id="mEmail" placeholder="email@exemplo.com" />
-      </div>
-      <div class="field-group">
-        <label for="mInicio">Início da mentoria</label>
-        <input type="month" id="mInicio" />
-      </div>
-      <div class="field-group">
-        <label for="mPerfil">Perfil de investidor</label>
-        <select id="mPerfil">
-          <option value="">A definir</option>
-          <option value="conservador">Conservador</option>
-          <option value="moderado">Moderado</option>
-          <option value="arrojado">Arrojado</option>
-        </select>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field-group" style="grid-column:1/-1">
+          <label for="mNome">Nome completo</label>
+          <input type="text" id="mNome" placeholder="Nome da mentorada" />
+        </div>
+        <div class="field-group" style="grid-column:1/-1">
+          <label for="mEmail">E-mail</label>
+          <input type="email" id="mEmail" placeholder="email@exemplo.com" />
+        </div>
+        <div class="field-group">
+          <label for="mInicio">Início da mentoria</label>
+          <input type="month" id="mInicio" />
+        </div>
+        <div class="field-group">
+          <label for="mExpiracao">Expira em</label>
+          <input type="date" id="mExpiracao" />
+        </div>
+        <div class="field-group">
+          <label for="mProduto">Produto</label>
+          <select id="mProduto">
+            <option value="">A definir</option>
+            <option value="trilha10k">Trilha 10K</option>
+            <option value="private">Trilogia Private</option>
+            <option value="pos_mentoria">Pós-mentoria</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="mValor">Valor mensal (R$)</label>
+          <input type="number" id="mValor" placeholder="197" min="0" />
+        </div>
+        <div class="field-group">
+          <label for="mPagamento">Forma de pagamento</label>
+          <select id="mPagamento">
+            <option value="">A definir</option>
+            <option value="kiwify">Kiwify</option>
+            <option value="pix">PIX</option>
+            <option value="transferencia">Transferência</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="mPerfil">Perfil de investidor</label>
+          <select id="mPerfil">
+            <option value="">A definir</option>
+            <option value="conservador">Conservador</option>
+            <option value="moderado">Moderado</option>
+            <option value="arrojado">Arrojado</option>
+          </select>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelarModal">Cancelar</button>
@@ -481,7 +558,7 @@
 
   <script type="module">
     import { exigirAdmin, logout, refreshAdmin } from './js/admin-guard.js';
-    import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada } from './js/api.js';
+    import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso } from './js/api.js';
 
     // ─── Auth guard via Custom Claim ─────────────
     const user = await exigirAdmin();
@@ -502,11 +579,52 @@
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
     const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
+    const PRODUTO_LABEL = {
+      trilha10k: 'Trilha 10K', private: 'Trilogia Private',
+      pos_mentoria: 'Pós-mentoria', outro: 'Outro',
+    };
+    const PAGAMENTO_LABEL = {
+      kiwify: 'Kiwify', pix: 'PIX', transferencia: 'Transferência', outro: 'Outro',
+    };
+
     function formatMesAno(str) {
       if (!str) return '—';
       const [ano, mes] = str.split('-').map(Number);
       const nomes = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
       return `${nomes[mes - 1]} de ${ano}`;
+    }
+
+    function formatarExpiracao(dataExp) {
+      if (!dataExp) return { texto: '—', cls: '' };
+      const d   = new Date(dataExp + 'T00:00:00');
+      const hoje = new Date(); hoje.setHours(0,0,0,0);
+      const dias = Math.round((d - hoje) / 86_400_000);
+      const fmt  = d.toLocaleDateString('pt-BR');
+      if (dias < 0)  return { texto: fmt, cls: 'expiracao-vencida', sub: 'Expirado' };
+      if (dias === 0) return { texto: 'Hoje', cls: 'expiracao-alerta', sub: '' };
+      if (dias <= 7)  return { texto: fmt, cls: 'expiracao-alerta', sub: `${dias} dias restantes` };
+      if (dias <= 30) return { texto: fmt, cls: 'expiracao-alerta', sub: `${dias} dias restantes` };
+      return { texto: fmt, cls: 'expiracao-ok', sub: `${dias} dias restantes` };
+    }
+
+    function formatarUltimoAcesso(ts) {
+      if (!ts) return 'Nunca';
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      const dias = Math.floor((Date.now() - d.getTime()) / 86_400_000);
+      if (dias === 0) return 'Hoje';
+      if (dias === 1) return 'Ontem';
+      return `Há ${dias}d`;
+    }
+
+    function limparModal() {
+      ['mNome','mEmail','mInicio','mExpiracao','mValor'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      ['mPerfil','mProduto','mPagamento'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
     }
 
     // ─── Mock data ────────────────────────────
@@ -555,11 +673,17 @@
       });
     }
 
+    // Parse financeiro seguro — evita NaN quando o campo ainda não foi cacheado no Firestore
+    function num(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; }
+
     function renderMentoradas() {
       const ativas  = mentoradas.filter(m => m.status === 'ativa').length;
       const alertas = mentoradas.filter(m => m.status === 'alerta').length;
-      const mrr     = (ativas + alertas) * 197;
-      const plMedio = Math.round(mentoradas.filter(m => m.status !== 'inativa').reduce((s, m) => s + m.pl, 0) / Math.max(1, ativas + alertas));
+      const ativasEAlertas = mentoradas.filter(m => m.status !== 'inativa');
+      const mrr     = ativasEAlertas.reduce((s, m) => s + num(m.valorMensal), 0);
+      const plMedio = ativasEAlertas.length > 0
+        ? Math.round(ativasEAlertas.reduce((s, m) => s + num(m.pl), 0) / ativasEAlertas.length)
+        : 0;
 
       document.getElementById('kpiAtivas').textContent   = ativas;
       document.getElementById('kpiMRR').textContent      = brl(mrr);
@@ -573,27 +697,32 @@
       const statusClass = { ativa: 'status-ativa', alerta: 'status-alerta', inativa: 'status-inativa' };
       const perfilLabel = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' };
 
-      document.getElementById('tabelaMentoradas').innerHTML = lista.map(m => `
-        <tr data-id="${m.id}">
+      document.getElementById('tabelaMentoradas').innerHTML = lista.map(m => {
+        const exp = formatarExpiracao(m.dataExpiracao);
+        const rowId = m.uid || m.id;
+        return `
+        <tr data-id="${rowId}">
           <td class="td-nome">
             <strong>${m.nome}</strong>
             <span>${m.email} · desde ${formatMesAno(m.inicio)}</span>
           </td>
           <td>
-            <span class="status-badge ${statusClass[m.status]}">
-              <span class="status-dot"></span>${statusLabel[m.status]}
+            <span class="status-badge ${statusClass[m.status] || 'status-inativa'}">
+              <span class="status-dot"></span>${statusLabel[m.status] || m.status}
             </span>
           </td>
+          <td>${m.produto ? `<span class="produto-tag">${PRODUTO_LABEL[m.produto] || m.produto}</span>` : '<span style="color:var(--text-muted);font-size:12px">—</span>'}</td>
+          <td>${m.dataExpiracao ? `<span class="${exp.cls}">${exp.texto}</span>` : '<span style="color:var(--text-muted);font-size:12px">—</span>'}</td>
           <td>${m.perfil ? `<span class="perfil-tag">${perfilLabel[m.perfil]}</span>` : '<span style="color:var(--text-muted);font-size:12px">A definir</span>'}</td>
-          <td class="td-num gold">${brl(m.pl)}</td>
-          <td class="td-num ${m.sobra >= 0 ? 'positive' : ''}" style="${m.sobra < 0 ? 'color:var(--negative)' : ''}">${brl(m.sobra)}</td>
-          <td class="td-num">${brl(m.reservas)}</td>
+          <td class="td-num gold">${brl(num(m.pl))}</td>
+          <td class="td-num ${num(m.sobra) >= 0 ? 'positive' : ''}" style="${num(m.sobra) < 0 ? 'color:var(--negative)' : ''}">${brl(num(m.sobra))}</td>
           <td>
             <div class="acoes-cell">
-              <button class="btn-acao" data-ver="${m.id}">Ver</button>
+              <button class="btn-acao" data-ver="${rowId}">Ver</button>
             </div>
           </td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
 
       document.querySelectorAll('[data-ver]').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -601,7 +730,7 @@
           abrirDetalhe(btn.dataset.ver);
         });
       });
-      document.querySelectorAll('tbody tr').forEach(tr => {
+      document.querySelectorAll('#tabelaMentoradas tr').forEach(tr => {
         tr.addEventListener('click', () => abrirDetalhe(tr.dataset.id));
       });
     }
@@ -621,46 +750,98 @@
       renderMentoradas();
     });
 
+    // Helper para setar texto com segurança (evita TypeError se elemento não existe)
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    }
+
     // ─── Detalhe mentorada ───────────────────
     function abrirDetalhe(id) {
-      const m = mentoradas.find(x => x.uid === id || x.id === id);
+      const m = mentoradas.find(x => (x.uid ?? x.id) === id);
+      if (!m) {
+        console.warn('[admin] abrirDetalhe: não encontrado id =', id,
+          '| disponíveis:', mentoradas.map(x => x.uid ?? x.id));
+        return;
+      }
       mentoradaEmDetalhe = m;
-      if (!m) return;
+      const uid = m.uid || m.id;
 
-      document.getElementById('detNome').textContent   = m.nome;
-      document.getElementById('detMeta').textContent   = `${m.email} · desde ${formatMesAno(m.inicio)}`;
-      document.getElementById('detPL').textContent     = brl(m.pl);
-      document.getElementById('detSobra').textContent  = brl(m.sobra);
-      document.getElementById('detReservas').textContent = brl(m.reservas);
-      document.getElementById('detNota').value         = m.nota || '';
+      // Muda de view PRIMEIRO — garante que a transição acontece mesmo se
+      // houver erro no preenchimento de algum campo abaixo.
+      document.getElementById('view-mentoradas').classList.remove('ativo');
+      document.getElementById('view-detalhe').classList.add('ativo');
+      document.querySelector('[data-tab="mentoradas"]').classList.remove('ativo');
 
+      // Cabeçalho
+      setText('detNome', m.nome);
+      setText('detMeta', `${m.email} · desde ${formatMesAno(m.inicio)}`);
+
+      // Financeiro (snapshot cacheado)
+      setText('detPL',       brl(num(m.pl)));
+      setText('detSobra',    brl(num(m.sobra)));
+      setText('detReservas', brl(num(m.totalReservas)));
+
+      const notaEl = document.getElementById('detNota');
+      if (notaEl) notaEl.value = m.nota || '';
+
+      // Engajamento
+      setText('detUltimoAcesso', formatarUltimoAcesso(m.ultimoAcesso));
+      setText('detAcessosMes',   m.acessosMes != null ? m.acessosMes : '—');
+
+      // Produto & Pagamento
+      setText('detProduto',   PRODUTO_LABEL[m.produto]        || m.produto        || '—');
+      setText('detPagamento', PAGAMENTO_LABEL[m.formaPagamento] || m.formaPagamento || '—');
+
+      // Expiração
+      const exp   = formatarExpiracao(m.dataExpiracao);
+      const expEl = document.getElementById('detExpiracao');
+      if (expEl) {
+        expEl.textContent = exp.texto;
+        expEl.className   = `detalhe-card-value ${exp.cls}`.trim();
+      }
+      setText('detExpiracaoSub', exp.sub || '');
+
+      // Alertas
       const alertas = [];
-      if (m.sobra < 0) alertas.push({ icon: '🔴', texto: 'Despesas maiores que receita este mês.' });
-      if (!m.perfil)   alertas.push({ icon: '⚠️', texto: 'Perfil de investidor não preenchido.' });
+      if (num(m.sobra) < 0)     alertas.push({ icon: '🔴', texto: 'Despesas maiores que receita este mês.' });
+      if (!m.perfil)             alertas.push({ icon: '⚠️', texto: 'Perfil de investidor não preenchido.' });
       if (m.status === 'alerta') alertas.push({ icon: '⚠️', texto: 'Mentorada marcada com alerta. Verificar situação.' });
+      if (m.dataExpiracao) {
+        const d = new Date(String(m.dataExpiracao).slice(0, 10) + 'T00:00:00');
+        const dias = Math.round((d - new Date()) / 86_400_000);
+        if (dias < 0)       alertas.push({ icon: '🔴', texto: 'Acesso expirado.' });
+        else if (dias <= 7) alertas.push({ icon: '⚠️', texto: `Acesso expira em ${dias} dia${dias !== 1 ? 's' : ''}.` });
+      }
       if (alertas.length === 0) alertas.push({ icon: '✅', texto: 'Nenhum alerta ativo para esta mentorada.' });
 
-      document.getElementById('detAlertas').innerHTML = alertas.map(a => `
+      const alertasEl = document.getElementById('detAlertas');
+      if (alertasEl) alertasEl.innerHTML = alertas.map(a => `
         <div class="alerta-item">
           <span class="alerta-icon">${a.icon}</span>
           <span class="alerta-texto">${a.texto}</span>
         </div>`).join('');
 
-      document.getElementById('btnSalvarNota').onclick = async () => {
-        const nota = document.getElementById('detNota').value;
-        try {
-          await updateMentorada(m.uid, { nota });
-          m.nota = nota;
-          document.getElementById('btnSalvarNota').textContent = 'Salvo ✓';
-        } catch (err) {
-          document.getElementById('btnSalvarNota').textContent = 'Erro — tente novamente';
-        }
-        setTimeout(() => { document.getElementById('btnSalvarNota').textContent = 'Salvar nota'; }, 2000);
-      };
+      // Botões contextuais
+      const inativa = m.status === 'inativa';
+      const btnBlq  = document.getElementById('btnBloquear');
+      const btnReat = document.getElementById('btnReativar');
+      if (btnBlq)  btnBlq.style.display  = inativa ? 'none' : '';
+      if (btnReat) btnReat.style.display  = inativa ? '' : 'none';
 
-      document.getElementById('view-mentoradas').classList.remove('ativo');
-      document.getElementById('view-detalhe').classList.add('ativo');
-      document.querySelector('[data-tab="mentoradas"]').classList.remove('ativo');
+      // Nota
+      const btnNota = document.getElementById('btnSalvarNota');
+      if (btnNota) btnNota.onclick = async () => {
+        const nota = notaEl?.value ?? '';
+        try {
+          await updateMentorada(uid, { nota });
+          m.nota = nota;
+          btnNota.textContent = 'Salvo ✓';
+        } catch (err) {
+          btnNota.textContent = 'Erro — tente novamente';
+        }
+        setTimeout(() => { btnNota.textContent = 'Salvar nota'; }, 2000);
+      };
     }
 
     document.getElementById('btnVoltarLista').addEventListener('click', () => {
@@ -669,9 +850,32 @@
       document.querySelector('[data-tab="mentoradas"]').classList.add('ativo');
     });
 
+    document.getElementById('btnAbrirDashboard').addEventListener('click', () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      window.open(`index.html?viewAs=${uid}`, '_blank');
+    });
+
     document.getElementById('btnEnviarEmail').addEventListener('click', () => {
-      // TODO: abrir rascunho via Gmail MCP
-      alert('Integração com Gmail em desenvolvimento.');
+      if (!mentoradaEmDetalhe) return;
+      window.location.href = `mailto:${mentoradaEmDetalhe.email}`;
+    });
+
+    document.getElementById('btnReenviarAcesso').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const btn = document.getElementById('btnReenviarAcesso');
+      btn.disabled = true;
+      btn.textContent = 'Enviando…';
+      try {
+        await reenviarAcesso(uid);
+        btn.textContent = 'Link enviado ✓';
+        setTimeout(() => { btn.textContent = 'Reenviar link de acesso'; btn.disabled = false; }, 3000);
+      } catch (err) {
+        alert(`Erro ao reenviar: ${err.message}`);
+        btn.disabled = false;
+        btn.textContent = 'Reenviar link de acesso';
+      }
     });
 
     let mentoradaEmDetalhe = null;
@@ -679,10 +883,10 @@
     document.getElementById('btnBloquear').addEventListener('click', async () => {
       if (!mentoradaEmDetalhe) return;
       if (!confirm(`Bloquear o acesso de ${mentoradaEmDetalhe.nome} ao dashboard?`)) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
       try {
-        await bloquearMentorada(mentoradaEmDetalhe.uid);
+        await bloquearMentorada(uid);
         mentoradaEmDetalhe.status = 'inativa';
-        alert(`Acesso de ${mentoradaEmDetalhe.nome} bloqueado.`);
         document.getElementById('btnVoltarLista').click();
         renderMentoradas();
       } catch (err) {
@@ -690,21 +894,48 @@
       }
     });
 
+    document.getElementById('btnReativar').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      if (!confirm(`Reativar o acesso de ${mentoradaEmDetalhe.nome}?`)) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const btnReat = document.getElementById('btnReativar');
+      btnReat.disabled = true;
+      btnReat.textContent = 'Reativando…';
+      try {
+        await reativarMentorada(uid);
+        mentoradaEmDetalhe.status = 'ativa';
+        document.getElementById('btnVoltarLista').click();
+        renderMentoradas();
+      } catch (err) {
+        alert(`Erro ao reativar: ${err.message}`);
+        btnReat.disabled = false;
+        btnReat.textContent = 'Reativar acesso';
+      }
+    });
+
     // ─── Modal nova mentorada ────────────────
     document.getElementById('btnNovaMentorada').addEventListener('click', () =>
       document.getElementById('modalNova').classList.remove('hidden'));
-    document.getElementById('btnCancelarModal').addEventListener('click', () =>
-      document.getElementById('modalNova').classList.add('hidden'));
+    document.getElementById('btnCancelarModal').addEventListener('click', () => {
+      document.getElementById('modalNova').classList.add('hidden');
+      limparModal();
+    });
     document.getElementById('modalNova').addEventListener('click', (e) => {
-      if (e.target === document.getElementById('modalNova'))
+      if (e.target === document.getElementById('modalNova')) {
         document.getElementById('modalNova').classList.add('hidden');
+        limparModal();
+      }
     });
 
     document.getElementById('btnSalvarModal').addEventListener('click', async () => {
-      const nome   = document.getElementById('mNome').value.trim();
-      const email  = document.getElementById('mEmail').value.trim();
-      const inicio = document.getElementById('mInicio').value;
-      const perfil = document.getElementById('mPerfil').value;
+      const nome           = document.getElementById('mNome').value.trim();
+      const email          = document.getElementById('mEmail').value.trim();
+      const inicio         = document.getElementById('mInicio').value;
+      const perfil         = document.getElementById('mPerfil').value;
+      const dataExpiracao  = document.getElementById('mExpiracao').value || null;
+      const produto        = document.getElementById('mProduto').value || null;
+      const valorMensal    = parseFloat(document.getElementById('mValor').value) || null;
+      const formaPagamento = document.getElementById('mPagamento').value || null;
 
       if (!nome || !email) { alert('Nome e e-mail são obrigatórios.'); return; }
 
@@ -713,14 +944,13 @@
       btnSalvar.textContent = 'Criando conta…';
 
       try {
-        const resultado = await createMentorada({ nome, email, inicio, perfil });
-        // Recarrega lista completa do servidor
+        await createMentorada({ nome, email, inicio, perfil, dataExpiracao, produto, valorMensal, formaPagamento });
         mentoradas = await getMentoradas();
         document.getElementById('modalNova').classList.add('hidden');
-        ['mNome','mEmail','mInicio'].forEach(id => document.getElementById(id).value = '');
-        document.getElementById('mPerfil').value = '';
+        limparModal();
         renderMentoradas();
-        alert(`Conta criada! Um link de redefinição de senha será enviado para ${email}.`);
+        renderFinanceiro();
+        alert(`Conta criada! Um e-mail de boas-vindas foi enviado para ${email}.`);
       } catch (err) {
         alert(`Erro ao criar conta: ${err.message}`);
       } finally {
@@ -731,26 +961,44 @@
 
     // ─── Financeiro ──────────────────────────
     function renderFinanceiro() {
-      const ativas = mentoradas.filter(m => m.status !== 'inativa').length;
-      const mrr = ativas * 197;
-      document.getElementById('finMRR').textContent = brl(mrr);
-      document.getElementById('finARR').textContent = brl(mrr * 12);
+      const ativasEAlertas = mentoradas.filter(m => m.status !== 'inativa');
+      const mrr = ativasEAlertas.reduce((s, m) => s + (m.valorMensal || 0), 0);
+      const ticket = ativasEAlertas.length > 0
+        ? Math.round(mrr / ativasEAlertas.length)
+        : 0;
 
-      // Histórico mock dos últimos 6 meses
-      const hoje = new Date();
-      const historico = [];
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-        const qtd = Math.max(1, ativas - i);
-        historico.push({ mes: `${MESES[d.getMonth()]} ${d.getFullYear()}`, qtd, mrr: qtd * 197 });
-      }
+      document.getElementById('finMRR').textContent    = brl(mrr);
+      document.getElementById('finMRRSub').textContent = `${ativasEAlertas.length} assinatura${ativasEAlertas.length !== 1 ? 's' : ''} ativa${ativasEAlertas.length !== 1 ? 's' : ''}`;
+      document.getElementById('finARR').textContent    = brl(mrr * 12);
+      document.getElementById('finTicket').textContent = ticket ? brl(ticket) : '—';
 
-      document.getElementById('tabelaFinanceiro').innerHTML = historico.map(h => `
-        <tr>
-          <td style="font-size:14px;padding:10px 0;color:var(--text-secondary);border-top:1px solid var(--border)">${h.mes}</td>
-          <td style="font-size:14px;text-align:right;padding:10px 0;border-top:1px solid var(--border)">${h.qtd}</td>
-          <td style="font-size:14px;text-align:right;padding:10px 0;color:var(--gold);border-top:1px solid var(--border)">${brl(h.mrr)}</td>
-        </tr>`).join('');
+      // Distribuição por produto
+      const porProduto = {};
+      ativasEAlertas.forEach(m => {
+        const key = m.produto || 'sem_produto';
+        if (!porProduto[key]) porProduto[key] = { qtd: 0, mrr: 0 };
+        porProduto[key].qtd++;
+        porProduto[key].mrr += m.valorMensal || 0;
+      });
+
+      const produtoOrdem = ['trilha10k', 'private', 'pos_mentoria', 'outro', 'sem_produto'];
+      const linhas = produtoOrdem
+        .filter(k => porProduto[k])
+        .map(k => ({ label: PRODUTO_LABEL[k] || 'Sem produto', ...porProduto[k] }));
+
+      // Adiciona produtos não mapeados (segurança)
+      Object.keys(porProduto).forEach(k => {
+        if (!produtoOrdem.includes(k)) linhas.push({ label: k, ...porProduto[k] });
+      });
+
+      document.getElementById('tabelaFinanceiro').innerHTML = linhas.length
+        ? linhas.map(h => `
+          <tr>
+            <td style="font-size:14px;padding:10px 0;color:var(--text-secondary);border-top:1px solid var(--border)">${h.label}</td>
+            <td style="font-size:14px;text-align:right;padding:10px 0;border-top:1px solid var(--border)">${h.qtd}</td>
+            <td style="font-size:14px;text-align:right;padding:10px 0;color:var(--gold);border-top:1px solid var(--border)">${brl(h.mrr)}</td>
+          </tr>`).join('')
+        : `<tr><td colspan="3" style="padding:20px 0;color:var(--text-muted);font-size:13px;border-top:1px solid var(--border)">Nenhuma assinatura ativa.</td></tr>`;
     }
   </script>
 

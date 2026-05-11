@@ -183,7 +183,17 @@
       gap: 16px;
       margin-bottom: 32px;
       flex-wrap: wrap;
+      transition: padding 0.2s, background 0.2s;
     }
+    /* Compacto: quando o mês já tem dados */
+    .upload-banner.compacto {
+      background: transparent;
+      border-color: var(--border);
+      padding: 10px 16px;
+    }
+    .upload-banner.compacto .upload-banner-full { display: none; }
+    .upload-banner-compact { display: none; font-size: 12px; color: var(--text-muted); }
+    .upload-banner.compacto .upload-banner-compact { display: block; }
     .upload-banner-text {
       font-size: 13px;
       color: var(--gold-light);
@@ -202,6 +212,14 @@
       white-space: nowrap;
       transition: background 0.2s;
     }
+    .upload-banner.compacto .btn-upload {
+      background: transparent;
+      border: 1px solid var(--border-gold);
+      color: var(--gold);
+      padding: 5px 12px;
+      font-size: 12px;
+    }
+    .upload-banner.compacto .btn-upload:hover { background: var(--gold-dim); }
     .btn-upload:hover { background: var(--gold-light); }
     .upload-input { display: none; }
 
@@ -691,6 +709,41 @@
       .aporte-strip { flex-direction: column; align-items: stretch; gap: 10px; }
       .aporte-strip-row { width: 100%; }
     }
+
+    /* ─── Botão de suporte ──────────────────── */
+    .suporte-btn {
+      position: fixed; bottom: 32px; right: 24px; z-index: 150;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--gold); color: var(--navy); border: none;
+      cursor: pointer; font-size: 20px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+      transition: background 0.2s, transform 0.2s;
+      font-family: 'Inter', sans-serif; line-height: 1;
+    }
+    .suporte-btn:hover { background: var(--gold-light); transform: scale(1.08); }
+    .suporte-popover {
+      position: fixed; bottom: 86px; right: 24px; z-index: 150;
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; padding: 8px;
+      display: flex; flex-direction: column; gap: 2px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45); min-width: 210px;
+    }
+    .suporte-popover.hidden { display: none; }
+    .suporte-link {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; color: var(--white);
+      text-decoration: none; transition: background 0.15s;
+    }
+    .suporte-link:hover { background: rgba(255,255,255,0.07); }
+    .suporte-link-icon { font-size: 19px; flex-shrink: 0; line-height: 1; }
+    .suporte-label { display: flex; flex-direction: column; gap: 1px; }
+    .suporte-label em { font-size: 11px; color: var(--text-muted); font-style: normal; }
+    @media (max-width: 640px) {
+      .suporte-btn { bottom: 76px; right: 16px; }
+      .suporte-popover { bottom: 130px; right: 16px; }
+    }
   </style>
 </head>
 <body>
@@ -731,14 +784,19 @@
     </div>
 
     <!-- Banner de importação -->
-    <div class="upload-banner">
-      <div class="upload-banner-text">
+    <div class="upload-banner" id="uploadBanner">
+      <!-- Versão completa (sem dados no mês) -->
+      <div class="upload-banner-text upload-banner-full">
         <strong>Importar novo Raio-X</strong>
         CSV gerado pelo Agente Raio-X Financeiro · <a id="linkAgenteRaioX" href="#" target="_blank" class="link-agente">Abrir agente →</a>
       </div>
+      <!-- Versão compacta (mês já tem dados) -->
+      <span class="upload-banner-compact">
+        Raio-X já carregado · <a id="linkAgenteRaioXCompact" href="#" target="_blank" class="link-agente">Abrir agente →</a>
+      </span>
       <div>
         <input type="file" id="csvInput" class="upload-input" accept=".csv" />
-        <button class="btn-upload" id="btnUpload">Importar CSV</button>
+        <button class="btn-upload" id="btnUpload">Reimportar CSV</button>
       </div>
     </div>
 
@@ -947,8 +1005,11 @@
     // ─── URL do agente (preencher quando disponível) ──────────────────────────
     const AGENTE_RAIOX_URL = '';
     (function aplicarLinkAgente() {
-      const link = document.getElementById('linkAgenteRaioX');
-      if (AGENTE_RAIOX_URL) { link.href = AGENTE_RAIOX_URL; } else { link.style.display = 'none'; }
+      ['linkAgenteRaioX', 'linkAgenteRaioXCompact'].forEach(id => {
+        const link = document.getElementById(id);
+        if (!link) return;
+        if (AGENTE_RAIOX_URL) { link.href = AGENTE_RAIOX_URL; } else { link.style.display = 'none'; }
+      });
     })();
 
     // ─── Auth guard ───────────────────────────
@@ -1071,6 +1132,7 @@
     modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
 
     document.getElementById('btnSalvarItem').addEventListener('click', async () => {
+      const btnSalvarItem = document.getElementById('btnSalvarItem');
       const categoria = document.getElementById('mCategoria').value.trim();
       const tipo      = document.getElementById('mTipo').value;
       const valor     = readMoney(document.getElementById('mValor'));
@@ -1087,7 +1149,13 @@
       }
 
       fecharModal();
-      await salvarEAtualizar();
+      setLoading(btnSalvarItem, true);
+      try {
+        await salvarEAtualizar();
+        toast(tipo === 'receita' ? 'Receita salva!' : 'Despesa salva!', 'success');
+      } finally {
+        setLoading(btnSalvarItem, false);
+      }
     });
 
     async function excluirItem(tipo, idx) {
@@ -1450,6 +1518,10 @@
       const totalDespesa = data.despesas.reduce((s, r) => s + r.valor, 0);
       const sobra = totalReceita - totalDespesa;
       const sobraPct = totalReceita > 0 ? (sobra / totalReceita) * 100 : 0;
+
+      // Banner de importação: compacto se já há dados no mês
+      const temDados = data.receitas.length > 0 || data.despesas.length > 0;
+      document.getElementById('uploadBanner')?.classList.toggle('compacto', temDados);
 
       // Resumo
       document.getElementById('totalReceita').textContent = brl(totalReceita);
@@ -1898,6 +1970,8 @@
       const file = e.target.files[0];
       if (!file) return;
       e.target.value = '';
+      const btn = document.getElementById('btnUpload');
+      setLoading(btn, true, 'Processando…');
 
       const reader = new FileReader();
       reader.onload = async (ev) => {
@@ -1910,11 +1984,35 @@
           toast('Raio-X importado com sucesso!', 'success');
         } catch (err) {
           toast(`Erro ao importar CSV: ${err.message || err}`, 'error');
+        } finally {
+          setLoading(btn, false);
         }
       };
       reader.readAsText(file, 'utf-8');
     });
+
+    // ─── Suporte ─────────────────────────────
+    (function() {
+      const btn = document.getElementById('suporteBtn');
+      const pop = document.getElementById('suportePopover');
+      if (!btn || !pop) return;
+      btn.addEventListener('click', e => { e.stopPropagation(); pop.classList.toggle('hidden'); });
+      document.addEventListener('click', () => pop.classList.add('hidden'));
+    })();
   </script>
+
+  <!-- Botão de suporte -->
+  <div class="suporte-popover hidden" id="suportePopover">
+    <a href="https://wa.me/5511995658658" target="_blank" class="suporte-link">
+      <span class="suporte-link-icon">💬</span>
+      <div class="suporte-label">WhatsApp<em>Flávia Shuscimann</em></div>
+    </a>
+    <a href="mailto:flaviasch@gmail.com" class="suporte-link">
+      <span class="suporte-link-icon">✉️</span>
+      <div class="suporte-label">E-mail<em>flaviasch@gmail.com</em></div>
+    </a>
+  </div>
+  <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
 
 </body>
 </html>

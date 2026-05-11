@@ -115,6 +115,16 @@
     }
     .btn-import:hover { background: var(--gold-light); }
     .file-input { display: none; }
+    .import-card-meta {
+      display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap;
+    }
+    .cadencia-badge {
+      background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+      border-radius: 4px; padding: 1px 7px; font-size: 10px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
+    }
+    .import-last { font-size: 11px; color: var(--text-muted); }
+    .import-last.stale { color: var(--warning); font-weight: 500; }
 
     /* ─── Section ───────────────────────────── */
     .section { margin-bottom: 40px; }
@@ -355,6 +365,41 @@
       .evolucao-chart { overflow-x: auto; padding-bottom: 4px; }
       .ev-col { min-width: 38px; flex: none; }
     }
+
+    /* ─── Botão de suporte ──────────────────── */
+    .suporte-btn {
+      position: fixed; bottom: 32px; right: 24px; z-index: 150;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--gold); color: var(--navy); border: none;
+      cursor: pointer; font-size: 20px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+      transition: background 0.2s, transform 0.2s;
+      font-family: 'Inter', sans-serif; line-height: 1;
+    }
+    .suporte-btn:hover { background: var(--gold-light); transform: scale(1.08); }
+    .suporte-popover {
+      position: fixed; bottom: 86px; right: 24px; z-index: 150;
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; padding: 8px;
+      display: flex; flex-direction: column; gap: 2px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45); min-width: 210px;
+    }
+    .suporte-popover.hidden { display: none; }
+    .suporte-link {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; color: var(--white);
+      text-decoration: none; transition: background 0.15s;
+    }
+    .suporte-link:hover { background: rgba(255,255,255,0.07); }
+    .suporte-link-icon { font-size: 19px; flex-shrink: 0; line-height: 1; }
+    .suporte-label { display: flex; flex-direction: column; gap: 1px; }
+    .suporte-label em { font-size: 11px; color: var(--text-muted); font-style: normal; }
+    @media (max-width: 640px) {
+      .suporte-btn { bottom: 76px; right: 16px; }
+      .suporte-popover { bottom: 130px; right: 16px; }
+    }
   </style>
 </head>
 <body>
@@ -418,6 +463,10 @@
         <div class="import-card-text">
           <strong>Importar declaração IR</strong>
           <span>CSV de ativos gerado pelo Agente de Patrimônio · <a id="linkAgenteIR" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <div class="import-card-meta">
+            <span class="cadencia-badge">Anual · maio</span>
+            <span class="import-last" id="lastImportIR"></span>
+          </div>
         </div>
         <div>
           <input type="file" id="csvIR" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
@@ -428,6 +477,10 @@
         <div class="import-card-text">
           <strong>Importar posição da corretora</strong>
           <span>CSV de investimentos gerado pelo Agente de Patrimônio · <a id="linkAgenteInv" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <div class="import-card-meta">
+            <span class="cadencia-badge">Mensal</span>
+            <span class="import-last" id="lastImportCorretora"></span>
+          </div>
         </div>
         <div>
           <input type="file" id="csvCorretora" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
@@ -438,6 +491,10 @@
         <div class="import-card-text">
           <strong>Importar dívidas</strong>
           <span>CSV de dívidas gerado pelo Agente de Patrimônio · <a id="linkAgenteDividas" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <div class="import-card-meta">
+            <span class="cadencia-badge">Quando necessário</span>
+            <span class="import-last" id="lastImportDividas"></span>
+          </div>
         </div>
         <div>
           <input type="file" id="csvDividas" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
@@ -569,6 +626,7 @@
       getPatrimonio, savePatrimonio,
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
+      getReservas, saveReserva,
     } from './js/api.js';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import {
@@ -702,6 +760,7 @@
         console.error('Erro ao carregar patrimônio:', err);
       }
       render(ativos, dividas);
+      renderLastImport();
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
       // Grava (ou atualiza) o snapshot deste mês em background
@@ -1038,6 +1097,91 @@
         btn.addEventListener('click', () => deletarDivida(btn.dataset.delDivida)));
     }
 
+    // ─── Conciliação automática de reservas ──────────────────────────────────
+    /**
+     * Após um import de patrimônio, compara o total de ativos financeiros
+     * com a soma dos acumulados das reservas ativas e distribui o delta
+     * proporcionalmente entre elas.
+     *
+     * Só age se o delta for "razoável" (< 30% do total das reservas).
+     * Deltas maiores indicam capital livre não alocado a nenhum objetivo —
+     * nesse caso apenas informa sem alterar.
+     */
+    const CLASSES_FINANCEIRAS = new Set(['pos', 'infl', 'pre', 'rv', 'mm', 'int']);
+
+    async function conciliarReservas(ativosAtuais) {
+      const totalImportado = ativosAtuais
+        .filter(a => CLASSES_FINANCEIRAS.has(a.classe))
+        .reduce((s, a) => s + a.valor, 0);
+      if (totalImportado === 0) return;
+
+      let reservas;
+      try { reservas = await getReservas(); } catch { return; }
+
+      const ativas = (reservas || []).filter(r => r.acumulado > 0 && r.acumulado < r.meta);
+      if (ativas.length === 0) return;
+
+      const totalReservas = ativas.reduce((s, r) => s + r.acumulado, 0);
+      if (totalReservas === 0) return;
+
+      const delta    = totalImportado - totalReservas;
+      const pctDelta = Math.abs(delta) / totalReservas;
+
+      // Delta insignificante: sem ajuste
+      if (Math.abs(delta) < 50) return;
+
+      const sinal = delta > 0 ? '+' : '';
+
+      // Delta grande: provavelmente capital livre não alocado a reservas
+      if (pctDelta > 0.30) {
+        setTimeout(() => toast(
+          `Diferença de ${sinal}${brl(delta)} entre ativos financeiros e reservas.\n` +
+          `Parte pode ser capital livre. Verifique os acumulados manualmente.`,
+          'info', 6000
+        ), 600);
+        return;
+      }
+
+      // Delta razoável: distribui proporcionalmente
+      const atualizadas = ativas.map(r => ({
+        ...r,
+        acumulado: Math.min(
+          r.meta,
+          Math.max(0, Math.round(r.acumulado + delta * (r.acumulado / totalReservas)))
+        ),
+      }));
+
+      const resultados = await Promise.allSettled(atualizadas.map(r => saveReserva(r)));
+      const erros = resultados.filter(r => r.status === 'rejected').length;
+
+      setTimeout(() => toast(
+        erros
+          ? 'Erro ao atualizar algumas reservas — verifique manualmente.'
+          : `Reservas conciliadas: ${sinal}${brl(delta)} distribuídos entre ${ativas.length} reserva${ativas.length > 1 ? 's' : ''}.`,
+        erros ? 'warning' : 'info',
+        5000
+      ), 600);
+    }
+
+    // ─── Última importação por card ──────────
+    function renderLastImport() {
+      const entries = [
+        { elId: 'lastImportIR',        key: 'lastImport_ir',        limDias: null },
+        { elId: 'lastImportCorretora',  key: 'lastImport_corretora', limDias: 35   },
+        { elId: 'lastImportDividas',    key: 'lastImport_dividas',   limDias: null },
+      ];
+      entries.forEach(({ elId, key, limDias }) => {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        const iso = localStorage.getItem(key);
+        if (!iso) { el.textContent = 'Nunca importado'; return; }
+        const dias = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+        const label = dias === 0 ? 'Hoje' : dias === 1 ? 'Ontem' : `Há ${dias} dias`;
+        el.textContent = `Última: ${label}`;
+        el.classList.toggle('stale', !!(limDias && dias > limDias));
+      });
+    }
+
     // ─── Imports ─────────────────────────────
     document.getElementById('btnImportIR').addEventListener('click', () =>
       document.getElementById('csvIR').click());
@@ -1048,8 +1192,12 @@
       document.getElementById(id).addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        const tipo = id === 'csvCorretora' ? 'corretora' : 'ir';
+        const tipo  = id === 'csvCorretora' ? 'corretora' : 'ir';
+        const btnId = id === 'csvCorretora' ? 'btnImportCorretora' : 'btnImportIR';
+        const btn   = document.getElementById(btnId);
         e.target.value = '';
+
+        setLoading(btn, true, 'Processando…');
 
         const reader = new FileReader();
         reader.onload = async (ev) => {
@@ -1061,8 +1209,19 @@
             dividas = data.dividas || [];
             render(ativos, dividas);
             snapshotHistorico();
+            localStorage.setItem(`lastImport_${tipo}`, new Date().toISOString());
+            renderLastImport();
+            toast(
+              tipo === 'ir'
+                ? 'Declaração IR importada com sucesso!'
+                : 'Posição da corretora importada com sucesso!',
+              'success'
+            );
+            conciliarReservas(ativos);
           } catch (err) {
             toast(`Erro ao importar CSV: ${err.message || err}`, 'error');
+          } finally {
+            setLoading(btn, false);
           }
         };
         reader.readAsText(file, 'utf-8');
@@ -1253,6 +1412,8 @@
       const file = e.target.files[0];
       if (!file) return;
       e.target.value = '';
+      const btn = document.getElementById('btnImportDividas');
+      setLoading(btn, true, 'Processando…');
       const reader = new FileReader();
       reader.onload = async (ev) => {
         try {
@@ -1268,13 +1429,40 @@
           }
           render(ativos, dividas);
           snapshotHistorico();
+          localStorage.setItem('lastImport_dividas', new Date().toISOString());
+          renderLastImport();
+          toast('Dívidas importadas com sucesso!', 'success');
         } catch (err) {
           toast(`Erro ao importar CSV de dívidas: ${err.message || err}`, 'error');
+        } finally {
+          setLoading(btn, false);
         }
       };
       reader.readAsText(file, 'utf-8');
     });
+
+    // ─── Suporte ─────────────────────────────
+    (function() {
+      const btn = document.getElementById('suporteBtn');
+      const pop = document.getElementById('suportePopover');
+      if (!btn || !pop) return;
+      btn.addEventListener('click', e => { e.stopPropagation(); pop.classList.toggle('hidden'); });
+      document.addEventListener('click', () => pop.classList.add('hidden'));
+    })();
   </script>
+
+  <!-- Botão de suporte -->
+  <div class="suporte-popover hidden" id="suportePopover">
+    <a href="https://wa.me/5511995658658" target="_blank" class="suporte-link">
+      <span class="suporte-link-icon">💬</span>
+      <div class="suporte-label">WhatsApp<em>Flávia Shuscimann</em></div>
+    </a>
+    <a href="mailto:flaviasch@gmail.com" class="suporte-link">
+      <span class="suporte-link-icon">✉️</span>
+      <div class="suporte-label">E-mail<em>flaviasch@gmail.com</em></div>
+    </a>
+  </div>
+  <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
 
 </body>
 </html>

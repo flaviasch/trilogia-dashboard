@@ -101,11 +101,11 @@ const SPIN_HTML =
   'border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;' +
   'vertical-align:middle;margin-right:6px;opacity:.8"></span>';
 
-export function setLoading(btn, loading) {
+export function setLoading(btn, loading, texto = 'Salvando…') {
   if (loading) {
     btn._origHTML     = btn.innerHTML;
     btn._origDisabled = btn.disabled;
-    btn.innerHTML     = SPIN_HTML + 'Salvando…';
+    btn.innerHTML     = SPIN_HTML + texto;
     btn.disabled      = true;
     btn.style.opacity = '.65';
   } else {

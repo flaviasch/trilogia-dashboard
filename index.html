@@ -390,6 +390,11 @@
       background: transparent; color: var(--positive);
       border: 1px solid rgba(74,222,128,0.3); cursor: default;
     }
+    .lgpd-inline-nota {
+      grid-column: 1 / -1; margin-top: 8px;
+      font-size: 11px; color: var(--text-muted);
+      text-align: center; line-height: 1.6;
+    }
 
     /* ─── Setup progress (setup parcial) ─────── */
     .setup-progress {
@@ -421,6 +426,34 @@
       background: var(--gold-dim);
     }
     .setup-etapa.pendente:hover { background: rgba(207,174,101,0.25); }
+
+    /* ─── Modal LGPD ────────────────────────── */
+    .modal-lgpd-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      display: flex; align-items: flex-end; justify-content: center;
+      z-index: 300; padding: 0;
+    }
+    .modal-lgpd-overlay.hidden { display: none; }
+    .modal-lgpd-card {
+      background: var(--navy); border-top: 1px solid var(--border-gold);
+      border-radius: 16px 16px 0 0; padding: 32px 24px 40px;
+      width: 100%; max-width: 560px; margin: 0 auto;
+    }
+    .modal-lgpd-titulo {
+      font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .modal-lgpd-texto {
+      font-size: 13px; color: var(--text-secondary); line-height: 1.7;
+      margin-bottom: 24px;
+    }
+    .modal-lgpd-texto a { color: var(--gold); }
+    .btn-aceitar-lgpd {
+      width: 100%; background: var(--gold); color: var(--navy); border: none;
+      border-radius: 10px; padding: 14px; font-size: 15px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-aceitar-lgpd:hover { background: var(--gold-light); }
 
     /* ─── Notificações in-app ────────────────── */
     .notif-box {
@@ -503,6 +536,41 @@
       .welcome-screen { padding: 32px 16px 60px; }
       .meta-row { flex-direction: column; gap: 8px; align-items: flex-start; }
       .meta-dot { display: none; }
+    }
+
+    /* ─── Botão de suporte ──────────────────── */
+    .suporte-btn {
+      position: fixed; bottom: 32px; right: 24px; z-index: 150;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--gold); color: var(--navy); border: none;
+      cursor: pointer; font-size: 20px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+      transition: background 0.2s, transform 0.2s;
+      font-family: 'Inter', sans-serif; line-height: 1;
+    }
+    .suporte-btn:hover { background: var(--gold-light); transform: scale(1.08); }
+    .suporte-popover {
+      position: fixed; bottom: 86px; right: 24px; z-index: 150;
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; padding: 8px;
+      display: flex; flex-direction: column; gap: 2px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45); min-width: 210px;
+    }
+    .suporte-popover.hidden { display: none; }
+    .suporte-link {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; color: var(--white);
+      text-decoration: none; transition: background 0.15s;
+    }
+    .suporte-link:hover { background: rgba(255,255,255,0.07); }
+    .suporte-link-icon { font-size: 19px; flex-shrink: 0; line-height: 1; }
+    .suporte-label { display: flex; flex-direction: column; gap: 1px; }
+    .suporte-label em { font-size: 11px; color: var(--text-muted); font-style: normal; }
+    @media (max-width: 640px) {
+      .suporte-btn { bottom: 76px; right: 16px; }
+      .suporte-popover { bottom: 130px; right: 16px; }
     }
   </style>
 </head>
@@ -664,7 +732,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, bootstrapAdmin } from './js/api.js';
+    import { getDashboard, bootstrapAdmin, registrarAcesso, aceitarLGPD } from './js/api.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
@@ -715,7 +783,34 @@
 
       document.getElementById('loadingOverlay').style.display = 'none';
       // Visibilidade de mainContent / welcomeScreen é gerenciada por checkOnboarding()
+
+      // Registra acesso em background (não bloqueia UI)
+      registrarAcesso().catch(() => {});
     }
+
+    // ─── LGPD ─────────────────────────────────────
+    const LGPD_KEY = 'lgpd_aceite';
+
+    async function verificarLGPD() {
+      // Checa localStorage primeiro — resposta imediata, sem esperar API
+      if (localStorage.getItem(LGPD_KEY) === '1') return;
+      try {
+        const data = await getDashboard();
+        if (data?.lgpdAceite) {
+          localStorage.setItem(LGPD_KEY, '1'); // sincroniza local
+          return;
+        }
+        document.getElementById('modalLGPD')?.classList.remove('hidden');
+      } catch { /* falha silenciosa */ }
+    }
+
+    document.getElementById('btnAceitarLGPD')?.addEventListener('click', async () => {
+      localStorage.setItem(LGPD_KEY, '1'); // grava imediatamente no cliente
+      document.getElementById('modalLGPD')?.classList.add('hidden');
+      try {
+        await aceitarLGPD(); // persiste no servidor em background
+      } catch { /* continua mesmo se falhar */ }
+    });
 
     // ─── Format helpers ───────────────────────────
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -911,12 +1006,16 @@
         renderWelcomeScreen(steps);
         document.getElementById('welcomeScreen').style.display = 'block';
         // mainContent permanece oculto
+        // No onboarding: aceita LGPD inline (sem modal), nota aparece na tela
+        aceitarLGPDInline();
       } else {
         document.getElementById('mainContent').style.display = 'block';
         if (totalDone < 4) {
           renderSetupProgress(steps, totalDone);
           document.getElementById('setupProgress').style.display = 'block';
         }
+        // Só mostra modal LGPD para quem já passou do onboarding
+        verificarLGPD();
       }
     }
 
@@ -936,7 +1035,20 @@
             : `<a href="${s.href}" class="step-cta">Configurar →</a>`
           }
         </div>
-      `).join('');
+      `).join('') + `
+        <p class="lgpd-inline-nota">
+          Ao usar o Trilogia Dashboard, você concorda com o tratamento dos seus dados
+          em conformidade com a <strong>LGPD (Lei 13.709/2018)</strong>.
+          Seus dados são usados exclusivamente para personalizar sua experiência financeira
+          e nunca são compartilhados com terceiros.
+        </p>`;
+    }
+
+    // Aceita LGPD silenciosamente durante o onboarding (sem modal)
+    function aceitarLGPDInline() {
+      if (localStorage.getItem(LGPD_KEY) === '1') return;
+      localStorage.setItem(LGPD_KEY, '1');
+      aceitarLGPD().catch(() => {});
     }
 
     function renderSetupProgress(steps, totalDone) {
@@ -1007,6 +1119,17 @@
         });
       }
 
+      // ④ Declaração de IR — todo maio
+      const irKey = `notif_ir_${mesKey}`;
+      if (agora.getMonth() === 4 && !localStorage.getItem(irKey)) {
+        notifs.push({
+          id: 'ir', type: 'perfil', key: irKey, icon: '📋',
+          titulo: 'Atualize seu patrimônio com a declaração de IR',
+          desc: 'É maio! Importe sua declaração de Imposto de Renda para manter imóveis, participações e outros ativos fora da corretora atualizados no patrimônio.',
+          cta: { label: 'Importar IR', href: 'patrimonio.html' },
+        });
+      }
+
       const box = document.getElementById('notificacoesBox');
       if (!box || notifs.length === 0) { box && (box.innerHTML = ''); return; }
 
@@ -1066,7 +1189,48 @@
           </a>`;
       }).join('');
     }
+    // ─── Suporte ─────────────────────────────
+    (function() {
+      const btn = document.getElementById('suporteBtn');
+      const pop = document.getElementById('suportePopover');
+      if (!btn || !pop) return;
+      btn.addEventListener('click', e => { e.stopPropagation(); pop.classList.toggle('hidden'); });
+      document.addEventListener('click', () => pop.classList.add('hidden'));
+    })();
   </script>
+
+  <!-- Modal LGPD -->
+  <div class="modal-lgpd-overlay hidden" id="modalLGPD">
+    <div class="modal-lgpd-card">
+      <div class="modal-lgpd-titulo">Privacidade e uso dos seus dados</div>
+      <div class="modal-lgpd-texto">
+        Para funcionar, o Trilogia Dashboard armazena seus dados financeiros
+        (patrimônio, reservas, orçamento e perfil de investidor) de forma segura
+        na nuvem, acessíveis apenas por você e pela sua mentora.<br><br>
+        Ao continuar, você concorda com o uso dessas informações exclusivamente
+        para fins de acompanhamento financeiro dentro da metodologia Trilogia,
+        em conformidade com a <strong>LGPD (Lei 13.709/2018)</strong>.<br><br>
+        Você pode solicitar a exclusão dos seus dados a qualquer momento pelo
+        suporte.
+      </div>
+      <button class="btn-aceitar-lgpd" id="btnAceitarLGPD">
+        Entendi e concordo
+      </button>
+    </div>
+  </div>
+
+  <!-- Botão de suporte -->
+  <div class="suporte-popover hidden" id="suportePopover">
+    <a href="https://wa.me/5511995658658" target="_blank" class="suporte-link">
+      <span class="suporte-link-icon">💬</span>
+      <div class="suporte-label">WhatsApp<em>Flávia Shuscimann</em></div>
+    </a>
+    <a href="mailto:flaviasch@gmail.com" class="suporte-link">
+      <span class="suporte-link-icon">✉️</span>
+      <div class="suporte-label">E-mail<em>flaviasch@gmail.com</em></div>
+    </a>
+  </div>
+  <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
 
 </body>
 </html>

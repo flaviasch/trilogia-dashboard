@@ -234,6 +234,41 @@
       .resultado-nome { font-size: 26px; }
       .opcao-label { padding: 12px 14px; }
     }
+
+    /* ─── Botão de suporte ──────────────────── */
+    .suporte-btn {
+      position: fixed; bottom: 32px; right: 24px; z-index: 150;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--gold); color: var(--navy); border: none;
+      cursor: pointer; font-size: 20px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+      transition: background 0.2s, transform 0.2s;
+      font-family: 'Inter', sans-serif; line-height: 1;
+    }
+    .suporte-btn:hover { background: var(--gold-light); transform: scale(1.08); }
+    .suporte-popover {
+      position: fixed; bottom: 86px; right: 24px; z-index: 150;
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; padding: 8px;
+      display: flex; flex-direction: column; gap: 2px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45); min-width: 210px;
+    }
+    .suporte-popover.hidden { display: none; }
+    .suporte-link {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; color: var(--white);
+      text-decoration: none; transition: background 0.15s;
+    }
+    .suporte-link:hover { background: rgba(255,255,255,0.07); }
+    .suporte-link-icon { font-size: 19px; flex-shrink: 0; line-height: 1; }
+    .suporte-label { display: flex; flex-direction: column; gap: 1px; }
+    .suporte-label em { font-size: 11px; color: var(--text-muted); font-style: normal; }
+    @media (max-width: 640px) {
+      .suporte-btn { bottom: 76px; right: 16px; }
+      .suporte-popover { bottom: 130px; right: 16px; }
+    }
   </style>
 </head>
 <body>
@@ -702,7 +737,29 @@
     });
 
     document.getElementById('btnRefazer').addEventListener('click', iniciarQuiz);
+
+    // ─── Suporte ─────────────────────────────
+    (function() {
+      const btn = document.getElementById('suporteBtn');
+      const pop = document.getElementById('suportePopover');
+      if (!btn || !pop) return;
+      btn.addEventListener('click', e => { e.stopPropagation(); pop.classList.toggle('hidden'); });
+      document.addEventListener('click', () => pop.classList.add('hidden'));
+    })();
   </script>
+
+  <!-- Botão de suporte -->
+  <div class="suporte-popover hidden" id="suportePopover">
+    <a href="https://wa.me/5511995658658" target="_blank" class="suporte-link">
+      <span class="suporte-link-icon">💬</span>
+      <div class="suporte-label">WhatsApp<em>Flávia Shuscimann</em></div>
+    </a>
+    <a href="mailto:flaviasch@gmail.com" class="suporte-link">
+      <span class="suporte-link-icon">✉️</span>
+      <div class="suporte-label">E-mail<em>flaviasch@gmail.com</em></div>
+    </a>
+  </div>
+  <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
 
 </body>
 </html>

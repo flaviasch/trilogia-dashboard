@@ -275,8 +275,32 @@
     }
     .btn-save:hover { background: var(--gold-light); }
 
+    /* ─── Validação inline ─────────────────── */
+    .field-error-msg {
+      font-size: 11px; color: var(--negative);
+      margin-top: 3px; display: none;
+    }
+    .field-group.has-error input,
+    .field-group.has-error select {
+      border-color: rgba(248,113,113,0.55);
+      background: rgba(248,113,113,0.04);
+    }
+    .field-group.has-error .field-error-msg { display: block; }
+
     /* Delete hover vermelho */
     .btn-icon.btn-delete:hover { border-color: rgba(248,113,113,0.5); color: var(--negative); background: rgba(248,113,113,0.08); }
+
+    /* Retirada hover azul */
+    .btn-icon.btn-retirar:hover { border-color: rgba(96,165,250,0.5); color: #60a5fa; background: rgba(96,165,250,0.08); }
+
+    /* Modal de retirada — saldo disponível */
+    .retirada-saldo {
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;
+      font-size: 13px; color: var(--text-secondary);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .retirada-saldo strong { color: var(--white); font-size: 15px; }
 
     /* Expand chevron */
     .btn-icon.btn-expand { color: var(--text-muted); }
@@ -337,6 +361,41 @@
         border-radius: 20px 20px 0 0; padding: 24px 20px 32px;
         max-height: 88vh; overflow-y: auto; max-width: 100%;
       }
+    }
+
+    /* ─── Botão de suporte ──────────────────── */
+    .suporte-btn {
+      position: fixed; bottom: 32px; right: 24px; z-index: 150;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--gold); color: var(--navy); border: none;
+      cursor: pointer; font-size: 20px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+      transition: background 0.2s, transform 0.2s;
+      font-family: 'Inter', sans-serif; line-height: 1;
+    }
+    .suporte-btn:hover { background: var(--gold-light); transform: scale(1.08); }
+    .suporte-popover {
+      position: fixed; bottom: 86px; right: 24px; z-index: 150;
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; padding: 8px;
+      display: flex; flex-direction: column; gap: 2px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45); min-width: 210px;
+    }
+    .suporte-popover.hidden { display: none; }
+    .suporte-link {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; color: var(--white);
+      text-decoration: none; transition: background 0.15s;
+    }
+    .suporte-link:hover { background: rgba(255,255,255,0.07); }
+    .suporte-link-icon { font-size: 19px; flex-shrink: 0; line-height: 1; }
+    .suporte-label { display: flex; flex-direction: column; gap: 1px; }
+    .suporte-label em { font-size: 11px; color: var(--text-muted); font-style: normal; }
+    @media (max-width: 640px) {
+      .suporte-btn { bottom: 76px; right: 16px; }
+      .suporte-popover { bottom: 130px; right: 16px; }
     }
   </style>
 </head>
@@ -407,11 +466,11 @@
         </div>
         <div class="legenda-item">
           <span class="legenda-badge">4 – 10 anos</span>
-          <span class="legenda-desc">Conforme orientação da mentora</span>
+          <span class="legenda-desc">Orientação personalizada da mentora — veja a sugestão em cada reserva</span>
         </div>
         <div class="legenda-item">
           <span class="legenda-badge">&gt; 10 anos</span>
-          <span class="legenda-desc">Conforme perfil de investidor</span>
+          <span class="legenda-desc" id="legendaMuitoLongo">Conforme seu perfil de investidor</span>
         </div>
       </div>
     </div>
@@ -427,15 +486,17 @@
       <h2 class="modal-title" id="modalTitle">Nova reserva</h2>
       <p class="modal-sub">A alocação sugerida é calculada automaticamente pelo prazo.</p>
 
-      <div class="field-group">
+      <div class="field-group" id="fgNome">
         <label for="rNome">Nome da reserva</label>
         <input type="text" id="rNome" placeholder="ex: Viagem Europa, Fundo de emergência…" />
+        <span class="field-error-msg">Dê um nome para esta reserva.</span>
       </div>
 
       <div class="field-row">
-        <div class="field-group">
+        <div class="field-group" id="fgMeta">
           <label for="rMeta">Meta total (R$)</label>
           <input type="text" inputmode="numeric" id="rMeta" placeholder="0" />
+          <span class="field-error-msg">Informe um valor maior que zero.</span>
         </div>
         <div class="field-group">
           <label for="rAcumulado">Já acumulado (R$)</label>
@@ -468,6 +529,30 @@
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelarModal">Cancelar</button>
         <button class="btn-save" id="btnSalvarModal">Salvar reserva</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de retirada -->
+  <div class="modal-overlay hidden" id="modalRetirada">
+    <div class="modal-card">
+      <h2 class="modal-title">Registrar retirada</h2>
+      <p class="modal-sub" id="retiradaSub">—</p>
+
+      <div class="retirada-saldo">
+        <span>Saldo disponível</span>
+        <strong id="retiradaSaldo">—</strong>
+      </div>
+
+      <div class="field-group" id="fgRetirada">
+        <label for="retiradaValor">Valor da retirada (R$)</label>
+        <input type="text" inputmode="numeric" id="retiradaValor" placeholder="0" />
+        <span class="field-error-msg" id="retiradaErro">Informe um valor válido.</span>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarRetirada">Cancelar</button>
+        <button class="btn-save" id="btnConfirmarRetirada">Confirmar retirada</button>
       </div>
     </div>
   </div>
@@ -630,35 +715,66 @@
 
     let editandoId = null;
 
+    // ─── Legenda de alocação dinâmica ───────────
+    function atualizarLegenda() {
+      const el = document.getElementById('legendaMuitoLongo');
+      if (!el) return;
+      if (perfilInvestidor && ALOCACAO_PERFIL[perfilInvestidor]) {
+        const itens = ALOCACAO_PERFIL[perfilInvestidor];
+        const resumo = itens.slice(0, 4)
+          .map(i => `${i.pct}% ${i.label.replace('RF ', '')}`)
+          .join(' · ');
+        const sufixo = itens.length > 4 ? ' …' : '';
+        const nomePerfil = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' }[perfilInvestidor] || perfilInvestidor;
+        el.textContent = `${nomePerfil}: ${resumo}${sufixo}`;
+      }
+      // Se perfil não definido, mantém o texto padrão do HTML
+    }
+
     async function init(user) {
-      // Carrega reservas, perfil e patrimônio em paralelo
-      const [resResult, perfilResult, patResult] = await Promise.allSettled([
-        getReservas(),
-        getPerfil(),
-        getPatrimonio(),
-      ]);
-      if (resResult.status === 'fulfilled')   reservas         = resResult.value;
-      if (perfilResult.status === 'fulfilled') perfilInvestidor = perfilResult.value?.perfil || null;
-      if (patResult.status === 'fulfilled')   patrimonioAtual  = patResult.value?.ativos || [];
+      try {
+        // Carrega reservas, perfil e patrimônio em paralelo
+        const [resResult, perfilResult, patResult] = await Promise.allSettled([
+          getReservas(),
+          getPerfil(),
+          getPatrimonio(),
+        ]);
 
-      renderAll();
-      document.getElementById('loadingOverlay').style.display = 'none';
-      document.getElementById('mainContent').style.display = 'block';
+        if (resResult.status === 'fulfilled' && Array.isArray(resResult.value))
+          reservas = resResult.value;
+        else if (resResult.status === 'rejected')
+          console.warn('[reservas] getReservas falhou:', resResult.reason);
 
-      // Scroll para reserva específica se vier do dashboard via âncora (#id)
-      const hash = window.location.hash.slice(1);
-      if (hash) {
-        requestAnimationFrame(() => {
-          const el = document.getElementById(hash);
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
+        if (perfilResult.status === 'fulfilled')
+          perfilInvestidor = perfilResult.value?.perfil || null;
+        else
+          console.warn('[reservas] getPerfil falhou:', perfilResult.reason);
+
+        if (patResult.status === 'fulfilled')
+          patrimonioAtual = Array.isArray(patResult.value?.ativos) ? patResult.value.ativos : [];
+        else
+          console.warn('[reservas] getPatrimonio falhou:', patResult.reason);
+
+        try {
+          renderAll();
+          atualizarLegenda();
+        } catch (renderErr) {
+          console.error('[reservas] Erro no render:', renderErr);
+        }
+      } catch (err) {
+        console.error('[reservas] Erro no init:', err);
+      } finally {
+        // Sempre oculta o spinner — mesmo se algo acima falhar
+        document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
       }
 
-      // Scroll para âncora se veio do index (#r1 etc.)
-      const hash = window.location.hash.slice(1);
-      if (hash) {
-        const el = document.getElementById(hash);
-        if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 300);
+      // Scroll para reserva específica se vier do dashboard via âncora (#id)
+      if (window.location.hash) {
+        requestAnimationFrame(() => {
+          const el = document.getElementById(window.location.hash.slice(1));
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
       }
     }
 
@@ -759,12 +875,16 @@
       container.querySelectorAll('[data-expand]').forEach(btn => {
         btn.addEventListener('click', () => toggleExpand(btn.dataset.expand));
       });
+      container.querySelectorAll('[data-retirar]').forEach(btn => {
+        btn.addEventListener('click', () => abrirModalRetirada(btn.dataset.retirar));
+      });
     }
 
     // SVG icons
-    const IC_EDIT   = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
-    const IC_DELETE = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10M6 7v4M10 7v4"/></svg>`;
+    const IC_EDIT    = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
+    const IC_DELETE  = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10M6 7v4M10 7v4"/></svg>`;
     const IC_CHEVRON = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"/></svg>`;
+    const IC_RETIRAR = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="2" x2="8" y2="11"/><polyline points="4,7 8,11 12,7"/><line x1="3" y1="14" x2="13" y2="14"/></svg>`;
 
     function renderCard(r) {
       const meses    = mesesAte(r.dataMeta);
@@ -804,6 +924,7 @@
             </div>
             <div class="reserva-acoes">
               ${expandBtn}
+              ${r.acumulado > 0 ? `<button class="btn-icon btn-retirar" data-retirar="${r.id}" title="Registrar retirada">${IC_RETIRAR}</button>` : ''}
               <button class="btn-icon" data-edit="${r.id}" title="Editar">${IC_EDIT}</button>
               <button class="btn-icon btn-delete" data-delete="${r.id}" title="Excluir">${IC_DELETE}</button>
             </div>
@@ -1009,11 +1130,21 @@
         }
       }
 
-      // Linhas: apenas as classes da alocação sugerida deste prazo
-      const linhas = sugerida.map(({ label, cor, pct: sugeridoPct }) => {
-        const atualPct = atualMap[label] || 0;
-        return { label, cor, pct: sugeridoPct, atualPct, delta: atualPct - sugeridoPct };
-      });
+      // Linhas: classes sugeridas + qualquer classe com posição real (ex: Alternativos
+      // mesmo quando não está na recomendação do perfil). Usa TODAS_CLASSES como
+      // ordem canônica para garantir sequência consistente.
+      const labelsSugeridas = new Set(sugerida.map(s => s.label));
+      const labelsComPosicao = new Set(
+        Object.keys(atualMap).filter(l => (atualMap[l] || 0) > 0.5)
+      );
+      const linhas = TODAS_CLASSES
+        .filter(c => labelsSugeridas.has(c.label) || labelsComPosicao.has(c.label))
+        .map(({ label, cor }) => {
+          const sugeridoItem = sugerida.find(s => s.label === label);
+          const sugeridoPct  = sugeridoItem ? sugeridoItem.pct : 0;
+          const atualPct     = atualMap[label] || 0;
+          return { label, cor, pct: sugeridoPct, atualPct, delta: atualPct - sugeridoPct };
+        });
 
       return { linhas, totalResidual, totalOriginal, totalSubtraido, meses: m };
     }
@@ -1149,11 +1280,17 @@
       resetModal();
     }
 
+    function marcarErro(fgId, ativo) {
+      document.getElementById(fgId)?.classList.toggle('has-error', ativo);
+    }
+
     function resetModal() {
       ['rNome','rMeta','rAcumulado','rDataMeta','rAporte'].forEach(id => {
         document.getElementById(id).value = '';
       });
       document.getElementById('alocacaoPreview').textContent = 'Defina a data objetivo para calcular.';
+      // Limpa estados de erro
+      ['fgNome', 'fgMeta'].forEach(id => marcarErro(id, false));
     }
 
     function atualizarPreview() {
@@ -1167,6 +1304,10 @@
     modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
     document.getElementById('rDataMeta').addEventListener('change', atualizarPreview);
 
+    // Limpa erro inline ao editar o campo
+    document.getElementById('rNome').addEventListener('input', () => marcarErro('fgNome', false));
+    document.getElementById('rMeta').addEventListener('input', () => marcarErro('fgMeta', false));
+
     document.getElementById('btnSalvarModal').addEventListener('click', async () => {
       const nome      = document.getElementById('rNome').value.trim();
       const meta      = readMoney(document.getElementById('rMeta'));
@@ -1174,9 +1315,11 @@
       const dataMeta  = document.getElementById('rDataMeta').value;
       const aporte    = readMoney(document.getElementById('rAporte'));
 
-      if (!nome || !meta || meta <= 0) {
-        toast('Preencha nome e valor da meta.', 'warning'); return;
-      }
+      const nomeOk = !!nome;
+      const metaOk = meta > 0;
+      marcarErro('fgNome', !nomeOk);
+      marcarErro('fgMeta', !metaOk);
+      if (!nomeOk || !metaOk) return;
 
       const btnSalvar = document.getElementById('btnSalvarModal');
       setLoading(btnSalvar, true);
@@ -1206,6 +1349,72 @@
       renderAll();
     });
 
+    // ─── Retirada ─────────────────────────────
+    const modalRetirada = document.getElementById('modalRetirada');
+    let retirandoId = null;
+
+    function abrirModalRetirada(id) {
+      const r = reservas.find(x => x.id === id);
+      if (!r) return;
+      retirandoId = id;
+      document.getElementById('retiradaSub').textContent =
+        `Quanto você retirou de "${r.nome}"?`;
+      document.getElementById('retiradaSaldo').textContent = brl(r.acumulado);
+      document.getElementById('retiradaValor').value = '';
+      document.getElementById('fgRetirada').classList.remove('has-error');
+      modalRetirada.classList.remove('hidden');
+      document.getElementById('retiradaValor').focus();
+    }
+
+    function fecharModalRetirada() {
+      modalRetirada.classList.add('hidden');
+      retirandoId = null;
+    }
+
+    document.getElementById('btnCancelarRetirada').addEventListener('click', fecharModalRetirada);
+    modalRetirada.addEventListener('click', e => { if (e.target === modalRetirada) fecharModalRetirada(); });
+    document.getElementById('retiradaValor').addEventListener('input', () =>
+      document.getElementById('fgRetirada').classList.remove('has-error'));
+
+    document.getElementById('btnConfirmarRetirada').addEventListener('click', async () => {
+      const r = reservas.find(x => x.id === retirandoId);
+      if (!r) return;
+
+      const valor = readMoney(document.getElementById('retiradaValor'));
+      const fg    = document.getElementById('fgRetirada');
+      const erroEl = document.getElementById('retiradaErro');
+
+      if (!valor || valor <= 0 || valor > r.acumulado) {
+        erroEl.textContent = valor > r.acumulado
+          ? `Valor superior ao saldo disponível (${brl(r.acumulado)}).`
+          : 'Informe um valor válido.';
+        fg.classList.add('has-error');
+        return;
+      }
+
+      const btn = document.getElementById('btnConfirmarRetirada');
+      setLoading(btn, true);
+
+      const novoAcumulado = Math.max(0, r.acumulado - valor);
+      const idx = reservas.findIndex(x => x.id === retirandoId);
+      reservas[idx] = { ...r, acumulado: novoAcumulado };
+
+      try {
+        await saveReserva(reservas[idx]);
+        fecharModalRetirada();
+        renderAll();
+        toast(`Retirada de ${brl(valor)} registrada em "${r.nome}".`, 'success');
+        setTimeout(() => toast(
+          'Patrimônio não atualizado — importe o extrato da corretora para refletir o saque.',
+          'info', 5000
+        ), 400);
+      } catch (err) {
+        toast(`Erro ao registrar retirada: ${err.message || err}`, 'error');
+      }
+
+      setLoading(btn, false);
+    });
+
     // ─── Deletar ─────────────────────────────
     async function deletarReserva(id) {
       const r = reservas.find(x => x.id === id);
@@ -1226,7 +1435,29 @@
         renderAll();
       }
     }
+
+    // ─── Suporte ─────────────────────────────
+    (function() {
+      const btn = document.getElementById('suporteBtn');
+      const pop = document.getElementById('suportePopover');
+      if (!btn || !pop) return;
+      btn.addEventListener('click', e => { e.stopPropagation(); pop.classList.toggle('hidden'); });
+      document.addEventListener('click', () => pop.classList.add('hidden'));
+    })();
   </script>
+
+  <!-- Botão de suporte -->
+  <div class="suporte-popover hidden" id="suportePopover">
+    <a href="https://wa.me/5511995658658" target="_blank" class="suporte-link">
+      <span class="suporte-link-icon">💬</span>
+      <div class="suporte-label">WhatsApp<em>Flávia Shuscimann</em></div>
+    </a>
+    <a href="mailto:flaviasch@gmail.com" class="suporte-link">
+      <span class="suporte-link-icon">✉️</span>
+      <div class="suporte-label">E-mail<em>flaviasch@gmail.com</em></div>
+    </a>
+  </div>
+  <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
 
 </body>
 </html>

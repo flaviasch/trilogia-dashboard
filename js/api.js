@@ -249,14 +249,14 @@ export const bootstrapAdmin = call('bootstrapAdmin');
 export const getMentoradas = call('getMentoradas');
 
 /**
- * @param {{ nome, email, inicio, perfil }} dados
+ * @param {{ nome, email, inicio, perfil, produto, valorMensal, formaPagamento, dataExpiracao }} dados
  * @returns {Promise<{ uid, sheetId }>}
  */
 export const createMentorada = call('createMentorada');
 
 /**
  * @param {string} uid
- * @param {{ status?, nota?, perfil?, inicio? }} campos
+ * @param {{ status?, nota?, perfil?, inicio?, produto?, valorMensal?, formaPagamento?, dataExpiracao? }} campos
  */
 export async function updateMentorada(uid, campos) {
   return call('updateMentorada')({ uid, campos });
@@ -269,6 +269,17 @@ export async function bloquearMentorada(uid) {
 export async function reativarMentorada(uid) {
   return call('reativarMentorada')({ uid });
 }
+
+/** Reenvía o link de definição de senha para a mentorada (admin only). */
+export async function reenviarAcesso(uid) {
+  return call('reenviarAcesso')({ uid });
+}
+
+/** Registra acesso da aluna (chamar no load do dashboard). */
+export const registrarAcesso = call('registrarAcesso');
+
+/** Registra aceite do termo LGPD. */
+export const aceitarLGPD = call('aceitarLGPD');
 
 // ─── Mapa de cores para patrimônio (usado por patrimonio.html) ─────────────────
 // Nome original do IR → código de categoria para cor na UI.
