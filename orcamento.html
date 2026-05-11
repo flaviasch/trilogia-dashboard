@@ -1248,7 +1248,7 @@
 
       listEl.innerHTML = linhas.join('');
       document.getElementById('modalClasseSub').textContent =
-        `Confirme a classe de cada alocação — total ${brl(valorAportePendente)}.`;
+        `Confirme a classe para atualizar o patrimônio agora (${brl(valorAportePendente)}), ou clique em Pular e importe o extrato da corretora depois.`;
       modalClasse.classList.remove('hidden');
     });
 
@@ -1292,8 +1292,15 @@
       ]);
 
       const erros = resultados.filter(r => r.status === 'rejected');
-      toast(erros.length ? 'Aporte salvo. Confira as reservas.' : 'Aporte confirmado!',
-            erros.length ? 'warning' : 'success');
+      if (erros.length) {
+        toast('Aporte salvo parcialmente. Confira as reservas.', 'warning');
+      } else {
+        toast('Aporte confirmado!', 'success');
+        setTimeout(() => toast(
+          'Patrimônio não atualizado — importe o extrato da corretora para refletir a nova alocação.',
+          'info', 5000
+        ), 400);
+      }
 
       for (const r of reservasAtualizadas) {
         const idx = reservas.findIndex(x => x.id === r.id);
