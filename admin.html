@@ -1232,7 +1232,7 @@
       const valorMensal    = isNaN(valor) || valor <= 0 ? null : valor;
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await updateMentorada({ uid, campos: { produto, formaPagamento, valorMensal } });
+        await updateMentorada(uid, { produto, formaPagamento, valorMensal });
         // Atualiza cache local
         Object.assign(mentoradaEmDetalhe, { produto, formaPagamento, valorMensal });
         const idx = mentoradas.findIndex(m => (m.uid || m.id) === uid);
@@ -1266,7 +1266,7 @@
       const dataExpiracao = document.getElementById('editExpiracao').value || null;
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await updateMentorada({ uid, campos: { dataExpiracao } });
+        await updateMentorada(uid, { dataExpiracao });
         Object.assign(mentoradaEmDetalhe, { dataExpiracao });
         const idx = mentoradas.findIndex(m => (m.uid || m.id) === uid);
         if (idx >= 0) mentoradas[idx].dataExpiracao = dataExpiracao;
