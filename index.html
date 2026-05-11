@@ -785,7 +785,7 @@
       // Visibilidade de mainContent / welcomeScreen é gerenciada por checkOnboarding()
 
       // Registra acesso em background (não bloqueia UI)
-      registrarAcesso().catch(() => {});
+      registrarAcesso().catch(err => console.warn('[registrarAcesso]', err));
     }
 
     // ─── LGPD ─────────────────────────────────────

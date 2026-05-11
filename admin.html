@@ -610,7 +610,17 @@
 
     function formatarUltimoAcesso(ts) {
       if (!ts) return 'Nunca';
-      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      let d;
+      if (typeof ts.toDate === 'function') {
+        d = ts.toDate();                          // Timestamp nativo do SDK
+      } else if (ts.seconds  != null) {
+        d = new Date(ts.seconds  * 1000);         // { seconds, nanoseconds } — serialização onCall
+      } else if (ts._seconds != null) {
+        d = new Date(ts._seconds * 1000);         // { _seconds, _nanoseconds } — fallback
+      } else {
+        d = new Date(ts);                         // string ISO ou número
+      }
+      if (!d || isNaN(d.getTime())) return 'Nunca';
       const dias = Math.floor((Date.now() - d.getTime()) / 86_400_000);
       if (dias === 0) return 'Hoje';
       if (dias === 1) return 'Ontem';
