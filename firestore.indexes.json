@@ -13,17 +13,8 @@
       "collectionGroup": "cobrancas",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "vencimento", "order": "ASCENDING" },
-        { "fieldPath": "cancelada",  "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "cobrancas",
-      "queryScope": "COLLECTION",
-      "fields": [
         { "fieldPath": "uidMentorada", "order": "ASCENDING" },
-        { "fieldPath": "vencimento",   "order": "ASCENDING" },
-        { "fieldPath": "cancelada",    "order": "ASCENDING" }
+        { "fieldPath": "vencimento",   "order": "ASCENDING" }
       ]
     },
     {

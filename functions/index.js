@@ -877,23 +877,23 @@ exports.getCobrancas = onCall({ cors: true }, async (request) => {
   const inicio = `${ano}-${mm}-01`;
   const fim    = `${ano}-${mm}-31`;
 
-  let q = db.collection('cobrancas')
-    .where('vencimento', '>=', inicio)
-    .where('vencimento', '<=', fim)
-    .where('cancelada', '!=', true)
-    .orderBy('cancelada')
-    .orderBy('vencimento');
-
-  if (uid) q = db.collection('cobrancas')
-    .where('uidMentorada', '==', uid)
-    .where('vencimento', '>=', inicio)
-    .where('vencimento', '<=', fim)
-    .where('cancelada', '!=', true)
-    .orderBy('cancelada')
-    .orderBy('vencimento');
+  // Firestore não permite filtros de desigualdade em dois campos distintos.
+  // Filtramos 'cancelada' em memória depois de buscar por 'vencimento'.
+  let q = uid
+    ? db.collection('cobrancas')
+        .where('uidMentorada', '==', uid)
+        .where('vencimento', '>=', inicio)
+        .where('vencimento', '<=', fim)
+        .orderBy('vencimento')
+    : db.collection('cobrancas')
+        .where('vencimento', '>=', inicio)
+        .where('vencimento', '<=', fim)
+        .orderBy('vencimento');
 
   const snap = await q.get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(c => c.cancelada !== true);
 });
 
 /**
