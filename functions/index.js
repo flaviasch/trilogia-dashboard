@@ -422,8 +422,14 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
     throw new HttpsError('internal', `Erro ao criar usuária: ${err.message}`);
   }
 
-  // 2. Criar planilha no Google Sheets
-  const sheetId = await provisionar(nome, DRIVE_FOLDER_ID);
+  // 2. Criar planilha no Google Sheets (falha não bloqueia criação da conta)
+  let sheetId = null;
+  try {
+    sheetId = await provisionar(nome, DRIVE_FOLDER_ID);
+  } catch (err) {
+    console.error(`[createMentorada] Falha ao criar planilha para ${email}:`, err.message);
+    // Continua — planilha pode ser criada/vinculada manualmente depois
+  }
 
   // 3. Salvar no Firestore
   await db.collection('mentoradas').doc(userRecord.uid).set({
@@ -436,7 +442,7 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
     formaPagamento:  formaPagamento  || null,
     dataExpiracao:   dataExpiracao   || null,
     status:          'ativa',
-    sheetId,
+    sheetId:         sheetId || null,
     nota:            '',
     ultimoAcesso:    null,
     totalAcessos:    0,
@@ -445,17 +451,20 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
     criadoEm:        admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // 4. Gerar link de redefinição de senha
-  const linkSenha = await admin.auth().generatePasswordResetLink(email);
+  // 4. Gerar link + enviar e-mail de boas-vindas (falha não bloqueia criação)
+  try {
+    const linkSenha = await admin.auth().generatePasswordResetLink(email);
+    await sendEmail({
+      to:      email,
+      subject: 'Bem-vinda ao Trilogia Dashboard',
+      html:    emailBoasVindas(nome, linkSenha),
+    });
+  } catch (err) {
+    console.error(`[createMentorada] Falha ao enviar e-mail de boas-vindas para ${email}:`, err.message);
+    // Conta criada com sucesso — admin pode reenviar o link manualmente pelo painel
+  }
 
-  // 5. Enviar e-mail de boas-vindas com o link
-  await sendEmail({
-    to:      email,
-    subject: 'Bem-vinda ao Trilogia Dashboard',
-    html:    emailBoasVindas(nome, linkSenha),
-  });
-
-  return { uid: userRecord.uid, sheetId };
+  return { uid: userRecord.uid, sheetId, emailEnviado: true };
 });
 
 /**
@@ -474,7 +483,8 @@ exports.updateMentorada = onCall({ cors: true }, async (request) => {
   ];
   const atualizacao = {};
   for (const [k, v] of Object.entries(campos || {})) {
-    if (permitidos.includes(k)) atualizacao[k] = v;
+    // Ignora undefined e null — Firebase pode descartar nulos na serialização callable
+    if (permitidos.includes(k) && v !== undefined && v !== null) atualizacao[k] = v;
   }
 
   if (Object.keys(atualizacao).length === 0) {
@@ -811,6 +821,22 @@ exports.pagarParcela = onCall({ cors: true }, async (request) => {
     }
   }
 
+  return { ok: true };
+});
+
+/**
+ * Edita data e valor de um pagamento já registrado.
+ */
+exports.editarPagamento = onCall({ cors: true }, async (request) => {
+  requireAdmin(request);
+  const { cobrancaId, dataPagamento, valorRecebido } = request.data;
+  if (!cobrancaId || !dataPagamento || valorRecebido == null) {
+    throw new HttpsError('invalid-argument', 'cobrancaId, dataPagamento e valorRecebido são obrigatórios.');
+  }
+  const cobRef  = db.collection('cobrancas').doc(cobrancaId);
+  const cobSnap = await cobRef.get();
+  if (!cobSnap.exists) throw new HttpsError('not-found', 'Cobrança não encontrada.');
+  await cobRef.update({ dataPagamento, valorRecebido });
   return { ok: true };
 });
 

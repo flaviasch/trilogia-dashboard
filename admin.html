@@ -1230,17 +1230,27 @@
       const formaPagamento = document.getElementById('editPagamento').value  || null;
       const valor          = parseFloat(document.getElementById('editValorMensal').value);
       const valorMensal    = isNaN(valor) || valor <= 0 ? null : valor;
+      // Monta apenas campos com valor real (Firebase descarta nulos na serialização)
+      const campos = {};
+      if (produto        !== null) campos.produto        = produto;
+      if (formaPagamento !== null) campos.formaPagamento = formaPagamento;
+      if (valorMensal    !== null) campos.valorMensal    = valorMensal;
+      if (Object.keys(campos).length === 0) {
+        alert('Preencha ao menos um campo (Produto, Pagamento ou Valor) antes de salvar.');
+        return;
+      }
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await updateMentorada(uid, { produto, formaPagamento, valorMensal });
+        await updateMentorada(uid, campos);
         // Atualiza cache local
-        Object.assign(mentoradaEmDetalhe, { produto, formaPagamento, valorMensal });
+        Object.assign(mentoradaEmDetalhe, campos);
         const idx = mentoradas.findIndex(m => (m.uid || m.id) === uid);
-        if (idx >= 0) Object.assign(mentoradas[idx], { produto, formaPagamento, valorMensal });
-        // Atualiza exibição
-        setText('detProduto',     PRODUTO_LABEL[produto]          || produto          || '—');
-        setText('detPagamento',   PAGAMENTO_LABEL[formaPagamento] || formaPagamento   || '—');
-        setText('detValorMensal', valorMensal ? brl(valorMensal) + '/mês' : '—');
+        if (idx >= 0) Object.assign(mentoradas[idx], campos);
+        // Atualiza exibição (usa valores efetivos do cache)
+        const m = mentoradaEmDetalhe;
+        setText('detProduto',     PRODUTO_LABEL[m.produto]          || m.produto          || '—');
+        setText('detPagamento',   PAGAMENTO_LABEL[m.formaPagamento] || m.formaPagamento   || '—');
+        setText('detValorMensal', m.valorMensal ? brl(m.valorMensal) + '/mês' : '—');
         document.getElementById('prodDisplay').style.display = '';
         document.getElementById('prodEdit').style.display    = 'none';
       } catch (err) {

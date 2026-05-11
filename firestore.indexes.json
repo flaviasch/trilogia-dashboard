@@ -1,0 +1,38 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "cobrancas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uidMentorada", "order": "ASCENDING" },
+        { "fieldPath": "contratoId",   "order": "ASCENDING" },
+        { "fieldPath": "numero",       "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cobrancas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vencimento", "order": "ASCENDING" },
+        { "fieldPath": "cancelada",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cobrancas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uidMentorada", "order": "ASCENDING" },
+        { "fieldPath": "vencimento",   "order": "ASCENDING" },
+        { "fieldPath": "cancelada",    "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "contratos",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
