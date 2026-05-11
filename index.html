@@ -1130,6 +1130,16 @@
         });
       }
 
+      // ⑤ Extrato pendente — retirada de reserva sem atualização da corretora
+      if (localStorage.getItem('patrimonio_extrato_pendente') === '1') {
+        notifs.push({
+          id: 'extrato', type: 'orcamento', removeKey: 'patrimonio_extrato_pendente', icon: '📊',
+          titulo: 'Atualize sua posição na corretora',
+          desc: 'Você registrou uma retirada de reserva. Importe o extrato atualizado da corretora para que o saque apareça corretamente no seu patrimônio.',
+          cta: { label: 'Importar extrato', href: 'patrimonio.html' },
+        });
+      }
+
       const box = document.getElementById('notificacoesBox');
       if (!box || notifs.length === 0) { box && (box.innerHTML = ''); return; }
 
@@ -1141,13 +1151,19 @@
             <div class="notif-desc">${n.desc}</div>
             <a href="${n.cta.href}" class="notif-cta">${n.cta.label} →</a>
           </div>
-          <button class="notif-dismiss" data-key="${n.key}" data-id="${n.id}" title="Dispensar">✕</button>
+          <button class="notif-dismiss"
+            ${n.removeKey ? `data-remove="${n.removeKey}"` : `data-key="${n.key}"`}
+            data-id="${n.id}" title="Dispensar">✕</button>
         </div>
       `).join('');
 
       box.querySelectorAll('.notif-dismiss').forEach(btn => {
         btn.addEventListener('click', () => {
-          localStorage.setItem(btn.dataset.key, '1');
+          if (btn.dataset.remove) {
+            localStorage.removeItem(btn.dataset.remove);
+          } else {
+            localStorage.setItem(btn.dataset.key, '1');
+          }
           document.getElementById(`notif_${btn.dataset.id}`)?.remove();
         });
       });

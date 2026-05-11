@@ -1217,6 +1217,8 @@
                 : 'Posição da corretora importada com sucesso!',
               'success'
             );
+            // Se havia retirada pendente de atualização, sinaliza como resolvido
+            if (tipo === 'corretora') localStorage.removeItem('patrimonio_extrato_pendente');
             conciliarReservas(ativos);
           } catch (err) {
             toast(`Erro ao importar CSV: ${err.message || err}`, 'error');

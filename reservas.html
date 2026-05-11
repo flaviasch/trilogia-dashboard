@@ -709,6 +709,7 @@
     bindMoneyInput(document.getElementById('rMeta'));
     bindMoneyInput(document.getElementById('rAcumulado'));
     bindMoneyInput(document.getElementById('rAporte'));
+    bindMoneyInput(document.getElementById('retiradaValor'));
 
     // ─── Mock data ────────────────────────────
     let reservas = [];
@@ -1360,7 +1361,7 @@
       document.getElementById('retiradaSub').textContent =
         `Quanto você retirou de "${r.nome}"?`;
       document.getElementById('retiradaSaldo').textContent = brl(r.acumulado);
-      document.getElementById('retiradaValor').value = '';
+      setMoney(document.getElementById('retiradaValor'), null);
       document.getElementById('fgRetirada').classList.remove('has-error');
       modalRetirada.classList.remove('hidden');
       document.getElementById('retiradaValor').focus();
@@ -1404,10 +1405,8 @@
         fecharModalRetirada();
         renderAll();
         toast(`Retirada de ${brl(valor)} registrada em "${r.nome}".`, 'success');
-        setTimeout(() => toast(
-          'Patrimônio não atualizado — importe o extrato da corretora para refletir o saque.',
-          'info', 5000
-        ), 400);
+        // Sinaliza para o dashboard que o extrato da corretora precisa ser atualizado
+        localStorage.setItem('patrimonio_extrato_pendente', '1');
       } catch (err) {
         toast(`Erro ao registrar retirada: ${err.message || err}`, 'error');
       }
