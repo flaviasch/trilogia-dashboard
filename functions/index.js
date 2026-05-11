@@ -514,11 +514,22 @@ exports.deletarMentorada = onCall(async (request) => {
   const { uid } = request.data;
   if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
 
-  // Apaga Auth e Firestore em paralelo
-  await Promise.all([
-    admin.auth().deleteUser(uid),
-    db.collection('mentoradas').doc(uid).delete(),
-  ]);
+  // Apaga conta Auth (ignora se já não existir)
+  try {
+    await admin.auth().deleteUser(uid);
+  } catch (err) {
+    if (err.code !== 'auth/user-not-found') {
+      throw new HttpsError('internal', `Erro ao remover conta: ${err.message}`);
+    }
+    // Se já não existia no Auth, continua para limpar o Firestore
+  }
+
+  // Apaga documento Firestore
+  try {
+    await db.collection('mentoradas').doc(uid).delete();
+  } catch (err) {
+    throw new HttpsError('internal', `Erro ao remover dados: ${err.message}`);
+  }
 
   return { ok: true };
 });

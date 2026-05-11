@@ -824,11 +824,14 @@
         </div>`).join('');
 
       // Botões contextuais
-      const inativa = m.status === 'inativa';
-      const btnBlq  = document.getElementById('btnBloquear');
-      const btnReat = document.getElementById('btnReativar');
-      if (btnBlq)  btnBlq.style.display  = inativa ? 'none' : '';
+      const inativa  = m.status === 'inativa';
+      const isAdmin  = m.email === user.email; // protege a própria conta admin
+      const btnBlq   = document.getElementById('btnBloquear');
+      const btnReat  = document.getElementById('btnReativar');
+      const btnDel   = document.getElementById('btnDeletar');
+      if (btnBlq)  btnBlq.style.display  = (inativa || isAdmin) ? 'none' : '';
       if (btnReat) btnReat.style.display  = inativa ? '' : 'none';
+      if (btnDel)  btnDel.style.display   = isAdmin ? 'none' : '';
 
       // Nota
       const btnNota = document.getElementById('btnSalvarNota');
