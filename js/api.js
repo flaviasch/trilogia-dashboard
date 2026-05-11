@@ -302,6 +302,11 @@ export async function pagarParcela(dados) {
   return call('pagarParcela')(dados);
 }
 
+/** Edita data e valor de um pagamento já registrado. */
+export async function editarPagamento(dados) {
+  return call('editarPagamento')(dados);
+}
+
 /** Cancela um contrato. */
 export async function cancelarContrato(uid, contratoId) {
   return call('cancelarContrato')({ uid, contratoId });

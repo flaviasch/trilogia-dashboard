@@ -857,7 +857,7 @@
   <script type="module">
     import { exigirAdmin, logout, refreshAdmin } from './js/admin-guard.js';
     import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada,
-             createContrato, getContratos, pagarParcela, cancelarContrato, getCobrancas } from './js/api.js';
+             createContrato, getContratos, pagarParcela, editarPagamento, cancelarContrato, getCobrancas } from './js/api.js';
 
     // ─── Auth guard via Custom Claim ─────────────
     const user = await exigirAdmin();
@@ -1638,7 +1638,14 @@
         el.querySelectorAll('[data-cob-id]').forEach(btn => {
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            abrirModalPagamento(btn.dataset.cobId, btn.dataset.cobValor, btn.dataset.cobDesc);
+            abrirModalPagamento(btn.dataset.cobId, btn.dataset.cobValor, btn.dataset.cobDesc, false);
+          });
+        });
+        // Botões editar pagamento já feito
+        el.querySelectorAll('[data-cob-edit]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            abrirModalPagamento(btn.dataset.cobEdit, btn.dataset.cobValor, btn.dataset.cobDesc, true, btn.dataset.cobData);
           });
         });
       } catch (err) {
@@ -1674,7 +1681,15 @@
                      data-cob-desc="${PRODUTO_LABEL[c.produto] || c.produto} · ${fmtData(p.vencimento)}">
                      Registrar pagamento
                    </button>`
-                : ''}
+                : p.pago
+                  ? `<button class="btn-edit-inline"
+                       data-cob-edit="${p.id}"
+                       data-cob-valor="${p.valorRecebido ?? p.valor}"
+                       data-cob-data="${p.dataPagamento}"
+                       data-cob-desc="${PRODUTO_LABEL[c.produto] || c.produto} · ${fmtData(p.vencimento)}">
+                       Editar
+                     </button>`
+                  : ''}
             </td>
           </tr>`;
       }).join('');
@@ -1710,13 +1725,17 @@
         </div>`;
     }
 
-    // Modal registrar pagamento
+    // Modal registrar/editar pagamento
     let pagCobrancaId = null;
-    function abrirModalPagamento(cobId, valorBruto, descricao) {
-      pagCobrancaId = cobId;
+    let pagModoEdicao  = false;
+    function abrirModalPagamento(cobId, valorBruto, descricao, modoEdicao = false, dataExistente = null) {
+      pagCobrancaId  = cobId;
+      pagModoEdicao  = modoEdicao;
       document.getElementById('pagDescricao').textContent = descricao;
-      document.getElementById('pagData').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('pagData').value  = dataExistente || new Date().toISOString().slice(0, 10);
       document.getElementById('pagValor').value = parseFloat(valorBruto) || '';
+      const btn = document.getElementById('btnConfirmarPagamento');
+      btn.textContent = modoEdicao ? 'Salvar alteração' : 'Confirmar';
       document.getElementById('modalPagamento').classList.remove('hidden');
     }
     document.getElementById('btnCancelarPagamento').addEventListener('click', () => {
@@ -1733,15 +1752,19 @@
       const btn = document.getElementById('btnConfirmarPagamento');
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await pagarParcela({ cobrancaId: pagCobrancaId, dataPagamento, valorRecebido });
+        if (pagModoEdicao) {
+          await editarPagamento({ cobrancaId: pagCobrancaId, dataPagamento, valorRecebido });
+        } else {
+          await pagarParcela({ cobrancaId: pagCobrancaId, dataPagamento, valorRecebido });
+          mentoradas = await getMentoradas();
+        }
         document.getElementById('modalPagamento').classList.add('hidden');
         await carregarContratos(uid);
-        // Atualiza dataExpiracao no cache local se necessário
-        mentoradas = await getMentoradas();
       } catch (err) {
-        alert(`Erro ao registrar pagamento: ${err.message}`);
+        alert(`Erro ao salvar pagamento: ${err.message}`);
       } finally {
-        btn.disabled = false; btn.textContent = 'Confirmar';
+        btn.disabled = false;
+        btn.textContent = pagModoEdicao ? 'Salvar alteração' : 'Confirmar';
       }
     });
 
