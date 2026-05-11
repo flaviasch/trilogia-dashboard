@@ -1088,13 +1088,32 @@
     }
 
     // ─── Filtros e busca ─────────────────────
+    function ativarFiltro(filtro) {
+      document.querySelectorAll('[data-filtro]').forEach(b => b.classList.remove('ativo'));
+      document.querySelector(`[data-filtro="${filtro}"]`)?.classList.add('ativo');
+      filtroAtual = filtro;
+      renderMentoradas();
+      document.getElementById('view-mentoradas')
+        ?.querySelector('.toolbar')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     document.querySelectorAll('[data-filtro]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('[data-filtro]').forEach(b => b.classList.remove('ativo'));
-        btn.classList.add('ativo');
-        filtroAtual = btn.dataset.filtro;
-        renderMentoradas();
-      });
+      btn.addEventListener('click', () => ativarFiltro(btn.dataset.filtro));
+    });
+
+    // KPI cards clicáveis — atalho para os filtros correspondentes
+    [
+      { id: 'kpiAtivas',   filtro: 'ativas'    },
+      { id: 'kpiAlertas',  filtro: 'alertas'   },
+    ].forEach(({ id, filtro }) => {
+      const card = document.getElementById(id)?.closest('.kpi-card');
+      if (!card) return;
+      card.style.cursor = 'pointer';
+      card.title = `Filtrar por: ${filtro}`;
+      card.addEventListener('click', () => ativarFiltro(filtro));
+      card.addEventListener('mouseenter', () => card.style.borderColor = 'var(--border-gold)');
+      card.addEventListener('mouseleave', () => card.style.borderColor = '');
     });
 
     document.getElementById('buscaMentorada').addEventListener('input', (e) => {
