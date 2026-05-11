@@ -923,7 +923,7 @@
       const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
 
       if (!confirm(`Apagar permanentemente "${nome}"?\n\nIsso remove a conta de acesso e todos os dados dela. Esta ação não pode ser desfeita.`)) return;
-      if (!confirm(`Confirmar exclusão de "${nome}"?\n\nA planilha no Google Drive NÃO será removida automaticamente — apague manualmente se necessário.`)) return;
+      if (!confirm(`Confirmar exclusão de "${nome}"?\n\nA planilha no Google Drive será mantida — se ela retornar, o acesso pode ser restaurado a partir dela.`)) return;
 
       const btn = document.getElementById('btnDeletar');
       btn.disabled = true;
