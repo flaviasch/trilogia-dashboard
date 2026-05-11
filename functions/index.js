@@ -843,6 +843,18 @@ exports.editarPagamento = onCall({ cors: true }, async (request) => {
 /**
  * Cancela um contrato (não apaga histórico de cobranças pagas).
  */
+exports.cancelarCobranca = onCall({ cors: true }, async (request) => {
+  requireAdmin(request);
+  const { cobrancaId } = request.data;
+  if (!cobrancaId) throw new HttpsError('invalid-argument', 'cobrancaId obrigatório.');
+  const ref  = db.collection('cobrancas').doc(cobrancaId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Cobrança não encontrada.');
+  if (snap.data().pago) throw new HttpsError('failed-precondition', 'Cobrança já paga — não pode ser cancelada.');
+  await ref.update({ cancelada: true });
+  return { ok: true };
+});
+
 exports.cancelarContrato = onCall({ cors: true }, async (request) => {
   requireAdmin(request);
   const { uid, contratoId } = request.data;

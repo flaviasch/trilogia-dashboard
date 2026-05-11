@@ -308,6 +308,10 @@ export async function editarPagamento(dados) {
 }
 
 /** Cancela um contrato. */
+export async function cancelarCobranca(cobrancaId) {
+  return call('cancelarCobranca')({ cobrancaId });
+}
+
 export async function cancelarContrato(uid, contratoId) {
   return call('cancelarContrato')({ uid, contratoId });
 }
