@@ -1747,7 +1747,11 @@
       try {
         const contratos = await getContratos(uid);
         contratosDoDetalhe = contratos;
-        const temMentoriaAtiva = contratos.some(c => c.produto === 'mentoria' && c.status !== 'cancelado');
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
+        const acessoVigente = !mentoradaEmDetalhe.dataExpiracao ||
+          new Date(String(mentoradaEmDetalhe.dataExpiracao).slice(0, 10) + 'T00:00:00') >= hoje;
+        const temMentoriaAtiva = acessoVigente &&
+          contratos.some(c => c.produto === 'mentoria' && c.status !== 'cancelado');
         document.getElementById('btnFecharMentoria').style.display = temMentoriaAtiva ? '' : 'none';
         if (!contratos.length) {
           el.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Nenhum contrato cadastrado.</p>';
