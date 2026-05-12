@@ -1747,7 +1747,7 @@
       try {
         const contratos = await getContratos(uid);
         contratosDoDetalhe = contratos;
-        const temMentoriaAtiva = contratos.some(c => c.produto === 'mentoria' && c.status === 'ativo');
+        const temMentoriaAtiva = contratos.some(c => c.produto === 'mentoria' && c.status !== 'cancelado');
         document.getElementById('btnFecharMentoria').style.display = temMentoriaAtiva ? '' : 'none';
         if (!contratos.length) {
           el.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Nenhum contrato cadastrado.</p>';
