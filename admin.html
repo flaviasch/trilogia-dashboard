@@ -616,6 +616,7 @@
         <button class="btn-acao" id="btnEnviarEmail">Enviar e-mail</button>
         <button class="btn-acao" id="btnReenviarAcesso">Reenviar link de acesso</button>
         <button class="btn-acao reativar" id="btnReativar" style="display:none">Reativar acesso</button>
+        <button class="btn-acao" id="btnFecharMentoria" style="border-color:rgba(207,174,101,0.4);color:var(--gold)">Fechar mentoria</button>
         <button class="btn-acao danger" id="btnBloquear">Bloquear acesso</button>
         <button class="btn-acao danger" id="btnDeletar" style="margin-left:auto">Apagar mentorada</button>
       </div>
@@ -855,6 +856,26 @@
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelarModal">Cancelar</button>
         <button class="btn-save" id="btnSalvarModal">Criar conta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal fechar mentoria — prompt pré-preenchido para /entregaveis-finais-mentoria -->
+  <div class="modal-overlay hidden" id="modalFecharMentoria">
+    <div class="modal-card" style="max-width:680px;overflow-y:auto;max-height:90vh">
+      <h2 class="modal-title">Fechar mentoria</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+        Copie o prompt abaixo e cole em uma nova conversa no Claude. O skill
+        <code style="background:rgba(255,255,255,.08);padding:1px 6px;border-radius:4px">/entregaveis-finais-mentoria</code>
+        vai gerar o PDF e o Excel automaticamente.
+      </p>
+      <textarea id="promptEncerramento" readonly
+        style="width:100%;height:320px;background:rgba(0,0,0,.25);border:1px solid var(--border);
+               border-radius:8px;padding:14px;font-size:12px;font-family:'Inter',monospace;
+               color:var(--white);resize:vertical;line-height:1.6"></textarea>
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn-cancel" id="btnFecharModalEncerramento">Fechar</button>
+        <button class="btn-save"   id="btnCopiarPrompt">Copiar prompt</button>
       </div>
     </div>
   </div>
@@ -1401,7 +1422,8 @@
       }
     });
 
-    let mentoradaEmDetalhe = null;
+    let mentoradaEmDetalhe  = null;
+    let contratosDoDetalhe  = [];
 
     document.getElementById('btnBloquear').addEventListener('click', async () => {
       if (!mentoradaEmDetalhe) return;
@@ -1721,6 +1743,7 @@
       el.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Carregando…</p>';
       try {
         const contratos = await getContratos(uid);
+        contratosDoDetalhe = contratos;
         if (!contratos.length) {
           el.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Nenhum contrato cadastrado.</p>';
           return;
@@ -1764,6 +1787,127 @@
         el.innerHTML = `<p style="font-size:13px;color:var(--negative)">Erro ao carregar contratos.</p>`;
       }
     }
+
+    // ─── Fechar mentoria — gera prompt para /entregaveis-finais-mentoria ─────────
+    function gerarPromptEncerramento() {
+      const m = mentoradaEmDetalhe;
+      if (!m) return '';
+
+      const perfilLabel = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' };
+      const inicio = m.inicio ? formatMesAno(m.inicio) : '[início não registrado]';
+      const perfil = perfilLabel[m.perfil] || '[não preenchido]';
+      const pl     = m.pl      != null ? brl(m.pl)           : '[não disponível]';
+      const sobra  = m.sobra   != null ? brl(m.sobra)        : '[não disponível]';
+      const reservas = m.totalReservas != null ? brl(m.totalReservas) : '[não disponível]';
+      const produto  = PRODUTO_LABEL[m.produto] || m.produto || '[não registrado]';
+
+      let contratosTexto = '';
+      if (contratosDoDetalhe.length) {
+        contratosTexto = contratosDoDetalhe.map(c => {
+          const tipo = c.tipo === 'recorrente' ? 'Recorrente' : `Parcelado ${c.parcelas?.length || 0}x`;
+          const pago = (c.parcelas || []).filter(p => p.pago).reduce((s, p) => s + (p.valorRecebido || p.valor || 0), 0);
+          return `  - ${PRODUTO_LABEL[c.produto] || c.produto} | ${tipo} | Total: ${brl(c.valorTotal)} | Recebido: ${brl(pago)} | Status: ${c.status}`;
+        }).join('\n');
+      } else {
+        contratosTexto = '  [nenhum contrato cadastrado]';
+      }
+
+      return `/entregaveis-finais-mentoria
+
+## Dados da mentorada (preenchidos automaticamente pelo dashboard)
+
+**Nome completo:** ${m.nome}
+**E-mail:** ${m.email}
+**Produto:** ${produto}
+**Início da mentoria:** ${inicio}
+**Perfil do investidor:** ${perfil}
+
+**Dados financeiros atuais (snapshot):**
+- Patrimônio líquido (PL): ${pl}
+- Sobra mensal atual: ${sobra}
+- Total em reservas: ${reservas}
+
+**Contratos:**
+${contratosTexto}
+
+${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
+---
+
+## Dados a preencher manualmente
+
+**Perfil da cliente:**
+- Idade: [preencher]
+- Profissão: [preencher]
+- Renda média mensal: [preencher]
+
+**Diagnóstico inicial:**
+- Pontos identificados no início: [liste de 3 a 6]
+- Índice Febraban inicial: [pontos]
+
+**Evolução — situação inicial → atual:**
+- Execução financeira: [inicial] → [atual]
+- Organização financeira: [inicial] → [atual]
+- Reserva financeira: [inicial] → [atual]
+- Controle financeiro: [inicial] → [atual]
+- Clareza de objetivos: [inicial] → [atual]
+- Investimentos: [inicial] → [atual]
+- Índice Febraban final: [pontos]
+
+**Estruturas construídas na mentoria:**
+- [liste o que foi efetivamente entregue]
+
+**Metas financeiras (até 3):**
+| # | Objetivo | Prazo (meses) | Valor estimado |
+|---|----------|---------------|----------------|
+| 1 | [preencher] | [meses] | R$ [valor] |
+
+**Estilo de vida essencial (o que a cliente não abre mão):**
+- [preencher]
+
+**Gastos por hábito sem consciência:**
+- [preencher]
+
+**Plano de investimento:**
+- Situação atual da reserva de emergência: [preencher]
+- Dívidas a quitar: [preencher]
+- Receitas extraordinárias esperadas: [preencher]
+- Estratégia de aportes mensais: [preencher]
+- Previsão de conclusão da reserva: [preencher]
+
+**Próximos passos (5 a 7, em ordem de prioridade):**
+1. [preencher]
+
+**Mensagem da mentora:**
+[texto personalizado para encerramento]`;
+    }
+
+    document.getElementById('btnFecharMentoria').addEventListener('click', () => {
+      if (!mentoradaEmDetalhe) return;
+      document.getElementById('promptEncerramento').value = gerarPromptEncerramento();
+      document.getElementById('modalFecharMentoria').classList.remove('hidden');
+    });
+
+    document.getElementById('btnFecharModalEncerramento').addEventListener('click', () => {
+      document.getElementById('modalFecharMentoria').classList.add('hidden');
+    });
+
+    document.getElementById('modalFecharMentoria').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('modalFecharMentoria'))
+        document.getElementById('modalFecharMentoria').classList.add('hidden');
+    });
+
+    document.getElementById('btnCopiarPrompt').addEventListener('click', async () => {
+      const texto = document.getElementById('promptEncerramento').value;
+      try {
+        await navigator.clipboard.writeText(texto);
+        const btn = document.getElementById('btnCopiarPrompt');
+        btn.textContent = 'Copiado!';
+        setTimeout(() => { btn.textContent = 'Copiar prompt'; }, 2000);
+      } catch {
+        document.getElementById('promptEncerramento').select();
+        document.execCommand('copy');
+      }
+    });
 
     function renderContrato(c, uid) {
       const STATUS_LABEL = { ativo: 'Ativo', quitado: 'Quitado', cancelado: 'Cancelado' };
