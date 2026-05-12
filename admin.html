@@ -616,7 +616,7 @@
         <button class="btn-acao" id="btnEnviarEmail">Enviar e-mail</button>
         <button class="btn-acao" id="btnReenviarAcesso">Reenviar link de acesso</button>
         <button class="btn-acao reativar" id="btnReativar" style="display:none">Reativar acesso</button>
-        <button class="btn-acao" id="btnFecharMentoria" style="border-color:rgba(207,174,101,0.4);color:var(--gold)">Fechar mentoria</button>
+        <button class="btn-acao" id="btnFecharMentoria" style="border-color:rgba(207,174,101,0.4);color:var(--gold);display:none">Fechar mentoria</button>
         <button class="btn-acao danger" id="btnBloquear">Bloquear acesso</button>
         <button class="btn-acao danger" id="btnDeletar" style="margin-left:auto">Apagar mentorada</button>
       </div>
@@ -1277,6 +1277,9 @@
           <span class="alerta-texto">${a.texto}</span>
         </div>`).join('');
 
+      // Oculta botão até contratos carregarem
+      document.getElementById('btnFecharMentoria').style.display = 'none';
+
       // Carrega contratos em background
       carregarContratos(uid);
 
@@ -1744,6 +1747,8 @@
       try {
         const contratos = await getContratos(uid);
         contratosDoDetalhe = contratos;
+        const temMentoriaAtiva = contratos.some(c => c.produto === 'mentoria' && c.status === 'ativo');
+        document.getElementById('btnFecharMentoria').style.display = temMentoriaAtiva ? '' : 'none';
         if (!contratos.length) {
           el.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Nenhum contrato cadastrado.</p>';
           return;
