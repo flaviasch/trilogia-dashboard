@@ -195,35 +195,36 @@ class SheetsClient {
   }
 
   // ─── Reservas ──────────────────────────────────────────────────────────────
-  // Aba: reservas | Colunas: id | nome | meta | acumulado | dataMeta | aporte
+  // Aba: reservas | Colunas: id | nome | meta | acumulado | dataMeta | aporte | dataInicioAporte
 
   async getReservas() {
-    const rows = await this.read('reservas!A2:F');
+    const rows = await this.read('reservas!A2:G');
     return rows.map(r => ({
-      id:        r[0] || '',
-      nome:      r[1] || '',
-      meta:      parseFloat(r[2]) || 0,
-      acumulado: parseFloat(r[3]) || 0,
-      dataMeta:  r[4] || '',
-      aporte:    parseFloat(r[5]) || 0,
+      id:               r[0] || '',
+      nome:             r[1] || '',
+      meta:             parseFloat(r[2]) || 0,
+      acumulado:        parseFloat(r[3]) || 0,
+      dataMeta:         r[4] || '',
+      aporte:           parseFloat(r[5]) || 0,
+      dataInicioAporte: r[6] || '',
     }));
   }
 
   async saveReserva(reserva) {
-    const rows = await this.read('reservas!A2:F');
+    const rows = await this.read('reservas!A2:G');
     const idx = rows.findIndex(r => r[0] === reserva.id);
-    const row = [reserva.id, reserva.nome, reserva.meta, reserva.acumulado, reserva.dataMeta || '', reserva.aporte];
+    const row = [reserva.id, reserva.nome, reserva.meta, reserva.acumulado, reserva.dataMeta || '', reserva.aporte, reserva.dataInicioAporte || ''];
     if (idx === -1) {
       await this.append('reservas!A2', [row]);
     } else {
-      await this.write(`reservas!A${idx + 2}:F${idx + 2}`, [row]);
+      await this.write(`reservas!A${idx + 2}:G${idx + 2}`, [row]);
     }
   }
 
   async deleteReserva(id) {
-    const rows = await this.read('reservas!A2:F');
+    const rows = await this.read('reservas!A2:G');
     const filtradas = rows.filter(r => r[0] !== id);
-    await this.clear('reservas!A2:F');
+    await this.clear('reservas!A2:G');
     if (filtradas.length > 0) await this.write('reservas!A2', filtradas);
   }
 

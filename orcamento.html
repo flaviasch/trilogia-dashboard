@@ -1652,7 +1652,12 @@
 
       // Ritmo dos aportes — Planejado × Realizado
       const ritmoBoxEl = document.getElementById('ritmoBox');
-      const reservasAtivas  = reservas.filter(r => r.acumulado < r.meta && r.aporte > 0);
+      const mesViz = `${ano}-${String(mes).padStart(2, '0')}`;
+      const reservasAtivas  = reservas.filter(r =>
+        r.acumulado < r.meta &&
+        r.aporte > 0 &&
+        (!r.dataInicioAporte || r.dataInicioAporte <= mesViz)
+      );
       const totalPlanejado  = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
       const totalApRitmo    = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
       const temAporte       = totalApRitmo > 0;

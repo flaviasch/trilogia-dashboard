@@ -520,6 +520,11 @@
           <input type="text" inputmode="numeric" id="rAporte" placeholder="0" />
         </div>
       </div>
+      <div class="field-group">
+        <label for="rDataInicioAporte">Início dos aportes</label>
+        <input type="month" id="rDataInicioAporte" />
+        <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Deixe em branco para começar imediatamente. O orçamento só vai cobrar este aporte a partir do mês informado.</p>
+      </div>
 
       <div class="field-group">
         <label>Alocação sugerida</label>
@@ -1249,8 +1254,9 @@
           document.getElementById('rNome').value     = r.nome;
           setMoney(document.getElementById('rMeta'),      r.meta);
           setMoney(document.getElementById('rAcumulado'), r.acumulado);
-          document.getElementById('rDataMeta').value = r.dataMeta;
-          setMoney(document.getElementById('rAporte'),    r.aporte);
+          document.getElementById('rDataMeta').value        = r.dataMeta;
+          setMoney(document.getElementById('rAporte'),          r.aporte);
+          document.getElementById('rDataInicioAporte').value = r.dataInicioAporte || '';
           atualizarPreview();
         }
         // Edição: oculta dica
@@ -1310,11 +1316,12 @@
     document.getElementById('rMeta').addEventListener('input', () => marcarErro('fgMeta', false));
 
     document.getElementById('btnSalvarModal').addEventListener('click', async () => {
-      const nome      = document.getElementById('rNome').value.trim();
-      const meta      = readMoney(document.getElementById('rMeta'));
-      const acumulado = readMoney(document.getElementById('rAcumulado'));
-      const dataMeta  = document.getElementById('rDataMeta').value;
-      const aporte    = readMoney(document.getElementById('rAporte'));
+      const nome             = document.getElementById('rNome').value.trim();
+      const meta             = readMoney(document.getElementById('rMeta'));
+      const acumulado        = readMoney(document.getElementById('rAcumulado'));
+      const dataMeta         = document.getElementById('rDataMeta').value;
+      const aporte           = readMoney(document.getElementById('rAporte'));
+      const dataInicioAporte = document.getElementById('rDataInicioAporte').value || '';
 
       const nomeOk = !!nome;
       const metaOk = meta > 0;
@@ -1329,11 +1336,11 @@
       if (editandoId) {
         const idx = reservas.findIndex(r => r.id === editandoId);
         if (idx !== -1) {
-          reservas[idx] = { ...reservas[idx], nome, meta, acumulado, dataMeta, aporte };
+          reservas[idx] = { ...reservas[idx], nome, meta, acumulado, dataMeta, aporte, dataInicioAporte };
           reserva = reservas[idx];
         }
       } else {
-        reserva = { id: 'r' + Date.now(), nome, meta, acumulado, dataMeta, aporte };
+        reserva = { id: 'r' + Date.now(), nome, meta, acumulado, dataMeta, aporte, dataInicioAporte };
         reservas.push(reserva);
       }
 
