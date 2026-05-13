@@ -593,6 +593,10 @@
   </div>
 
   <!-- Banner de erro total (Firestore inacessível) -->
+  <div id="viewAsBanner" style="display:none; background:rgba(207,174,101,0.12); border-bottom:1px solid rgba(207,174,101,0.3); padding:10px 32px; font-size:13px; color:#CFAE65; gap:12px; align-items:center;">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html" style="color:#CFAE65; text-decoration:underline; margin-left:auto">← Voltar ao admin</a>
+  </div>
   <div id="erroBanner" style="display:none; background:rgba(248,113,113,0.12); border-bottom:1px solid rgba(248,113,113,0.3); padding:12px 32px; font-size:13px; color:#f87171;">
     Não foi possível carregar seus dados. Verifique sua conexão e <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">tente novamente</a>.
   </div>
@@ -756,11 +760,21 @@
 
     // ─── Init ─────────────────────────────────────
     const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
+    const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs');
 
     async function init(user) {
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
       let admin = await isAdmin();
       if (admin) document.getElementById('linkAdmin').style.display = 'inline';
+
+      // Modo visualização: admin abrindo dashboard de uma mentorada
+      if (VIEW_AS_UID && admin) {
+        const banner = document.getElementById('viewAsBanner');
+        if (banner) banner.style.display = 'flex';
+        await loadDashboard(user, VIEW_AS_UID);
+        document.getElementById('loadingOverlay').style.display = 'none';
+        return;
+      }
 
       const ok = await loadDashboard(user);
 
@@ -783,8 +797,6 @@
 
       document.getElementById('loadingOverlay').style.display = 'none';
       // Visibilidade de mainContent / welcomeScreen é gerenciada por checkOnboarding()
-
-      // Acesso registrado automaticamente dentro de getDashboard (sem round-trip extra)
     }
 
     // ─── LGPD ─────────────────────────────────────
@@ -886,10 +898,10 @@
       if (e.persisted) location.reload();
     });
 
-    async function loadDashboard(user) {
+    async function loadDashboard(user, viewAsUid = null) {
       let data;
       try {
-        data = await getDashboard();
+        data = await getDashboard(viewAsUid ? { uid: viewAsUid } : undefined);
       } catch (err) {
         console.error('Erro ao carregar dashboard:', err);
         const banner = document.getElementById('erroBanner');
