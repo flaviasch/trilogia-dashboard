@@ -1540,7 +1540,19 @@
       btnSalvar.textContent = 'Criando conta…';
 
       try {
-        await createMentorada({ nome, email, inicio, perfil, dataExpiracao, produto, valorMensal, formaPagamento });
+        const resultado = await createMentorada({ nome, email, inicio, perfil, dataExpiracao, produto, valorMensal, formaPagamento });
+
+        // Se a planilha não foi criada automaticamente, tenta agora
+        if (!resultado?.sheetId && resultado?.uid) {
+          btnSalvar.textContent = 'Criando planilha…';
+          try {
+            await criarPlanilha(resultado.uid);
+          } catch (errSheet) {
+            console.warn('[createMentorada] Planilha não criada:', errSheet.message);
+            // Conta foi criada — admin pode criar a planilha depois pelo detalhe
+          }
+        }
+
         mentoradas = await getMentoradas();
         document.getElementById('modalNova').classList.add('hidden');
         limparModal();
