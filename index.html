@@ -905,11 +905,16 @@
       } catch (err) {
         console.error('Erro ao carregar dashboard:', err);
         const banner = document.getElementById('erroBanner');
-        const codigo = err?.code || 'unknown';
-        const msg    = err?.message || 'Erro desconhecido';
-        banner.innerHTML = `Erro ao carregar (${codigo}): ${msg} &nbsp;·&nbsp; <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">tentar novamente</a>`;
+        const semPlanilha = err?.code === 'functions/failed-precondition' && viewAsUid;
+        if (semPlanilha) {
+          banner.innerHTML = `Esta mentorada ainda não tem planilha configurada. &nbsp;·&nbsp; <a href="admin.html" style="color:#f87171;text-decoration:underline;">Voltar ao admin para criar a planilha</a>`;
+        } else {
+          const codigo = err?.code || 'unknown';
+          const msg    = err?.message || 'Erro desconhecido';
+          banner.innerHTML = `Erro ao carregar (${codigo}): ${msg} &nbsp;·&nbsp; <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">tentar novamente</a>`;
+        }
         banner.style.display = 'block';
-        return false;   // sinaliza falha total para o init()
+        return false;
       }
 
       // Planilha inacessível mas dados do Firestore (inicio, perfil) estão disponíveis
