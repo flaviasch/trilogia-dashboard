@@ -613,6 +613,7 @@
       <!-- Ações rápidas -->
       <div style="margin-top:32px;display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn-acao" id="btnAbrirDashboard">Ver dashboard dela</button>
+        <button class="btn-acao" id="btnCriarPlanilha" style="display:none">Criar planilha</button>
         <button class="btn-acao" id="btnEnviarEmail">Enviar e-mail</button>
         <button class="btn-acao" id="btnReenviarAcesso">Reenviar link de acesso</button>
         <button class="btn-acao reativar" id="btnReativar" style="display:none">Reativar acesso</button>
@@ -883,7 +884,8 @@
   <script type="module">
     import { exigirAdmin, logout, refreshAdmin } from './js/admin-guard.js';
     import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada,
-             createContrato, getContratos, pagarParcela, editarPagamento, cancelarCobranca, cancelarContrato, getCobrancas } from './js/api.js';
+             createContrato, getContratos, pagarParcela, editarPagamento, cancelarCobranca, cancelarContrato, getCobrancas,
+             criarPlanilha } from './js/api.js';
 
     // ─── Auth guard via Custom Claim ─────────────
     const user = await exigirAdmin();
@@ -1268,6 +1270,7 @@
         if (dias < 0)       alertas.push({ icon: '🔴', texto: 'Acesso expirado.' });
         else if (dias <= 7) alertas.push({ icon: '⚠️', texto: `Acesso expira em ${dias} dia${dias !== 1 ? 's' : ''}.` });
       }
+      if (!m.sheetId)            alertas.push({ icon: '📊', texto: 'Planilha não configurada — o dashboard da aluna não funciona sem ela.' });
       if (alertas.length === 0) alertas.push({ icon: '✅', texto: 'Nenhum alerta ativo para esta mentorada.' });
 
       const alertasEl = document.getElementById('detAlertas');
@@ -1282,6 +1285,9 @@
 
       // Carrega contratos em background
       carregarContratos(uid);
+
+      // Botão criar planilha — só aparece se sheetId ausente
+      document.getElementById('btnCriarPlanilha').style.display = m.sheetId ? 'none' : '';
 
       // Botões contextuais
       const inativa  = m.status === 'inativa';
@@ -1406,6 +1412,24 @@
     document.getElementById('btnEnviarEmail').addEventListener('click', () => {
       if (!mentoradaEmDetalhe) return;
       window.location.href = `mailto:${mentoradaEmDetalhe.email}`;
+    });
+
+    document.getElementById('btnCriarPlanilha').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const btn = document.getElementById('btnCriarPlanilha');
+      btn.disabled = true; btn.textContent = 'Criando…';
+      try {
+        const { sheetId } = await criarPlanilha(uid);
+        mentoradaEmDetalhe.sheetId = sheetId;
+        const idx = mentoradas.findIndex(m => (m.uid || m.id) === uid);
+        if (idx >= 0) mentoradas[idx].sheetId = sheetId;
+        btn.style.display = 'none';
+        alert('Planilha criada com sucesso! O dashboard dela já está disponível.');
+      } catch (err) {
+        alert(`Erro ao criar planilha: ${err.message}`);
+        btn.disabled = false; btn.textContent = 'Criar planilha';
+      }
     });
 
     document.getElementById('btnReenviarAcesso').addEventListener('click', async () => {

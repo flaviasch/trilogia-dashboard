@@ -279,6 +279,10 @@ export async function reenviarAcesso(uid) {
   return call('reenviarAcesso')({ uid });
 }
 
+export async function criarPlanilha(uid) {
+  return call('criarPlanilha')({ uid });
+}
+
 /** Registra acesso da aluna (chamar no load do dashboard). */
 export const registrarAcesso = call('registrarAcesso');
 

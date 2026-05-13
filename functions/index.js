@@ -468,6 +468,27 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
 });
 
 /**
+ * Provisiona planilha para mentorada que ainda não tem sheetId.
+ * Exclusivo para admin.
+ */
+exports.criarPlanilha = onCall({ secrets: SECRETS_ALL }, async (request) => {
+  requireAdmin(request);
+  const { uid } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+
+  const docRef  = db.collection('mentoradas').doc(uid);
+  const docSnap = await docRef.get();
+  if (!docSnap.exists) throw new HttpsError('not-found', 'Mentorada não encontrada.');
+
+  const { sheetId: existente, nome } = docSnap.data();
+  if (existente) throw new HttpsError('already-exists', 'Esta mentorada já tem planilha vinculada.');
+
+  const sheetId = await provisionar(nome, DRIVE_FOLDER_ID);
+  await docRef.update({ sheetId });
+  return { sheetId };
+});
+
+/**
  * Atualiza campos editáveis de uma mentorada (status, nota, perfil).
  * Exclusivo para admin.
  */
