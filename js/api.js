@@ -34,7 +34,18 @@ function call(nome) {
 
 // ─── UID do usuário logado ─────────────────────────────────────────────────────
 
+let _viewAsUid = null;
+
+/** Define um UID de mentorada para ser usado em lugar do usuário logado.
+ *  Chamado pelas sub-páginas quando acessadas com ?viewAs=uid pelo admin. */
+export function setViewAsUid(uid) { _viewAsUid = uid || null; }
+
 export function uidAtual() {
+  if (_viewAsUid) return _viewAsUid;
+  // Fallback ao localStorage — cobre casos onde setViewAsUid não foi chamado
+  // (cache antigo, nova aba, bfcache). localStorage persiste entre abas/navegações.
+  const lsUid = localStorage.getItem('viewAsUid');
+  if (lsUid) return lsUid;
   const user = auth.currentUser;
   if (!user) throw { code: 'unauthenticated', message: 'Usuária não está logada.' };
   return user.uid;
@@ -283,6 +294,15 @@ export async function criarPlanilha(uid) {
   return call('criarPlanilha')({ uid });
 }
 
+/**
+ * Lê a página Notion da mentorada e retorna dados de CRM:
+ * último encontro (numero, tema, data) e lições de casa pendentes.
+ * @param {string} uid
+ */
+export async function getNotionCRM(uid) {
+  return call('getNotionCRM')({ uid });
+}
+
 /** Registra acesso da aluna (chamar no load do dashboard). */
 export const registrarAcesso = call('registrarAcesso');
 
@@ -318,6 +338,11 @@ export async function cancelarCobranca(cobrancaId) {
 
 export async function cancelarContrato(uid, contratoId) {
   return call('cancelarContrato')({ uid, contratoId });
+}
+
+/** Edita produto, forma de pagamento e periodicidade de um contrato. */
+export async function editarContrato(uid, contratoId, dados) {
+  return call('editarContrato')({ uid, contratoId, ...dados });
 }
 
 /** Retorna cobranças do mês para o hub financeiro. */

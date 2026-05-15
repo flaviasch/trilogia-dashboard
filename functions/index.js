@@ -55,7 +55,7 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   if (!docSnap.exists) {
     throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
   }
-  const { sheetId, inicio, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes } = docSnap.data();
+  const { sheetId, inicio, nome, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes } = docSnap.data();
   if (!sheetId) {
     throw new HttpsError('failed-precondition', 'Planilha ainda não configurada para esta mentorada.');
   }
@@ -140,6 +140,7 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   }).catch(e => console.warn(`[getDashboard] Falha ao cachear snapshot (uid=${uid}):`, e.message));
 
   return {
+    nome:       nome       || null,
     orcamento: { receita, despesa, sobra, mes, ano },
     patrimonio: { ativos: totalAtivos, dividas: totalDividas, pl },
     reservas,
@@ -483,7 +484,13 @@ exports.criarPlanilha = onCall({ secrets: SECRETS_ALL }, async (request) => {
   const { sheetId: existente, nome } = docSnap.data();
   if (existente) throw new HttpsError('already-exists', 'Esta mentorada já tem planilha vinculada.');
 
-  const sheetId = await provisionar(nome, DRIVE_FOLDER_ID);
+  let sheetId;
+  try {
+    sheetId = await provisionar(nome, DRIVE_FOLDER_ID);
+  } catch (err) {
+    console.error('[criarPlanilha] Erro no provisionar:', err.message, err.stack);
+    throw new HttpsError('internal', `Falha ao criar planilha: ${err.message}`);
+  }
   await docRef.update({ sheetId });
   return { sheetId };
 });
@@ -501,6 +508,7 @@ exports.updateMentorada = onCall({ cors: true }, async (request) => {
   const permitidos = [
     'status', 'nota', 'perfil', 'inicio',
     'produto', 'valorMensal', 'formaPagamento', 'dataExpiracao',
+    'mentoriaEncerrada',
   ];
   const atualizacao = {};
   for (const [k, v] of Object.entries(campos || {})) {
@@ -898,6 +906,69 @@ exports.cancelarContrato = onCall({ cors: true }, async (request) => {
 });
 
 /**
+ * Edita um contrato: produto, formaPagamento, periodicidade.
+ * Para contratos parcelados sem parcelas pagas, permite também recriar as parcelas
+ * com nova quantidade e novo valor (parcelas = [{ valor, vencimento }]).
+ */
+exports.editarContrato = onCall({ cors: true }, async (request) => {
+  requireAdmin(request);
+  const { uid, contratoId, produto, formaPagamento, periodicidade, parcelas } = request.data;
+  if (!uid || !contratoId || !produto || !formaPagamento) {
+    throw new HttpsError('invalid-argument', 'uid, contratoId, produto e formaPagamento são obrigatórios.');
+  }
+
+  const contratoRef = db.collection('mentoradas').doc(uid).collection('contratos').doc(contratoId);
+  const contratoSnap = await contratoRef.get();
+  if (!contratoSnap.exists) throw new HttpsError('not-found', 'Contrato não encontrado.');
+  const contrato = contratoSnap.data();
+
+  const mDoc = await db.collection('mentoradas').doc(uid).get();
+  const { nome, email } = mDoc.data();
+
+  const cobsSnap = await db.collection('cobrancas')
+    .where('contratoId', '==', contratoId).get();
+
+  const batch = db.batch();
+
+  if (parcelas && parcelas.length && contrato.tipo === 'parcelado') {
+    // Verifica se há parcelas já pagas — não pode recriar nesse caso
+    const algumaPaga = cobsSnap.docs.some(d => d.data().pago);
+    if (algumaPaga) {
+      throw new HttpsError('failed-precondition', 'Não é possível alterar parcelas de um contrato com pagamentos já registrados.');
+    }
+    // Apaga cobranças antigas e cria novas
+    cobsSnap.docs.forEach(d => batch.delete(d.ref));
+    const valorTotal = parcelas.reduce((s, p) => s + (p.valor || 0), 0);
+    batch.update(contratoRef, { produto, formaPagamento, valorTotal });
+    parcelas.forEach((p, i) => {
+      const cobRef = db.collection('cobrancas').doc();
+      batch.set(cobRef, {
+        uidMentorada: uid, nomeAluna: nome, emailAluna: email,
+        contratoId, produto, formaPagamento,
+        tipo: 'parcelado', periodicidade: null,
+        numero: i + 1, total: parcelas.length,
+        valor: p.valor, vencimento: p.vencimento,
+        pago: false, dataPagamento: null, valorRecebido: null,
+        criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+  } else {
+    // Só atualiza campos básicos
+    const updateContrato = { produto, formaPagamento };
+    if (contrato.tipo === 'recorrente') updateContrato.periodicidade = periodicidade || 'mensal';
+    batch.update(contratoRef, updateContrato);
+    cobsSnap.docs.forEach(d => {
+      const upd = { produto, formaPagamento };
+      if (contrato.tipo === 'recorrente') upd.periodicidade = periodicidade || 'mensal';
+      batch.update(d.ref, upd);
+    });
+  }
+
+  await batch.commit();
+  return { ok: true };
+});
+
+/**
  * Retorna cobranças filtradas por mês/ano (hub financeiro).
  * Opcionalmente filtra por uid de mentorada.
  */
@@ -933,7 +1004,9 @@ exports.getCobrancas = onCall({ cors: true }, async (request) => {
  * Notificação diária de cobranças com vencimento hoje.
  * Enviada para a Flávia às 8h (horário de Brasília = 11h UTC).
  */
-exports.notifCobrancasDia = onSchedule('every day 11:00', async () => {
+exports.notifCobrancasDia = onSchedule(
+  { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN'] },
+  async () => {
   const hoje = new Date().toISOString().slice(0, 10);
 
   const snap = await db.collection('cobrancas')
@@ -1152,3 +1225,160 @@ exports.notifExpiracaoProxima = onSchedule(
     }
   },
 );
+
+// ─── NOTION CRM ───────────────────────────────────────────────────────────────
+
+/** Extrai texto puro de um array de rich_text do Notion. */
+function getRichText(richText) {
+  if (!Array.isArray(richText)) return '';
+  return richText.map(r => r.plain_text || '').join('');
+}
+
+/**
+ * Lê a página Notion da mentorada e retorna:
+ *   - ultimoEncontro: { numero, tema, data }
+ *   - licoesPendentes: string[]   (checkboxes desmarcadas do último encontro)
+ *   - notionPageUrl: string
+ *
+ * Cacheia notionPageId + contagem de lições em Firestore para exibir badge na lista.
+ */
+exports.getNotionCRM = onCall({ secrets: ['NOTION_TOKEN'] }, async (request) => {
+  requireAdmin(request);
+  const { uid } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+
+  const docSnap = await db.collection('mentoradas').doc(uid).get();
+  if (!docSnap.exists) throw new HttpsError('not-found', 'Mentorada não encontrada.');
+
+  const { nome, notionPageId: cachedPageId } = docSnap.data();
+  if (!nome) throw new HttpsError('not-found', 'Nome da mentorada não encontrado no Firestore.');
+
+  const NOTION_TOKEN = process.env.NOTION_TOKEN;
+  const headers = {
+    'Authorization': `Bearer ${NOTION_TOKEN}`,
+    'Notion-Version': '2022-06-28',
+    'Content-Type': 'application/json',
+  };
+
+  // ── 1. Encontrar a página Notion ────────────────────────────────────────────
+  let pageId  = cachedPageId || null;
+  let pageUrl = pageId ? `https://notion.so/${pageId.replace(/-/g, '')}` : null;
+
+  if (!pageId) {
+    const searchRes = await fetch('https://api.notion.com/v1/search', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        query: nome,
+        filter: { value: 'page', property: 'object' },
+        page_size: 15,
+      }),
+    });
+
+    if (!searchRes.ok) {
+      const err = await searchRes.json();
+      throw new HttpsError('internal', `Notion search falhou: ${err.message || searchRes.status}`);
+    }
+
+    const searchData = await searchRes.json();
+    const page = (searchData.results || []).find(p => {
+      const title = getRichText(p.properties?.title?.title) ||
+                    getRichText(p.properties?.Name?.title)  || '';
+      return title.toLowerCase().includes(nome.toLowerCase());
+    });
+
+    if (!page) {
+      return { notionPageUrl: null, ultimoEncontro: null, licoesPendentes: [] };
+    }
+    pageId  = page.id;
+    pageUrl = page.url;
+  }
+
+  // ── 2. Ler os blocos da página ────────────────────────────────────────────
+  const blocksRes = await fetch(
+    `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
+    { headers },
+  );
+
+  if (!blocksRes.ok) {
+    const err = await blocksRes.json();
+    // pageId pode estar stale — limpa o cache e tenta nova busca na próxima vez
+    await db.collection('mentoradas').doc(uid).update({ notionPageId: null }).catch(() => {});
+    throw new HttpsError('internal', `Notion blocks falhou: ${err.message || blocksRes.status}`);
+  }
+
+  const blocks = (await blocksRes.json()).results || [];
+
+  // ── 3. Parsear encontros e lições ─────────────────────────────────────────
+  // Varre todos os blocos e coleta todos os encontros.
+  // Ao final, fica com o de maior número (mais recente).
+  let encontros       = [];      // { numero, tema, data, licoes[] }
+  let encontroAtual   = null;
+  let licoesAtuais    = [];
+  let emLicao         = false;
+
+  for (const block of blocks) {
+    const type = block.type;
+
+    // Heading 2 → marcador de encontro: "Encontro N | Tema | Data"
+    if (type === 'heading_2') {
+      const text = getRichText(block.heading_2?.rich_text);
+      const match = text.match(/Encontro\s+(\d+)\s*[|\\]\s*(.+?)\s*[|\\]\s*(.+)/i);
+      if (match) {
+        // Salva o encontro anterior antes de começar um novo
+        if (encontroAtual) {
+          encontros.push({ ...encontroAtual, licoes: licoesAtuais });
+        }
+        encontroAtual = {
+          numero: parseInt(match[1], 10),
+          tema:   match[2].trim(),
+          data:   match[3].trim(),
+        };
+        licoesAtuais = [];
+        emLicao = false;
+        continue;
+      }
+    }
+
+    if (!encontroAtual) continue;
+
+    // Heading 3 → sub-seções do encontro ("Lição de Casa", "Alinhamentos", etc.)
+    if (type === 'heading_3') {
+      const text = getRichText(block.heading_3?.rich_text);
+      emLicao = /li[çc][aã]o\s+de\s+casa/i.test(text);
+      continue;
+    }
+
+    // Divider → separa encontros
+    if (type === 'divider') {
+      emLicao = false;
+      continue;
+    }
+
+    // To-do (checkbox) → lição de casa pendente
+    if (type === 'to_do' && emLicao && !block.to_do?.checked) {
+      const texto = getRichText(block.to_do?.rich_text).trim();
+      if (texto) licoesAtuais.push(texto);
+    }
+  }
+
+  // Salva o último encontro do loop
+  if (encontroAtual) {
+    encontros.push({ ...encontroAtual, licoes: licoesAtuais });
+  }
+
+  // Pega o encontro com maior número (mais recente)
+  const melhor = encontros.sort((a, b) => b.numero - a.numero)[0] || null;
+  const ultimoEncontro  = melhor ? { numero: melhor.numero, tema: melhor.tema, data: melhor.data } : null;
+  const licoesPendentes = melhor ? melhor.licoes : [];
+
+  // ── 4. Cachear no Firestore para o badge na lista ─────────────────────────
+  await db.collection('mentoradas').doc(uid).update({
+    notionPageId:          pageId,
+    notionUltimoEncontro:  ultimoEncontro,
+    notionLicoesPendentes: licoesPendentes.length,
+    notionSyncedAt:        admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(e => console.warn('[getNotionCRM] Falha ao cachear:', e.message));
+
+  return { notionPageUrl: pageUrl, ultimoEncontro, licoesPendentes };
+});

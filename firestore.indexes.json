@@ -23,6 +23,14 @@
       "fields": [
         { "fieldPath": "criadoEm", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "mentoradas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",         "order": "ASCENDING" },
+        { "fieldPath": "dataExpiracao",  "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
