@@ -987,8 +987,51 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
     const body = req.body || {};
     const event = (body.event || body.type || '').toLowerCase().replace('.', '_');
 
-    // Aceita order_approved e subscription_payment
-    const eventosAceitos = ['order_approved', 'subscription_payment', 'order_completed'];
+    // Eventos de cancelamento/atraso → bloquear ou alertar mentorada
+    const eventosCancelamento = ['subscription_canceled', 'subscription_cancelled', 'assinatura_cancelada'];
+    const eventosAtraso       = ['subscription_overdue', 'subscription_delayed', 'assinatura_atrasada', 'assinatura_em_atraso'];
+
+    if (eventosCancelamento.includes(event) || eventosAtraso.includes(event)) {
+      const data2 = body.data || body;
+      const emailCancelado = (
+        data2?.customer?.email || data2?.subscriber?.email || data2?.buyer?.email || ''
+      ).toLowerCase().trim();
+
+      if (!emailCancelado) {
+        res.status(200).json({ ok: false, msg: 'E-mail ausente.' });
+        return;
+      }
+
+      const mSnap = await db.collection('mentoradas').where('email', '==', emailCancelado).limit(1).get();
+      if (mSnap.empty) {
+        console.warn(`[kiwify] Mentorada não encontrada para cancelamento: ${emailCancelado}`);
+        res.status(200).json({ ok: false, msg: 'Mentorada não encontrada.' });
+        return;
+      }
+
+      const mUid = mSnap.docs[0].id;
+
+      if (eventosCancelamento.includes(event)) {
+        // Cancelamento: bloqueia acesso no Auth + marca inativa
+        await admin.auth().updateUser(mUid, { disabled: true });
+        await db.collection('mentoradas').doc(mUid).update({ status: 'inativa' });
+        console.log(`[kiwify] 🔴 Acesso bloqueado por cancelamento: ${emailCancelado}`);
+        res.status(200).json({ ok: true, acao: 'bloqueada', uid: mUid });
+      } else {
+        // Atraso: marca alerta (não bloqueia ainda)
+        await db.collection('mentoradas').doc(mUid).update({ status: 'alerta' });
+        console.log(`[kiwify] ⚠️ Alerta de atraso marcado: ${emailCancelado}`);
+        res.status(200).json({ ok: true, acao: 'alerta', uid: mUid });
+      }
+      return;
+    }
+
+    // Aceita todos os eventos de pagamento confirmado do Kiwify
+    const eventosAceitos = [
+      'order_approved', 'order_completed', 'purchase_approved',
+      'subscription_payment', 'subscription_renewed', 'subscription_renewal',
+      'assinatura_renovada', 'compra_aprovada',
+    ];
     if (!eventosAceitos.includes(event)) {
       console.log(`[kiwify] Evento ignorado: ${event}`);
       res.status(200).json({ ok: true, msg: 'Evento ignorado.' });
