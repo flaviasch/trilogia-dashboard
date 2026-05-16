@@ -1,6 +1,6 @@
 'use strict';
 
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule }         = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
 
@@ -966,6 +966,169 @@ exports.editarContrato = onCall({ cors: true }, async (request) => {
 
   await batch.commit();
   return { ok: true };
+});
+
+/**
+ * Webhook do Kiwify — registra pagamento automaticamente.
+ * Endpoint público: POST /kiwifyWebhook
+ *
+ * Matching: e-mail da cliente + produto (nome do produto Kiwify deve conter
+ * uma das palavras-chave: mentoria, private, clube, dashboard).
+ * Cobrança alvo: a não paga com vencimento no mês atual; se não houver,
+ * a mais antiga não paga.
+ *
+ * Eventos aceitos: order_approved, subscription_payment,
+ *                  order.approved, subscription.payment (variações de formato)
+ */
+exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
+  if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+  try {
+    const body = req.body || {};
+    const event = (body.event || body.type || '').toLowerCase().replace('.', '_');
+
+    // Aceita order_approved e subscription_payment
+    const eventosAceitos = ['order_approved', 'subscription_payment', 'order_completed'];
+    if (!eventosAceitos.includes(event)) {
+      console.log(`[kiwify] Evento ignorado: ${event}`);
+      res.status(200).json({ ok: true, msg: 'Evento ignorado.' });
+      return;
+    }
+
+    const data = body.data || body;
+
+    // Extrai e-mail do cliente
+    const email = (
+      data?.customer?.email ||
+      data?.subscriber?.email ||
+      data?.buyer?.email ||
+      ''
+    ).toLowerCase().trim();
+
+    if (!email) {
+      console.error('[kiwify] E-mail do cliente ausente no payload:', JSON.stringify(body));
+      res.status(200).json({ ok: false, msg: 'E-mail ausente.' });
+      return;
+    }
+
+    // Extrai nome do produto
+    const nomeProduto = (
+      data?.product?.name ||
+      data?.plan?.name ||
+      data?.product_name ||
+      ''
+    ).toLowerCase();
+
+    // Mapeia nome do produto para código interno
+    let produtoCodigo = null;
+    if (/mentoria|mentoring/i.test(nomeProduto))       produtoCodigo = 'mentoria';
+    else if (/private/i.test(nomeProduto))             produtoCodigo = 'private';
+    else if (/clube|club/i.test(nomeProduto))          produtoCodigo = 'clube';
+    else if (/dashboard|dash/i.test(nomeProduto))      produtoCodigo = 'dashboard';
+
+    // Extrai valor (Kiwify envia em centavos)
+    const valorCentavos = (
+      data?.charges?.[0]?.amount ||
+      data?.charge?.amount ||
+      data?.total_price ||
+      data?.amount ||
+      0
+    );
+    const valorRecebido = valorCentavos > 1000
+      ? valorCentavos / 100   // converte centavos → reais
+      : valorCentavos;        // já está em reais (alguns planos)
+
+    const dataPagamento = new Date().toISOString().slice(0, 10);
+
+    console.log(`[kiwify] Evento: ${event} | E-mail: ${email} | Produto: ${nomeProduto} (${produtoCodigo}) | Valor: R$${valorRecebido}`);
+
+    // Busca mentorada pelo e-mail
+    const mentSnap = await db.collection('mentoradas')
+      .where('email', '==', email).limit(1).get();
+
+    if (mentSnap.empty) {
+      console.warn(`[kiwify] Mentorada não encontrada para e-mail: ${email}`);
+      res.status(200).json({ ok: false, msg: `Mentorada não encontrada: ${email}` });
+      return;
+    }
+
+    const uidMentorada = mentSnap.docs[0].id;
+
+    // Busca cobranças pendentes desta mentorada
+    let query = db.collection('cobrancas')
+      .where('uidMentorada', '==', uidMentorada)
+      .where('pago', '==', false);
+
+    const cobsSnap = await query.get();
+    let cobrancas = cobsSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(c => !c.cancelada);
+
+    // Filtra por produto se identificado
+    if (produtoCodigo) {
+      const filtrado = cobrancas.filter(c => c.produto === produtoCodigo);
+      if (filtrado.length > 0) cobrancas = filtrado;
+    }
+
+    if (!cobrancas.length) {
+      console.warn(`[kiwify] Nenhuma cobrança pendente para: ${email}`);
+      res.status(200).json({ ok: false, msg: 'Nenhuma cobrança pendente encontrada.' });
+      return;
+    }
+
+    // Prefere cobrança do mês atual, senão pega a mais antiga
+    const hoje = new Date();
+    const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    const doMes = cobrancas.filter(c => c.vencimento && c.vencimento.startsWith(mesAtual));
+    const alvo = (doMes.length > 0 ? doMes : cobrancas)
+      .sort((a, b) => (a.vencimento || '').localeCompare(b.vencimento || ''))[0];
+
+    // Registra pagamento (mesma lógica de pagarParcela)
+    const cobRef = db.collection('cobrancas').doc(alvo.id);
+    await cobRef.update({
+      pago: true,
+      dataPagamento,
+      valorRecebido: valorRecebido || alvo.valor,
+      formaPagamento: 'kiwify',
+    });
+
+    // Recorrente: gera próxima cobrança
+    if (alvo.tipo === 'recorrente') {
+      const proxVenc = proximoVencimento(alvo.vencimento, alvo.periodicidade);
+      await db.collection('cobrancas').add({
+        uidMentorada, nomeAluna: alvo.nomeAluna, emailAluna: alvo.emailAluna,
+        contratoId: alvo.contratoId, produto: alvo.produto,
+        formaPagamento: 'kiwify', tipo: 'recorrente',
+        periodicidade: alvo.periodicidade,
+        numero: alvo.numero + 1, total: alvo.total,
+        valor: alvo.valor, vencimento: proxVenc,
+        pago: false, dataPagamento: null, valorRecebido: null,
+        criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      if (PRODUTOS_RECORRENTES.includes(alvo.produto)) {
+        await db.collection('mentoradas').doc(uidMentorada).update({ dataExpiracao: proxVenc });
+      }
+    }
+
+    // Parcelado: verifica se quita o contrato
+    if (alvo.tipo === 'parcelado') {
+      const abertas = await db.collection('cobrancas')
+        .where('contratoId', '==', alvo.contratoId)
+        .where('pago', '==', false).get();
+      if (abertas.empty) {
+        await db.collection('mentoradas').doc(uidMentorada)
+          .collection('contratos').doc(alvo.contratoId)
+          .update({ status: 'quitado' });
+      }
+    }
+
+    console.log(`[kiwify] ✅ Pagamento registrado: ${email} | cobrança ${alvo.id} | R$${valorRecebido || alvo.valor}`);
+    res.status(200).json({ ok: true, cobrancaId: alvo.id });
+
+  } catch (err) {
+    console.error('[kiwify] Erro interno:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 /**
