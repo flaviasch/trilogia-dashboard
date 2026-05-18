@@ -1675,7 +1675,7 @@
     document.getElementById('btnAbrirDashboard').addEventListener('click', () => {
       if (!mentoradaEmDetalhe) return;
       const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
-      window.open(`index.html?viewAs=${uid}`, '_blank');
+      window.location.href = `index.html?viewAs=${uid}`;
     });
 
     document.getElementById('btnEnviarEmail').addEventListener('click', () => {

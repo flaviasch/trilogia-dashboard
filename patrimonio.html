@@ -413,6 +413,12 @@
     </div>
   </nav>
 
+  <!-- Banner viewAs (admin visualizando mentorada) -->
+  <div id="viewAsBanner" style="display:none; background:rgba(207,174,101,0.12); border-bottom:1px solid rgba(207,174,101,0.3); padding:10px 32px; font-size:13px; color:#CFAE65; gap:12px; align-items:center;">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html" style="color:#CFAE65; text-decoration:underline; margin-left:auto">← Voltar ao admin</a>
+  </div>
+
   <!-- Loading -->
   <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
@@ -640,6 +646,8 @@
                      || localStorage.getItem('viewAsUid');
     if (VIEW_AS_UID) {
       setViewAsUid(VIEW_AS_UID);
+      const banner = document.getElementById('viewAsBanner');
+      if (banner) banner.style.display = 'flex';
       const suffix = `?viewAs=${VIEW_AS_UID}`;
       ['index.html','orcamento.html','reservas.html','perfil.html'].forEach(page => {
         document.querySelectorAll(`a[href="${page}"], a[href^="${page}?"]`).forEach(a => { a.href = page + suffix; });
