@@ -1659,10 +1659,9 @@
 
     // Utilitário: encerra reserva (marca concluída, zera aporte/acumulado)
     async function encerrarReserva(id) {
-      const idx = reservas.findIndex(r => r.id === id);
-      if (idx < 0) return;
-      reservas[idx] = { ...reservas[idx], concluida: true, aporte: 0, acumulado: 0 };
-      await saveReserva(reservas[idx]);
+      // Deleta o objetivo encerrado — não há motivo para manter no histórico
+      reservas = reservas.filter(r => r.id !== id);
+      await deleteReserva(id);
     }
 
     // Fechar / decidir depois
