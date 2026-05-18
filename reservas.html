@@ -1525,8 +1525,8 @@
         fecharModalRetirada();
         renderAll();
         localStorage.setItem('patrimonio_extrato_pendente', '1');
-        // Abre modal de próximo passo
-        abrirPosRetirada(retirandoId || r.id, valor, r.nome);
+        // Abre modal de próximo passo (passa valor retirado para o título e saldo restante para transferência)
+        abrirPosRetirada(retirandoId || r.id, valor, novoAcumulado, r.nome);
       } catch (err) {
         toast(`Erro ao registrar retirada: ${err.message || err}`, 'error');
       }
@@ -1536,18 +1536,25 @@
 
     // ─── Modal pós-retirada ──────────────────────────────────────────────────
     let posRetiradaId    = null;   // id da reserva que foi retirada
-    let posRetiradaValor = 0;      // valor retirado
+    let posRetiradaValor = 0;      // valor retirado (para exibição no título)
+    let posRetiradaSaldo = 0;      // saldo restante após retirada (para transferência ao longo prazo)
     const modalPosRetirada = document.getElementById('modalPosRetirada');
 
-    function abrirPosRetirada(id, valor, nome) {
+    function abrirPosRetirada(id, valorRetirado, saldoRestante, nome) {
       posRetiradaId    = id;
-      posRetiradaValor = valor;
+      posRetiradaValor = valorRetirado;
+      posRetiradaSaldo = saldoRestante;
       // Identifica se há reserva de longo prazo (> 120 meses restantes)
       const lp = reservas.find(r => r.id !== id && mesesAte(r.dataMeta) > 120);
-      const descConcluir = lp
-        ? `O objetivo foi alcançado. ${brl(valor)} serão adicionados à reserva "${lp.nome}".`
-        : `O objetivo foi alcançado. ${brl(valor)} serão direcionados para uma nova reserva de longo prazo.`;
-      document.getElementById('posRetiradaTitulo').textContent = `✓ Retirada de ${brl(valor)} registrada`;
+      let descConcluir;
+      if (saldoRestante > 0) {
+        descConcluir = lp
+          ? `Objetivo alcançado! ${brl(saldoRestante)} de saldo restante serão adicionados à reserva "${lp.nome}".`
+          : `Objetivo alcançado! ${brl(saldoRestante)} de saldo restante serão direcionados para uma nova reserva de longo prazo.`;
+      } else {
+        descConcluir = `Objetivo alcançado e valor totalmente utilizado. Reserva será encerrada.`;
+      }
+      document.getElementById('posRetiradaTitulo').textContent = `✓ Retirada de ${brl(valorRetirado)} registrada`;
       document.getElementById('posRetiradaSub').textContent    = `"${nome}" — o que deseja fazer agora?`;
       document.getElementById('opcaoConcluirDesc').textContent = descConcluir;
       modalPosRetirada.classList.remove('hidden');
@@ -1557,6 +1564,7 @@
       modalPosRetirada.classList.add('hidden');
       posRetiradaId    = null;
       posRetiradaValor = 0;
+      posRetiradaSaldo = 0;
     }
 
     document.getElementById('btnFecharPosRetirada').addEventListener('click', () => {
@@ -1575,50 +1583,54 @@
       setTimeout(() => { if (id) abrirModal(id); }, 80);
     });
 
-    // Opção 2 — Concluída: sensibiliza a reserva de longo prazo
+    // Opção 2 — Concluída: transfere saldo RESTANTE (não o que foi retirado) ao longo prazo
     document.getElementById('btnOpcaoConcluir').addEventListener('click', async () => {
       const btn = document.getElementById('btnOpcaoConcluir');
       btn.disabled = true;
       const id    = posRetiradaId;
-      const valor = posRetiradaValor;
+      const saldo = posRetiradaSaldo; // saldo restante após a retirada
 
       try {
-        // Encontra reserva de longo prazo existente (> 120 meses)
-        let lp = reservas.find(r => r.id !== id && mesesAte(r.dataMeta) > 120);
+        // Só transfere se houver saldo restante (se retirou tudo, não há nada a transferir)
+        if (saldo > 0) {
+          let lp = reservas.find(r => r.id !== id && mesesAte(r.dataMeta) > 120);
 
-        if (lp) {
-          // Adiciona valor ao acumulado da reserva de longo prazo
-          const idxLp = reservas.findIndex(r => r.id === lp.id);
-          reservas[idxLp] = { ...lp, acumulado: (lp.acumulado || 0) + valor };
-          await saveReserva(reservas[idxLp]);
-        } else {
-          // Cria nova reserva de longo prazo com o valor
-          const dataMetaLp = new Date();
-          dataMetaLp.setFullYear(dataMetaLp.getFullYear() + 20);
-          const novaLp = {
-            id:               'r' + Date.now(),
-            nome:             'Reserva de Longo Prazo',
-            meta:             valor * 10,   // estimativa inicial
-            acumulado:        valor,
-            dataMeta:         dataMetaLp.toISOString().slice(0, 7),
-            aporte:           0,
-            dataInicioAporte: null,
-          };
-          reservas.push(novaLp);
-          await saveReserva(novaLp);
+          if (lp) {
+            // Adiciona saldo restante ao acumulado da reserva de longo prazo
+            const idxLp = reservas.findIndex(r => r.id === lp.id);
+            reservas[idxLp] = { ...lp, acumulado: (lp.acumulado || 0) + saldo };
+            await saveReserva(reservas[idxLp]);
+          } else {
+            // Cria nova reserva de longo prazo com o saldo restante
+            const dataMetaLp = new Date();
+            dataMetaLp.setFullYear(dataMetaLp.getFullYear() + 20);
+            const novaLp = {
+              id:               'r' + Date.now(),
+              nome:             'Reserva de Longo Prazo',
+              meta:             saldo * 10,   // estimativa inicial
+              acumulado:        saldo,
+              dataMeta:         dataMetaLp.toISOString().slice(0, 7),
+              aporte:           0,
+              dataInicioAporte: null,
+            };
+            reservas.push(novaLp);
+            await saveReserva(novaLp);
+          }
         }
 
-        // Marca a reserva concluída (zera aporte, flag concluida)
+        // Marca a reserva como concluída (zera aporte e saldo, flag concluida)
         const idxR = reservas.findIndex(r => r.id === id);
         if (idxR >= 0) {
-          reservas[idxR] = { ...reservas[idxR], concluida: true, aporte: 0 };
+          reservas[idxR] = { ...reservas[idxR], concluida: true, aporte: 0, acumulado: 0 };
           await saveReserva(reservas[idxR]);
         }
 
         fecharPosRetirada();
         renderAll();
-        const lpAtual = reservas.find(r => r.id !== id && mesesAte(r.dataMeta) > 120);
-        toast(`Objetivo concluído! ${brl(valor)} adicionados à reserva de longo prazo.`, 'success');
+        const msg = saldo > 0
+          ? `Objetivo concluído! ${brl(saldo)} de saldo restante adicionados ao longo prazo.`
+          : `Objetivo concluído! Reserva encerrada.`;
+        toast(msg, 'success');
       } catch (err) {
         toast(`Erro: ${err.message || err}`, 'error');
       }
