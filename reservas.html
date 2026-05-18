@@ -707,6 +707,18 @@
       document.querySelectorAll('a[href="index.html"]').forEach(a => { a.href = 'index.html' + suffix; });
       document.querySelectorAll('a[href="orcamento.html"]').forEach(a => { a.href = 'orcamento.html' + suffix; });
       document.querySelectorAll('a[href="patrimonio.html"]').forEach(a => { a.href = 'patrimonio.html' + suffix; });
+      // Interceptor de cliques: preserva ?viewAs em toda navegação interna
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!href || href.includes('viewAs=') || href.startsWith('http') ||
+            href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('admin')) return;
+        const paginas = ['index.html','orcamento.html','patrimonio.html','reservas.html','perfil.html'];
+        if (!paginas.some(p => href === p || href.startsWith(p + '#') || href.startsWith(p + '?'))) return;
+        e.preventDefault();
+        window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;
+      }, true);
     }
 
     // ─── Auth guard ──────────────────────────

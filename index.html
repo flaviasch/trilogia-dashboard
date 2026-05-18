@@ -736,7 +736,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, bootstrapAdmin, aceitarLGPD } from './js/api.js';
+    import { getDashboard, bootstrapAdmin, aceitarLGPD } from './js/api.js?v=6';
     import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
@@ -767,11 +767,50 @@
       let admin = await isAdmin();
       if (admin) document.getElementById('linkAdmin').style.display = 'inline';
 
+      // Limpa sessão de viewAs quando acessando sem ?viewAs (ex: usuária voltou ao próprio dashboard)
+      if (!VIEW_AS_UID) localStorage.removeItem('viewAsUid');
+
       // Modo visualização: admin abrindo dashboard de uma mentorada
       if (VIEW_AS_UID && admin) {
+        localStorage.setItem('viewAsUid', VIEW_AS_UID); // persiste para sub-páginas (incl. novas abas)
         const banner = document.getElementById('viewAsBanner');
         if (banner) banner.style.display = 'flex';
+
+        // Propaga ?viewAs em todos os links para sub-páginas
+        // Preserva hash (#) e evita duplicar o parâmetro
+        function propagarViewAs() {
+          ['orcamento.html','patrimonio.html','reservas.html','perfil.html'].forEach(page => {
+            document.querySelectorAll(`a[href^="${page}"]`).forEach(a => {
+              const href = a.getAttribute('href');
+              if (href.includes('viewAs=')) return;           // já propagado
+              const hashIdx = href.indexOf('#');
+              if (hashIdx !== -1) {
+                a.href = href.slice(0, hashIdx) + `?viewAs=${VIEW_AS_UID}` + href.slice(hashIdx);
+              } else {
+                a.href = href + `?viewAs=${VIEW_AS_UID}`;
+              }
+            });
+          });
+        }
+
+        propagarViewAs();                          // 1ª passagem: links estáticos
         await loadDashboard(user, VIEW_AS_UID);
+        propagarViewAs();                          // 2ª passagem: links renderizados dinamicamente
+
+        // Interceptor de cliques: garante ?viewAs mesmo em links criados após propagação
+        // (cobre race conditions, innerHTML dinâmico e links fora do escopo do propagarViewAs)
+        document.addEventListener('click', e => {
+          const a = e.target.closest('a[href]');
+          if (!a) return;
+          const href = a.getAttribute('href');
+          if (!href || href.includes('viewAs=') || href.startsWith('http') ||
+              href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('admin')) return;
+          const paginas = ['orcamento.html','patrimonio.html','reservas.html','perfil.html'];
+          if (!paginas.some(p => href === p || href.startsWith(p + '#') || href.startsWith(p + '?'))) return;
+          e.preventDefault();
+          window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;
+        }, true); // capture: true — antes de qualquer handler interno
+
         document.getElementById('loadingOverlay').style.display = 'none';
         return;
       }
@@ -928,7 +967,9 @@
       // Saudação
       const hora = new Date().getHours();
       const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
-      document.getElementById('greetingText').textContent = `${saudacao}, ${user.displayName || user.email}.`;
+      // Em viewAs mode usa o nome da mentorada (vem do Firestore); caso contrário usa o usuário logado
+      const nomeExibido = (viewAsUid && data.nome) ? data.nome : (user.displayName || user.email);
+      document.getElementById('greetingText').textContent = `${saudacao}, ${nomeExibido}.`;
 
       // Mentorada desde
       if (data.inicio) {

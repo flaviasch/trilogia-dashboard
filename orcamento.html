@@ -995,12 +995,36 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil } from './js/api.js';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, setViewAsUid } from './js/api.js?v=6';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
+    import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // ─── ViewAs (admin visualizando mentorada) ────────────────────────────────
+    const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
+                     || localStorage.getItem('viewAsUid');
+    if (VIEW_AS_UID) {
+      setViewAsUid(VIEW_AS_UID);
+      const suffix = `?viewAs=${VIEW_AS_UID}`;
+      ['index.html','patrimonio.html','reservas.html','perfil.html'].forEach(page => {
+        document.querySelectorAll(`a[href="${page}"], a[href^="${page}?"]`).forEach(a => { a.href = page + suffix; });
+      });
+      // Interceptor de cliques: preserva ?viewAs em toda navegação interna
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!href || href.includes('viewAs=') || href.startsWith('http') ||
+            href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('admin')) return;
+        const paginas = ['index.html','orcamento.html','patrimonio.html','reservas.html','perfil.html'];
+        if (!paginas.some(p => href === p || href.startsWith(p + '#') || href.startsWith(p + '?'))) return;
+        e.preventDefault();
+        window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;
+      }, true);
+    }
 
     // ─── URL do agente (preencher quando disponível) ──────────────────────────
     const AGENTE_RAIOX_URL = '';
@@ -1456,6 +1480,8 @@
     });
 
     async function init(user) {
+      if (!VIEW_AS_UID && await isAdmin()) { window.location.href = 'admin.html'; return; }
+
       const agora = new Date();
       const mes = agora.getMonth() + 1;
       const ano = agora.getFullYear();
