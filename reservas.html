@@ -1098,7 +1098,7 @@
             </div>
             <div class="reserva-acoes">
               ${expandBtn}
-              ${r.acumulado > 0 && !concluida ? `<button class="btn-icon btn-retirar" data-retirar="${r.id}" title="Registrar retirada">${IC_RETIRAR}</button>` : ''}
+              <button class="btn-icon btn-retirar" data-retirar="${r.id}" title="Registrar retirada">${IC_RETIRAR}</button>
               <button class="btn-icon" data-edit="${r.id}" title="Editar">${IC_EDIT}</button>
               <button class="btn-icon btn-delete" data-delete="${r.id}" title="Excluir">${IC_DELETE}</button>
             </div>
