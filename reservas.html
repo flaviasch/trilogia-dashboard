@@ -584,30 +584,80 @@
     </div>
   </div>
 
-  <!-- Modal pós-retirada -->
+  <!-- Modal pós-retirada (multi-passo) -->
   <div class="modal-overlay hidden" id="modalPosRetirada">
     <div class="modal-card">
       <h2 class="modal-title" id="posRetiradaTitulo">Retirada registrada!</h2>
-      <p class="modal-sub" id="posRetiradaSub">O que deseja fazer com esta reserva agora?</p>
+      <p class="modal-sub" id="posRetiradaSub"></p>
 
-      <div class="opcoes-pos-retirada">
-        <button class="opcao-card" id="btnOpcaoNovoObjetivo">
-          <span class="opcao-icon">🎯</span>
-          <div>
-            <span class="opcao-titulo">Registrar novo aporte e objetivo</span>
-            <span class="opcao-desc">A reserva continua ativa com nova meta, prazo e aporte mensal.</span>
-          </div>
-        </button>
-        <button class="opcao-card" id="btnOpcaoConcluir">
-          <span class="opcao-icon">✅</span>
-          <div>
-            <span class="opcao-titulo">Marcar como concluída</span>
-            <span class="opcao-desc" id="opcaoConcluirDesc">O objetivo foi alcançado. O valor será direcionado para a reserva de longo prazo.</span>
-          </div>
-        </button>
+      <!-- Passo 1: Manter objetivo? -->
+      <div id="posStep1">
+        <div class="opcoes-pos-retirada">
+          <button class="opcao-card" id="btnManter">
+            <span class="opcao-icon">🎯</span>
+            <div>
+              <span class="opcao-titulo">Sim, manter o objetivo</span>
+              <span class="opcao-desc">Ajusto a meta, prazo e aporte para continuar.</span>
+            </div>
+          </button>
+          <button class="opcao-card" id="btnEncerrar">
+            <span class="opcao-icon">🏁</span>
+            <div>
+              <span class="opcao-titulo">Não, encerrar</span>
+              <span class="opcao-desc" id="encerrarDesc"></span>
+            </div>
+          </button>
+        </div>
+        <button class="btn-cancel" id="btnFecharPosRetirada" style="width:100%;margin-top:4px">Decidir depois</button>
       </div>
 
-      <button class="btn-cancel" id="btnFecharPosRetirada" style="width:100%;margin-top:4px">Decidir depois</button>
+      <!-- Passo 2A: Confirmar encerramento -->
+      <div id="posStep2A" class="hidden">
+        <p id="step2AMsg" style="text-align:center;margin:16px 0 24px;color:var(--text-muted);font-size:14px;line-height:1.5"></p>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="btnVoltarStep2A">← Voltar</button>
+          <button class="btn-save" id="btnConfirmarEncerrar">Confirmar encerramento</button>
+        </div>
+      </div>
+
+      <!-- Passo 2B: Manter — editar objetivo -->
+      <div id="posStep2B" class="hidden">
+        <div class="field-group">
+          <label for="posNovaMeta">Nova meta (R$)</label>
+          <input type="text" inputmode="numeric" id="posNovaMeta" placeholder="0" />
+        </div>
+        <div class="field-group" style="margin-top:12px">
+          <label>Objetivo já foi concluído?</label>
+          <div style="display:flex;gap:20px;margin-top:8px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
+              <input type="radio" name="posObjConcluido" value="sim" id="posConcluidoSim"> Sim
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
+              <input type="radio" name="posObjConcluido" value="nao" id="posConcluidoNao" checked> Não
+            </label>
+          </div>
+        </div>
+        <!-- Aviso quando concluído: transferência ao longo prazo -->
+        <div id="avisoConcluidoLP" class="hidden" style="background:rgba(207,174,101,0.1);border:1px solid var(--gold);border-radius:8px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--gold);line-height:1.5">
+          <span id="avisoConcluidoLPTexto"></span>
+        </div>
+        <!-- Campos extras quando não concluído -->
+        <div id="posNaoConcluido">
+          <div class="field-group" style="margin-top:12px">
+            <label for="posNovaDataMeta">Nova data meta (mês/ano)</label>
+            <input type="month" id="posNovaDataMeta" />
+          </div>
+          <div class="field-group" style="margin-top:12px">
+            <label for="posNovoAporte">Novo aporte mensal (R$)</label>
+            <input type="text" inputmode="numeric" id="posNovoAporte" placeholder="0" />
+          </div>
+        </div>
+        <div class="modal-actions" style="margin-top:20px">
+          <button class="btn-cancel" id="btnVoltarStep2B">← Voltar</button>
+          <button class="btn-save" id="btnSalvarObjetivo">Salvar</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1534,29 +1584,32 @@
       setLoading(btn, false);
     });
 
-    // ─── Modal pós-retirada ──────────────────────────────────────────────────
+    // ─── Modal pós-retirada (multi-passo) ───────────────────────────────────
     let posRetiradaId    = null;   // id da reserva que foi retirada
-    let posRetiradaValor = 0;      // valor retirado (para exibição no título)
-    let posRetiradaSaldo = 0;      // saldo restante após retirada (para transferência ao longo prazo)
+    let posRetiradaValor = 0;      // valor retirado (exibição no título)
+    let posRetiradaSaldo = 0;      // saldo restante após retirada
     const modalPosRetirada = document.getElementById('modalPosRetirada');
+
+    // Bind money inputs do modal pós-retirada
+    bindMoneyInput(document.getElementById('posNovaMeta'));
+    bindMoneyInput(document.getElementById('posNovoAporte'));
+
+    function posStep(step) {
+      ['posStep1', 'posStep2A', 'posStep2B'].forEach(id =>
+        document.getElementById(id).classList.toggle('hidden', id !== step)
+      );
+    }
 
     function abrirPosRetirada(id, valorRetirado, saldoRestante, nome) {
       posRetiradaId    = id;
       posRetiradaValor = valorRetirado;
       posRetiradaSaldo = saldoRestante;
-      // Identifica se há reserva de longo prazo (> 120 meses restantes)
-      const lp = reservas.find(r => r.id !== id && mesesAte(r.dataMeta) > 120);
-      let descConcluir;
-      if (saldoRestante > 0) {
-        descConcluir = lp
-          ? `Objetivo alcançado! ${brl(saldoRestante)} de saldo restante serão adicionados à reserva "${lp.nome}".`
-          : `Objetivo alcançado! ${brl(saldoRestante)} de saldo restante serão direcionados para uma nova reserva de longo prazo.`;
-      } else {
-        descConcluir = `Objetivo alcançado e valor totalmente utilizado. Reserva será encerrada.`;
-      }
       document.getElementById('posRetiradaTitulo').textContent = `✓ Retirada de ${brl(valorRetirado)} registrada`;
-      document.getElementById('posRetiradaSub').textContent    = `"${nome}" — o que deseja fazer agora?`;
-      document.getElementById('opcaoConcluirDesc').textContent = descConcluir;
+      document.getElementById('posRetiradaSub').textContent    = `"${nome}" — deseja manter este objetivo?`;
+      document.getElementById('encerrarDesc').textContent = saldoRestante > 0
+        ? `Saldo restante de ${brl(saldoRestante)} será direcionado ao longo prazo.`
+        : `Reserva será encerrada (saldo zerado).`;
+      posStep('posStep1');
       modalPosRetirada.classList.remove('hidden');
     }
 
@@ -1567,6 +1620,40 @@
       posRetiradaSaldo = 0;
     }
 
+    // Utilitário: transfere saldo para reserva de longo prazo (cria se não existir)
+    async function transferirParaLP(excluirId, saldo) {
+      if (saldo <= 0) return;
+      let lp = reservas.find(r => r.id !== excluirId && mesesAte(r.dataMeta) > 120);
+      if (lp) {
+        const idx = reservas.findIndex(r => r.id === lp.id);
+        reservas[idx] = { ...lp, acumulado: (lp.acumulado || 0) + saldo };
+        await saveReserva(reservas[idx]);
+      } else {
+        const dm = new Date();
+        dm.setFullYear(dm.getFullYear() + 20);
+        const novaLp = {
+          id: 'r' + Date.now(),
+          nome: 'Reserva de Longo Prazo',
+          meta: saldo * 10,
+          acumulado: saldo,
+          dataMeta: dm.toISOString().slice(0, 7),
+          aporte: 0,
+          dataInicioAporte: null,
+        };
+        reservas.push(novaLp);
+        await saveReserva(novaLp);
+      }
+    }
+
+    // Utilitário: encerra reserva (marca concluída, zera aporte/acumulado)
+    async function encerrarReserva(id) {
+      const idx = reservas.findIndex(r => r.id === id);
+      if (idx < 0) return;
+      reservas[idx] = { ...reservas[idx], concluida: true, aporte: 0, acumulado: 0 };
+      await saveReserva(reservas[idx]);
+    }
+
+    // Fechar / decidir depois
     document.getElementById('btnFecharPosRetirada').addEventListener('click', () => {
       fecharPosRetirada();
       toast('Você pode editar a reserva quando quiser.', 'info');
@@ -1575,62 +1662,106 @@
       if (e.target === modalPosRetirada) fecharPosRetirada();
     });
 
-    // Opção 1 — Novo objetivo: abre o modal de edição da reserva
-    document.getElementById('btnOpcaoNovoObjetivo').addEventListener('click', () => {
-      const id = posRetiradaId; // captura antes de fechar (fecharPosRetirada zera)
-      fecharPosRetirada();
-      // Pequeno delay para garantir que o modal anterior fechou
-      setTimeout(() => { if (id) abrirModal(id); }, 80);
+    // ── Passo 1: "Não, encerrar" ──────────────────────────────────────────
+    document.getElementById('btnEncerrar').addEventListener('click', () => {
+      const msg = posRetiradaSaldo > 0
+        ? `O saldo restante de ${brl(posRetiradaSaldo)} será adicionado à sua reserva de longo prazo e a reserva atual será encerrada.`
+        : `A reserva será encerrada. Saldo zero — nada a transferir.`;
+      document.getElementById('step2AMsg').textContent = msg;
+      posStep('posStep2A');
     });
 
-    // Opção 2 — Concluída: transfere saldo RESTANTE (não o que foi retirado) ao longo prazo
-    document.getElementById('btnOpcaoConcluir').addEventListener('click', async () => {
-      const btn = document.getElementById('btnOpcaoConcluir');
+    document.getElementById('btnVoltarStep2A').addEventListener('click', () => posStep('posStep1'));
+
+    document.getElementById('btnConfirmarEncerrar').addEventListener('click', async () => {
+      const btn = document.getElementById('btnConfirmarEncerrar');
       btn.disabled = true;
       const id    = posRetiradaId;
-      const saldo = posRetiradaSaldo; // saldo restante após a retirada
-
+      const saldo = posRetiradaSaldo;
       try {
-        // Só transfere se houver saldo restante (se retirou tudo, não há nada a transferir)
-        if (saldo > 0) {
-          let lp = reservas.find(r => r.id !== id && mesesAte(r.dataMeta) > 120);
-
-          if (lp) {
-            // Adiciona saldo restante ao acumulado da reserva de longo prazo
-            const idxLp = reservas.findIndex(r => r.id === lp.id);
-            reservas[idxLp] = { ...lp, acumulado: (lp.acumulado || 0) + saldo };
-            await saveReserva(reservas[idxLp]);
-          } else {
-            // Cria nova reserva de longo prazo com o saldo restante
-            const dataMetaLp = new Date();
-            dataMetaLp.setFullYear(dataMetaLp.getFullYear() + 20);
-            const novaLp = {
-              id:               'r' + Date.now(),
-              nome:             'Reserva de Longo Prazo',
-              meta:             saldo * 10,   // estimativa inicial
-              acumulado:        saldo,
-              dataMeta:         dataMetaLp.toISOString().slice(0, 7),
-              aporte:           0,
-              dataInicioAporte: null,
-            };
-            reservas.push(novaLp);
-            await saveReserva(novaLp);
-          }
-        }
-
-        // Marca a reserva como concluída (zera aporte e saldo, flag concluida)
-        const idxR = reservas.findIndex(r => r.id === id);
-        if (idxR >= 0) {
-          reservas[idxR] = { ...reservas[idxR], concluida: true, aporte: 0, acumulado: 0 };
-          await saveReserva(reservas[idxR]);
-        }
-
+        await transferirParaLP(id, saldo);
+        await encerrarReserva(id);
         fecharPosRetirada();
         renderAll();
-        const msg = saldo > 0
-          ? `Objetivo concluído! ${brl(saldo)} de saldo restante adicionados ao longo prazo.`
-          : `Objetivo concluído! Reserva encerrada.`;
-        toast(msg, 'success');
+        toast(saldo > 0 ? `Reserva encerrada! ${brl(saldo)} adicionados ao longo prazo.` : `Reserva encerrada!`, 'success');
+      } catch (err) {
+        toast(`Erro: ${err.message || err}`, 'error');
+      }
+      btn.disabled = false;
+    });
+
+    // ── Passo 1: "Sim, manter" ────────────────────────────────────────────
+    document.getElementById('btnManter').addEventListener('click', () => {
+      const r = reservas.find(x => x.id === posRetiradaId);
+      if (r) {
+        setMoney(document.getElementById('posNovaMeta'), r.meta);
+        document.getElementById('posNovaDataMeta').value = r.dataMeta || '';
+        setMoney(document.getElementById('posNovoAporte'), r.aporte);
+        document.getElementById('posConcluidoNao').checked = true;
+        document.getElementById('posNaoConcluido').classList.remove('hidden');
+        document.getElementById('avisoConcluidoLP').classList.add('hidden');
+      }
+      posStep('posStep2B');
+    });
+
+    document.getElementById('btnVoltarStep2B').addEventListener('click', () => posStep('posStep1'));
+
+    // Toggle concluído/não concluído
+    function atualizarStep2B() {
+      const concluido = document.getElementById('posConcluidoSim').checked;
+      document.getElementById('posNaoConcluido').classList.toggle('hidden', concluido);
+      document.getElementById('avisoConcluidoLP').classList.toggle('hidden', !concluido);
+      if (concluido) {
+        const lp = reservas.find(r => r.id !== posRetiradaId && mesesAte(r.dataMeta) > 120);
+        const saldo = posRetiradaSaldo;
+        let texto;
+        if (saldo > 0) {
+          texto = lp
+            ? `O saldo restante de ${brl(saldo)} será adicionado à reserva "${lp.nome}".`
+            : `O saldo restante de ${brl(saldo)} será direcionado para uma nova reserva de longo prazo.`;
+        } else {
+          texto = `Saldo zero — nada a transferir. Reserva será encerrada.`;
+        }
+        document.getElementById('avisoConcluidoLPTexto').textContent = texto;
+      }
+    }
+    document.getElementById('posConcluidoSim').addEventListener('change', atualizarStep2B);
+    document.getElementById('posConcluidoNao').addEventListener('change', atualizarStep2B);
+
+    document.getElementById('btnSalvarObjetivo').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarObjetivo');
+      btn.disabled = true;
+      const id       = posRetiradaId;
+      const saldo    = posRetiradaSaldo;
+      const concluido = document.getElementById('posConcluidoSim').checked;
+
+      try {
+        const idx = reservas.findIndex(r => r.id === id);
+        if (idx < 0) throw new Error('Reserva não encontrada');
+
+        if (concluido) {
+          // Transfere saldo restante ao longo prazo e encerra
+          await transferirParaLP(id, saldo);
+          await encerrarReserva(id);
+          fecharPosRetirada();
+          renderAll();
+          toast(`Objetivo concluído!${saldo > 0 ? ` ${brl(saldo)} adicionados ao longo prazo.` : ''}`, 'success');
+        } else {
+          // Atualiza meta, prazo e aporte — mantém reserva ativa
+          const novaMeta      = readMoney(document.getElementById('posNovaMeta'));
+          const novaDataMeta  = document.getElementById('posNovaDataMeta').value;
+          const novoAporte    = readMoney(document.getElementById('posNovoAporte'));
+          if (!novaMeta || !novaDataMeta) {
+            toast('Preencha a nova meta e o prazo.', 'error');
+            btn.disabled = false;
+            return;
+          }
+          reservas[idx] = { ...reservas[idx], meta: novaMeta, dataMeta: novaDataMeta, aporte: novoAporte || 0, concluida: false };
+          await saveReserva(reservas[idx]);
+          fecharPosRetirada();
+          renderAll();
+          toast('Objetivo atualizado com sucesso!', 'success');
+        }
       } catch (err) {
         toast(`Erro: ${err.message || err}`, 'error');
       }
