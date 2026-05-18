@@ -302,6 +302,22 @@
     }
     .retirada-saldo strong { color: var(--white); font-size: 15px; }
 
+    /* Modal pós-retirada */
+    .opcoes-pos-retirada {
+      display: flex; flex-direction: column; gap: 12px; margin: 20px 0;
+    }
+    .opcao-card {
+      display: flex; align-items: flex-start; gap: 14px;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px; cursor: pointer; text-align: left;
+      transition: border-color 0.18s, background 0.18s; width: 100%;
+      color: var(--white);
+    }
+    .opcao-card:hover { border-color: var(--gold); background: rgba(207,174,101,0.07); }
+    .opcao-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+    .opcao-titulo { font-size: 14px; font-weight: 600; display: block; margin-bottom: 3px; }
+    .opcao-desc { font-size: 12px; color: var(--text-muted); display: block; line-height: 1.45; }
+
     /* Expand chevron */
     .btn-icon.btn-expand { color: var(--text-muted); }
     .btn-icon.btn-expand svg { transition: transform 0.25s ease; }
@@ -408,6 +424,12 @@
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </nav>
+
+  <!-- Banner viewAs (admin visualizando mentorada) -->
+  <div id="viewAsBanner" style="display:none; background:rgba(207,174,101,0.12); border-bottom:1px solid rgba(207,174,101,0.3); padding:10px 32px; font-size:13px; color:#CFAE65; gap:12px; align-items:center;">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html" style="color:#CFAE65; text-decoration:underline; margin-left:auto">← Voltar ao admin</a>
+  </div>
 
   <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
@@ -562,6 +584,33 @@
     </div>
   </div>
 
+  <!-- Modal pós-retirada -->
+  <div class="modal-overlay hidden" id="modalPosRetirada">
+    <div class="modal-card">
+      <h2 class="modal-title" id="posRetiradaTitulo">Retirada registrada!</h2>
+      <p class="modal-sub" id="posRetiradaSub">O que deseja fazer com esta reserva agora?</p>
+
+      <div class="opcoes-pos-retirada">
+        <button class="opcao-card" id="btnOpcaoNovoObjetivo">
+          <span class="opcao-icon">🎯</span>
+          <div>
+            <span class="opcao-titulo">Registrar novo aporte e objetivo</span>
+            <span class="opcao-desc">A reserva continua ativa com nova meta, prazo e aporte mensal.</span>
+          </div>
+        </button>
+        <button class="opcao-card" id="btnOpcaoConcluir">
+          <span class="opcao-icon">✅</span>
+          <div>
+            <span class="opcao-titulo">Marcar como concluída</span>
+            <span class="opcao-desc" id="opcaoConcluirDesc">O objetivo foi alcançado. O valor será direcionado para a reserva de longo prazo.</span>
+          </div>
+        </button>
+      </div>
+
+      <button class="btn-cancel" id="btnFecharPosRetirada" style="width:100%;margin-top:4px">Decidir depois</button>
+    </div>
+  </div>
+
   <!-- Bottom nav (mobile) -->
   <nav class="bottom-nav">
     <a href="index.html" class="bnav-item">
@@ -584,12 +633,31 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR } from './js/api.js';
+    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid } from './js/api.js?v=6';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
+    import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // Força reload quando página é restaurada do bfcache (garante JS atualizado)
+    window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+
+    // ─── ViewAs (admin visualizando mentorada) ────────────────────────────────
+    const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
+                     || localStorage.getItem('viewAsUid');
+    if (VIEW_AS_UID) {
+      setViewAsUid(VIEW_AS_UID);
+      // Mostra banner visual de confirmação
+      const banner = document.getElementById('viewAsBanner');
+      if (banner) banner.style.display = 'flex';
+      // Ajusta links de navegação para preservar o contexto
+      const suffix = `?viewAs=${VIEW_AS_UID}`;
+      document.querySelectorAll('a[href="index.html"]').forEach(a => { a.href = 'index.html' + suffix; });
+      document.querySelectorAll('a[href="orcamento.html"]').forEach(a => { a.href = 'orcamento.html' + suffix; });
+      document.querySelectorAll('a[href="patrimonio.html"]').forEach(a => { a.href = 'patrimonio.html' + suffix; });
+    }
 
     // ─── Auth guard ──────────────────────────
     onAuthStateChanged(auth, (user) => {
@@ -612,6 +680,34 @@
       const [ano, mes] = dataStr.split('-').map(Number);
       const alvo = new Date(ano, mes - 1, 1);
       return Math.max(0, (alvo.getFullYear() - hoje.getFullYear()) * 12 + (alvo.getMonth() - hoje.getMonth()));
+    }
+
+    /** Calcula meses entre dois AAAA-MM */
+    function mesesEntre(dataIni, dataFim) {
+      if (!dataIni || !dataFim) return null;
+      const [a1, m1] = dataIni.split('-').map(Number);
+      const [a2, m2] = dataFim.split('-').map(Number);
+      return Math.max(0, (a2 - a1) * 12 + (m2 - m1));
+    }
+
+    /** Retorna verdadeiro se o nome indica reserva de emergência */
+    function ehEmergencia(nome) {
+      return /emerg[eê]ncia/i.test(nome || '');
+    }
+
+    /**
+     * Meses a usar para a lógica de alocação.
+     * Regra: se período total (início → meta) < 12 meses, usar o bucket de 1 ano.
+     * Reserva de emergência: sempre ≤ 12 (RF Pós).
+     */
+    function mesesParaAlocacao(r) {
+      if (ehEmergencia(r.nome)) return 0; // sempre bucket curto prazo
+      const restantes = mesesAte(r.dataMeta);
+      if (r.dataInicioAporte && r.dataMeta) {
+        const total = mesesEntre(r.dataInicioAporte, r.dataMeta);
+        if (total !== null && total < 12) return Math.min(restantes ?? 0, 11);
+      }
+      return restantes;
     }
 
     function prazoLabel(meses) {
@@ -738,6 +834,13 @@
     }
 
     async function init(user) {
+      // Guard: admin sem contexto viewAs não deve salvar dados de nenhuma mentorada.
+      // Redireciona para admin.html onde pode escolher a mentorada correta.
+      if (!VIEW_AS_UID && await isAdmin()) {
+        window.location.href = 'admin.html';
+        return;
+      }
+
       try {
         // Carrega reservas, perfil e patrimônio em paralelo
         const [resResult, perfilResult, patResult] = await Promise.allSettled([
@@ -893,17 +996,20 @@
     const IC_RETIRAR = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="2" x2="8" y2="11"/><polyline points="4,7 8,11 12,7"/><line x1="3" y1="14" x2="13" y2="14"/></svg>`;
 
     function renderCard(r) {
-      const meses    = mesesAte(r.dataMeta);
+      const meses    = mesesParaAlocacao(r);
       const progresso = pct(r.acumulado, r.meta);
       const completa  = r.acumulado >= r.meta;
-      const alertaEsgotando = meses !== null && meses <= 3 && !completa && progresso < 90;
+      const concluida = !!r.concluida;   // objetivo encerrado manualmente
+      const alertaEsgotando = meses !== null && meses <= 3 && !completa && !concluida && progresso < 90;
       const { temComparativo } = alocacaoPorPrazo(meses);
 
-      const cardClass = completa ? 'reserva-card completa' : alertaEsgotando ? 'reserva-card alerta' : 'reserva-card';
+      const cardClass = completa || concluida
+        ? 'reserva-card completa'
+        : alertaEsgotando ? 'reserva-card alerta' : 'reserva-card';
 
       const tags = [
         `<span class="tag tag-prazo">${prazoLabel(meses)}</span>`,
-        completa ? `<span class="tag tag-completa">✓ Concluída</span>` : '',
+        (completa || concluida) ? `<span class="tag tag-completa">✓ Concluída</span>` : '',
         alertaEsgotando ? `<span class="tag tag-alerta">⚠ Prazo próximo</span>` : '',
       ].filter(Boolean).join('');
 
@@ -930,7 +1036,7 @@
             </div>
             <div class="reserva-acoes">
               ${expandBtn}
-              ${r.acumulado > 0 ? `<button class="btn-icon btn-retirar" data-retirar="${r.id}" title="Registrar retirada">${IC_RETIRAR}</button>` : ''}
+              ${r.acumulado > 0 && !concluida ? `<button class="btn-icon btn-retirar" data-retirar="${r.id}" title="Registrar retirada">${IC_RETIRAR}</button>` : ''}
               <button class="btn-icon" data-edit="${r.id}" title="Editar">${IC_EDIT}</button>
               <button class="btn-icon btn-delete" data-delete="${r.id}" title="Excluir">${IC_DELETE}</button>
             </div>
@@ -1095,7 +1201,7 @@
      * e calcula os percentuais do resíduo para as classes desta reserva.
      */
     function calcularComparacaoResidual(reservaAtual) {
-      const m = mesesAte(reservaAtual.dataMeta);
+      const m = mesesParaAlocacao(reservaAtual);
       const { itens: sugerida, temComparativo } = alocacaoPorPrazo(m);
 
       if (!temComparativo || sugerida.length === 0) return null;
@@ -1117,7 +1223,7 @@
       let totalSubtraido = 0;
 
       for (const r of outrasReservas) {
-        const rm = mesesAte(r.dataMeta);
+        const rm = mesesParaAlocacao(r);
         const itens = alocacaoParaSubtracao(rm, portfolioMap);
         for (const { label, pct } of itens) {
           const valorSubtr = r.acumulado * (pct / 100);
@@ -1156,7 +1262,7 @@
     }
 
     function renderExpansaoHTML(r) {
-      const m        = mesesAte(r.dataMeta);
+      const m        = mesesParaAlocacao(r);
       const temDados = patrimonioAtual.length > 0;
       const { temComparativo } = alocacaoPorPrazo(m);
 
@@ -1301,15 +1407,20 @@
     }
 
     function atualizarPreview() {
-      const data = document.getElementById('rDataMeta').value;
-      const meses = mesesAte(data);
-      document.getElementById('alocacaoPreview').textContent = alocacaoTexto(meses);
+      const nome             = document.getElementById('rNome').value.trim();
+      const dataMeta         = document.getElementById('rDataMeta').value;
+      const dataInicioAporte = document.getElementById('rDataInicioAporte').value || '';
+      const meses = mesesParaAlocacao({ nome, dataMeta, dataInicioAporte });
+      document.getElementById('alocacaoPreview').textContent =
+        meses === null ? 'Defina a data objetivo para calcular.' : alocacaoTexto(meses);
     }
 
     document.getElementById('btnNovaReserva').addEventListener('click', () => abrirModal());
     document.getElementById('btnCancelarModal').addEventListener('click', fecharModal);
     modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
     document.getElementById('rDataMeta').addEventListener('change', atualizarPreview);
+    document.getElementById('rDataInicioAporte').addEventListener('change', atualizarPreview);
+    document.getElementById('rNome').addEventListener('input', atualizarPreview);
 
     // Limpa erro inline ao editar o campo
     document.getElementById('rNome').addEventListener('input', () => marcarErro('fgNome', false));
@@ -1349,7 +1460,9 @@
           await saveReserva(reserva);
           toast('Reserva salva!', 'success');
         } catch (err) {
-          toast(`Erro ao salvar: ${err.message || err}`, 'error');
+          const ls = localStorage.getItem('viewAsUid');
+          const dbg = `[va=${VIEW_AS_UID ?? 'null'} | ls=${ls ?? 'null'}]`;
+          toast(`Erro ao salvar: ${err.message || err} ${dbg}`, 'error');
         }
       }
       setLoading(btnSalvar, false);
@@ -1411,14 +1524,105 @@
         await saveReserva(reservas[idx]);
         fecharModalRetirada();
         renderAll();
-        toast(`Retirada de ${brl(valor)} registrada em "${r.nome}".`, 'success');
-        // Sinaliza para o dashboard que o extrato da corretora precisa ser atualizado
         localStorage.setItem('patrimonio_extrato_pendente', '1');
+        // Abre modal de próximo passo
+        abrirPosRetirada(retirandoId || r.id, valor, r.nome);
       } catch (err) {
         toast(`Erro ao registrar retirada: ${err.message || err}`, 'error');
       }
 
       setLoading(btn, false);
+    });
+
+    // ─── Modal pós-retirada ──────────────────────────────────────────────────
+    let posRetiradaId    = null;   // id da reserva que foi retirada
+    let posRetiradaValor = 0;      // valor retirado
+    const modalPosRetirada = document.getElementById('modalPosRetirada');
+
+    function abrirPosRetirada(id, valor, nome) {
+      posRetiradaId    = id;
+      posRetiradaValor = valor;
+      // Identifica se há reserva de longo prazo (> 120 meses restantes)
+      const lp = reservas.find(r => r.id !== id && mesesAte(r.dataMeta) > 120);
+      const descConcluir = lp
+        ? `O objetivo foi alcançado. ${brl(valor)} serão adicionados à reserva "${lp.nome}".`
+        : `O objetivo foi alcançado. ${brl(valor)} serão direcionados para uma nova reserva de longo prazo.`;
+      document.getElementById('posRetiradaTitulo').textContent = `✓ Retirada de ${brl(valor)} registrada`;
+      document.getElementById('posRetiradaSub').textContent    = `"${nome}" — o que deseja fazer agora?`;
+      document.getElementById('opcaoConcluirDesc').textContent = descConcluir;
+      modalPosRetirada.classList.remove('hidden');
+    }
+
+    function fecharPosRetirada() {
+      modalPosRetirada.classList.add('hidden');
+      posRetiradaId    = null;
+      posRetiradaValor = 0;
+    }
+
+    document.getElementById('btnFecharPosRetirada').addEventListener('click', () => {
+      fecharPosRetirada();
+      toast('Você pode editar a reserva quando quiser.', 'info');
+    });
+    modalPosRetirada.addEventListener('click', e => {
+      if (e.target === modalPosRetirada) fecharPosRetirada();
+    });
+
+    // Opção 1 — Novo objetivo: abre o modal de edição da reserva
+    document.getElementById('btnOpcaoNovoObjetivo').addEventListener('click', () => {
+      const id = posRetiradaId; // captura antes de fechar (fecharPosRetirada zera)
+      fecharPosRetirada();
+      // Pequeno delay para garantir que o modal anterior fechou
+      setTimeout(() => { if (id) abrirModal(id); }, 80);
+    });
+
+    // Opção 2 — Concluída: sensibiliza a reserva de longo prazo
+    document.getElementById('btnOpcaoConcluir').addEventListener('click', async () => {
+      const btn = document.getElementById('btnOpcaoConcluir');
+      btn.disabled = true;
+      const id    = posRetiradaId;
+      const valor = posRetiradaValor;
+
+      try {
+        // Encontra reserva de longo prazo existente (> 120 meses)
+        let lp = reservas.find(r => r.id !== id && mesesAte(r.dataMeta) > 120);
+
+        if (lp) {
+          // Adiciona valor ao acumulado da reserva de longo prazo
+          const idxLp = reservas.findIndex(r => r.id === lp.id);
+          reservas[idxLp] = { ...lp, acumulado: (lp.acumulado || 0) + valor };
+          await saveReserva(reservas[idxLp]);
+        } else {
+          // Cria nova reserva de longo prazo com o valor
+          const dataMetaLp = new Date();
+          dataMetaLp.setFullYear(dataMetaLp.getFullYear() + 20);
+          const novaLp = {
+            id:               'r' + Date.now(),
+            nome:             'Reserva de Longo Prazo',
+            meta:             valor * 10,   // estimativa inicial
+            acumulado:        valor,
+            dataMeta:         dataMetaLp.toISOString().slice(0, 7),
+            aporte:           0,
+            dataInicioAporte: null,
+          };
+          reservas.push(novaLp);
+          await saveReserva(novaLp);
+        }
+
+        // Marca a reserva concluída (zera aporte, flag concluida)
+        const idxR = reservas.findIndex(r => r.id === id);
+        if (idxR >= 0) {
+          reservas[idxR] = { ...reservas[idxR], concluida: true, aporte: 0 };
+          await saveReserva(reservas[idxR]);
+        }
+
+        fecharPosRetirada();
+        renderAll();
+        const lpAtual = reservas.find(r => r.id !== id && mesesAte(r.dataMeta) > 120);
+        toast(`Objetivo concluído! ${brl(valor)} adicionados à reserva de longo prazo.`, 'success');
+      } catch (err) {
+        toast(`Erro: ${err.message || err}`, 'error');
+      }
+      btn.disabled = false;
     });
 
     // ─── Deletar ─────────────────────────────
