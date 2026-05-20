@@ -1075,6 +1075,13 @@
         </table>
       </div>
 
+      <!-- Paginação -->
+      <div id="pipelinePaginacao" style="display:none;align-items:center;justify-content:center;gap:12px;padding:16px 0;font-size:13px;">
+        <button id="btnPagAnterior" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:6px 14px;color:var(--text-muted);cursor:pointer;font-family:'Inter',sans-serif;">← Anterior</button>
+        <span id="paginacaoInfo" style="color:var(--text-muted)"></span>
+        <button id="btnPagProxima" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:6px 14px;color:var(--text-muted);cursor:pointer;font-family:'Inter',sans-serif;">Próxima →</button>
+      </div>
+
     </div><!-- /view-pipeline -->
 
   </main>
@@ -3248,12 +3255,14 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
 
 
     // ─── Pipeline CRM ────────────────────────────────────────────────
+    const LEADS_POR_PAGINA   = 25;
     let pipelineLeads        = [];
     let pipelineCarregado    = false;
     let pipelineBuscaAtual   = '';
     let pipelineEstagioAtual = '';
     let pipelineSegmentoAtual = '';
     let pipelineVistaAtual   = 'ativos'; // 'ativos' | 'ganhos' | 'perdidos'
+    let pipelinePaginaAtual  = 1;
 
     const ESTAGIOS = ['Lead Frio','Engajado','Interessado','Em Negociação','Fechado Ganho','Fechado Perdido'];
 
@@ -3351,20 +3360,41 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
           const data = l.dataProximoPasso || l.proximoContato || '';
           return data && data <= filtroHoje;
         });
+        pipelinePaginaAtual = 1;
       }
       const tbody = document.getElementById('pipelineTbody');
       const empty = document.getElementById('pipelineEmpty');
       const table = document.getElementById('pipelineTable');
+      const paginacao = document.getElementById('pipelinePaginacao');
 
       if (!lista.length) {
         empty.style.display = '';
         table.style.display = 'none';
+        paginacao.style.display = 'none';
         return;
       }
       empty.style.display = 'none';
       table.style.display = '';
 
-      tbody.innerHTML = lista.map(l => {
+      // Paginação
+      const totalPaginas = Math.ceil(lista.length / LEADS_POR_PAGINA);
+      if (pipelinePaginaAtual > totalPaginas) pipelinePaginaAtual = totalPaginas;
+      const inicio = (pipelinePaginaAtual - 1) * LEADS_POR_PAGINA;
+      const listaPagina = lista.slice(inicio, inicio + LEADS_POR_PAGINA);
+
+      if (totalPaginas > 1) {
+        paginacao.style.display = 'flex';
+        document.getElementById('paginacaoInfo').textContent =
+          `${inicio + 1}–${Math.min(inicio + LEADS_POR_PAGINA, lista.length)} de ${lista.length}`;
+        document.getElementById('btnPagAnterior').disabled = pipelinePaginaAtual === 1;
+        document.getElementById('btnPagProxima').disabled  = pipelinePaginaAtual === totalPaginas;
+        document.getElementById('btnPagAnterior').style.opacity = pipelinePaginaAtual === 1 ? '.3' : '1';
+        document.getElementById('btnPagProxima').style.opacity  = pipelinePaginaAtual === totalPaginas ? '.3' : '1';
+      } else {
+        paginacao.style.display = 'none';
+      }
+
+      tbody.innerHTML = listaPagina.map(l => {
         const dias = l.diasSemContato ?? null;
         const diasCls = dias !== null && dias > 7 ? 'color:var(--negative);font-weight:600' : 'color:var(--text-muted)';
         const diasTxt = dias !== null ? `${dias}d` : '—';
@@ -3623,11 +3653,13 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
     // Busca e filtros
     document.getElementById('pipelineBusca').addEventListener('input', (e) => {
       pipelineBuscaAtual = e.target.value.trim().toLowerCase();
+      pipelinePaginaAtual = 1;
       renderTabelaPipeline();
     });
 
     document.getElementById('pipelineFiltroEstagio').addEventListener('change', (e) => {
       pipelineEstagioAtual = e.target.value;
+      pipelinePaginaAtual = 1;
       renderTabelaPipeline();
     });
 
@@ -3636,8 +3668,18 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         document.querySelectorAll('#view-pipeline .filter-btn[data-seg]').forEach(b => b.classList.remove('ativo'));
         btn.classList.add('ativo');
         pipelineSegmentoAtual = btn.dataset.seg;
+        pipelinePaginaAtual = 1;
         renderTabelaPipeline();
       });
+    });
+
+    // Paginação
+    document.getElementById('btnPagAnterior').addEventListener('click', () => {
+      if (pipelinePaginaAtual > 1) { pipelinePaginaAtual--; renderTabelaPipeline(); }
+    });
+    document.getElementById('btnPagProxima').addEventListener('click', () => {
+      pipelinePaginaAtual++;
+      renderTabelaPipeline();
     });
 
   </script>
