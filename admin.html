@@ -899,6 +899,13 @@
         <button id="btnFecharHoje" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;margin-left:auto;line-height:1;">×</button>
       </div>
 
+      <!-- Sub-abas do Pipeline -->
+      <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:0;">
+        <button class="pipeline-subtab ativo" data-vista="ativos"  style="background:transparent;border:none;border-bottom:2px solid var(--gold);padding:8px 18px;font-size:13px;font-weight:600;color:var(--gold);cursor:pointer;font-family:'Inter',sans-serif;">Ativos <span id="cntAtivos" style="font-size:11px;opacity:.7"></span></button>
+        <button class="pipeline-subtab"        data-vista="ganhos" style="background:transparent;border:none;border-bottom:2px solid transparent;padding:8px 18px;font-size:13px;color:var(--text-muted);cursor:pointer;font-family:'Inter',sans-serif;">Ganhos <span id="cntGanhos" style="font-size:11px;opacity:.7"></span></button>
+        <button class="pipeline-subtab"        data-vista="perdidos" style="background:transparent;border:none;border-bottom:2px solid transparent;padding:8px 18px;font-size:13px;color:var(--text-muted);cursor:pointer;font-family:'Inter',sans-serif;">Perdidos <span id="cntPerdidos" style="font-size:11px;opacity:.7"></span></button>
+      </div>
+
       <!-- Toolbar -->
       <div class="toolbar">
         <input type="text" id="pipelineBusca" class="busca" placeholder="Buscar por nome…" style="flex:1;min-width:160px;" />
@@ -908,10 +915,8 @@
           <option value="Engajado">Engajado</option>
           <option value="Interessado">Interessado</option>
           <option value="Em Negociação">Em Negociação</option>
-          <option value="Fechado Ganho">Fechado Ganho</option>
-          <option value="Fechado Perdido">Fechado Perdido</option>
         </select>
-        <div style="display:flex;gap:6px;">
+        <div id="segmentoFiltroWrap" style="display:flex;gap:6px;">
           <button class="filter-btn ativo" data-seg="">Todos</button>
           <button class="filter-btn" data-seg="pipeline">Pipeline</button>
           <button class="filter-btn" data-seg="upsell">Upsell</button>
@@ -3243,11 +3248,12 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
 
 
     // ─── Pipeline CRM ────────────────────────────────────────────────
-    let pipelineLeads      = [];       // cache de leads
-    let pipelineCarregado  = false;    // carrega só na primeira vez
-    let pipelineBuscaAtual = '';
+    let pipelineLeads        = [];
+    let pipelineCarregado    = false;
+    let pipelineBuscaAtual   = '';
     let pipelineEstagioAtual = '';
     let pipelineSegmentoAtual = '';
+    let pipelineVistaAtual   = 'ativos'; // 'ativos' | 'ganhos' | 'perdidos'
 
     const ESTAGIOS = ['Lead Frio','Engajado','Interessado','Em Negociação','Fechado Ganho','Fechado Perdido'];
 
@@ -3271,18 +3277,46 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         }
       }
       atualizarKpisPipeline();
+      atualizarContadoresSubAbas();
       renderTabelaPipeline();
       verificarLeadsHoje();
       if (document.getElementById('statsPanel').style.display !== 'none') renderEstatisticas();
     }
 
+    const ESTAGIOS_ATIVOS   = ['Lead Frio','Engajado','Interessado','Em Negociação'];
+    const ESTAGIOS_GANHOS   = ['Fechado Ganho'];
+    const ESTAGIOS_PERDIDOS = ['Fechado Perdido'];
+
     function leadsFiltrados() {
       return pipelineLeads.filter(l => {
-        const matchBusca = !pipelineBuscaAtual || l.nome?.toLowerCase().includes(pipelineBuscaAtual);
+        // Filtro de vista (sub-aba)
+        if (pipelineVistaAtual === 'ativos'   && !ESTAGIOS_ATIVOS.includes(l.estagio))   return false;
+        if (pipelineVistaAtual === 'ganhos'   && !ESTAGIOS_GANHOS.includes(l.estagio))   return false;
+        if (pipelineVistaAtual === 'perdidos' && !ESTAGIOS_PERDIDOS.includes(l.estagio)) return false;
+        const matchBusca   = !pipelineBuscaAtual   || l.nome?.toLowerCase().includes(pipelineBuscaAtual);
         const matchEstagio = !pipelineEstagioAtual || l.estagio === pipelineEstagioAtual;
-        const matchSeg = !pipelineSegmentoAtual || l.segmento === pipelineSegmentoAtual;
+        const matchSeg     = !pipelineSegmentoAtual || l.segmento === pipelineSegmentoAtual;
         return matchBusca && matchEstagio && matchSeg;
       });
+    }
+
+    function atualizarContadoresSubAbas() {
+      const ativos   = pipelineLeads.filter(l => ESTAGIOS_ATIVOS.includes(l.estagio)).length;
+      const ganhos   = pipelineLeads.filter(l => l.estagio === 'Fechado Ganho').length;
+      const perdidos = pipelineLeads.filter(l => l.estagio === 'Fechado Perdido').length;
+      document.getElementById('cntAtivos').textContent   = ativos   ? `(${ativos})`   : '';
+      document.getElementById('cntGanhos').textContent   = ganhos   ? `(${ganhos})`   : '';
+      document.getElementById('cntPerdidos').textContent = perdidos ? `(${perdidos})` : '';
+      // Mostra/oculta filtros de estágio e segmento conforme a vista
+      const toolbarFiltroEstagio = document.getElementById('pipelineFiltroEstagio');
+      const segWrap = document.getElementById('segmentoFiltroWrap');
+      if (pipelineVistaAtual === 'ativos') {
+        toolbarFiltroEstagio.style.display = '';
+        segWrap.style.display = '';
+      } else {
+        toolbarFiltroEstagio.style.display = 'none';
+        segWrap.style.display = 'none';
+      }
     }
 
     function atualizarKpisPipeline() {
@@ -3342,9 +3376,12 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         const waLink = waTel.length >= 8
           ? `<a href="https://wa.me/55${waTel}" target="_blank" onclick="event.stopPropagation()" style="color:var(--text-muted);text-decoration:none;" title="Abrir WhatsApp">📱 ${l.whatsapp}</a>`
           : '—';
-        // Botão converter (só para Fechado Ganho ainda não convertido)
-        const btnConverter = l.estagio === 'Fechado Ganho' && !l.convertidoEm
+        // Botões de ação por vista
+        const btnConverter = pipelineVistaAtual === 'ganhos' && !l.convertidoEm
           ? `<button class="btn-acao" data-pipeline-converter="${l.id}" onclick="event.stopPropagation()" style="border-color:var(--positive);color:var(--positive);font-size:11px;padding:4px 10px;">→ Mentorada</button>`
+          : '';
+        const btnReabrir = pipelineVistaAtual === 'perdidos'
+          ? `<button class="btn-acao" data-pipeline-reabrir="${l.id}" onclick="event.stopPropagation()" style="font-size:11px;padding:4px 10px;">↩ Reabrir</button>`
           : '';
         return `<tr style="${rowStyle}" data-lead-id="${l.id}">
           <td><strong>${l.nome || '—'}</strong>${atrasado ? ' <span style="color:var(--gold);font-size:11px;">⏰</span>' : ''}${l.convertidoEm ? ' <span style="color:var(--positive);font-size:11px;" title="Já convertido em mentorada">✓</span>' : ''}</td>
@@ -3356,7 +3393,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
           <td style="${atrasado ? 'color:var(--gold);font-weight:600' : 'color:var(--text-muted)'}">${proxContato}</td>
           <td style="${diasCls}">${diasTxt}</td>
           <td style="text-align:right;white-space:nowrap;display:flex;gap:6px;justify-content:flex-end;">
-            ${btnConverter}
+            ${btnConverter}${btnReabrir}
             <button class="btn-acao" data-pipeline-editar="${l.id}">Editar</button>
           </td>
         </tr>`;
@@ -3374,6 +3411,24 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       });
       tbody.querySelectorAll('[data-pipeline-converter]').forEach(btn => {
         btn.addEventListener('click', () => abrirModalConverterLead(btn.dataset.pipelineConverter));
+      });
+      tbody.querySelectorAll('[data-pipeline-reabrir]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.pipelineReabrir;
+          const l  = pipelineLeads.find(x => x.id === id);
+          if (!l) return;
+          btn.disabled = true; btn.textContent = '…';
+          try {
+            await updateLead(id, { estagio: 'Lead Frio', probabilidade: 10 });
+            l.estagio = 'Lead Frio'; l.probabilidade = 10;
+            atualizarContadoresSubAbas();
+            renderTabelaPipeline();
+            mostrarToast(`${l.nome} reaberto como Lead Frio.`);
+          } catch (err) {
+            btn.disabled = false; btn.textContent = '↩ Reabrir';
+            mostrarToast(`Erro: ${err.message}`);
+          }
+        });
       });
     }
 
@@ -3540,6 +3595,29 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         alert(`Erro ao excluir: ${err.message}`);
         btn.disabled = false; btn.textContent = 'Excluir lead';
       }
+    });
+
+    // Sub-abas Ativos / Ganhos / Perdidos
+    document.querySelectorAll('.pipeline-subtab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.pipeline-subtab').forEach(b => {
+          b.classList.remove('ativo');
+          b.style.borderBottomColor = 'transparent';
+          b.style.color = 'var(--text-muted)';
+          b.style.fontWeight = '';
+        });
+        btn.classList.add('ativo');
+        btn.style.borderBottomColor = 'var(--gold)';
+        btn.style.color = 'var(--gold)';
+        btn.style.fontWeight = '600';
+        pipelineVistaAtual = btn.dataset.vista;
+        pipelineBuscaAtual = '';
+        pipelineEstagioAtual = '';
+        document.getElementById('pipelineBusca').value = '';
+        document.getElementById('pipelineFiltroEstagio').value = '';
+        atualizarContadoresSubAbas();
+        renderTabelaPipeline();
+      });
     });
 
     // Busca e filtros
