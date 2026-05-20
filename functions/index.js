@@ -540,6 +540,7 @@ exports.updateMentorada = onCall({}, async (request) => {
     'status', 'nota', 'perfil', 'inicio',
     'produto', 'valorMensal', 'formaPagamento', 'dataExpiracao',
     'mentoriaEncerrada', 'assinaturaDashboard', 'assinaturaClube',
+    'notionLicoesPendentes',
   ];
   const atualizacao = {};
   for (const [k, v] of Object.entries(campos || {})) {

@@ -1771,7 +1771,7 @@
 
         el.innerHTML = encHTML + licoesHTML + linkHTML;
 
-        // Atualiza badge na lista de mentoradas
+        // Atualiza badge na lista de mentoradas e persiste no Firestore
         const m = mentoradas.find(x => (x.uid ?? x.id) === uid);
         if (m) {
           m.notionLicoesPendentes = licoes.length;
@@ -1781,6 +1781,8 @@
             badge.textContent = licoes.length > 0 ? `📚 ${licoes.length}` : '';
             badge.style.display = licoes.length > 0 ? '' : 'none';
           }
+          // Salva no Firestore para aparecer no próximo carregamento
+          updateMentorada(uid, { notionLicoesPendentes: licoes.length }).catch(() => {});
         }
       } catch (err) {
         el.innerHTML = `<span style="color:var(--negative);font-size:13px">Erro ao carregar Notion: ${err.message || err}</span>`;
@@ -3008,63 +3010,6 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       }
     });
 
-    const LEADS_LEGADO = [ // mantido apenas por compatibilidade — dados já importados
-      { nome:'Tathiely Barreto',          whatsapp:'27 998216924', origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Ganho',   segmento:'pipeline', probabilidade:100, notas:'FUP: na | em andamento | Entrada: 01/nov' },
-      { nome:'Jannayna Luna',              whatsapp:'81 96346867',  origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Perdido', segmento:'pipeline', probabilidade:0,   notas:'FUP: 09/abr | disse que vai me procurar | Entrada: 01/nov' },
-      { nome:'Fernanda Souza',             whatsapp:'',             origem:'Outro',     produtoAlvo:'Jornada Domine R$197',         estagio:'Interessado',     segmento:'pipeline', probabilidade:20,  notas:'FUP: — | sumiu | Entrada: 05/nov' },
-      { nome:'Beto Simonsen',              whatsapp:'',             origem:'Indicação', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Interessado',     segmento:'pipeline', probabilidade:30,  notas:'FUP: — | me chamou com demandas específicas | Entrada: 05/nov' },
-      { nome:'Luciana Kawahara',           whatsapp:'',             origem:'Indicação', produtoAlvo:'',                            estagio:'Lead Frio',       segmento:'pipeline', probabilidade:5,   notas:'FUP: — | Não tem dinheiro | Entrada: 05/nov' },
-      { nome:'Jaiara Simões',              whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:40,  notas:'FUP: 23/abr | convidei para o grupo | Entrada: 05/nov' },
-      { nome:'Janaina Freitas',            whatsapp:'37 99131552',  origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Perdido', segmento:'pipeline', probabilidade:0,   notas:'FUP: 09/abr | não tem dinheiro | Entrada: 10/nov' },
-      { nome:'Patrícia (mentorada Ametista)', whatsapp:'',          origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Perdido', segmento:'pipeline', probabilidade:0,   notas:'FUP: 09/abr | passando por separação | Entrada: 10/nov' },
-      { nome:'Ludmila Diniz',              whatsapp:'',             origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Perdido', segmento:'pipeline', probabilidade:0,   notas:'FUP: 01/jun | mudou de ideia | Entrada: 15/nov' },
-      { nome:'Jessica Duarte',             whatsapp:'21 964841991', origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: — | sumiu | Entrada: 24/nov' },
-      { nome:'Débora Damaceno',            whatsapp:'31 75860511',  origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Engajado',        segmento:'pipeline', probabilidade:15,  notas:'FUP: 19/dez | msg de fechamento de ciclo | Entrada: 24/nov' },
-      { nome:'Mariana Cavasin',            whatsapp:'',             origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Ganho',   segmento:'pipeline', probabilidade:100, notas:'FUP: na | sessões iniciarão em janeiro | Entrada: 03/dez' },
-      { nome:'Edinei Chaves',              whatsapp:'',             origem:'Rádio',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:35,  notas:'FUP: 09/abr | está colocando objeções agora | Entrada: 17/dez' },
-      { nome:'Bruna Cestas',               whatsapp:'',             origem:'Rádio',     produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:10,  notas:'FUP: 12/jan | parou de me seguir, enviei mensagem de encerramento | Entrada: 18/dez' },
-      { nome:'Cristiano de Paula',         whatsapp:'',             origem:'Rádio',     produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:15,  notas:'FUP: 28/jan | entrou para o grupo | Entrada: 18/dez' },
-      { nome:'Tiago Bernardino',           whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Engajado',        segmento:'pipeline', probabilidade:15,  notas:'FUP: 06/jan | — | Entrada: 18/dez' },
-      { nome:'Kelly Bertolato',            whatsapp:'',             origem:'Rádio',     produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:10,  notas:'FUP: 28/jan | convidei para o grupo | Entrada: 19/dez' },
-      { nome:'Maciel',                     whatsapp:'',             origem:'Rádio',     produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:5,   notas:'FUP: 02/fev | não está interessado na mentoria, quer fazer parceria | Entrada: 23/dez' },
-      { nome:'Eder Silva',                 whatsapp:'',             origem:'Rádio',     produtoAlvo:'',                            estagio:'Em Negociação',   segmento:'pipeline', probabilidade:20,  notas:'FUP: 15/mai | mandei msg mas não chegou, não sei se me bloqueou | Entrada: 26/dez' },
-      { nome:'Vanda Luz',                  whatsapp:'',             origem:'Instagram', produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:10,  notas:'FUP: 28/jan | convidei para o grupo | Entrada: 06/jan' },
-      { nome:'Tatiana Bonifácio',          whatsapp:'',             origem:'Instagram', produtoAlvo:'',                            estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 21/jan | convidei para o grupo | Entrada: 06/jan' },
-      { nome:'Lismara Marques',            whatsapp:'',             origem:'Live',      produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Ganho',   segmento:'pipeline', probabilidade:100, notas:'FUP: 19/jan | sessão agendada | Entrada: 19/jan' },
-      { nome:'Ligia Chien',                whatsapp:'',             origem:'Outro',     produtoAlvo:'',                            estagio:'Lead Frio',       segmento:'pipeline', probabilidade:10,  notas:'FUP: 20/jul | pediu envio das condições | Entrada: 21/jan' },
-      { nome:'Rogerio Mentori',            whatsapp:'',             origem:'Grupo VIP', produtoAlvo:'',                            estagio:'Em Negociação',   segmento:'pipeline', probabilidade:25,  notas:'FUP: 02/jun | está se separando | Entrada: 23/jan' },
-      { nome:'Carla Tomaz',                whatsapp:'',             origem:'Grupo VIP', produtoAlvo:'',                            estagio:'Em Negociação',   segmento:'pipeline', probabilidade:20,  notas:'FUP: 28/jan | sem resposta, 3o FUP, não participou do desafio | Entrada: 23/jan' },
-      { nome:'Ludmila Almeida',            whatsapp:'',             origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 23/fev | marido não quer, acredita que vai funcionar fazendo sozinho | Entrada: 26/jan' },
-      { nome:'Gil Brito',                  whatsapp:'',             origem:'Instagram', produtoAlvo:'Jornada Domine R$197',         estagio:'Em Negociação',   segmento:'pipeline', probabilidade:25,  notas:'FUP: 28/fev | não respondeu mais | Entrada: 26/jan' },
-      { nome:'Juliana Porto',              whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:40,  notas:'FUP: 10/fev | sessão agendada | Entrada: 05/fev' },
-      { nome:'Bruna Domingues',            whatsapp:'',             origem:'Outro',     produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:10,  notas:'FUP: 09/abr | ela respondeu enquete | Entrada: 19/fev' },
-      { nome:'Sabrina Castelo Branco',     whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:25,  notas:'FUP: 01/mai | disse não ser prioridade agora | Entrada: 20/fev' },
-      { nome:'Sarah Brandão',              whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Lead Frio',       segmento:'pipeline', probabilidade:10,  notas:'FUP: 01/mai | disse estar envolvida no projeto da mentoria | Entrada: 12/mar' },
-      { nome:'Ana Paula Variz',            whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:50,  notas:'FUP: 17/mar | fechado | Entrada: 16/mar' },
-      { nome:'Giovanni Finazzi',           whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Interessado',     segmento:'pipeline', probabilidade:30,  notas:'FUP: 09/abr | fechado | Entrada: 07/abr' },
-      { nome:'Domingas Dias',              whatsapp:'',             origem:'Grupo VIP', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Interessado',     segmento:'pipeline', probabilidade:20,  notas:'FUP: 09/abr | — | Entrada: 09/abr' },
-      { nome:'Rogerio Caldas',             whatsapp:'',             origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Engajado',        segmento:'pipeline', probabilidade:10,  notas:'FUP: 09/abr | não continuou a conversa | Entrada: 09/abr' },
-      { nome:'Daniela Aquino',             whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:35,  notas:'FUP: 01/set | vai fazer cirurgia/viagem, quer se organizar para começar | Entrada: 09/abr' },
-      { nome:'Gabriela Aquino',            whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 01/jun | disse que não pode se comprometer agora | Entrada: 10/abr' },
-      { nome:'Alberto Ribeiro',            whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 04/mai | — | Entrada: 10/abr' },
-      { nome:'Carla Ferreira',             whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 04/mai | — | Entrada: 10/abr' },
-      { nome:'Maria Beatriz',              whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:35,  notas:'FUP: 13/abr | fechado | Entrada: 10/abr' },
-      { nome:'Isabela Stamm',              whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 04/mai | — | Entrada: 10/abr' },
-      { nome:'Caroline Accorsi',           whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 04/mai | — | Entrada: 10/abr' },
-      { nome:'Renato',                     whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:25,  notas:'FUP: 15/mai | quer esperar a clínica começar para se estruturar | Entrada: 10/abr' },
-      { nome:'Luciana Guerra',             whatsapp:'',             origem:'Instagram', produtoAlvo:'',                            estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: — | — | Entrada: 13/abr' },
-      { nome:'João Vítor',                 whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:25,  notas:'FUP: 15/mai | quer esperar a clínica começar para se estruturar | Entrada: 10/abr' },
-      { nome:'Juliana Valerio',            whatsapp:'',             origem:'Big',       produtoAlvo:'',                            estagio:'Interessado',     segmento:'pipeline', probabilidade:20,  notas:'FUP: — | fechado | Entrada: 15/abr' },
-      { nome:'Lismara Marques (renovação)',whatsapp:'',             origem:'Grupo VIP', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 01/jun | vou ver por aqui e te aviso pra gente seguir | Entrada: 20/abr' },
-      { nome:'Juliana Porto (renovação)',  whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 01/jun | coerência com o fluxo de pagamentos | Entrada: 29/abr' },
-      { nome:'Mari Cavasin',               whatsapp:'',             origem:'Outro',     produtoAlvo:'Clube Trilogia R$97/mês',      estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 01/jun | — | Entrada: 04/mai' },
-      { nome:'Juliana Porto (Clube)',       whatsapp:'',             origem:'Outro',     produtoAlvo:'Clube Trilogia R$97/mês',      estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 01/jun | — | Entrada: 04/mai' },
-      { nome:'Lismara Marques (Clube)',     whatsapp:'',             origem:'Outro',     produtoAlvo:'Clube Trilogia R$97/mês',      estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 05/mai | — | Entrada: 04/mai' },
-      { nome:'Tathiely Barreto (Clube)',    whatsapp:'',             origem:'Outro',     produtoAlvo:'Clube Trilogia R$97/mês',      estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 05/mai | — | Entrada: 04/mai' },
-      { nome:'Marcia Camila',              whatsapp:'',             origem:'OCP',       produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:40,  notas:'FUP: 21/mai | agendada | Entrada: 14/mai' },
-      { nome:'Uana Poli',                  whatsapp:'',             origem:'OCP',       produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:40,  notas:'FUP: 20/mai | agendada | Entrada: 14/mai' },
-      { nome:'Mayara',                     whatsapp:'',             origem:'OCP',       produtoAlvo:'',                            estagio:'Lead Frio',       segmento:'pipeline', probabilidade:5,   notas:'FUP: — | nutrição pelo instagram | Entrada: 14/mai' },
-    ];
 
     // ─── Sync Diagnóstico ────────────────────────────────────────────
     // ─── Toast ────────────────────────────────────────────────────────────────
