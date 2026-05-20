@@ -960,6 +960,10 @@
             <label>WhatsApp</label>
             <input type="text" id="lWhatsapp" placeholder="(11) 99999-9999" />
           </div>
+          <div class="field-group" style="grid-column:1/-1">
+            <label>E-mail</label>
+            <input type="email" id="lEmail" placeholder="email@exemplo.com" />
+          </div>
           <div class="field-group">
             <label>Segmento *</label>
             <select id="lSegmento">
@@ -1338,7 +1342,7 @@
              criarPlanilha, getNotionCRM,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             bulkImportLeads, syncDiagnostico } from './js/api.js?v=11';
+             syncDiagnostico } from './js/api.js?v=12';
 
     // ─── Auth guard via Custom Claim ─────────────
     const user = await exigirAdmin();
@@ -2992,8 +2996,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       }
     });
 
-    // ─── Importação CRM legado ───────────────────────────────────────
-    const LEADS_LEGADO = [
+    const LEADS_LEGADO = [ // mantido apenas por compatibilidade — dados já importados
       { nome:'Tathiely Barreto',          whatsapp:'27 998216924', origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Ganho',   segmento:'pipeline', probabilidade:100, notas:'FUP: na | em andamento | Entrada: 01/nov' },
       { nome:'Jannayna Luna',              whatsapp:'81 96346867',  origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Perdido', segmento:'pipeline', probabilidade:0,   notas:'FUP: 09/abr | disse que vai me procurar | Entrada: 01/nov' },
       { nome:'Fernanda Souza',             whatsapp:'',             origem:'Outro',     produtoAlvo:'Jornada Domine R$197',         estagio:'Interessado',     segmento:'pipeline', probabilidade:20,  notas:'FUP: — | sumiu | Entrada: 05/nov' },
@@ -3378,6 +3381,11 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
     function abrirModalConverterLead(id) {
       const l = pipelineLeads.find(x => x.id === id);
       if (!l) return;
+      if (!l.email) {
+        mostrarToast(`⚠️ ${l.nome} não tem e-mail cadastrado no CRM. Adicione o e-mail antes de converter.`, 6000);
+        abrirModalLead(id);
+        return;
+      }
       // Vai para aba Mentoradas e abre modal de nova mentorada
       document.querySelector('[data-tab="mentoradas"]').click();
       setTimeout(() => {
@@ -3389,7 +3397,6 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
           if (emailEl) emailEl.value = l.email  || '';
           // Guarda o id do lead no modal para marcar como convertido após salvar
           document.getElementById('modalNova')?.setAttribute('data-lead-origem-id', id);
-          // Toast avisando
           mostrarToast(`Dados de ${l.nome} pré-preenchidos. Complete e salve para criar a mentorada.`, 6000);
         }, 200);
       }, 300);
@@ -3407,6 +3414,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         document.getElementById('lEditId').value   = id;
         document.getElementById('lNome').value     = l.nome     || '';
         document.getElementById('lWhatsapp').value = l.whatsapp || '';
+        document.getElementById('lEmail').value    = l.email    || '';
         document.getElementById('lSegmento').value = l.segmento || 'pipeline';
         document.getElementById('lOrigem').value   = l.origem   || '';
         document.getElementById('lProdutoAlvo').value = l.produtoAlvo || '';
@@ -3423,6 +3431,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         document.getElementById('lEditId').value   = '';
         document.getElementById('lNome').value     = '';
         document.getElementById('lWhatsapp').value = '';
+        document.getElementById('lEmail').value    = '';
         document.getElementById('lSegmento').value = pipelineSegmentoAtual || 'pipeline';
         document.getElementById('lOrigem').value   = '';
         document.getElementById('lProdutoAlvo').value = '';
@@ -3444,6 +3453,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       return {
         nome:             document.getElementById('lNome').value.trim(),
         whatsapp:         document.getElementById('lWhatsapp').value.trim(),
+        email:            document.getElementById('lEmail').value.trim(),
         segmento:         document.getElementById('lSegmento').value,
         origem:           document.getElementById('lOrigem').value,
         produtoAlvo:      document.getElementById('lProdutoAlvo').value,

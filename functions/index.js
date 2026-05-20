@@ -67,7 +67,6 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const isAdminUser = request.auth?.token?.admin === true;
   const clubeOnly   = assinaturaClube === true && assinaturaDashboard !== true;
   const temDashboard = isAdminUser || !clubeOnly;
-  console.log(`[getDashboard] uid=${uid} assinaturaClube=${assinaturaClube} assinaturaDashboard=${assinaturaDashboard} clubeOnly=${clubeOnly} temDashboard=${temDashboard}`);
 
   // Resposta mínima para membros apenas do Clube (sem dashboard)
   const respostaApenasClube = {
@@ -1505,12 +1504,16 @@ exports.verificarExpiracoes = onSchedule(
       .get();
 
     for (const doc of snap.docs) {
-      const { dataExpiracao, assinaturaDashboard } = doc.data();
+      const { dataExpiracao, assinaturaDashboard, assinaturaClube } = doc.data();
       if (!dataExpiracao) continue; // sem expiração definida: ignora
 
-      // Se tem assinatura ativa do dashboard, mantém acesso mesmo após expiração da mentoria
+      // Mantém acesso se tem assinatura ativa de dashboard ou clube
       if (assinaturaDashboard === true) {
         console.log(`Mentoria expirada mas dashboard ativo — acesso mantido: ${doc.id}`);
+        continue;
+      }
+      if (assinaturaClube === true) {
+        console.log(`Mentoria expirada mas clube ativo — acesso mantido: ${doc.id}`);
         continue;
       }
 
@@ -1540,6 +1543,8 @@ exports.notifExpiracaoProxima = onSchedule(
     for (const doc of snap.docs) {
       const m = doc.data();
       if (!m.email) continue;
+      // Não notifica quem tem assinatura ativa de dashboard ou clube (não vai expirar)
+      if (m.assinaturaDashboard === true || m.assinaturaClube === true) continue;
       await sendEmail({
         to:      m.email,
         subject: 'Seu acesso ao Dashboard expira em 7 dias',
