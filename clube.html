@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clube Trilogia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45;
+      --navy-dark: #081e30;
+      --navy-mid: #0f3352;
+      --gold: #CFAE65;
+      --gold-light: #e8d49b;
+      --gold-dim: rgba(207,174,101,0.15);
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.08);
+      --border-gold: rgba(207,174,101,0.2);
+      --positive: #4ade80;
+      --negative: #f87171;
+      --text-muted: rgba(255,255,255,0.45);
+      --text-secondary: rgba(255,255,255,0.65);
+    }
+
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+
+    /* ─── Navbar ─────────────────────────────── */
+    .navbar {
+      background: var(--navy); border-bottom: 1px solid var(--border);
+      padding: 0 32px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--white); }
+    .logo span { color: var(--gold); }
+    .navbar-right { display: flex; align-items: center; gap: 16px; }
+    .user-name { font-size: 14px; color: var(--text-secondary); }
+    .btn-logout {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 14px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-logout:hover { border-color: var(--border-gold); color: var(--gold); }
+
+    /* ─── Layout ─────────────────────────────── */
+    .main { max-width: 960px; margin: 0 auto; padding: 40px 24px 120px; }
+
+    /* ─── Loading ────────────────────────────── */
+    .loading-overlay {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: calc(100vh - 64px);
+      gap: 16px; color: var(--text-muted); font-size: 14px;
+    }
+    .spinner {
+      width: 32px; height: 32px; border: 2px solid var(--border);
+      border-top-color: var(--gold); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Page header ────────────────────────── */
+    .page-header { margin-bottom: 40px; }
+    .page-header h1 { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 600; margin-bottom: 6px; }
+    .page-header p { font-size: 14px; color: var(--text-muted); }
+
+    /* ─── Seção ──────────────────────────────── */
+    .secao { margin-bottom: 48px; }
+    .secao-titulo {
+      font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600;
+      margin-bottom: 20px; padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .secao-titulo span { color: var(--gold); font-size: 20px; }
+    .secao-vazia { color: var(--text-muted); font-size: 14px; padding: 20px 0; }
+
+    /* ─── Cards de gravação ──────────────────── */
+    .gravacoes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 18px;
+    }
+    .card-gravacao {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .card-gravacao:hover { border-color: var(--border-gold); transform: translateY(-2px); }
+    .card-thumb {
+      width: 100%; aspect-ratio: 16/9; object-fit: cover;
+      background: var(--navy-mid); display: flex; align-items: center; justify-content: center;
+    }
+    .card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .card-thumb-placeholder {
+      width: 100%; aspect-ratio: 16/9;
+      background: var(--navy-mid); display: flex; align-items: center; justify-content: center;
+      font-size: 40px; color: var(--text-muted);
+    }
+    .card-body { padding: 16px; }
+    .card-data { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .card-titulo { font-size: 14px; font-weight: 600; line-height: 1.4; margin-bottom: 14px; }
+    .btn-assistir {
+      display: inline-block; background: var(--gold); color: var(--navy);
+      border: none; border-radius: 8px; padding: 8px 18px;
+      font-size: 13px; font-weight: 700; font-family: 'Inter', sans-serif;
+      text-decoration: none; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-assistir:hover { background: var(--gold-light); }
+
+    /* ─── Lista de documentos ────────────────── */
+    .doc-lista { display: flex; flex-direction: column; gap: 10px; }
+    .doc-item {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 20px;
+      display: flex; align-items: center; gap: 16px;
+      transition: border-color 0.2s;
+    }
+    .doc-item:hover { border-color: var(--border-gold); }
+    .doc-icon { font-size: 22px; flex-shrink: 0; }
+    .doc-info { flex: 1; min-width: 0; }
+    .doc-titulo { font-size: 14px; font-weight: 600; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-desc { font-size: 12px; color: var(--text-muted); }
+    .btn-acessar {
+      background: transparent; border: 1px solid var(--border-gold);
+      border-radius: 8px; padding: 7px 16px;
+      font-size: 13px; color: var(--gold); font-family: 'Inter', sans-serif;
+      text-decoration: none; white-space: nowrap; transition: background 0.2s;
+    }
+    .btn-acessar:hover { background: var(--gold-dim); }
+
+    /* ─── Agenda ─────────────────────────────── */
+    .agenda-lista { display: flex; flex-direction: column; gap: 10px; }
+    .agenda-item {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 20px;
+      display: flex; align-items: flex-start; gap: 16px;
+      transition: border-color 0.2s;
+    }
+    .agenda-item.passado { opacity: 0.55; }
+    .agenda-item:hover { border-color: var(--border-gold); opacity: 1; }
+    .agenda-data-bloco {
+      background: var(--gold-dim); border: 1px solid var(--border-gold);
+      border-radius: 10px; padding: 8px 14px; text-align: center;
+      min-width: 60px; flex-shrink: 0;
+    }
+    .agenda-dia { font-size: 22px; font-weight: 700; color: var(--gold); line-height: 1; }
+    .agenda-mes { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-top: 2px; }
+    .agenda-info { flex: 1; }
+    .agenda-titulo { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .agenda-passado-label {
+      font-size: 11px; color: var(--text-muted); font-style: italic;
+    }
+    .separador-passado {
+      display: flex; align-items: center; gap: 12px;
+      margin: 20px 0 10px; color: var(--text-muted); font-size: 12px;
+    }
+    .separador-passado::before, .separador-passado::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ─── Bottom nav ─────────────────────────── */
+    .bottom-nav {
+      display: none; position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--navy); border-top: 1px solid var(--border);
+      padding: 8px 0 12px; z-index: 100;
+      justify-content: space-around; align-items: center;
+    }
+    .bnav-item {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      font-size: 11px; color: var(--text-muted); text-decoration: none;
+      transition: color 0.2s; padding: 4px 12px;
+    }
+    .bnav-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+    .bnav-item.active, .bnav-item:hover { color: var(--gold); }
+
+    @media (max-width: 640px) {
+      .bottom-nav { display: flex; }
+      .main { padding-bottom: 100px; }
+      .navbar { padding: 0 16px; }
+      .user-name { display: none; }
+      .gravacoes-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <span class="logo">Trilogia <span>Dashboard</span></span>
+    <div class="navbar-right">
+      <span class="user-name" id="userDisplayName"></span>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </nav>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Carregando o Clube...</span>
+  </div>
+
+  <main class="main" id="mainContent" style="display:none">
+
+    <div class="page-header">
+      <h1>Clube <span style="color:var(--gold)">Trilogia</span></h1>
+      <p>Gravações dos encontros, materiais exclusivos e próximos eventos.</p>
+    </div>
+
+    <!-- Gravações -->
+    <section class="secao" id="secaoGravacoes">
+      <div class="secao-titulo"><span>▶</span> Gravações</div>
+      <div class="gravacoes-grid" id="listaGravacoes"></div>
+    </section>
+
+    <!-- Documentos -->
+    <section class="secao" id="secaoDocumentos">
+      <div class="secao-titulo"><span>📄</span> Documentos & Ferramentas</div>
+      <div class="doc-lista" id="listaDocumentos"></div>
+    </section>
+
+    <!-- Agenda -->
+    <section class="secao" id="secaoAgenda">
+      <div class="secao-titulo"><span>📅</span> Agenda</div>
+      <div class="agenda-lista" id="listaAgenda"></div>
+    </section>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="index.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Início
+    </a>
+    <a href="orcamento.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/></svg>
+      Orçamento
+    </a>
+    <a href="patrimonio.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Patrimônio
+    </a>
+    <a href="reservas.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Reservas
+    </a>
+    <a href="clube.html" class="bnav-item active">
+      <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Clube
+    </a>
+  </nav>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getClubeContent } from './js/api.js?v=8';
+    import {
+      onAuthStateChanged,
+      signOut,
+    } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+    const MESES_CURTOS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) { window.location.href = 'login.html'; return; }
+      document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+      init();
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login.html';
+    });
+
+    async function init() {
+      let itens;
+      try {
+        itens = await getClubeContent();
+      } catch (err) {
+        if (err.code === 'functions/permission-denied' || err.code === 'permission-denied') {
+          document.getElementById('loadingOverlay').innerHTML =
+            `<p style="color:var(--negative);font-size:14px">Você não tem acesso ao Clube Trilogia.<br><a href="index.html" style="color:var(--negative);text-decoration:underline">Voltar ao dashboard</a></p>`;
+          return;
+        }
+        document.getElementById('loadingOverlay').innerHTML =
+          `<p style="color:var(--negative);font-size:14px">Erro ao carregar o Clube. <a href="" onclick="location.reload();return false" style="color:var(--negative);text-decoration:underline">Tentar novamente</a></p>`;
+        return;
+      }
+
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+
+      const gravacoes = itens.filter(i => i.tipo === 'gravacao');
+      const documentos = itens.filter(i => i.tipo === 'documento');
+      const agenda = itens.filter(i => i.tipo === 'agenda');
+
+      renderGravacoes(gravacoes);
+      renderDocumentos(documentos);
+      renderAgenda(agenda);
+    }
+
+    function ytVideoId(url) {
+      try {
+        const u = new URL(url);
+        if (u.hostname.includes('youtu.be')) return u.pathname.slice(1);
+        if (u.hostname.includes('youtube.com')) return u.searchParams.get('v');
+      } catch {}
+      return null;
+    }
+
+    function fmtData(str) {
+      if (!str) return '';
+      const [ano, mes, dia] = str.split('-');
+      return `${parseInt(dia, 10)} de ${['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'][parseInt(mes,10)-1]} de ${ano}`;
+    }
+
+    function renderGravacoes(lista) {
+      const el = document.getElementById('listaGravacoes');
+      const secao = document.getElementById('secaoGravacoes');
+      if (!lista.length) {
+        el.innerHTML = '<p class="secao-vazia">Nenhuma gravação publicada ainda.</p>';
+        return;
+      }
+      el.innerHTML = lista.map(item => {
+        const vid = ytVideoId(item.url);
+        const thumb = vid
+          ? `<div class="card-thumb"><img src="https://img.youtube.com/vi/${vid}/hqdefault.jpg" alt="${item.titulo}" loading="lazy" /></div>`
+          : `<div class="card-thumb-placeholder">▶</div>`;
+        return `
+          <div class="card-gravacao">
+            ${thumb}
+            <div class="card-body">
+              <div class="card-data">${fmtData(item.data)}</div>
+              <div class="card-titulo">${item.titulo}</div>
+              <a href="${item.url}" target="_blank" rel="noopener" class="btn-assistir">Assistir</a>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function renderDocumentos(lista) {
+      const el = document.getElementById('listaDocumentos');
+      if (!lista.length) {
+        el.innerHTML = '<p class="secao-vazia">Nenhum documento publicado ainda.</p>';
+        return;
+      }
+      el.innerHTML = lista.map(item => `
+        <div class="doc-item">
+          <div class="doc-icon">📄</div>
+          <div class="doc-info">
+            <div class="doc-titulo">${item.titulo}</div>
+            ${item.descricao ? `<div class="doc-desc">${item.descricao}</div>` : ''}
+          </div>
+          <a href="${item.url}" target="_blank" rel="noopener" class="btn-acessar">Acessar</a>
+        </div>`).join('');
+    }
+
+    function renderAgenda(lista) {
+      const el = document.getElementById('listaAgenda');
+      if (!lista.length) {
+        el.innerHTML = '<p class="secao-vazia">Nenhum evento na agenda ainda.</p>';
+        return;
+      }
+
+      const hoje = new Date().toISOString().slice(0, 10);
+      const futuros  = lista.filter(i => i.data >= hoje).sort((a,b) => a.data.localeCompare(b.data));
+      const passados = lista.filter(i => i.data <  hoje).sort((a,b) => b.data.localeCompare(a.data));
+
+      function renderItem(item, ehPassado) {
+        const [ano, mes, dia] = (item.data || '').split('-');
+        const diaNum = parseInt(dia, 10);
+        const mesStr = MESES_CURTOS[parseInt(mes, 10) - 1] || '';
+        const linkHtml = item.url
+          ? `<a href="${item.url}" target="_blank" rel="noopener" class="btn-acessar" style="margin-top:8px;display:inline-block;font-size:12px;padding:5px 12px">Ver link</a>`
+          : '';
+        return `
+          <div class="agenda-item${ehPassado ? ' passado' : ''}">
+            <div class="agenda-data-bloco">
+              <div class="agenda-dia">${diaNum || '—'}</div>
+              <div class="agenda-mes">${mesStr}</div>
+            </div>
+            <div class="agenda-info">
+              <div class="agenda-titulo">${item.titulo}</div>
+              ${ehPassado ? '<div class="agenda-passado-label">Já realizado</div>' : ''}
+              ${linkHtml}
+            </div>
+          </div>`;
+      }
+
+      let html = futuros.map(i => renderItem(i, false)).join('');
+      if (passados.length) {
+        html += `<div class="separador-passado">encontros anteriores</div>`;
+        html += passados.map(i => renderItem(i, true)).join('');
+      }
+      el.innerHTML = html || '<p class="secao-vazia">Nenhum evento na agenda ainda.</p>';
+    }
+  </script>
+
+</body>
+</html>

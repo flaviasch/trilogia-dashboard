@@ -350,6 +350,38 @@ export async function getCobrancas(mes, ano, uid) {
   return call('getCobrancas')({ mes, ano, uid: uid || null });
 }
 
+// ─── CRM Pipeline ────────────────────────────────────────────────────────────
+
+/** Retorna todos os leads (filtros opcionais: segmento, estagio, origem). */
+export async function getLeads(filtros = {}) {
+  return call('getLeads')(filtros);
+}
+
+/** Cria um novo lead. */
+export async function saveLead(lead) {
+  return call('saveLead')(lead);
+}
+
+/** Atualiza campos de um lead. */
+export async function updateLead(id, campos) {
+  return call('updateLead')({ id, ...campos });
+}
+
+/** Deleta um lead. */
+export async function deleteLead(id) {
+  return call('deleteLead')({ id });
+}
+
+/** Importa múltiplos leads de uma vez (batch). */
+export async function bulkImportLeads(leads) {
+  return call('bulkImportLeads')({ leads });
+}
+
+/** Sincroniza leads novos da planilha de diagnóstico. */
+export async function syncDiagnostico() {
+  return call('syncDiagnostico')({});
+}
+
 // ─── Mapa de cores para patrimônio (usado por patrimonio.html) ─────────────────
 // Nome original do IR → código de categoria para cor na UI.
 // Não usado pelo parser — apenas exportado para consulta visual.
@@ -633,4 +665,19 @@ export function parsearCsvPatrimonio(csvText) {
   });
 
   return Object.values(acumulado);
+}
+
+// ─── Clube Trilogia ───────────────────────────────────────────────────────────
+
+/** Retorna todos os itens publicados no Clube (requer assinaturaClube: true). */
+export const getClubeContent = call('getClubeContent');
+
+/** Cria ou atualiza um item no Clube. Somente admin. */
+export async function saveClubeItem(item) {
+  return call('saveClubeItem')(item);
+}
+
+/** Deleta um item do Clube. Somente admin. */
+export async function deleteClubeItem(id) {
+  return call('deleteClubeItem')({ id });
 }

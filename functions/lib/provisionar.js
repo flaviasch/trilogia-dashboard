@@ -2,25 +2,6 @@
 
 const { google } = require('googleapis');
 
-const SCOPES = [
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/drive',
-];
-
-function buildAuth() {
-  const clientId     = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Credenciais OAuth não configuradas (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN).');
-  }
-
-  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
-  oauth2Client.setCredentials({ refresh_token: refreshToken });
-  return oauth2Client;
-}
-
 // ─── Schema das abas ──────────────────────────────────────────────────────────
 
 const ABAS = {
@@ -76,12 +57,26 @@ const COR_TEXTO  = { red: 1, green: 1, blue: 1 };
 const COR_ALT    = { red: 0.965, green: 0.961, blue: 0.957 };
 
 /**
+ * Autentica com as credenciais OAuth2 da Flávia (refresh token permanente).
+ * As env vars são injetadas como secrets pelo Firebase.
+ */
+function buildAuth() {
+  const clientId     = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error('Credenciais OAuth não configuradas.');
+  }
+
+  const oauth2Client = new google.auth.OAuth2(clientId.trim(), clientSecret.trim());
+  oauth2Client.setCredentials({ refresh_token: refreshToken.trim() });
+  return oauth2Client;
+}
+
+/**
  * Cria a planilha Google Sheets de uma nova mentorada usando as credenciais
  * OAuth da Flávia — o arquivo é criado na conta dela, dentro da pasta indicada.
- *
- * @param {string} nome      - Nome da mentorada
- * @param {string} folderId  - ID da pasta no Drive da Flávia
- * @returns {Promise<string>} - spreadsheetId criado
  */
 async function provisionar(nome, folderId) {
   const auth  = buildAuth();
@@ -220,9 +215,6 @@ async function provisionar(nome, folderId) {
   });
 
   // ── 5. Compartilha a planilha com a Service Account do projeto ──────────────
-  // A SA usa o arquivo para ler/escrever via sheets.js (SheetsClient).
-  // O arquivo fica na conta da Flávia (quota dela), mas a SA tem permissão
-  // de editor — sem transferência de propriedade.
   const saEmail = getSaEmail();
   if (saEmail) {
     try {
@@ -237,15 +229,13 @@ async function provisionar(nome, folderId) {
         fields: 'id',
       });
     } catch (err) {
-      // Não bloqueia a criação da mentorada se o compartilhamento falhar
-      console.warn('Aviso: não foi possível compartilhar com SA:', err.message);
+      console.warn('[provisionar] Aviso: não foi possível compartilhar com SA:', err.message);
     }
   }
 
   return fileId;
 }
 
-/** Extrai o client_email do GOOGLE_SERVICE_ACCOUNT_JSON injetado como secret. */
 function getSaEmail() {
   try {
     const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;

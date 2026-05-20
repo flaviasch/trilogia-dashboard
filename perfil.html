@@ -276,6 +276,7 @@
   <nav class="navbar">
     <a href="index.html" class="logo">Trilogia <span>Dashboard</span></a>
     <div class="navbar-right">
+      <a href="clube.html" class="link-clube" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
@@ -378,20 +379,39 @@
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
       Reservas
     </a>
+    <a href="clube.html" class="bnav-item link-clube" id="linkClube" style="display:none">
+      <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Clube
+    </a>
   </nav>
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getPerfil, savePerfil, getReservas } from './js/api.js';
+    import { getPerfil, savePerfil, getReservas, setViewAsUid } from './js/api.js?v=6';
     import { toast, setLoading } from './js/ui.js';
+    import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+    // ─── ViewAs (admin visualizando mentorada) ────────────────────────────────
+    const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
+                     || localStorage.getItem('viewAsUid');
+    if (VIEW_AS_UID) {
+      setViewAsUid(VIEW_AS_UID);
+      const suffix = `?viewAs=${VIEW_AS_UID}`;
+      ['index.html','orcamento.html','patrimonio.html','reservas.html'].forEach(page => {
+        document.querySelectorAll(`a[href="${page}"], a[href^="${page}?"]`).forEach(a => { a.href = page + suffix; });
+      });
+    }
+
     onAuthStateChanged(auth, (user) => {
       if (!user) { window.location.href = 'login.html'; return; }
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+      if (localStorage.getItem('clubeAccess') === '1') {
+        document.querySelectorAll('.link-clube').forEach(el => el.style.display = '');
+      }
       init(user);
     });
 
@@ -494,6 +514,8 @@
 
     // ─── Init ─────────────────────────────────
     async function init(user) {
+      if (!VIEW_AS_UID && await isAdmin()) { window.location.href = 'admin.html'; return; }
+
       try {
         perfilAtual = await getPerfil();
       } catch (err) {

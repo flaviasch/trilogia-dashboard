@@ -55,10 +55,41 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   if (!docSnap.exists) {
     throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
   }
-  const { sheetId, inicio, nome, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes } = docSnap.data();
+  const { sheetId, inicio, nome, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
+          assinaturaClube, assinaturaDashboard } = docSnap.data();
+
+  // Verifica se tem acesso ao dashboard:
+  // — admin nunca é bloqueado
+  // — assinaturaDashboard: true  → tem dashboard
+  // — assinaturaDashboard: false → não tem dashboard
+  // — assinaturaDashboard: undefined + assinaturaClube: true  → Clube-only (sem dashboard)
+  // — assinaturaDashboard: undefined + assinaturaClube falsy  → usuária legada, mantém acesso
+  const isAdminUser = request.auth?.token?.admin === true;
+  const clubeOnly   = assinaturaClube === true && assinaturaDashboard !== true;
+  const temDashboard = isAdminUser || !clubeOnly;
+  console.log(`[getDashboard] uid=${uid} assinaturaClube=${assinaturaClube} assinaturaDashboard=${assinaturaDashboard} clubeOnly=${clubeOnly} temDashboard=${temDashboard}`);
+
+  // Resposta mínima para membros apenas do Clube (sem dashboard)
+  const respostaApenasClube = {
+    nome:            nome       || null,
+    inicio:          inicio     || null,
+    lgpdAceite:      lgpdAceite || false,
+    assinaturaClube: true,
+    apenasClube:     true,
+    orcamento:  { receita: 0, despesa: 0, sobra: 0, mes: new Date().getMonth() + 1, ano: new Date().getFullYear() },
+    patrimonio: { ativos: 0, dividas: 0, pl: 0 },
+    reservas:   [],
+    perfil:     { perfil: perfilFirestore || null, dataAtualizacao: null },
+    sheetError: false,
+  };
+
   if (!sheetId) {
+    if (assinaturaClube) return respostaApenasClube;
     throw new HttpsError('failed-precondition', 'Planilha ainda não configurada para esta mentorada.');
   }
+
+  // Tem planilha mas só assinou o Clube → redireciona ao clube.html
+  if (!temDashboard && assinaturaClube) return respostaApenasClube;
 
   const agora    = new Date();
   const mes      = agora.getMonth() + 1;
@@ -140,14 +171,15 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   }).catch(e => console.warn(`[getDashboard] Falha ao cachear snapshot (uid=${uid}):`, e.message));
 
   return {
-    nome:       nome       || null,
-    orcamento: { receita, despesa, sobra, mes, ano },
-    patrimonio: { ativos: totalAtivos, dividas: totalDividas, pl },
+    nome:            nome            || null,
+    orcamento:      { receita, despesa, sobra, mes, ano },
+    patrimonio:     { ativos: totalAtivos, dividas: totalDividas, pl },
     reservas,
     perfil,
-    inicio:     inicio     || null,
-    lgpdAceite: lgpdAceite || false,
-    sheetError: sheetError,
+    inicio:          inicio          || null,
+    lgpdAceite:      lgpdAceite      || false,
+    assinaturaClube: assinaturaClube || false,
+    sheetError:      sheetError,
   };
 });
 
@@ -390,7 +422,7 @@ exports.savePerfil = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
  * Retorna a lista de todas as mentoradas com dados resumidos.
  * Exclusivo para admin.
  */
-exports.getMentoradas = onCall({ cors: true }, async (request) => {
+exports.getMentoradas = onCall({}, async (request) => {
   requireAdmin(request);
 
   const snap = await db.collection('mentoradas').orderBy('nome').get();
@@ -499,7 +531,7 @@ exports.criarPlanilha = onCall({ secrets: SECRETS_ALL }, async (request) => {
  * Atualiza campos editáveis de uma mentorada (status, nota, perfil).
  * Exclusivo para admin.
  */
-exports.updateMentorada = onCall({ cors: true }, async (request) => {
+exports.updateMentorada = onCall({}, async (request) => {
   requireAdmin(request);
 
   const { uid, campos } = request.data;
@@ -508,7 +540,7 @@ exports.updateMentorada = onCall({ cors: true }, async (request) => {
   const permitidos = [
     'status', 'nota', 'perfil', 'inicio',
     'produto', 'valorMensal', 'formaPagamento', 'dataExpiracao',
-    'mentoriaEncerrada',
+    'mentoriaEncerrada', 'assinaturaDashboard', 'assinaturaClube',
   ];
   const atualizacao = {};
   for (const [k, v] of Object.entries(campos || {})) {
@@ -528,7 +560,7 @@ exports.updateMentorada = onCall({ cors: true }, async (request) => {
  * Bloqueia o acesso de uma mentorada (desabilita no Firebase Auth).
  * Exclusivo para admin.
  */
-exports.bloquearMentorada = onCall({ cors: true }, async (request) => {
+exports.bloquearMentorada = onCall({}, async (request) => {
   requireAdmin(request);
 
   const { uid } = request.data;
@@ -543,7 +575,7 @@ exports.bloquearMentorada = onCall({ cors: true }, async (request) => {
  * Reativa o acesso de uma mentorada.
  * Exclusivo para admin.
  */
-exports.reativarMentorada = onCall({ cors: true }, async (request) => {
+exports.reativarMentorada = onCall({}, async (request) => {
   requireAdmin(request);
 
   const { uid } = request.data;
@@ -560,7 +592,7 @@ exports.reativarMentorada = onCall({ cors: true }, async (request) => {
  * automaticamente (pode ser feita manualmente se necessário).
  * Exclusivo para admin.
  */
-exports.deletarMentorada = onCall({ cors: true }, async (request) => {
+exports.deletarMentorada = onCall({}, async (request) => {
   requireAdmin(request);
 
   const { uid } = request.data;
@@ -600,25 +632,36 @@ exports.reenviarAcesso = onCall({ secrets: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_S
   const userRecord = await admin.auth().getUser(uid);
   if (!userRecord.email) throw new HttpsError('failed-precondition', 'Mentorada sem e-mail cadastrado.');
 
-  const link = await admin.auth().generatePasswordResetLink(userRecord.email);
+  // Gera link de redefinição de senha
+  let link;
+  try {
+    link = await admin.auth().generatePasswordResetLink(userRecord.email);
+  } catch (err) {
+    throw new HttpsError('failed-precondition', `Erro ao gerar link: ${err.message}`);
+  }
 
-  const snap = await db.collection('mentoradas').doc(uid).get();
-  const nome = snap.exists ? (snap.data().nome || userRecord.displayName || 'Mentorada') : (userRecord.displayName || 'Mentorada');
-
-  await sendEmail({
-    to: userRecord.email,
-    subject: 'Seu link de acesso — Trilogia Dashboard',
-    html: emailReenvioAcesso(nome, link),
-  });
-
-  return { ok: true };
+  // Tenta enviar e-mail; se falhar, retorna o link para envio manual
+  try {
+    const snap = await db.collection('mentoradas').doc(uid).get();
+    const nome = snap.exists ? (snap.data().nome || userRecord.displayName || 'Mentorada') : (userRecord.displayName || 'Mentorada');
+    await sendEmail({
+      to: userRecord.email,
+      subject: 'Seu link de acesso — Trilogia Dashboard',
+      html: emailReenvioAcesso(nome, link),
+    });
+    return { ok: true, emailEnviado: true };
+  } catch (err) {
+    // E-mail falhou mas link foi gerado — retorna link para o admin enviar manualmente
+    console.error('[reenviarAcesso] Erro no e-mail:', err.message);
+    return { ok: true, emailEnviado: false, link, email: userRecord.email };
+  }
 });
 
 /**
  * Registra acesso da aluna: atualiza ultimoAcesso e incrementa contadores.
  * Chamado pelo client no load do dashboard.
  */
-exports.registrarAcesso = onCall({ cors: true }, async (request) => {
+exports.registrarAcesso = onCall({}, async (request) => {
   const auth = requireAuth(request);
   const uid  = auth.uid;
 
@@ -647,7 +690,7 @@ exports.registrarAcesso = onCall({ cors: true }, async (request) => {
 /**
  * Registra aceite do termo LGPD pela aluna.
  */
-exports.aceitarLGPD = onCall({ cors: true }, async (request) => {
+exports.aceitarLGPD = onCall({}, async (request) => {
   const auth = requireAuth(request);
   await db.collection('mentoradas').doc(auth.uid).update({
     lgpdAceite:     true,
@@ -665,7 +708,7 @@ exports.aceitarLGPD = onCall({ cors: true }, async (request) => {
  */
 const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
 
-exports.bootstrapAdmin = onCall({ cors: true }, async (request) => {
+exports.bootstrapAdmin = onCall({}, async (request) => {
   const auth = requireAuth(request);
   if (auth.token.email !== ADMIN_MASTER_EMAIL) {
     throw new HttpsError('permission-denied', 'Endpoint reservado para a conta master.');
@@ -686,7 +729,7 @@ exports.bootstrapAdmin = onCall({ cors: true }, async (request) => {
  *
  * Uso: { uid, conceder: true } ou { uid, conceder: false }
  */
-exports.setAdminClaim = onCall({ cors: true }, async (request) => {
+exports.setAdminClaim = onCall({}, async (request) => {
   requireAdmin(request);
 
   const { uid, conceder } = request.data;
@@ -707,7 +750,7 @@ exports.setAdminClaim = onCall({ cors: true }, async (request) => {
 // ─── CONTRATOS & COBRANÇAS ───────────────────────────────────────────────────
 
 const ADMIN_EMAIL       = 'flaviasch@gmail.com';
-const PRODUTOS_RECORRENTES = ['clube', 'dashboard'];
+const PRODUTOS_RECORRENTES = ['clube', 'dashboard', 'combo'];
 
 /** Avança uma data YYYY-MM-DD por uma periodicidade. */
 function proximoVencimento(iso, periodicidade) {
@@ -722,7 +765,7 @@ function proximoVencimento(iso, periodicidade) {
  * Para parcelado: recebe array de { valor, vencimento }.
  * Para recorrente: recebe { valor, vencimento } (só a primeira parcela).
  */
-exports.createContrato = onCall({ cors: true }, async (request) => {
+exports.createContrato = onCall({}, async (request) => {
   requireAdmin(request);
   const { uid, produto, tipo, periodicidade, formaPagamento, parcelas } = request.data;
   if (!uid || !produto || !tipo || !formaPagamento || !parcelas?.length) {
@@ -764,7 +807,7 @@ exports.createContrato = onCall({ cors: true }, async (request) => {
 /**
  * Lista contratos de uma mentorada com suas cobranças.
  */
-exports.getContratos = onCall({ cors: true }, async (request) => {
+exports.getContratos = onCall({}, async (request) => {
   requireAdmin(request);
   const { uid } = request.data;
   if (!uid) throw new HttpsError('invalid-argument', 'uid obrigatório.');
@@ -792,7 +835,7 @@ exports.getContratos = onCall({ cors: true }, async (request) => {
  * Para recorrente: gera próxima cobrança automaticamente.
  * Para dashboard/clube recorrente: atualiza dataExpiracao da mentorada.
  */
-exports.pagarParcela = onCall({ cors: true }, async (request) => {
+exports.pagarParcela = onCall({}, async (request) => {
   requireAdmin(request);
   const { cobrancaId, dataPagamento, valorRecebido } = request.data;
   if (!cobrancaId || !dataPagamento || valorRecebido == null) {
@@ -806,6 +849,16 @@ exports.pagarParcela = onCall({ cors: true }, async (request) => {
   if (cob.pago) throw new HttpsError('failed-precondition', 'Esta cobrança já foi paga.');
 
   await cobRef.update({ pago: true, dataPagamento, valorRecebido });
+
+  // Ativa flags de acesso conforme produto pago (espelha lógica do kiwifyWebhook)
+  const ehClube     = cob.produto === 'clube'     || cob.produto === 'combo';
+  const ehDashboard = cob.produto === 'dashboard' || cob.produto === 'combo';
+  if (ehClube || ehDashboard) {
+    const flagUpdates = {};
+    if (ehClube)     flagUpdates.assinaturaClube     = true;
+    if (ehDashboard) flagUpdates.assinaturaDashboard = true;
+    await db.collection('mentoradas').doc(cob.uidMentorada).update(flagUpdates);
+  }
 
   // Recorrente: gera próxima cobrança
   if (cob.tipo === 'recorrente') {
@@ -856,7 +909,7 @@ exports.pagarParcela = onCall({ cors: true }, async (request) => {
 /**
  * Edita data e valor de um pagamento já registrado.
  */
-exports.editarPagamento = onCall({ cors: true }, async (request) => {
+exports.editarPagamento = onCall({}, async (request) => {
   requireAdmin(request);
   const { cobrancaId, dataPagamento, valorRecebido } = request.data;
   if (!cobrancaId || !dataPagamento || valorRecebido == null) {
@@ -872,7 +925,7 @@ exports.editarPagamento = onCall({ cors: true }, async (request) => {
 /**
  * Cancela um contrato (não apaga histórico de cobranças pagas).
  */
-exports.cancelarCobranca = onCall({ cors: true }, async (request) => {
+exports.cancelarCobranca = onCall({}, async (request) => {
   requireAdmin(request);
   const { cobrancaId } = request.data;
   if (!cobrancaId) throw new HttpsError('invalid-argument', 'cobrancaId obrigatório.');
@@ -884,7 +937,7 @@ exports.cancelarCobranca = onCall({ cors: true }, async (request) => {
   return { ok: true };
 });
 
-exports.cancelarContrato = onCall({ cors: true }, async (request) => {
+exports.cancelarContrato = onCall({}, async (request) => {
   requireAdmin(request);
   const { uid, contratoId } = request.data;
   if (!uid || !contratoId) throw new HttpsError('invalid-argument', 'uid e contratoId obrigatórios.');
@@ -910,7 +963,7 @@ exports.cancelarContrato = onCall({ cors: true }, async (request) => {
  * Para contratos parcelados sem parcelas pagas, permite também recriar as parcelas
  * com nova quantidade e novo valor (parcelas = [{ valor, vencimento }]).
  */
-exports.editarContrato = onCall({ cors: true }, async (request) => {
+exports.editarContrato = onCall({}, async (request) => {
   requireAdmin(request);
   const { uid, contratoId, produto, formaPagamento, periodicidade, parcelas } = request.data;
   if (!uid || !contratoId || !produto || !formaPagamento) {
@@ -973,7 +1026,7 @@ exports.editarContrato = onCall({ cors: true }, async (request) => {
  * Endpoint público: POST /kiwifyWebhook
  *
  * Matching: e-mail da cliente + produto (nome do produto Kiwify deve conter
- * uma das palavras-chave: mentoria, private, clube, dashboard).
+ * uma das palavras-chave: combo, mentoria, private, clube, dashboard).
  * Cobrança alvo: a não paga com vencimento no mês atual; se não houver,
  * a mais antiga não paga.
  *
@@ -985,7 +1038,11 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
 
   try {
     const body = req.body || {};
-    const event = (body.event || body.type || '').toLowerCase().replace('.', '_');
+    // Kiwify envia o evento no campo "webhook_event_type"; outros campos como fallback
+    const rawEvent = body.webhook_event_type || body.event || body.type || '';
+    const event = rawEvent.toLowerCase().replace(/\./g, '_');
+    console.log(`[kiwify] Body keys: ${Object.keys(body).join(', ')}`);
+    console.log(`[kiwify] Evento recebido: ${event}`);
 
     // Eventos de cancelamento/atraso → bloquear ou alertar mentorada
     const eventosCancelamento = ['subscription_canceled', 'subscription_cancelled', 'assinatura_cancelada'];
@@ -993,14 +1050,28 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
 
     if (eventosCancelamento.includes(event) || eventosAtraso.includes(event)) {
       const data2 = body.data || body;
+      // Kiwify usa PascalCase: Customer, Subscription, etc.
       const emailCancelado = (
+        body.Customer?.email || body.Subscription?.Customer?.email ||
         data2?.customer?.email || data2?.subscriber?.email || data2?.buyer?.email || ''
       ).toLowerCase().trim();
+
+      // Identifica o produto do cancelamento
+      const nomeProdutoCancelado = (
+        body.Product?.name || body.Subscription?.Product?.name ||
+        data2?.product?.name || data2?.plan?.name || ''
+      ).toLowerCase();
+      const ehCombo     = /combo/i.test(nomeProdutoCancelado);
+      const ehDashboard = !ehCombo && /dashboard|dash/i.test(nomeProdutoCancelado);
+      const ehClube     = !ehCombo && /clube|club/i.test(nomeProdutoCancelado);
+      const ehMentoria  = /mentoria|mentoring|private/i.test(nomeProdutoCancelado);
 
       if (!emailCancelado) {
         res.status(200).json({ ok: false, msg: 'E-mail ausente.' });
         return;
       }
+
+      console.log(`[kiwify] Cancelamento/atraso: ${emailCancelado} | produto: ${nomeProdutoCancelado} | ehDashboard: ${ehDashboard}`);
 
       const mSnap = await db.collection('mentoradas').where('email', '==', emailCancelado).limit(1).get();
       if (mSnap.empty) {
@@ -1010,16 +1081,23 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
       }
 
       const mUid = mSnap.docs[0].id;
+      const mRef = db.collection('mentoradas').doc(mUid);
 
       if (eventosCancelamento.includes(event)) {
-        // Cancelamento: bloqueia acesso no Auth + marca inativa
+        // Todo cancelamento bloqueia o acesso e revoga os flags do produto cancelado.
         await admin.auth().updateUser(mUid, { disabled: true });
-        await db.collection('mentoradas').doc(mUid).update({ status: 'inativa' });
-        console.log(`[kiwify] 🔴 Acesso bloqueado por cancelamento: ${emailCancelado}`);
-        res.status(200).json({ ok: true, acao: 'bloqueada', uid: mUid });
+
+        const flagsRevogados = { status: 'inativa' };
+        if (ehDashboard || ehCombo) flagsRevogados.assinaturaDashboard = false;
+        if (ehClube     || ehCombo) flagsRevogados.assinaturaClube     = false;
+        if (ehMentoria && !ehClube && !ehDashboard && !ehCombo) flagsRevogados.mentoriaEncerrada = true;
+
+        await mRef.update(flagsRevogados);
+        console.log(`[kiwify] 🔴 Acesso bloqueado — ${nomeProdutoCancelado || 'produto'} cancelado: ${emailCancelado}`);
+        res.status(200).json({ ok: true, acao: 'bloqueada', flags: flagsRevogados, uid: mUid });
       } else {
         // Atraso: marca alerta (não bloqueia ainda)
-        await db.collection('mentoradas').doc(mUid).update({ status: 'alerta' });
+        await mRef.update({ status: 'alerta' });
         console.log(`[kiwify] ⚠️ Alerta de atraso marcado: ${emailCancelado}`);
         res.status(200).json({ ok: true, acao: 'alerta', uid: mUid });
       }
@@ -1041,7 +1119,11 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
     const data = body.data || body;
 
     // Extrai e-mail do cliente
+    // Kiwify usa PascalCase: Customer.email, Order.Customer.email, Subscription.Customer.email
     const email = (
+      body.Customer?.email ||
+      body.Order?.Customer?.email ||
+      body.Subscription?.Customer?.email ||
       data?.customer?.email ||
       data?.subscriber?.email ||
       data?.buyer?.email ||
@@ -1055,7 +1137,10 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
     }
 
     // Extrai nome do produto
+    // Kiwify usa PascalCase: Product.name
     const nomeProduto = (
+      body.Product?.name ||
+      body.Order?.Product?.name ||
       data?.product?.name ||
       data?.plan?.name ||
       data?.product_name ||
@@ -1063,23 +1148,29 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
     ).toLowerCase();
 
     // Mapeia nome do produto para código interno
+    // Combo deve vir antes de clube/dashboard (pode conter ambas as palavras)
     let produtoCodigo = null;
-    if (/mentoria|mentoring/i.test(nomeProduto))       produtoCodigo = 'mentoria';
+    if (/combo/i.test(nomeProduto))                    produtoCodigo = 'combo';
+    else if (/mentoria|mentoring/i.test(nomeProduto))  produtoCodigo = 'mentoria';
     else if (/private/i.test(nomeProduto))             produtoCodigo = 'private';
     else if (/clube|club/i.test(nomeProduto))          produtoCodigo = 'clube';
     else if (/dashboard|dash/i.test(nomeProduto))      produtoCodigo = 'dashboard';
 
-    // Extrai valor (Kiwify envia em centavos)
-    const valorCentavos = (
+    // Extrai valor
+    // Kiwify usa Order.amount (em reais), ou Subscription.charge_amount
+    const valorBruto = (
+      body.Order?.amount ||
+      body.Subscription?.charge_amount ||
       data?.charges?.[0]?.amount ||
       data?.charge?.amount ||
       data?.total_price ||
       data?.amount ||
       0
     );
-    const valorRecebido = valorCentavos > 1000
-      ? valorCentavos / 100   // converte centavos → reais
-      : valorCentavos;        // já está em reais (alguns planos)
+    // Heurística: se > 1000 provavelmente é centavos
+    const valorRecebido = valorBruto > 1000
+      ? valorBruto / 100
+      : valorBruto;
 
     const dataPagamento = new Date().toISOString().slice(0, 10);
 
@@ -1135,6 +1226,25 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
       formaPagamento: 'kiwify',
     });
 
+    // Atualiza flags de acesso conforme produto pago
+    const ehClubePag     = produtoCodigo === 'clube'     || produtoCodigo === 'combo';
+    const ehDashboardPag = produtoCodigo === 'dashboard' || produtoCodigo === 'combo';
+    if (ehClubePag || ehDashboardPag) {
+      const mDoc = await db.collection('mentoradas').doc(uidMentorada).get();
+      const mData = mDoc.data() || {};
+      const updates = {};
+      if (ehClubePag)     updates.assinaturaClube     = true;
+      if (ehDashboardPag) updates.assinaturaDashboard = true;
+      if (mData.status === 'inativa') updates.status = 'ativa';
+      await db.collection('mentoradas').doc(uidMentorada).update(updates);
+      // Desbloqueia no Auth se estava desabilitada
+      const authUser = await admin.auth().getUser(uidMentorada).catch(() => null);
+      if (authUser && authUser.disabled) {
+        await admin.auth().updateUser(uidMentorada, { disabled: false });
+        console.log(`[kiwify] ✅ Acesso reativado (${produtoCodigo}): ${email}`);
+      }
+    }
+
     // Recorrente: gera próxima cobrança
     if (alvo.tipo === 'recorrente') {
       const proxVenc = proximoVencimento(alvo.vencimento, alvo.periodicidade);
@@ -1178,7 +1288,7 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
  * Retorna cobranças filtradas por mês/ano (hub financeiro).
  * Opcionalmente filtra por uid de mentorada.
  */
-exports.getCobrancas = onCall({ cors: true }, async (request) => {
+exports.getCobrancas = onCall({}, async (request) => {
   requireAdmin(request);
   const { mes, ano, uid } = request.data;
   if (!mes || !ano) throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
@@ -1395,8 +1505,15 @@ exports.verificarExpiracoes = onSchedule(
       .get();
 
     for (const doc of snap.docs) {
-      const { dataExpiracao } = doc.data();
+      const { dataExpiracao, assinaturaDashboard } = doc.data();
       if (!dataExpiracao) continue; // sem expiração definida: ignora
+
+      // Se tem assinatura ativa do dashboard, mantém acesso mesmo após expiração da mentoria
+      if (assinaturaDashboard === true) {
+        console.log(`Mentoria expirada mas dashboard ativo — acesso mantido: ${doc.id}`);
+        continue;
+      }
+
       await admin.auth().updateUser(doc.id, { disabled: true }).catch(() => {});
       await doc.ref.update({ status: 'inativa' });
       console.log(`Conta expirada e inativada: ${doc.id} (${dataExpiracao})`);
@@ -1587,4 +1704,302 @@ exports.getNotionCRM = onCall({ secrets: ['NOTION_TOKEN'] }, async (request) => 
   }).catch(e => console.warn('[getNotionCRM] Falha ao cachear:', e.message));
 
   return { notionPageUrl: pageUrl, ultimoEncontro, licoesPendentes };
+});
+
+// ─── CLUBE TRILOGIA ───────────────────────────────────────────────────────────
+
+/**
+ * Retorna todos os itens publicados no Clube, ordenados por ordem asc, data desc.
+ * Qualquer usuária logada com assinaturaClube: true pode chamar.
+ */
+exports.getClubeContent = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+
+  const docSnap = await db.collection('mentoradas').doc(auth.uid).get();
+  if (!docSnap.exists || !docSnap.data().assinaturaClube) {
+    throw new HttpsError('permission-denied', 'Acesso ao Clube não autorizado.');
+  }
+
+  // Busca sem orderBy composto (evita exigência de índice) e ordena em memória
+  const snap = await db.collection('clubeContent').get();
+  const itens = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  itens.sort((a, b) => {
+    const ordemDiff = (a.ordem ?? 0) - (b.ordem ?? 0);
+    if (ordemDiff !== 0) return ordemDiff;
+    // data desc como desempate
+    return (b.data || '').localeCompare(a.data || '');
+  });
+  return itens;
+});
+
+/**
+ * Cria ou atualiza um item em clubeContent. Somente admin.
+ * Campos obrigatórios: tipo, titulo, url, data.
+ */
+exports.saveClubeItem = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id, tipo, titulo, url, data, descricao, ordem } = request.data;
+
+  if (!tipo || !titulo || !url || !data) {
+    throw new HttpsError('invalid-argument', 'tipo, titulo, url e data são obrigatórios.');
+  }
+  if (!['gravacao', 'documento', 'agenda'].includes(tipo)) {
+    throw new HttpsError('invalid-argument', 'tipo deve ser gravacao, documento ou agenda.');
+  }
+
+  const payload = {
+    tipo,
+    titulo,
+    url,
+    data,
+    descricao: descricao || '',
+    ordem:     typeof ordem === 'number' ? ordem : 0,
+  };
+
+  if (id) {
+    await db.collection('clubeContent').doc(id).set(payload, { merge: true });
+    return { ok: true, id };
+  } else {
+    payload.criadoEm = admin.firestore.FieldValue.serverTimestamp();
+    const ref = await db.collection('clubeContent').add(payload);
+    return { ok: true, id: ref.id };
+  }
+});
+
+/**
+ * Deleta um item de clubeContent. Somente admin.
+ */
+exports.deleteClubeItem = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id } = request.data;
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  await db.collection('clubeContent').doc(id).delete();
+  return { ok: true };
+});
+
+// ─── CRM Pipeline ─────────────────────────────────────────────────────────────
+
+/**
+ * Retorna todos os leads da coleção `leads`, ordenados por atualizadoEm desc.
+ * Filtros opcionais: segmento, estagio, origem.
+ * Inclui campo calculado `diasSemContato`.
+ */
+exports.getLeads = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { segmento, estagio, origem } = request.data || {};
+
+  const snap = await db.collection('leads').orderBy('atualizadoEm', 'desc').get();
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  let leads = snap.docs.map(doc => {
+    const d = doc.data();
+    let diasSemContato = null;
+    if (d.ultimoContato) {
+      const uc = new Date(d.ultimoContato + 'T00:00:00');
+      diasSemContato = Math.floor((hoje - uc) / (1000 * 60 * 60 * 24));
+    }
+    return {
+      id: doc.id,
+      ...d,
+      criadoEm:     d.criadoEm?.toDate?.()?.toISOString()     || null,
+      atualizadoEm: d.atualizadoEm?.toDate?.()?.toISOString() || null,
+      diasSemContato,
+    };
+  });
+
+  if (segmento) leads = leads.filter(l => l.segmento === segmento);
+  if (estagio)  leads = leads.filter(l => l.estagio  === estagio);
+  if (origem)   leads = leads.filter(l => l.origem   === origem);
+
+  return leads;
+});
+
+/**
+ * Cria um novo lead. Campos obrigatórios: nome, estagio, segmento.
+ */
+exports.saveLead = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { nome, estagio, segmento, ...resto } = request.data || {};
+  if (!nome)     throw new HttpsError('invalid-argument', 'nome é obrigatório.');
+  if (!estagio)  throw new HttpsError('invalid-argument', 'estagio é obrigatório.');
+  if (!segmento) throw new HttpsError('invalid-argument', 'segmento é obrigatório.');
+
+  const agora = admin.firestore.FieldValue.serverTimestamp();
+  const ref = await db.collection('leads').add({
+    nome, estagio, segmento, ...resto,
+    criadoEm:     agora,
+    atualizadoEm: agora,
+  });
+  return { ok: true, id: ref.id };
+});
+
+/**
+ * Atualiza campos de um lead existente. Sempre atualiza atualizadoEm.
+ */
+exports.updateLead = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id, ...campos } = request.data || {};
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+
+  await db.collection('leads').doc(id).update({
+    ...campos,
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true };
+});
+
+/**
+ * Deleta um lead pelo id.
+ */
+exports.deleteLead = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id } = request.data || {};
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  await db.collection('leads').doc(id).delete();
+  return { ok: true };
+});
+
+exports.bulkImportLeads = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { leads } = request.data || {};
+  if (!Array.isArray(leads) || !leads.length) throw new HttpsError('invalid-argument', 'leads deve ser array não-vazio.');
+  if (leads.length > 500) throw new HttpsError('invalid-argument', 'Máximo de 500 leads por importação.');
+  const agora = admin.firestore.FieldValue.serverTimestamp();
+  const batch = db.batch();
+  for (const lead of leads) {
+    const ref = db.collection('leads').doc();
+    batch.set(ref, { ...lead, criadoEm: agora, atualizadoEm: agora });
+  }
+  await batch.commit();
+  return { ok: true, count: leads.length };
+});
+
+// ─── Sync Diagnóstico ─────────────────────────────────────────────────────────
+// Lê a planilha pública do diagnóstico, deduplica por WhatsApp e importa leads novos.
+const DIAGNOSTICO_SHEET_ID = '12Bl-tas3YMjg4EV9nAx3ZVlkA6GPfE8WRR3gccmfBGE';
+
+function parseCSVLine(line) {
+  const result = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQuotes = !inQuotes; }
+    else if (c === ',' && !inQuotes) { result.push(field.trim()); field = ''; }
+    else { field += c; }
+  }
+  result.push(field.trim());
+  return result;
+}
+
+function normalizarTelefone(tel) {
+  return (tel || '').replace(/\D/g, '');
+}
+
+function mapProdutoDiagnostico(produtoIndicado) {
+  const p = (produtoIndicado || '').toLowerCase();
+  if (p.includes('mentoria')) return 'Mentoria Trilogia R$4.700';
+  if (p.includes('jornada'))  return 'Jornada Domine R$197';
+  if (p.includes('clube'))    return 'Clube Trilogia R$97/mês';
+  if (p.includes('reserva'))  return 'Reserva que Rende R$247';
+  if (p.includes('mapa'))     return 'Mapa da Reserva R$67';
+  if (p.includes('raio'))     return 'Raio-X Financeiro R$67';
+  return '';
+}
+
+// Chave secreta usada pelo Apps Script para chamar o webhook de sincronização.
+// Troque por qualquer string longa e aleatória de sua preferência.
+const DIAGNOSTICO_WEBHOOK_SECRET = 'trilogia-diag-sync-2026';
+
+// Lógica compartilhada de sync — usada tanto pelo onCall quanto pelo webhook HTTP.
+async function runSyncDiagnostico() {
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${DIAGNOSTICO_SHEET_ID}/export?format=csv`;
+  const resp = await fetch(csvUrl);
+  if (!resp.ok) throw new Error(`Erro ao ler planilha: ${resp.status}`);
+  const csv = await resp.text();
+
+  const lines = csv.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return { ok: true, count: 0, msg: 'Planilha vazia.' };
+  const rows = lines.slice(1).map(parseCSVLine);
+  // Colunas: [0]Data [1]Nome [2]Email [3]WhatsApp [4]Perfil [5]Renda [6]Investimento [7]Produto [8]Origem
+
+  const existingSnap = await db.collection('leads').get();
+  const existingPhones = new Set(
+    existingSnap.docs
+      .map(d => normalizarTelefone(d.data().whatsapp))
+      .filter(p => p.length >= 8)
+  );
+
+  const agora = admin.firestore.FieldValue.serverTimestamp();
+  const batch = db.batch();
+  let count = 0;
+
+  for (const row of rows) {
+    const tel = normalizarTelefone(row[3]);
+    if (!row[1] || !tel) continue;
+    if (tel.length >= 8 && existingPhones.has(tel)) continue;
+
+    const notas = [
+      row[4] ? `Perfil: ${row[4]}` : '',
+      row[5] ? `Renda: ${row[5]}` : '',
+      row[6] ? `Investimento: ${row[6]}` : '',
+      row[2] ? `Email: ${row[2]}` : '',
+    ].filter(Boolean).join(' | ');
+
+    const ref = db.collection('leads').doc();
+    batch.set(ref, {
+      nome:         row[1],
+      whatsapp:     row[3],
+      origem:       'Diagnóstico',
+      produtoAlvo:  mapProdutoDiagnostico(row[7]),
+      estagio:      'Lead Frio',
+      segmento:     'pipeline',
+      probabilidade: 10,
+      notas,
+      criadoEm:     agora,
+      atualizadoEm: agora,
+    });
+    existingPhones.add(tel);
+    count++;
+  }
+
+  if (count > 0) await batch.commit();
+  return { ok: true, count };
+}
+
+// Chamado pelo admin.html (requer autenticação Firebase admin)
+exports.syncDiagnostico = onCall({}, async (request) => {
+  requireAdmin(request);
+  try {
+    return await runSyncDiagnostico();
+  } catch (err) {
+    throw new HttpsError('internal', err.message);
+  }
+});
+
+// Chamado pelo Apps Script (autenticação via chave secreta)
+exports.syncDiagnosticoWebhook = onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') {
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    res.status(204).send('');
+    return;
+  }
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+  const secret = req.body?.secret;
+  if (secret !== DIAGNOSTICO_WEBHOOK_SECRET) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  try {
+    const result = await runSyncDiagnostico();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });

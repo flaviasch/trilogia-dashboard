@@ -1,7 +1,10 @@
 <!DOCTYPE html>
+<!-- v2 -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script>
     // Força cache-bust em cada visita
@@ -456,6 +459,8 @@
     <div class="navbar-center">
       <button class="nav-tab ativo" data-tab="mentoradas">Mentoradas</button>
       <button class="nav-tab" data-tab="financeiro">Financeiro</button>
+      <button class="nav-tab" data-tab="clube">Clube</button>
+      <button class="nav-tab" data-tab="pipeline">Pipeline</button>
     </div>
     <div class="navbar-right">
       <span class="admin-badge">Admin</span>
@@ -694,8 +699,14 @@
       <textarea class="nota-area" id="detNota" placeholder="Observações, próximos passos, pontos de atenção…"></textarea>
       <button class="btn-salvar-nota" id="btnSalvarNota">Salvar nota</button>
 
+      <!-- Toggle Clube (seção separada) -->
+      <div style="margin-top:24px;padding:14px 18px;background:var(--gold-dim);border:1px solid var(--border-gold);border-radius:10px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:13px;color:var(--gold);font-weight:600">★ Clube Trilogia</span>
+        <button id="btnToggleClube" style="border:2px solid var(--gold);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:var(--gold);color:var(--navy)">Clube: —</button>
+      </div>
+
       <!-- Ações rápidas -->
-      <div style="margin-top:32px;display:flex;gap:10px;flex-wrap:wrap">
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn-acao" id="btnAbrirDashboard">Ver dashboard dela</button>
         <button class="btn-acao" id="btnCriarPlanilha" style="display:none">Criar planilha</button>
         <button class="btn-acao" id="btnEnviarEmail">Enviar e-mail</button>
@@ -772,7 +783,297 @@
       </div>
     </div>
 
+    <!-- ─── VIEW: CLUBE ─────────────────────── -->
+    <div class="view" id="view-clube">
+
+      <div class="page-header">
+        <div>
+          <h1>Clube Trilogia</h1>
+          <p>Gerencie gravações, documentos e agenda do Clube.</p>
+        </div>
+        <button class="btn-nova-mentorada" id="btnNovoItemClube">+ Adicionar item</button>
+      </div>
+
+      <!-- Modal inline de edição -->
+      <div id="clubeModal" style="display:none; background:var(--navy); border:1px solid var(--border-gold); border-radius:14px; padding:28px; margin-bottom:28px;">
+        <h2 style="font-family:'Playfair Display',serif; font-size:18px; margin-bottom:20px;" id="clubeModalTitulo">Novo item</h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+          <div>
+            <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">Tipo *</label>
+            <select id="clubeTipo" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;">
+              <option value="gravacao">Gravação</option>
+              <option value="documento">Documento</option>
+              <option value="agenda">Agenda</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">Data *</label>
+            <input type="date" id="clubeData" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">Título *</label>
+          <input type="text" id="clubeTitulo" placeholder="Ex: Encontro 01 — Fundamentos do Investimento" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">URL *</label>
+          <input type="url" id="clubeUrl" placeholder="https://youtube.com/watch?v=... ou https://drive.google.com/..." style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 120px; gap:14px; margin-bottom:20px;">
+          <div>
+            <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">Descrição (opcional)</label>
+            <textarea id="clubeDescricao" rows="2" placeholder="Resumo ou instruções..." style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif; resize:vertical;"></textarea>
+          </div>
+          <div>
+            <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">Ordem</label>
+            <input type="number" id="clubeOrdem" value="0" min="0" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
+          </div>
+        </div>
+        <input type="hidden" id="clubeEditId" value="" />
+        <div style="display:flex; gap:10px;">
+          <button class="btn-salvar-nota" id="btnSalvarItemClube">Salvar</button>
+          <button class="btn-logout" id="btnCancelarItemClube" style="border-radius:8px; padding:10px 20px;">Cancelar</button>
+        </div>
+        <div id="clubeModalErro" style="display:none; color:var(--negative); font-size:13px; margin-top:10px;"></div>
+      </div>
+
+      <!-- Tabela de itens publicados -->
+      <div class="table-wrap" id="clubeTableWrap">
+        <div style="color:var(--text-muted); font-size:14px; text-align:center; padding:40px 0;" id="clubeEmpty">Nenhum item publicado ainda.</div>
+        <table id="clubeTable" style="display:none;">
+          <thead>
+            <tr>
+              <th>Tipo</th>
+              <th>Título</th>
+              <th>Data</th>
+              <th>URL</th>
+              <th style="text-align:right;">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="clubeTbody"></tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- ─── VIEW: PIPELINE (CRM) ─────────────────── -->
+    <div class="view" id="view-pipeline">
+
+      <div class="page-header">
+        <div>
+          <h1>Pipeline CRM</h1>
+          <p id="pipelineSubtitulo">—</p>
+        </div>
+        <button class="btn-nova-mentorada" id="btnNovoLead">+ Novo Lead</button>
+      </div>
+
+
+      <!-- KPIs -->
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-label">Pipeline Total</div>
+          <div class="kpi-value" id="kpiPipelineTotal">—</div>
+          <div class="kpi-sub" id="kpiPipelineTotalSub"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Pipeline Ponderado</div>
+          <div class="kpi-value" id="kpiPonderado">—</div>
+          <div class="kpi-sub" id="kpiPonderadoSub"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Receita Fechada</div>
+          <div class="kpi-value" id="kpiReceitaFechada">—</div>
+          <div class="kpi-sub" id="kpiReceitaFechadaSub"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Leads Ativos</div>
+          <div class="kpi-value" id="kpiLeadsAtivos">—</div>
+          <div class="kpi-sub" id="kpiLeadsAtivosSub"></div>
+        </div>
+      </div>
+
+      <!-- Banner: leads para contatar hoje -->
+      <div id="leadHojeBanner" style="display:none;background:rgba(207,174,101,0.08);border:1px solid rgba(207,174,101,0.35);border-radius:10px;padding:12px 18px;margin-bottom:16px;display:none;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:13px;color:var(--gold);">⏰ <strong id="leadHojeCount">0</strong> lead(s) para contatar hoje ou em atraso</span>
+        <button id="btnVerHoje" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Ver</button>
+        <button id="btnFecharHoje" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;margin-left:auto;line-height:1;">×</button>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <input type="text" id="pipelineBusca" class="busca" placeholder="Buscar por nome…" style="flex:1;min-width:160px;" />
+        <select id="pipelineFiltroEstagio" style="background:var(--navy-dark);border:1px solid rgba(207,174,101,0.3);border-radius:6px;color:inherit;padding:6px 12px;font-size:13px;cursor:pointer;">
+          <option value="">Todos os estágios</option>
+          <option value="Lead Frio">Lead Frio</option>
+          <option value="Engajado">Engajado</option>
+          <option value="Interessado">Interessado</option>
+          <option value="Em Negociação">Em Negociação</option>
+          <option value="Fechado Ganho">Fechado Ganho</option>
+          <option value="Fechado Perdido">Fechado Perdido</option>
+        </select>
+        <div style="display:flex;gap:6px;">
+          <button class="filter-btn ativo" data-seg="">Todos</button>
+          <button class="filter-btn" data-seg="pipeline">Pipeline</button>
+          <button class="filter-btn" data-seg="upsell">Upsell</button>
+        </div>
+        <button id="btnToggleStats" title="Ver estatísticas do pipeline"
+          style="background:transparent;border:1px solid rgba(207,174,101,0.35);border-radius:6px;color:var(--gold);padding:6px 14px;font-size:12px;cursor:pointer;white-space:nowrap;">
+          📊 Stats
+        </button>
+        <button id="btnSyncDiagnostico" title="Importar novos leads da planilha de diagnóstico"
+          style="background:transparent;border:1px solid rgba(207,174,101,0.35);border-radius:6px;color:var(--gold);padding:6px 14px;font-size:12px;cursor:pointer;white-space:nowrap;">
+          ⟳ Diagnóstico
+        </button>
+      </div>
+
+      <!-- Painel de estatísticas -->
+      <div id="statsPanel" style="display:none;background:rgba(8,30,48,.6);border:1px solid rgba(207,174,101,.15);border-radius:12px;padding:24px;margin-bottom:20px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;" id="statsConteudo">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--gold);letter-spacing:.06em;margin-bottom:14px;">FUNIL DE CONVERSÃO</div>
+            <div id="statsFunil"></div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--gold);letter-spacing:.06em;margin-bottom:14px;">POR TIPO DE FUNIL</div>
+            <div id="statsTipoFunil"></div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--gold);letter-spacing:.06em;margin-bottom:14px;">POR ORIGEM</div>
+            <div id="statsOrigens"></div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--gold);letter-spacing:.06em;margin-bottom:14px;">POR PRODUTO ALVO</div>
+            <div id="statsProdutos"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal inline de criação/edição -->
+      <div id="leadModal" style="display:none;background:rgba(8,30,48,.97);border:1px solid rgba(207,174,101,.2);border-radius:12px;padding:28px;margin-bottom:24px;">
+        <h3 class="detalhe-section-title" id="leadModalTitulo" style="margin-top:0;margin-bottom:20px;">Novo Lead</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="field-group">
+            <label>Nome *</label>
+            <input type="text" id="lNome" placeholder="Nome completo" />
+          </div>
+          <div class="field-group">
+            <label>WhatsApp</label>
+            <input type="text" id="lWhatsapp" placeholder="(11) 99999-9999" />
+          </div>
+          <div class="field-group">
+            <label>Segmento *</label>
+            <select id="lSegmento">
+              <option value="pipeline">Pipeline (lead novo)</option>
+              <option value="upsell">Upsell (cliente ativo)</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Origem</label>
+            <select id="lOrigem">
+              <option value="">— selecione —</option>
+              <option>Instagram</option>
+              <option>Indicação</option>
+              <option>Live</option>
+              <option>Email</option>
+              <option>WhatsApp</option>
+              <option>Rádio</option>
+              <option>Finazzi</option>
+              <option>Big</option>
+              <option>OCP</option>
+              <option>Grupo VIP</option>
+              <option>Diagnóstico</option>
+              <option>Outro</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Produto Alvo</label>
+            <select id="lProdutoAlvo">
+              <option value="">— selecione —</option>
+              <option>Raio-X Financeiro R$67</option>
+              <option>Mapa da Reserva R$67</option>
+              <option>Reserva que Rende R$247</option>
+              <option>Jornada Domine R$197</option>
+              <option>Mentoria Trilogia R$4.700</option>
+              <option>Clube Trilogia R$97/mês</option>
+              <option>Dashboard Trilogia R$147/mês</option>
+              <option>Combo Dashboard+Clube R$197/mês</option>
+              <option>Mentoria Private R$8.000</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Valor R$</label>
+            <input type="number" id="lValor" placeholder="0" min="0" step="0.01" />
+          </div>
+          <div class="field-group">
+            <label>Estágio *</label>
+            <select id="lEstagio">
+              <option value="Lead Frio">Lead Frio</option>
+              <option value="Engajado">Engajado</option>
+              <option value="Interessado">Interessado</option>
+              <option value="Em Negociação">Em Negociação</option>
+              <option value="Fechado Ganho">Fechado Ganho</option>
+              <option value="Fechado Perdido">Fechado Perdido</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Probabilidade %</label>
+            <input type="number" id="lProbabilidade" placeholder="0" min="0" max="100" />
+          </div>
+          <div class="field-group">
+            <label>Próximo Passo</label>
+            <input type="text" id="lProximoPasso" placeholder="Ex: Enviar proposta" />
+          </div>
+          <div class="field-group">
+            <label>Data Próximo Passo</label>
+            <input type="date" id="lDataProximoPasso" />
+          </div>
+          <div class="field-group">
+            <label>Último Contato</label>
+            <input type="date" id="lUltimoContato" />
+          </div>
+        </div>
+        <div class="field-group" style="margin-top:4px;">
+          <label>Notas</label>
+          <textarea id="lNotas" rows="3" style="width:100%;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px;color:inherit;font-size:14px;resize:vertical;font-family:inherit;"></textarea>
+        </div>
+        <input type="hidden" id="lEditId" />
+        <div style="display:flex;gap:10px;margin-top:16px;align-items:center;">
+          <button class="btn-salvar-nota" id="btnSalvarLead">Salvar</button>
+          <button class="btn-logout" id="btnCancelarLead" style="border-radius:8px;padding:10px 20px;">Cancelar</button>
+          <button id="btnDeletarLead" style="display:none;margin-left:auto;background:transparent;border:1px solid var(--negative);color:var(--negative);border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;">Excluir lead</button>
+        </div>
+        <div id="leadModalErro" style="display:none;color:var(--negative);font-size:13px;margin-top:10px;"></div>
+      </div>
+
+      <!-- Tabela -->
+      <div class="table-wrap" id="pipelineTableWrap">
+        <div style="color:var(--text-muted);font-size:14px;text-align:center;padding:40px 0;display:none;" id="pipelineEmpty">Nenhum lead encontrado.</div>
+        <table id="pipelineTable">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>WhatsApp</th>
+              <th>Origem</th>
+              <th>Produto Alvo</th>
+              <th>Valor</th>
+              <th>Estágio</th>
+              <th>Próx. Contato</th>
+              <th>Dias s/ contato</th>
+              <th style="text-align:right">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="pipelineTbody"></tbody>
+        </table>
+      </div>
+
+    </div><!-- /view-pipeline -->
+
   </main>
+
+  <!-- Toast de notificação -->
+  <div id="toastNotif" style="display:none;position:fixed;bottom:28px;right:28px;background:var(--navy-dark);border:1px solid rgba(207,174,101,0.4);border-radius:10px;padding:14px 20px;font-size:13px;color:var(--white);z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.4);max-width:320px;transition:opacity .3s;">
+    <span id="toastMsg"></span>
+  </div>
 
   <!-- Modal novo contrato -->
   <div class="modal-overlay hidden" id="modalContrato">
@@ -1034,7 +1335,10 @@
     import { exigirAdmin, logout, refreshAdmin } from './js/admin-guard.js';
     import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada,
              createContrato, getContratos, pagarParcela, editarPagamento, cancelarCobranca, cancelarContrato, editarContrato, getCobrancas,
-             criarPlanilha, getNotionCRM } from './js/api.js?v=7';
+             criarPlanilha, getNotionCRM,
+             getClubeContent, saveClubeItem, deleteClubeItem,
+             getLeads, saveLead, updateLead, deleteLead,
+             bulkImportLeads, syncDiagnostico } from './js/api.js?v=11';
 
     // ─── Auth guard via Custom Claim ─────────────
     const user = await exigirAdmin();
@@ -1185,6 +1489,8 @@
         document.querySelectorAll('.view').forEach(v => v.classList.remove('ativo'));
         document.getElementById(`view-${nome}`)?.classList.add('ativo');
         if (nome === 'financeiro') renderFinanceiro();
+        if (nome === 'clube') renderClube();
+        if (nome === 'pipeline') renderPipeline();
       });
     });
 
@@ -1339,7 +1645,10 @@
           </td>
           <td>${m.produto ? `<span class="produto-tag">${PRODUTO_LABEL[m.produto] || m.produto}</span>` : '<span style="color:var(--text-muted);font-size:12px">—</span>'}</td>
           <td>${m.dataExpiracao ? `<span class="${exp.cls}">${exp.texto}</span>` : '<span style="color:var(--text-muted);font-size:12px">—</span>'}</td>
-          <td>${m.perfil ? `<span class="perfil-tag">${perfilLabel[m.perfil]}</span>` : '<span style="color:var(--text-muted);font-size:12px">A definir</span>'}</td>
+          <td>
+            ${m.perfil ? `<span class="perfil-tag">${perfilLabel[m.perfil]}</span>` : '<span style="color:var(--text-muted);font-size:12px">A definir</span>'}
+            ${m.assinaturaClube ? '<span class="perfil-tag" style="margin-left:4px;background:rgba(207,174,101,0.08);border-color:rgba(207,174,101,0.25);" title="Assinante do Clube">Clube</span>' : ''}
+          </td>
           <td class="td-num gold">${brl(num(m.pl))}</td>
           <td class="td-num ${num(m.sobra) >= 0 ? 'positive' : ''}" style="${num(m.sobra) < 0 ? 'color:var(--negative)' : ''}">${brl(num(m.sobra))}</td>
           <td>
@@ -1569,6 +1878,23 @@
       if (btnReat) btnReat.style.display  = (inativa && !isAdmin) ? '' : 'none';
       if (btnDel)  btnDel.style.display   = isAdmin ? 'none' : '';
 
+      // Toggle Clube
+      const btnClube = document.getElementById('btnToggleClube');
+      if (btnClube) {
+        btnClube.style.display = '';
+        if (m.assinaturaClube) {
+          btnClube.textContent = '★ Clube: ativo';
+          btnClube.style.background = 'var(--gold)';
+          btnClube.style.color = 'var(--navy)';
+          btnClube.style.opacity = '1';
+        } else {
+          btnClube.textContent = 'Clube: inativo';
+          btnClube.style.background = 'transparent';
+          btnClube.style.color = 'var(--text-muted)';
+          btnClube.style.opacity = '1';
+        }
+      }
+
       // Nota
       const btnNota = document.getElementById('btnSalvarNota');
       if (btnNota) btnNota.onclick = async () => {
@@ -1708,9 +2034,16 @@
       btn.disabled = true;
       btn.textContent = 'Enviando…';
       try {
-        await reenviarAcesso(uid);
-        btn.textContent = 'Link enviado ✓';
-        setTimeout(() => { btn.textContent = 'Reenviar link de acesso'; btn.disabled = false; }, 3000);
+        const res = await reenviarAcesso(uid);
+        if (res && res.link) {
+          // Copia o link para a área de transferência
+          try { await navigator.clipboard.writeText(res.link); } catch (_) {}
+          alert(`Link gerado para ${res.email}.\n\nCopie e envie manualmente:\n\n${res.link}`);
+          btn.textContent = 'Link gerado ✓';
+        } else {
+          btn.textContent = 'Link enviado ✓';
+        }
+        setTimeout(() => { btn.textContent = 'Reenviar link de acesso'; btn.disabled = false; }, 5000);
       } catch (err) {
         alert(`Erro ao reenviar: ${err.message}`);
         btn.disabled = false;
@@ -1720,6 +2053,34 @@
 
     let mentoradaEmDetalhe  = null;
     let contratosDoDetalhe  = [];
+
+    document.getElementById('btnToggleClube').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const novoValor = !mentoradaEmDetalhe.assinaturaClube;
+      const btn = document.getElementById('btnToggleClube');
+      btn.disabled = true;
+      try {
+        const updates = { assinaturaClube: novoValor };
+        // Ao ativar Clube para alguém sem dashboard explícito, marca como Clube-only
+        // para garantir o redirect correto em index.html
+        if (novoValor && mentoradaEmDetalhe.assinaturaDashboard !== true) {
+          updates.assinaturaDashboard = false;
+        }
+        await updateMentorada(uid, updates);
+        mentoradaEmDetalhe.assinaturaClube = novoValor;
+        if (updates.assinaturaDashboard !== undefined) {
+          mentoradaEmDetalhe.assinaturaDashboard = updates.assinaturaDashboard;
+        }
+        btn.textContent = novoValor ? 'Clube: ativo ✓' : 'Clube: inativo';
+        btn.style.opacity = novoValor ? '1' : '0.5';
+        renderMentoradas();
+      } catch (err) {
+        alert(`Erro: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
 
     document.getElementById('btnBloquear').addEventListener('click', async () => {
       if (!mentoradaEmDetalhe) return;
@@ -1822,6 +2183,16 @@
           }
         }
 
+        // Se veio de conversão de lead, marca o lead como convertido
+        const leadOrigemId = document.getElementById('modalNova').getAttribute('data-lead-origem-id');
+        if (leadOrigemId) {
+          try {
+            await updateLead(leadOrigemId, { convertidoEm: new Date().toISOString().split('T')[0] });
+            const li = pipelineLeads.find(x => x.id === leadOrigemId);
+            if (li) li.convertidoEm = new Date().toISOString().split('T')[0];
+          } catch (e) { console.warn('Não foi possível marcar lead como convertido:', e.message); }
+          document.getElementById('modalNova').removeAttribute('data-lead-origem-id');
+        }
         mentoradas = await getMentoradas();
         document.getElementById('modalNova').classList.add('hidden');
         limparModal();
@@ -2470,6 +2841,715 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         btn.disabled = false;
         btn.textContent = pagModoEdicao ? 'Salvar alteração' : 'Confirmar';
       }
+    });
+
+    // ─── Clube Trilogia ──────────────────────
+    let clubeItens = [];
+    let clubeCarregado = false;
+
+    const TIPO_LABEL = { gravacao: 'Gravação', documento: 'Documento', agenda: 'Agenda' };
+
+    async function renderClube() {
+      if (clubeCarregado) { renderClubeTabela(); return; }
+      try {
+        clubeItens = await getClubeContent();
+        clubeCarregado = true;
+      } catch (err) {
+        clubeItens = [];
+        clubeCarregado = true;
+      }
+      renderClubeTabela();
+    }
+
+    function renderClubeTabela() {
+      const empty = document.getElementById('clubeEmpty');
+      const table = document.getElementById('clubeTable');
+      const tbody = document.getElementById('clubeTbody');
+
+      if (!clubeItens.length) {
+        empty.style.display = 'block';
+        table.style.display = 'none';
+        return;
+      }
+      empty.style.display = 'none';
+      table.style.display = 'table';
+
+      tbody.innerHTML = clubeItens.map(item => `
+        <tr>
+          <td><span class="perfil-tag">${TIPO_LABEL[item.tipo] || item.tipo}</span></td>
+          <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.titulo}</td>
+          <td style="white-space:nowrap">${item.data || '—'}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <a href="${item.url}" target="_blank" rel="noopener" style="color:var(--gold);font-size:12px;opacity:.75">${item.url}</a>
+          </td>
+          <td>
+            <div class="acoes-cell">
+              <button class="btn-acao" data-clube-editar="${item.id}">Editar</button>
+              <button class="btn-acao danger" data-clube-deletar="${item.id}" data-clube-titulo="${item.titulo}">Excluir</button>
+            </div>
+          </td>
+        </tr>`).join('');
+
+      tbody.querySelectorAll('[data-clube-editar]').forEach(btn => {
+        btn.addEventListener('click', () => abrirModalClube(btn.dataset.clubeEditar));
+      });
+      tbody.querySelectorAll('[data-clube-deletar]').forEach(btn => {
+        btn.addEventListener('click', () => confirmarDeleteClube(btn.dataset.clubeDeletar, btn.dataset.clubeTitulo, btn));
+      });
+    }
+
+    function abrirModalClube(id) {
+      const modal = document.getElementById('clubeModal');
+      document.getElementById('clubeModalErro').style.display = 'none';
+      if (id) {
+        const item = clubeItens.find(i => i.id === id);
+        if (!item) return;
+        document.getElementById('clubeModalTitulo').textContent = 'Editar item';
+        document.getElementById('clubeEditId').value  = id;
+        document.getElementById('clubeTipo').value    = item.tipo;
+        document.getElementById('clubeTitulo').value  = item.titulo;
+        document.getElementById('clubeUrl').value     = item.url;
+        document.getElementById('clubeData').value    = item.data;
+        document.getElementById('clubeDescricao').value = item.descricao || '';
+        document.getElementById('clubeOrdem').value  = item.ordem ?? 0;
+      } else {
+        document.getElementById('clubeModalTitulo').textContent = 'Novo item';
+        document.getElementById('clubeEditId').value  = '';
+        document.getElementById('clubeTipo').value    = 'gravacao';
+        document.getElementById('clubeTitulo').value  = '';
+        document.getElementById('clubeUrl').value     = '';
+        document.getElementById('clubeData').value    = '';
+        document.getElementById('clubeDescricao').value = '';
+        document.getElementById('clubeOrdem').value  = 0;
+      }
+      modal.style.display = 'block';
+      modal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function confirmarDeleteClube(id, titulo, btn) {
+      const confirmEl = document.createElement('span');
+      confirmEl.style.cssText = 'font-size:12px;color:var(--negative);margin-left:8px;';
+      confirmEl.innerHTML = `Excluir "<strong>${titulo}</strong>"? <button style="background:var(--negative);color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;margin-left:4px;" id="confirmDelClube">Sim</button> <button style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;" id="cancelDelClube">Não</button>`;
+      btn.parentElement.appendChild(confirmEl);
+      btn.style.display = 'none';
+
+      document.getElementById('confirmDelClube').addEventListener('click', async () => {
+        try {
+          await deleteClubeItem(id);
+          clubeItens = clubeItens.filter(i => i.id !== id);
+          renderClubeTabela();
+        } catch (err) {
+          alert(`Erro ao excluir: ${err.message}`);
+          btn.style.display = '';
+          confirmEl.remove();
+        }
+      });
+      document.getElementById('cancelDelClube').addEventListener('click', () => {
+        btn.style.display = '';
+        confirmEl.remove();
+      });
+    }
+
+    document.getElementById('btnNovoItemClube').addEventListener('click', () => abrirModalClube(null));
+
+    document.getElementById('btnCancelarItemClube').addEventListener('click', () => {
+      document.getElementById('clubeModal').style.display = 'none';
+    });
+
+    document.getElementById('btnSalvarItemClube').addEventListener('click', async () => {
+      const erroEl = document.getElementById('clubeModalErro');
+      erroEl.style.display = 'none';
+      const id       = document.getElementById('clubeEditId').value || null;
+      const tipo     = document.getElementById('clubeTipo').value;
+      const titulo   = document.getElementById('clubeTitulo').value.trim();
+      const url      = document.getElementById('clubeUrl').value.trim();
+      const data     = document.getElementById('clubeData').value;
+      const descricao = document.getElementById('clubeDescricao').value.trim();
+      const ordem    = parseInt(document.getElementById('clubeOrdem').value) || 0;
+
+      if (!titulo || !url || !data) {
+        erroEl.textContent = 'Título, URL e data são obrigatórios.';
+        erroEl.style.display = 'block';
+        return;
+      }
+      const btn = document.getElementById('btnSalvarItemClube');
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        const res = await saveClubeItem({ id, tipo, titulo, url, data, descricao, ordem });
+        if (id) {
+          const idx = clubeItens.findIndex(i => i.id === id);
+          if (idx >= 0) clubeItens[idx] = { id, tipo, titulo, url, data, descricao, ordem };
+        } else {
+          clubeItens.push({ id: res.id, tipo, titulo, url, data, descricao, ordem });
+        }
+        document.getElementById('clubeModal').style.display = 'none';
+        renderClubeTabela();
+      } catch (err) {
+        erroEl.textContent = err.message || 'Erro ao salvar.';
+        erroEl.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+
+    // ─── Importação CRM legado ───────────────────────────────────────
+    const LEADS_LEGADO = [
+      { nome:'Tathiely Barreto',          whatsapp:'27 998216924', origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Ganho',   segmento:'pipeline', probabilidade:100, notas:'FUP: na | em andamento | Entrada: 01/nov' },
+      { nome:'Jannayna Luna',              whatsapp:'81 96346867',  origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Perdido', segmento:'pipeline', probabilidade:0,   notas:'FUP: 09/abr | disse que vai me procurar | Entrada: 01/nov' },
+      { nome:'Fernanda Souza',             whatsapp:'',             origem:'Outro',     produtoAlvo:'Jornada Domine R$197',         estagio:'Interessado',     segmento:'pipeline', probabilidade:20,  notas:'FUP: — | sumiu | Entrada: 05/nov' },
+      { nome:'Beto Simonsen',              whatsapp:'',             origem:'Indicação', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Interessado',     segmento:'pipeline', probabilidade:30,  notas:'FUP: — | me chamou com demandas específicas | Entrada: 05/nov' },
+      { nome:'Luciana Kawahara',           whatsapp:'',             origem:'Indicação', produtoAlvo:'',                            estagio:'Lead Frio',       segmento:'pipeline', probabilidade:5,   notas:'FUP: — | Não tem dinheiro | Entrada: 05/nov' },
+      { nome:'Jaiara Simões',              whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:40,  notas:'FUP: 23/abr | convidei para o grupo | Entrada: 05/nov' },
+      { nome:'Janaina Freitas',            whatsapp:'37 99131552',  origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Perdido', segmento:'pipeline', probabilidade:0,   notas:'FUP: 09/abr | não tem dinheiro | Entrada: 10/nov' },
+      { nome:'Patrícia (mentorada Ametista)', whatsapp:'',          origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Perdido', segmento:'pipeline', probabilidade:0,   notas:'FUP: 09/abr | passando por separação | Entrada: 10/nov' },
+      { nome:'Ludmila Diniz',              whatsapp:'',             origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Perdido', segmento:'pipeline', probabilidade:0,   notas:'FUP: 01/jun | mudou de ideia | Entrada: 15/nov' },
+      { nome:'Jessica Duarte',             whatsapp:'21 964841991', origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: — | sumiu | Entrada: 24/nov' },
+      { nome:'Débora Damaceno',            whatsapp:'31 75860511',  origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Engajado',        segmento:'pipeline', probabilidade:15,  notas:'FUP: 19/dez | msg de fechamento de ciclo | Entrada: 24/nov' },
+      { nome:'Mariana Cavasin',            whatsapp:'',             origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Ganho',   segmento:'pipeline', probabilidade:100, notas:'FUP: na | sessões iniciarão em janeiro | Entrada: 03/dez' },
+      { nome:'Edinei Chaves',              whatsapp:'',             origem:'Rádio',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:35,  notas:'FUP: 09/abr | está colocando objeções agora | Entrada: 17/dez' },
+      { nome:'Bruna Cestas',               whatsapp:'',             origem:'Rádio',     produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:10,  notas:'FUP: 12/jan | parou de me seguir, enviei mensagem de encerramento | Entrada: 18/dez' },
+      { nome:'Cristiano de Paula',         whatsapp:'',             origem:'Rádio',     produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:15,  notas:'FUP: 28/jan | entrou para o grupo | Entrada: 18/dez' },
+      { nome:'Tiago Bernardino',           whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Engajado',        segmento:'pipeline', probabilidade:15,  notas:'FUP: 06/jan | — | Entrada: 18/dez' },
+      { nome:'Kelly Bertolato',            whatsapp:'',             origem:'Rádio',     produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:10,  notas:'FUP: 28/jan | convidei para o grupo | Entrada: 19/dez' },
+      { nome:'Maciel',                     whatsapp:'',             origem:'Rádio',     produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:5,   notas:'FUP: 02/fev | não está interessado na mentoria, quer fazer parceria | Entrada: 23/dez' },
+      { nome:'Eder Silva',                 whatsapp:'',             origem:'Rádio',     produtoAlvo:'',                            estagio:'Em Negociação',   segmento:'pipeline', probabilidade:20,  notas:'FUP: 15/mai | mandei msg mas não chegou, não sei se me bloqueou | Entrada: 26/dez' },
+      { nome:'Vanda Luz',                  whatsapp:'',             origem:'Instagram', produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:10,  notas:'FUP: 28/jan | convidei para o grupo | Entrada: 06/jan' },
+      { nome:'Tatiana Bonifácio',          whatsapp:'',             origem:'Instagram', produtoAlvo:'',                            estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 21/jan | convidei para o grupo | Entrada: 06/jan' },
+      { nome:'Lismara Marques',            whatsapp:'',             origem:'Live',      produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Fechado Ganho',   segmento:'pipeline', probabilidade:100, notas:'FUP: 19/jan | sessão agendada | Entrada: 19/jan' },
+      { nome:'Ligia Chien',                whatsapp:'',             origem:'Outro',     produtoAlvo:'',                            estagio:'Lead Frio',       segmento:'pipeline', probabilidade:10,  notas:'FUP: 20/jul | pediu envio das condições | Entrada: 21/jan' },
+      { nome:'Rogerio Mentori',            whatsapp:'',             origem:'Grupo VIP', produtoAlvo:'',                            estagio:'Em Negociação',   segmento:'pipeline', probabilidade:25,  notas:'FUP: 02/jun | está se separando | Entrada: 23/jan' },
+      { nome:'Carla Tomaz',                whatsapp:'',             origem:'Grupo VIP', produtoAlvo:'',                            estagio:'Em Negociação',   segmento:'pipeline', probabilidade:20,  notas:'FUP: 28/jan | sem resposta, 3o FUP, não participou do desafio | Entrada: 23/jan' },
+      { nome:'Ludmila Almeida',            whatsapp:'',             origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 23/fev | marido não quer, acredita que vai funcionar fazendo sozinho | Entrada: 26/jan' },
+      { nome:'Gil Brito',                  whatsapp:'',             origem:'Instagram', produtoAlvo:'Jornada Domine R$197',         estagio:'Em Negociação',   segmento:'pipeline', probabilidade:25,  notas:'FUP: 28/fev | não respondeu mais | Entrada: 26/jan' },
+      { nome:'Juliana Porto',              whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:40,  notas:'FUP: 10/fev | sessão agendada | Entrada: 05/fev' },
+      { nome:'Bruna Domingues',            whatsapp:'',             origem:'Outro',     produtoAlvo:'',                            estagio:'Engajado',        segmento:'pipeline', probabilidade:10,  notas:'FUP: 09/abr | ela respondeu enquete | Entrada: 19/fev' },
+      { nome:'Sabrina Castelo Branco',     whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:25,  notas:'FUP: 01/mai | disse não ser prioridade agora | Entrada: 20/fev' },
+      { nome:'Sarah Brandão',              whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Lead Frio',       segmento:'pipeline', probabilidade:10,  notas:'FUP: 01/mai | disse estar envolvida no projeto da mentoria | Entrada: 12/mar' },
+      { nome:'Ana Paula Variz',            whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:50,  notas:'FUP: 17/mar | fechado | Entrada: 16/mar' },
+      { nome:'Giovanni Finazzi',           whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Interessado',     segmento:'pipeline', probabilidade:30,  notas:'FUP: 09/abr | fechado | Entrada: 07/abr' },
+      { nome:'Domingas Dias',              whatsapp:'',             origem:'Grupo VIP', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Interessado',     segmento:'pipeline', probabilidade:20,  notas:'FUP: 09/abr | — | Entrada: 09/abr' },
+      { nome:'Rogerio Caldas',             whatsapp:'',             origem:'Instagram', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Engajado',        segmento:'pipeline', probabilidade:10,  notas:'FUP: 09/abr | não continuou a conversa | Entrada: 09/abr' },
+      { nome:'Daniela Aquino',             whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:35,  notas:'FUP: 01/set | vai fazer cirurgia/viagem, quer se organizar para começar | Entrada: 09/abr' },
+      { nome:'Gabriela Aquino',            whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 01/jun | disse que não pode se comprometer agora | Entrada: 10/abr' },
+      { nome:'Alberto Ribeiro',            whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 04/mai | — | Entrada: 10/abr' },
+      { nome:'Carla Ferreira',             whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 04/mai | — | Entrada: 10/abr' },
+      { nome:'Maria Beatriz',              whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:35,  notas:'FUP: 13/abr | fechado | Entrada: 10/abr' },
+      { nome:'Isabela Stamm',              whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 04/mai | — | Entrada: 10/abr' },
+      { nome:'Caroline Accorsi',           whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: 04/mai | — | Entrada: 10/abr' },
+      { nome:'Renato',                     whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:25,  notas:'FUP: 15/mai | quer esperar a clínica começar para se estruturar | Entrada: 10/abr' },
+      { nome:'Luciana Guerra',             whatsapp:'',             origem:'Instagram', produtoAlvo:'',                            estagio:'Em Negociação',   segmento:'pipeline', probabilidade:30,  notas:'FUP: — | — | Entrada: 13/abr' },
+      { nome:'João Vítor',                 whatsapp:'',             origem:'Finazzi',   produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:25,  notas:'FUP: 15/mai | quer esperar a clínica começar para se estruturar | Entrada: 10/abr' },
+      { nome:'Juliana Valerio',            whatsapp:'',             origem:'Big',       produtoAlvo:'',                            estagio:'Interessado',     segmento:'pipeline', probabilidade:20,  notas:'FUP: — | fechado | Entrada: 15/abr' },
+      { nome:'Lismara Marques (renovação)',whatsapp:'',             origem:'Grupo VIP', produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 01/jun | vou ver por aqui e te aviso pra gente seguir | Entrada: 20/abr' },
+      { nome:'Juliana Porto (renovação)',  whatsapp:'',             origem:'Outro',     produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 01/jun | coerência com o fluxo de pagamentos | Entrada: 29/abr' },
+      { nome:'Mari Cavasin',               whatsapp:'',             origem:'Outro',     produtoAlvo:'Clube Trilogia R$97/mês',      estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 01/jun | — | Entrada: 04/mai' },
+      { nome:'Juliana Porto (Clube)',       whatsapp:'',             origem:'Outro',     produtoAlvo:'Clube Trilogia R$97/mês',      estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 01/jun | — | Entrada: 04/mai' },
+      { nome:'Lismara Marques (Clube)',     whatsapp:'',             origem:'Outro',     produtoAlvo:'Clube Trilogia R$97/mês',      estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 05/mai | — | Entrada: 04/mai' },
+      { nome:'Tathiely Barreto (Clube)',    whatsapp:'',             origem:'Outro',     produtoAlvo:'Clube Trilogia R$97/mês',      estagio:'Interessado',     segmento:'upsell',   probabilidade:50,  notas:'FUP: 05/mai | — | Entrada: 04/mai' },
+      { nome:'Marcia Camila',              whatsapp:'',             origem:'OCP',       produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:40,  notas:'FUP: 21/mai | agendada | Entrada: 14/mai' },
+      { nome:'Uana Poli',                  whatsapp:'',             origem:'OCP',       produtoAlvo:'Mentoria Trilogia R$4.700',    estagio:'Em Negociação',   segmento:'pipeline', probabilidade:40,  notas:'FUP: 20/mai | agendada | Entrada: 14/mai' },
+      { nome:'Mayara',                     whatsapp:'',             origem:'OCP',       produtoAlvo:'',                            estagio:'Lead Frio',       segmento:'pipeline', probabilidade:5,   notas:'FUP: — | nutrição pelo instagram | Entrada: 14/mai' },
+    ];
+
+    // ─── Sync Diagnóstico ────────────────────────────────────────────
+    // ─── Toast ────────────────────────────────────────────────────────────────
+    let toastTimer = null;
+    function mostrarToast(msg, duracao = 4000) {
+      const el = document.getElementById('toastNotif');
+      document.getElementById('toastMsg').textContent = msg;
+      el.style.display = 'block';
+      el.style.opacity = '1';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => { el.style.display = 'none'; }, 300);
+      }, duracao);
+    }
+
+    // ─── Banner: leads para hoje ──────────────────────────────────────────────
+    function verificarLeadsHoje() {
+      const hoje = new Date().toISOString().split('T')[0];
+      const atrasados = pipelineLeads.filter(l => {
+        const estagio = (l.estagio || '');
+        if (estagio === 'Fechado Ganho' || estagio === 'Fechado Perdido') return false;
+        const data = l.dataProximoPasso || l.proximoContato || '';
+        return data && data <= hoje;
+      });
+      const banner = document.getElementById('leadHojeBanner');
+      if (atrasados.length > 0) {
+        document.getElementById('leadHojeCount').textContent = atrasados.length;
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    document.getElementById('btnFecharHoje').addEventListener('click', () => {
+      document.getElementById('leadHojeBanner').style.display = 'none';
+    });
+
+    document.getElementById('btnVerHoje').addEventListener('click', () => {
+      const hoje = new Date().toISOString().split('T')[0];
+      // filtra leads com data <= hoje, abre na tabela
+      document.getElementById('pipelineBusca').value = '';
+      document.getElementById('pipelineFiltroEstagio').value = '';
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('ativo'));
+      document.querySelector('.filter-btn[data-seg=""]').classList.add('ativo');
+      pipelineBuscaAtual = '';
+      pipelineEstagioAtual = '';
+      pipelineSegmentoAtual = '';
+      // Renderiza com highlight dos atrasados
+      renderTabelaPipeline(hoje);
+      document.getElementById('leadHojeBanner').style.display = 'none';
+    });
+
+    // ─── Estatísticas ─────────────────────────────────────────────────────────
+    function barStat(label, count, max, cor) {
+      const pct = max > 0 ? Math.round((count / max) * 100) : 0;
+      return `<div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+          <span style="color:var(--text-muted)">${label}</span>
+          <span style="color:var(--white);font-weight:600">${count}</span>
+        </div>
+        <div style="background:rgba(255,255,255,.06);border-radius:4px;height:6px;">
+          <div style="background:${cor};width:${pct}%;height:6px;border-radius:4px;transition:width .4s;"></div>
+        </div>
+      </div>`;
+    }
+
+    function classificarTipoFunil(origem) {
+      const o = (origem || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+      if (o.includes('diagnostico') || o.includes('diagnóstico')) return 'Diagnóstico';
+      if (o.includes('indicacao') || o.includes('indicação')) return 'Indicação';
+      if (o.includes('oferta direta')) return 'Oferta Direta';
+      if (['instagram','live','radio','rádio','whatsapp','email','podcast','youtube'].some(s => o.includes(s))) return 'Social Selling';
+      return 'Outros';
+    }
+
+    function barStatPct(label, count, total, max, cor, extra = '') {
+      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+      const barW = max > 0 ? Math.round((count / max) * 100) : 0;
+      return `<div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+          <span style="color:var(--text-muted)">${label}</span>
+          <span style="color:var(--white);font-weight:600">${count} <span style="color:var(--text-muted);font-weight:400">(${pct}%)</span>${extra}</span>
+        </div>
+        <div style="background:rgba(255,255,255,.06);border-radius:4px;height:6px;">
+          <div style="background:${cor};width:${barW}%;height:6px;border-radius:4px;transition:width .4s;"></div>
+        </div>
+      </div>`;
+    }
+
+    function renderEstatisticas() {
+      const leads = pipelineLeads;
+      const total = leads.length;
+      if (!total) return;
+
+      // ── Funil de conversão com % ───────────────────────────────────────────
+      const estagios = ['Lead Frio','Engajado','Interessado','Em Negociação','Fechado Ganho','Fechado Perdido'];
+      const coresEstagio = {
+        'Lead Frio':'#6b7db3','Engajado':'#5b9bd5','Interessado':'#f5a623',
+        'Em Negociação':'var(--gold)','Fechado Ganho':'var(--positive)','Fechado Perdido':'var(--negative)'
+      };
+      const contEstagio = {};
+      estagios.forEach(e => contEstagio[e] = 0);
+      leads.forEach(l => { if (contEstagio[l.estagio] !== undefined) contEstagio[l.estagio]++; });
+      const maxEstagio = Math.max(...Object.values(contEstagio), 1);
+      const ganhos = contEstagio['Fechado Ganho'];
+      const perdidos = contEstagio['Fechado Perdido'];
+      const decididos = ganhos + perdidos;
+      const winRate = decididos > 0 ? Math.round((ganhos / decididos) * 100) : null;
+      const winRateHTML = winRate !== null
+        ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;display:flex;justify-content:space-between;">
+            <span style="color:var(--text-muted)">Win rate (decididos)</span>
+            <span style="color:${winRate >= 50 ? 'var(--positive)' : 'var(--gold)'};font-weight:700;">${winRate}%</span>
+           </div>` : '';
+      document.getElementById('statsFunil').innerHTML =
+        estagios.map(e => barStatPct(e, contEstagio[e], total, maxEstagio, coresEstagio[e] || 'var(--gold)')).join('') + winRateHTML;
+
+      // ── Por tipo de funil ──────────────────────────────────────────────────
+      const tipos = ['Social Selling','Diagnóstico','Oferta Direta','Indicação','Outros'];
+      const contTipo = {}; const ganhosTipo = {};
+      tipos.forEach(t => { contTipo[t] = 0; ganhosTipo[t] = 0; });
+      leads.forEach(l => {
+        const t = classificarTipoFunil(l.origem);
+        contTipo[t] = (contTipo[t] || 0) + 1;
+        if (l.estagio === 'Fechado Ganho') ganhosTipo[t] = (ganhosTipo[t] || 0) + 1;
+      });
+      const maxTipo = Math.max(...Object.values(contTipo), 1);
+      const coresTipo = { 'Social Selling':'#5b9bd5','Diagnóstico':'#9b59b6','Oferta Direta':'var(--gold)','Indicação':'var(--positive)','Outros':'#6b7db3' };
+      document.getElementById('statsTipoFunil').innerHTML = tipos
+        .filter(t => contTipo[t] > 0)
+        .map(t => {
+          const cvr = contTipo[t] > 0 ? Math.round((ganhosTipo[t] / contTipo[t]) * 100) : 0;
+          const extra = ` <span style="color:var(--positive);font-size:11px;">↑${cvr}% conv.</span>`;
+          return barStatPct(t, contTipo[t], total, maxTipo, coresTipo[t] || 'var(--gold)', extra);
+        }).join('');
+
+      // ── Por origem ────────────────────────────────────────────────────────
+      const contOrigem = {};
+      leads.forEach(l => { const o = l.origem || 'Sem origem'; contOrigem[o] = (contOrigem[o] || 0) + 1; });
+      const topOrigens = Object.entries(contOrigem).sort((a,b) => b[1]-a[1]).slice(0,7);
+      const maxOrigem = topOrigens[0]?.[1] || 1;
+      document.getElementById('statsOrigens').innerHTML =
+        topOrigens.map(([o,c]) => barStatPct(o, c, total, maxOrigem, 'var(--gold)')).join('');
+
+      // ── Por produto alvo ──────────────────────────────────────────────────
+      const contProd = {};
+      leads.forEach(l => { const p = l.produtoAlvo || 'Indefinido'; contProd[p] = (contProd[p] || 0) + 1; });
+      const topProd = Object.entries(contProd).sort((a,b) => b[1]-a[1]).slice(0,7);
+      const maxProd = topProd[0]?.[1] || 1;
+      document.getElementById('statsProdutos').innerHTML =
+        topProd.map(([p,c]) => barStatPct(p, c, total, maxProd, '#5b9bd5')).join('');
+    }
+
+    document.getElementById('btnToggleStats').addEventListener('click', () => {
+      const panel = document.getElementById('statsPanel');
+      const btn   = document.getElementById('btnToggleStats');
+      if (panel.style.display === 'none') {
+        renderEstatisticas();
+        panel.style.display = 'block';
+        btn.textContent = '✕ Stats';
+      } else {
+        panel.style.display = 'none';
+        btn.textContent = '📊 Stats';
+      }
+    });
+
+    // ─── Sync Diagnóstico ─────────────────────────────────────────────────────
+    document.getElementById('btnSyncDiagnostico').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSyncDiagnostico');
+      btn.disabled = true; btn.textContent = '⟳ Sincronizando…';
+      try {
+        const res = await syncDiagnostico();
+        if (res.count === 0) {
+          mostrarToast('✓ Diagnóstico sincronizado — nenhum lead novo.');
+          btn.textContent = '✓ Atualizado';
+        } else {
+          mostrarToast(`🆕 ${res.count} novo${res.count !== 1 ? 's leads importados' : ' lead importado'} do Diagnóstico!`, 6000);
+          btn.textContent = `✓ ${res.count} importado${res.count !== 1 ? 's' : ''}`;
+          pipelineCarregado = false;
+          await renderPipeline();
+        }
+        setTimeout(() => { btn.disabled = false; btn.textContent = '⟳ Diagnóstico'; }, 3000);
+      } catch (err) {
+        mostrarToast(`Erro ao sincronizar: ${err.message}`);
+        btn.disabled = false; btn.textContent = '⟳ Diagnóstico';
+      }
+    });
+
+
+    // ─── Pipeline CRM ────────────────────────────────────────────────
+    let pipelineLeads      = [];       // cache de leads
+    let pipelineCarregado  = false;    // carrega só na primeira vez
+    let pipelineBuscaAtual = '';
+    let pipelineEstagioAtual = '';
+    let pipelineSegmentoAtual = '';
+
+    const ESTAGIOS = ['Lead Frio','Engajado','Interessado','Em Negociação','Fechado Ganho','Fechado Perdido'];
+
+    function badgeEstagio(estagio) {
+      if (estagio === 'Fechado Ganho')   return `<span style="color:var(--positive);font-weight:600">${estagio}</span>`;
+      if (estagio === 'Fechado Perdido') return `<span style="color:var(--negative);font-weight:600">${estagio}</span>`;
+      if (estagio === 'Em Negociação')   return `<span style="color:var(--gold);font-weight:600">${estagio}</span>`;
+      return `<span style="color:var(--text-muted)">${estagio || '—'}</span>`;
+    }
+
+    async function renderPipeline() {
+      if (!pipelineCarregado) {
+        document.getElementById('pipelineSubtitulo').textContent = 'Carregando…';
+        try {
+          pipelineLeads = await getLeads();
+          pipelineCarregado = true;
+        } catch (err) {
+          document.getElementById('pipelineSubtitulo').textContent = 'Erro ao carregar leads.';
+          console.error('[pipeline] getLeads:', err);
+          return;
+        }
+      }
+      atualizarKpisPipeline();
+      renderTabelaPipeline();
+      verificarLeadsHoje();
+      if (document.getElementById('statsPanel').style.display !== 'none') renderEstatisticas();
+    }
+
+    function leadsFiltrados() {
+      return pipelineLeads.filter(l => {
+        const matchBusca = !pipelineBuscaAtual || l.nome?.toLowerCase().includes(pipelineBuscaAtual);
+        const matchEstagio = !pipelineEstagioAtual || l.estagio === pipelineEstagioAtual;
+        const matchSeg = !pipelineSegmentoAtual || l.segmento === pipelineSegmentoAtual;
+        return matchBusca && matchEstagio && matchSeg;
+      });
+    }
+
+    function atualizarKpisPipeline() {
+      const leads = pipelineLeads;
+      const semPerdidos = leads.filter(l => l.estagio !== 'Fechado Perdido');
+      const total = semPerdidos.reduce((s, l) => s + (l.valor || 0), 0);
+      const ponderado = semPerdidos.reduce((s, l) => s + (l.valor || 0) * ((l.probabilidade || 0) / 100), 0);
+      const fechados = leads.filter(l => l.estagio === 'Fechado Ganho');
+      const receita = fechados.reduce((s, l) => s + (l.valor || 0), 0);
+      const ativos = leads.filter(l => l.estagio !== 'Fechado Ganho' && l.estagio !== 'Fechado Perdido').length;
+
+      document.getElementById('kpiPipelineTotal').textContent = brl(total);
+      document.getElementById('kpiPipelineTotalSub').textContent = `${semPerdidos.length} lead${semPerdidos.length !== 1 ? 's' : ''}`;
+      document.getElementById('kpiPonderado').textContent = brl(ponderado);
+      document.getElementById('kpiPonderadoSub').textContent = 'ajustado por probabilidade';
+      document.getElementById('kpiReceitaFechada').textContent = brl(receita);
+      document.getElementById('kpiReceitaFechadaSub').textContent = `${fechados.length} fechado${fechados.length !== 1 ? 's' : ''}`;
+      document.getElementById('kpiLeadsAtivos').textContent = ativos;
+      document.getElementById('kpiLeadsAtivosSub').textContent = 'em andamento';
+
+      const total2 = leads.length;
+      document.getElementById('pipelineSubtitulo').textContent = `${total2} lead${total2 !== 1 ? 's' : ''} no CRM`;
+    }
+
+    function renderTabelaPipeline(filtroHoje = null) {
+      const hoje = new Date().toISOString().split('T')[0];
+      let lista = leadsFiltrados();
+      if (filtroHoje) {
+        lista = lista.filter(l => {
+          const estagio = l.estagio || '';
+          if (estagio === 'Fechado Ganho' || estagio === 'Fechado Perdido') return false;
+          const data = l.dataProximoPasso || l.proximoContato || '';
+          return data && data <= filtroHoje;
+        });
+      }
+      const tbody = document.getElementById('pipelineTbody');
+      const empty = document.getElementById('pipelineEmpty');
+      const table = document.getElementById('pipelineTable');
+
+      if (!lista.length) {
+        empty.style.display = '';
+        table.style.display = 'none';
+        return;
+      }
+      empty.style.display = 'none';
+      table.style.display = '';
+
+      tbody.innerHTML = lista.map(l => {
+        const dias = l.diasSemContato ?? null;
+        const diasCls = dias !== null && dias > 7 ? 'color:var(--negative);font-weight:600' : 'color:var(--text-muted)';
+        const diasTxt = dias !== null ? `${dias}d` : '—';
+        const proxContato = l.dataProximoPasso ? fmtDataSimples(l.dataProximoPasso) : '—';
+        const atrasado = l.dataProximoPasso && l.dataProximoPasso <= hoje && l.estagio !== 'Fechado Ganho' && l.estagio !== 'Fechado Perdido';
+        const rowStyle = atrasado ? 'cursor:pointer;background:rgba(207,174,101,0.05);border-left:3px solid var(--gold);' : 'cursor:pointer';
+        // WhatsApp link
+        const waTel = (l.whatsapp || '').replace(/\D/g,'');
+        const waLink = waTel.length >= 8
+          ? `<a href="https://wa.me/55${waTel}" target="_blank" onclick="event.stopPropagation()" style="color:var(--text-muted);text-decoration:none;" title="Abrir WhatsApp">📱 ${l.whatsapp}</a>`
+          : '—';
+        // Botão converter (só para Fechado Ganho ainda não convertido)
+        const btnConverter = l.estagio === 'Fechado Ganho' && !l.convertidoEm
+          ? `<button class="btn-acao" data-pipeline-converter="${l.id}" onclick="event.stopPropagation()" style="border-color:var(--positive);color:var(--positive);font-size:11px;padding:4px 10px;">→ Mentorada</button>`
+          : '';
+        return `<tr style="${rowStyle}" data-lead-id="${l.id}">
+          <td><strong>${l.nome || '—'}</strong>${atrasado ? ' <span style="color:var(--gold);font-size:11px;">⏰</span>' : ''}${l.convertidoEm ? ' <span style="color:var(--positive);font-size:11px;" title="Já convertido em mentorada">✓</span>' : ''}</td>
+          <td>${waLink}</td>
+          <td style="color:var(--text-muted)">${l.origem || '—'}</td>
+          <td style="color:var(--text-muted);font-size:12px">${l.produtoAlvo || '—'}</td>
+          <td>${l.valor ? brl(l.valor) : '—'}</td>
+          <td>${badgeEstagio(l.estagio)}</td>
+          <td style="${atrasado ? 'color:var(--gold);font-weight:600' : 'color:var(--text-muted)'}">${proxContato}</td>
+          <td style="${diasCls}">${diasTxt}</td>
+          <td style="text-align:right;white-space:nowrap;display:flex;gap:6px;justify-content:flex-end;">
+            ${btnConverter}
+            <button class="btn-acao" data-pipeline-editar="${l.id}">Editar</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+      // Clique na linha ou no botão editar
+      tbody.querySelectorAll('tr[data-lead-id]').forEach(tr => {
+        tr.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return;
+          abrirModalLead(tr.dataset.leadId);
+        });
+      });
+      tbody.querySelectorAll('[data-pipeline-editar]').forEach(btn => {
+        btn.addEventListener('click', () => abrirModalLead(btn.dataset.pipelineEditar));
+      });
+      tbody.querySelectorAll('[data-pipeline-converter]').forEach(btn => {
+        btn.addEventListener('click', () => abrirModalConverterLead(btn.dataset.pipelineConverter));
+      });
+    }
+
+    // ─── Converter lead em mentorada ─────────────────────────────────────────
+    function abrirModalConverterLead(id) {
+      const l = pipelineLeads.find(x => x.id === id);
+      if (!l) return;
+      // Vai para aba Mentoradas e abre modal de nova mentorada
+      document.querySelector('[data-tab="mentoradas"]').click();
+      setTimeout(() => {
+        document.getElementById('btnNovaMentorada')?.click();
+        setTimeout(() => {
+          const nomeEl  = document.getElementById('mNome');
+          const emailEl = document.getElementById('mEmail');
+          if (nomeEl)  nomeEl.value  = l.nome  || '';
+          if (emailEl) emailEl.value = l.email  || '';
+          // Guarda o id do lead no modal para marcar como convertido após salvar
+          document.getElementById('modalNova')?.setAttribute('data-lead-origem-id', id);
+          // Toast avisando
+          mostrarToast(`Dados de ${l.nome} pré-preenchidos. Complete e salve para criar a mentorada.`, 6000);
+        }, 200);
+      }, 300);
+    }
+
+    function abrirModalLead(id) {
+      const modal = document.getElementById('leadModal');
+      const erroEl = document.getElementById('leadModalErro');
+      erroEl.style.display = 'none';
+
+      if (id) {
+        const l = pipelineLeads.find(x => x.id === id);
+        if (!l) return;
+        document.getElementById('leadModalTitulo').textContent = 'Editar Lead';
+        document.getElementById('lEditId').value   = id;
+        document.getElementById('lNome').value     = l.nome     || '';
+        document.getElementById('lWhatsapp').value = l.whatsapp || '';
+        document.getElementById('lSegmento').value = l.segmento || 'pipeline';
+        document.getElementById('lOrigem').value   = l.origem   || '';
+        document.getElementById('lProdutoAlvo').value = l.produtoAlvo || '';
+        document.getElementById('lValor').value    = l.valor    ?? '';
+        document.getElementById('lEstagio').value  = l.estagio  || 'Lead Frio';
+        document.getElementById('lProbabilidade').value = l.probabilidade ?? '';
+        document.getElementById('lProximoPasso').value  = l.proximoPasso  || '';
+        document.getElementById('lDataProximoPasso').value = l.dataProximoPasso || '';
+        document.getElementById('lUltimoContato').value   = l.ultimoContato   || '';
+        document.getElementById('lNotas').value    = l.notas    || '';
+        document.getElementById('btnDeletarLead').style.display = '';
+      } else {
+        document.getElementById('leadModalTitulo').textContent = 'Novo Lead';
+        document.getElementById('lEditId').value   = '';
+        document.getElementById('lNome').value     = '';
+        document.getElementById('lWhatsapp').value = '';
+        document.getElementById('lSegmento').value = pipelineSegmentoAtual || 'pipeline';
+        document.getElementById('lOrigem').value   = '';
+        document.getElementById('lProdutoAlvo').value = '';
+        document.getElementById('lValor').value    = '';
+        document.getElementById('lEstagio').value  = 'Lead Frio';
+        document.getElementById('lProbabilidade').value = '';
+        document.getElementById('lProximoPasso').value  = '';
+        document.getElementById('lDataProximoPasso').value = '';
+        document.getElementById('lUltimoContato').value   = '';
+        document.getElementById('lNotas').value    = '';
+        document.getElementById('btnDeletarLead').style.display = 'none';
+      }
+
+      modal.style.display = 'block';
+      modal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function coletarDadosLead() {
+      return {
+        nome:             document.getElementById('lNome').value.trim(),
+        whatsapp:         document.getElementById('lWhatsapp').value.trim(),
+        segmento:         document.getElementById('lSegmento').value,
+        origem:           document.getElementById('lOrigem').value,
+        produtoAlvo:      document.getElementById('lProdutoAlvo').value,
+        valor:            parseFloat(document.getElementById('lValor').value) || 0,
+        estagio:          document.getElementById('lEstagio').value,
+        probabilidade:    parseInt(document.getElementById('lProbabilidade').value) || 0,
+        proximoPasso:     document.getElementById('lProximoPasso').value.trim(),
+        dataProximoPasso: document.getElementById('lDataProximoPasso').value,
+        ultimoContato:    document.getElementById('lUltimoContato').value,
+        notas:            document.getElementById('lNotas').value.trim(),
+      };
+    }
+
+    document.getElementById('btnNovoLead').addEventListener('click', () => abrirModalLead(null));
+
+    document.getElementById('btnCancelarLead').addEventListener('click', () => {
+      document.getElementById('leadModal').style.display = 'none';
+    });
+
+    document.getElementById('btnSalvarLead').addEventListener('click', async () => {
+      const erroEl = document.getElementById('leadModalErro');
+      erroEl.style.display = 'none';
+      const id = document.getElementById('lEditId').value || null;
+      const dados = coletarDadosLead();
+
+      if (!dados.nome) {
+        erroEl.textContent = 'Nome é obrigatório.';
+        erroEl.style.display = 'block';
+        return;
+      }
+
+      const btn = document.getElementById('btnSalvarLead');
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        if (id) {
+          await updateLead(id, dados);
+          const idx = pipelineLeads.findIndex(l => l.id === id);
+          if (idx >= 0) {
+            // Recalcula diasSemContato localmente
+            const hoje = new Date(); hoje.setHours(0,0,0,0);
+            let diasSemContato = null;
+            if (dados.ultimoContato) {
+              const uc = new Date(dados.ultimoContato + 'T00:00:00');
+              diasSemContato = Math.floor((hoje - uc) / (1000 * 60 * 60 * 24));
+            }
+            pipelineLeads[idx] = { ...pipelineLeads[idx], ...dados, diasSemContato };
+          }
+        } else {
+          const res = await saveLead(dados);
+          const hoje = new Date(); hoje.setHours(0,0,0,0);
+          let diasSemContato = null;
+          if (dados.ultimoContato) {
+            const uc = new Date(dados.ultimoContato + 'T00:00:00');
+            diasSemContato = Math.floor((hoje - uc) / (1000 * 60 * 60 * 24));
+          }
+          pipelineLeads.unshift({ id: res.id, ...dados, diasSemContato });
+        }
+        document.getElementById('leadModal').style.display = 'none';
+        atualizarKpisPipeline();
+        renderTabelaPipeline();
+      } catch (err) {
+        erroEl.textContent = err.message || 'Erro ao salvar.';
+        erroEl.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+
+    document.getElementById('btnDeletarLead').addEventListener('click', async () => {
+      const id = document.getElementById('lEditId').value;
+      if (!id) return;
+      const lead = pipelineLeads.find(l => l.id === id);
+      if (!confirm(`Excluir o lead "${lead?.nome || id}"? Esta ação não pode ser desfeita.`)) return;
+
+      const btn = document.getElementById('btnDeletarLead');
+      btn.disabled = true; btn.textContent = 'Excluindo…';
+      try {
+        await deleteLead(id);
+        pipelineLeads = pipelineLeads.filter(l => l.id !== id);
+        document.getElementById('leadModal').style.display = 'none';
+        atualizarKpisPipeline();
+        renderTabelaPipeline();
+      } catch (err) {
+        alert(`Erro ao excluir: ${err.message}`);
+        btn.disabled = false; btn.textContent = 'Excluir lead';
+      }
+    });
+
+    // Busca e filtros
+    document.getElementById('pipelineBusca').addEventListener('input', (e) => {
+      pipelineBuscaAtual = e.target.value.trim().toLowerCase();
+      renderTabelaPipeline();
+    });
+
+    document.getElementById('pipelineFiltroEstagio').addEventListener('change', (e) => {
+      pipelineEstagioAtual = e.target.value;
+      renderTabelaPipeline();
+    });
+
+    document.querySelectorAll('#view-pipeline .filter-btn[data-seg]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#view-pipeline .filter-btn[data-seg]').forEach(b => b.classList.remove('ativo'));
+        btn.classList.add('ativo');
+        pipelineSegmentoAtual = btn.dataset.seg;
+        renderTabelaPipeline();
+      });
     });
 
   </script>

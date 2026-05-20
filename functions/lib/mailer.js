@@ -17,7 +17,7 @@ const REMETENTE_NOME  = 'Trilogia Dashboard';
 const REMETENTE_EMAIL = 'flaviasch@gmail.com';
 
 /**
- * Converte texto para Base64 URL-safe (necessário para a Gmail API).
+ * Base64 URL-safe (necessário para o campo `raw` da Gmail API).
  */
 function toBase64(str) {
   return Buffer.from(str).toString('base64')
@@ -25,24 +25,27 @@ function toBase64(str) {
 }
 
 /**
- * Monta uma mensagem RFC 2822 em Base64 URL-safe.
+ * Base64 padrão com chunking de 76 chars (RFC 2045) — para corpo MIME.
+ * NÃO usa URL-safe: o conteúdo interno do MIME precisa de +/= normais.
+ */
+function mimeBase64(str) {
+  const b64 = Buffer.from(str, 'utf8').toString('base64');
+  return b64.match(/.{1,76}/g).join('\r\n');
+}
+
+/**
+ * Monta uma mensagem RFC 2822 em Base64 URL-safe para a Gmail API.
  */
 function montarMensagem({ to, subject, html }) {
-  const boundary = `----=_Part_${Date.now()}`;
   const raw = [
     `From: ${REMETENTE_NOME} <${REMETENTE_EMAIL}>`,
     `To: ${to}`,
     `Subject: =?UTF-8?B?${toBase64(subject)}?=`,
     'MIME-Version: 1.0',
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    '',
-    `--${boundary}`,
     'Content-Type: text/html; charset=UTF-8',
     'Content-Transfer-Encoding: base64',
     '',
-    toBase64(html),
-    '',
-    `--${boundary}--`,
+    mimeBase64(html),
   ].join('\r\n');
 
   return toBase64(raw);
