@@ -24,11 +24,12 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // Secrets declaradas explicitamente para que o runtime v2 as injete via env.
-// GOOGLE_SERVICE_ACCOUNT_JSON: lê/escreve nas planilhas (SA compartilhada em provisionar)
-// SECRETS_ALL: cria planilha via OAuth da Flávia + SA JSON p/ gravar o email de sharing
-const SECRETS_SHEETS = ['GOOGLE_SERVICE_ACCOUNT_JSON'];
-const SECRETS_ALL    = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN',
-                        'DRIVE_FOLDER_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON'];
+// GMAIL_APP_PASSWORD : SMTP do Gmail (App Password — não expira)
+// GOOGLE_SERVICE_ACCOUNT_JSON: cria/acessa planilhas via Service Account (não expira)
+// SECRETS_ALL: cria planilha via SA + envia e-mail via SMTP
+const SECRETS_EMAIL  = ['GMAIL_APP_PASSWORD'];
+const SECRETS_SHEETS = ['GOOGLE_SERVICE_ACCOUNT_JSON', 'DRIVE_FOLDER_ID'];
+const SECRETS_ALL    = ['GMAIL_APP_PASSWORD', 'DRIVE_FOLDER_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON'];
 
 // ID da pasta no Google Drive da Flávia onde ficam as planilhas das mentoradas.
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || '';
@@ -623,7 +624,7 @@ exports.deletarMentorada = onCall({}, async (request) => {
  * Útil quando o e-mail inicial caiu no spam ou o link expirou.
  * Exclusivo para admin.
  */
-exports.reenviarAcesso = onCall({ secrets: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN'] }, async (request) => {
+exports.reenviarAcesso = onCall({ secrets: ['GMAIL_APP_PASSWORD'] }, async (request) => {
   requireAdmin(request);
 
   const { uid } = request.data;
@@ -1321,7 +1322,7 @@ exports.getCobrancas = onCall({}, async (request) => {
  * Enviada para a Flávia às 8h (horário de Brasília = 11h UTC).
  */
 exports.notifCobrancasDia = onSchedule(
-  { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN'] },
+  { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: ['GMAIL_APP_PASSWORD'] },
   async () => {
   const hoje = new Date().toISOString().slice(0, 10);
 
@@ -1393,7 +1394,7 @@ async function getAtivas() {
 
 // ─── NOTIFICAÇÕES AGENDADAS ───────────────────────────────────────────────────
 
-const SECRETS_EMAIL = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN'];
+// SECRETS_EMAIL já definido no topo do arquivo
 
 /**
  * Dia 1 de cada mês às 08h (Brasília):

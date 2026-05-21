@@ -1,72 +1,43 @@
 'use strict';
 
 /**
- * Envio de e-mail via Gmail API usando OAuth2 (googleapis).
+ * Envio de e-mail via SMTP do Gmail com App Password.
  *
- * Usa as mesmas credenciais já disponíveis nas Cloud Functions:
- *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
+ * Usa nodemailer com autenticação simples (SMTP + App Password),
+ * que nunca expira enquanto a senha de app não for revogada manualmente.
  *
- * REQUISITO: o refresh token deve incluir o escopo gmail.send.
- * Caso o token atual não o inclua, será necessário revogar e re-autorizar
- * adicionando o escopo: https://www.googleapis.com/auth/gmail.send
+ * Secret no Firebase: GMAIL_APP_PASSWORD
  */
 
-const { google } = require('googleapis');
+const nodemailer = require('nodemailer');
 
 const REMETENTE_NOME  = 'Trilogia Dashboard';
 const REMETENTE_EMAIL = 'flaviasch@gmail.com';
 
 /**
- * Base64 URL-safe (necessário para o campo `raw` da Gmail API).
+ * Cria o transporter SMTP do Gmail usando App Password.
  */
-function toBase64(str) {
-  return Buffer.from(str).toString('base64')
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+function buildTransporter() {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: REMETENTE_EMAIL,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
 }
 
 /**
- * Base64 padrão com chunking de 76 chars (RFC 2045) — para corpo MIME.
- * NÃO usa URL-safe: o conteúdo interno do MIME precisa de +/= normais.
- */
-function mimeBase64(str) {
-  const b64 = Buffer.from(str, 'utf8').toString('base64');
-  return b64.match(/.{1,76}/g).join('\r\n');
-}
-
-/**
- * Monta uma mensagem RFC 2822 em Base64 URL-safe para a Gmail API.
- */
-function montarMensagem({ to, subject, html }) {
-  const raw = [
-    `From: ${REMETENTE_NOME} <${REMETENTE_EMAIL}>`,
-    `To: ${to}`,
-    `Subject: =?UTF-8?B?${toBase64(subject)}?=`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=UTF-8',
-    'Content-Transfer-Encoding: base64',
-    '',
-    mimeBase64(html),
-  ].join('\r\n');
-
-  return toBase64(raw);
-}
-
-/**
- * Envia um e-mail via Gmail API (OAuth2 de Flávia).
+ * Envia um e-mail via SMTP do Gmail.
  * @param {{ to: string, subject: string, html: string }} opts
  */
 async function sendEmail({ to, subject, html }) {
-  const auth = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-  );
-  auth.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
-
-  const gmail = google.gmail({ version: 'v1', auth });
-
-  await gmail.users.messages.send({
-    userId: 'me',
-    requestBody: { raw: montarMensagem({ to, subject, html }) },
+  const transporter = buildTransporter();
+  await transporter.sendMail({
+    from: `"${REMETENTE_NOME}" <${REMETENTE_EMAIL}>`,
+    to,
+    subject,
+    html,
   });
 }
 

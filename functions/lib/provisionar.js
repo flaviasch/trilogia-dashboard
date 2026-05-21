@@ -57,21 +57,21 @@ const COR_TEXTO  = { red: 1, green: 1, blue: 1 };
 const COR_ALT    = { red: 0.965, green: 0.961, blue: 0.957 };
 
 /**
- * Autentica com as credenciais OAuth2 da Flávia (refresh token permanente).
- * As env vars são injetadas como secrets pelo Firebase.
+ * Autentica via Service Account (GOOGLE_SERVICE_ACCOUNT_JSON).
+ * Nunca expira — não depende de refresh token de usuário.
  */
 function buildAuth() {
-  const clientId     = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurado.');
 
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Credenciais OAuth não configuradas.');
-  }
-
-  const oauth2Client = new google.auth.OAuth2(clientId.trim(), clientSecret.trim());
-  oauth2Client.setCredentials({ refresh_token: refreshToken.trim() });
-  return oauth2Client;
+  const credentials = JSON.parse(raw);
+  return new google.auth.GoogleAuth({
+    credentials,
+    scopes: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive',
+    ],
+  });
 }
 
 /**
@@ -237,13 +237,8 @@ async function provisionar(nome, folderId) {
 }
 
 function getSaEmail() {
-  try {
-    const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-    if (!raw) return null;
-    return JSON.parse(raw).client_email || null;
-  } catch {
-    return null;
-  }
+  // A SA já é a autora dos arquivos — compartilhamento com ela mesma não é necessário
+  return null;
 }
 
 module.exports = { provisionar };
