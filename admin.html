@@ -526,16 +526,27 @@
         </div>
       </div>
 
+      <!-- Abas Ativas / Inativas -->
+      <div style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);">
+        <button class="pipeline-subtab ativo" data-aba-mentoradas="ativas" style="border-radius:8px 8px 0 0">
+          Ativas <span id="cntMentoradasAtivas" style="font-size:11px;opacity:.7"></span>
+        </button>
+        <button class="pipeline-subtab" data-aba-mentoradas="inativas" style="border-radius:8px 8px 0 0">
+          Inativas <span id="cntMentoradasInativas" style="font-size:11px;opacity:.7"></span>
+        </button>
+      </div>
+
       <!-- Toolbar -->
       <div class="toolbar">
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
           <input type="text" id="buscaMentorada" placeholder="Buscar por nome ou e-mail…" />
         </div>
-        <button class="filter-btn ativo" data-filtro="todas">Todas</button>
-        <button class="filter-btn" data-filtro="ativas">Ativas</button>
-        <button class="filter-btn" data-filtro="alertas">Com alerta</button>
-        <button class="filter-btn" data-filtro="sem-acesso">Sem acesso</button>
+        <span id="filtrosMentoradas">
+          <button class="filter-btn ativo" data-filtro="todas">Todas</button>
+          <button class="filter-btn" data-filtro="alertas">Com alerta</button>
+          <button class="filter-btn" data-filtro="sem-acesso">Sem acesso</button>
+        </span>
       </div>
 
       <!-- Tabela -->
@@ -1454,9 +1465,10 @@
       { id: 'm5', nome: 'Eduarda Lima',         email: 'edu@email.com',   status: 'inativa', inicio: '2023-08', perfil: 'moderado',     pl: 310000, sobra: 0,     reservas: 210000, nota: 'Cancelou em fevereiro. Exportou dados.' },
     ];
 
-    let filtroAtual    = 'todas';
-    let buscaAtual     = '';
-    let cobrancasDoMes = [];  // cache para cálculo de alertas e MRR
+    let filtroAtual          = 'todas';
+    let abaMentoradasAtual   = 'ativas';
+    let buscaAtual           = '';
+    let cobrancasDoMes       = [];  // cache para cálculo de alertas e MRR
 
     // ─── Init ─────────────────────────────────
     async function init(user) {
@@ -1513,14 +1525,30 @@
     // ─── Mentoradas ──────────────────────────
     function mentoradasFiltradas() {
       return mentoradas.filter(m => {
+        // Filtra pela aba principal (ativas vs inativas)
+        const isInativa = m.status === 'inativa';
+        if (abaMentoradasAtual === 'ativas'   &&  isInativa) return false;
+        if (abaMentoradasAtual === 'inativas' && !isInativa) return false;
+
+        // Filtros secundários (só na aba ativas)
         let matchFiltro;
         if      (filtroAtual === 'todas')      matchFiltro = true;
         else if (filtroAtual === 'alertas')    matchFiltro = hasAlerta(m);
-        else if (filtroAtual === 'sem-acesso') matchFiltro = m.status !== 'inativa' && diasSemAcesso(m.ultimoAcesso) >= 14;
-        else                                   matchFiltro = m.status === filtroAtual;
+        else if (filtroAtual === 'sem-acesso') matchFiltro = diasSemAcesso(m.ultimoAcesso) >= 14;
+        else                                   matchFiltro = true;
+
         const matchBusca = buscaAtual === '' || m.nome.toLowerCase().includes(buscaAtual) || m.email.toLowerCase().includes(buscaAtual);
         return matchFiltro && matchBusca;
       });
+    }
+
+    function atualizarContadoresAbas() {
+      const ativas   = mentoradas.filter(m => m.status !== 'inativa').length;
+      const inativas = mentoradas.filter(m => m.status === 'inativa').length;
+      const elAt = document.getElementById('cntMentoradasAtivas');
+      const elIn = document.getElementById('cntMentoradasInativas');
+      if (elAt) elAt.textContent = ativas   > 0 ? `(${ativas})`   : '';
+      if (elIn) elIn.textContent = inativas > 0 ? `(${inativas})` : '';
     }
 
     // Parse financeiro seguro — evita NaN quando o campo ainda não foi cacheado no Firestore
@@ -1626,6 +1654,8 @@
           : 'atenção necessária';
       }
 
+      atualizarContadoresAbas();
+
       const lista = mentoradasFiltradas();
       document.getElementById('subtituloMentoradas').textContent = `${lista.length} mentorada${lista.length !== 1 ? 's' : ''} exibida${lista.length !== 1 ? 's' : ''}`;
 
@@ -1701,16 +1731,42 @@
       btn.addEventListener('click', () => ativarFiltro(btn.dataset.filtro));
     });
 
+    // ─── Abas Ativas / Inativas ──────────────
+    function ativarAbaMentoradas(aba) {
+      abaMentoradasAtual = aba;
+      document.querySelectorAll('[data-aba-mentoradas]').forEach(b => {
+        b.classList.toggle('ativo', b.dataset.abaMentoradas === aba);
+      });
+      // Filtros secundários só fazem sentido na aba Ativas
+      const filtrosEl = document.getElementById('filtrosMentoradas');
+      if (filtrosEl) filtrosEl.style.display = aba === 'ativas' ? '' : 'none';
+      // Reseta filtro ao trocar de aba
+      filtroAtual = 'todas';
+      document.querySelectorAll('[data-filtro]').forEach(b => b.classList.remove('ativo'));
+      document.querySelector('[data-filtro="todas"]')?.classList.add('ativo');
+      buscaAtual = '';
+      const buscaEl = document.getElementById('buscaMentorada');
+      if (buscaEl) buscaEl.value = '';
+      renderMentoradas();
+    }
+
+    document.querySelectorAll('[data-aba-mentoradas]').forEach(btn => {
+      btn.addEventListener('click', () => ativarAbaMentoradas(btn.dataset.abaMentoradas));
+    });
+
     // KPI cards clicáveis — atalho para os filtros correspondentes
     [
-      { id: 'kpiAtivas',   filtro: 'ativas'    },
-      { id: 'kpiAlertas',  filtro: 'alertas'   },
-    ].forEach(({ id, filtro }) => {
+      { id: 'kpiAtivas',  aba: 'ativas',  filtro: 'todas'   },
+      { id: 'kpiAlertas', aba: 'ativas',  filtro: 'alertas' },
+    ].forEach(({ id, aba, filtro }) => {
       const card = document.getElementById(id)?.closest('.kpi-card');
       if (!card) return;
       card.style.cursor = 'pointer';
       card.title = `Filtrar por: ${filtro}`;
-      card.addEventListener('click', () => ativarFiltro(filtro));
+      card.addEventListener('click', () => {
+        ativarAbaMentoradas(aba);
+        if (filtro !== 'todas') ativarFiltro(filtro);
+      });
       card.addEventListener('mouseenter', () => card.style.borderColor = 'var(--border-gold)');
       card.addEventListener('mouseleave', () => card.style.borderColor = '');
     });
