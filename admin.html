@@ -3456,6 +3456,8 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         document.getElementById('lUltimoContato').value   = l.ultimoContato   || '';
         document.getElementById('lNotas').value    = l.notas    || '';
         document.getElementById('btnDeletarLead').style.display = '';
+        // Guarda estágio original para detectar mudança para Ganho
+        document.getElementById('leadModal').dataset.estagioAnterior = l.estagio || '';
       } else {
         document.getElementById('leadModalTitulo').textContent = 'Novo Lead';
         document.getElementById('lEditId').value   = '';
@@ -3544,6 +3546,17 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         document.getElementById('leadModal').style.display = 'none';
         atualizarKpisPipeline();
         renderTabelaPipeline();
+
+        // Se mudou para Fechado Ganho (não estava Ganho antes), oferece converter em mentorada
+        const estagioAnterior = document.getElementById('leadModal').dataset.estagioAnterior || '';
+        if (dados.estagio === 'Fechado Ganho' && estagioAnterior !== 'Fechado Ganho') {
+          const leadId = id || pipelineLeads[0]?.id;
+          const lead   = pipelineLeads.find(l => l.id === leadId);
+          if (lead && !lead.convertidoEm) {
+            const querer = confirm(`🎉 "${lead.nome}" marcada como Fechado Ganho!\n\nDeseja criar a mentorada agora?`);
+            if (querer) abrirModalConverterLead(leadId);
+          }
+        }
       } catch (err) {
         erroEl.textContent = err.message || 'Erro ao salvar.';
         erroEl.style.display = 'block';
