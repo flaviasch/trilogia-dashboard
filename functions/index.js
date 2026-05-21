@@ -24,12 +24,14 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // Secrets declaradas explicitamente para que o runtime v2 as injete via env.
-// GMAIL_APP_PASSWORD : SMTP do Gmail (App Password — não expira)
-// GOOGLE_SERVICE_ACCOUNT_JSON: cria/acessa planilhas via Service Account (não expira)
-// SECRETS_ALL: cria planilha via SA + envia e-mail via SMTP
+// GMAIL_APP_PASSWORD        : SMTP do Gmail (App Password — não expira)
+// GOOGLE_CLIENT_ID/SECRET   : OAuth2 para Drive/Sheets (criar planilhas da Flávia)
+// GOOGLE_REFRESH_TOKEN      : refresh token OAuth2 para Drive (renovar se expirar)
+// GOOGLE_SERVICE_ACCOUNT_JSON: acesso de leitura às planilhas pelas mentoradas
 const SECRETS_EMAIL  = ['GMAIL_APP_PASSWORD'];
 const SECRETS_SHEETS = ['GOOGLE_SERVICE_ACCOUNT_JSON', 'DRIVE_FOLDER_ID'];
-const SECRETS_ALL    = ['GMAIL_APP_PASSWORD', 'DRIVE_FOLDER_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON'];
+const SECRETS_ALL    = ['GMAIL_APP_PASSWORD', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
+                        'GOOGLE_REFRESH_TOKEN', 'DRIVE_FOLDER_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON'];
 
 // ID da pasta no Google Drive da Flávia onde ficam as planilhas das mentoradas.
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || '';
