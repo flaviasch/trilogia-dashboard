@@ -1861,12 +1861,19 @@
         return cumReal;
       });
 
-      // Linha: aporte planejado acumulado (totalPlanejado × n meses)
-      const reservasAtivas = reservas.filter(r => r.acumulado < r.meta && r.aporte > 0);
-      const planoMensal = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
+      // Linha: aporte planejado acumulado — cada mês só inclui reservas cujo início previsto já chegou
+      const anoGrafico = new Date().getFullYear();
       let cumPlano = 0;
-      const dataPlano = hist.map(() => {
-        cumPlano += planoMensal;
+      const dataPlano = hist.map(({ mes }) => {
+        const mesStr = `${anoGrafico}-${String(mes).padStart(2, '0')}`;
+        const planoMes = reservas
+          .filter(r =>
+            r.acumulado < r.meta &&
+            r.aporte > 0 &&
+            (!r.dataInicioAporte || r.dataInicioAporte <= mesStr)
+          )
+          .reduce((s, r) => s + r.aporte, 0);
+        cumPlano += planoMes;
         return cumPlano;
       });
 
