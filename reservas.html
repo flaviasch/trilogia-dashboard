@@ -511,7 +511,7 @@
         </div>
         <div class="legenda-item">
           <span class="legenda-badge">4 – 10 anos</span>
-          <span class="legenda-desc">Orientação personalizada da mentora — veja a sugestão em cada reserva</span>
+          <span class="legenda-desc" id="legendaLongoPrazo">Conforme seu perfil de investidor</span>
         </div>
         <div class="legenda-item">
           <span class="legenda-badge">&gt; 10 anos</span>
@@ -878,11 +878,12 @@
         { label: 'RF Inflação', pct: 25, cor: '#34d399' },
         { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
       ];
-      if (meses <= 120) return [{ label: 'Conforme orientação da mentora', pct: 100, cor: '#CFAE65' }];
-      // Muito longo prazo: usa alocação real do perfil de investidor
+      // Longo prazo (4-10 anos) e muito longo prazo (> 10 anos):
+      // usa perfil do investidor quando disponível
       if (perfilInvestidor && ALOCACAO_PERFIL[perfilInvestidor]) {
         return ALOCACAO_PERFIL[perfilInvestidor];
       }
+      if (meses <= 120) return [{ label: 'Conforme orientação da mentora', pct: 100, cor: '#CFAE65' }];
       return [{ label: 'Defina seu perfil de investidor', pct: 100, cor: '#c084fc' }];
     }
 
@@ -929,8 +930,6 @@
 
     // ─── Legenda de alocação dinâmica ───────────
     function atualizarLegenda() {
-      const el = document.getElementById('legendaMuitoLongo');
-      if (!el) return;
       if (perfilInvestidor && ALOCACAO_PERFIL[perfilInvestidor]) {
         const itens = ALOCACAO_PERFIL[perfilInvestidor];
         const resumo = itens.slice(0, 4)
@@ -938,7 +937,11 @@
           .join(' · ');
         const sufixo = itens.length > 4 ? ' …' : '';
         const nomePerfil = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' }[perfilInvestidor] || perfilInvestidor;
-        el.textContent = `${nomePerfil}: ${resumo}${sufixo}`;
+        const texto = `${nomePerfil}: ${resumo}${sufixo}`;
+        const elLP   = document.getElementById('legendaLongoPrazo');
+        const elMLPP = document.getElementById('legendaMuitoLongo');
+        if (elLP)   elLP.textContent   = texto;
+        if (elMLPP) elMLPP.textContent = texto;
       }
       // Se perfil não definido, mantém o texto padrão do HTML
     }
@@ -1269,11 +1272,8 @@
           temComparativo: true,
         };
       }
-      if (meses <= 120) {
-        // "Orientação da mentora" — sem percentuais definidos em código
-        return { itens: [], temComparativo: false };
-      }
-      // > 120 meses: perfil do investidor (tem diversificação se perfil tiver ≥ 2 classes)
+      // Longo prazo (4-10 anos) e muito longo prazo (> 10 anos):
+      // usa perfil do investidor se disponível
       const perfil = perfilInvestidor ? ALOCACAO_PERFIL[perfilInvestidor] : null;
       if (!perfil) return { itens: [], temComparativo: false };
       return { itens: perfil, temComparativo: perfil.length > 1 };
@@ -1379,19 +1379,10 @@
       // Segurança: só deve ser chamada quando temComparativo === true
       if (!temComparativo) return '';
 
-      const isLongoPrazo = m !== null && m > 120;  // > 10 anos usa perfil
-
       // Título dinâmico conforme o horizonte
-      const titulo = isLongoPrazo
+      const titulo = m !== null && m > 120
         ? 'Carteira de longo prazo: sugerida × atual'
         : 'Carteira desta reserva: sugerida × atual';
-
-      // Perfil necessário apenas para > 10 anos
-      if (isLongoPrazo && !perfilInvestidor) {
-        return `<div class="expansao-panel" id="exp-${r.id}">
-          <div class="comp-aviso">Defina seu <a href="perfil.html">perfil de investidor</a> para ver a alocação comparativa.</div>
-        </div>`;
-      }
 
       const comp      = calcularComparacaoResidual(r);
       const linhasArr = comp ? comp.linhas : [];
