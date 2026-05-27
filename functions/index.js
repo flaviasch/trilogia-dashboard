@@ -703,7 +703,20 @@ exports.deletarMentorada = onCall({}, async (request) => {
     // Se já não existia no Auth, continua para limpar o Firestore
   }
 
-  // Apaga documento Firestore
+  // Apaga cobranças da mentorada (coleção raiz — não são subcoleção)
+  try {
+    const cobsSnap = await db.collection('cobrancas').where('uidMentorada', '==', uid).get();
+    if (!cobsSnap.empty) {
+      const batch = db.batch();
+      cobsSnap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+  } catch (err) {
+    console.warn(`[deletarMentorada] Falha ao remover cobranças de ${uid}:`, err.message);
+    // Falha não impede remoção da conta
+  }
+
+  // Apaga documento Firestore (inclui subcoleção contratos via delete recursivo não disponível no SDK — contratos ficam como documentos órfãos inofensivos)
   try {
     await db.collection('mentoradas').doc(uid).delete();
   } catch (err) {
