@@ -2920,8 +2920,8 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
                          Editar
                        </button>
                        <button class="btn-estornar"
-                         data-cob-id="${p.id}"
-                         data-cob-desc="${PRODUTO_LABEL[c.produto] || c.produto} · ${fmtData(p.vencimento)}">
+                         data-estornar-id="${p.id}"
+                         data-estornar-desc="${PRODUTO_LABEL[c.produto] || c.produto} · ${fmtData(p.vencimento)}">
                          ↩ Estornar
                        </button>
                      </span>`
@@ -3020,8 +3020,8 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
     document.getElementById('detContratos').addEventListener('click', async (e) => {
       const btn = e.target.closest('.btn-estornar');
       if (!btn) return;
-      const cobrancaId = btn.dataset.cobId;
-      const desc       = btn.dataset.cobDesc;
+      const cobrancaId = btn.dataset.estornarId;
+      const desc       = btn.dataset.estornarDesc;
       if (!confirm(`Estornar o pagamento de "${desc}"?\nA parcela voltará para Pendente.`)) return;
       btn.disabled = true; btn.textContent = '…';
       try {
