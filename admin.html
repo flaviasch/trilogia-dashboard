@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<!-- v2 -->
+<!-- v3 -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script>
     // Força cache-bust em cada visita
@@ -132,6 +133,24 @@
       cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; white-space: nowrap;
     }
     .filter-btn:hover, .filter-btn.ativo { border-color: var(--border-gold); color: var(--gold); background: var(--gold-dim); }
+    .pipeline-subtab {
+      background: transparent !important; border: none !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important;
+      padding: 8px 18px !important; font-size: 13px !important; font-weight: 500; color: var(--text-muted) !important;
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; white-space: nowrap;
+    }
+    .pipeline-subtab:hover { color: var(--white) !important; background: transparent !important; }
+    .pipeline-subtab.ativo { border-bottom-color: var(--gold) !important; color: var(--gold) !important; background: transparent !important; font-weight: 600 !important; }
+    [data-aba-mentoradas] {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: none; border: none; border-bottom: 2px solid transparent;
+      padding: 8px 18px; font-size: 13px; font-weight: 500; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; white-space: nowrap;
+      line-height: 1.4; user-select: none; outline: none;
+    }
+    [data-aba-mentoradas].ativo,
+    [data-aba-mentoradas="ativas"].ativo-init {
+      border-bottom: 2px solid var(--gold); color: var(--gold); font-weight: 600;
+    }
     .btn-nova-mentorada {
       background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
       padding: 10px 20px; font-size: 13px; font-weight: 700;
@@ -287,6 +306,12 @@
     }
     input:focus, select:focus { outline: none; border-color: rgba(207,174,101,0.5); }
     input::placeholder { color: rgba(255,255,255,0.25); }
+    input[type="month"], input[type="date"] { color-scheme: dark; }
+    input[type="month"]::-webkit-calendar-picker-indicator,
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23CFAE65' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-size: 16px; opacity: 1; cursor: pointer; width: 20px; height: 20px;
+    }
     select option { background: var(--navy); }
     .modal-actions { display: flex; gap: 12px; margin-top: 24px; }
     .btn-cancel {
@@ -527,13 +552,15 @@
       </div>
 
       <!-- Abas Ativas / Inativas -->
-      <div style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);">
-        <button class="pipeline-subtab ativo" data-aba-mentoradas="ativas" style="border-radius:8px 8px 0 0">
-          Ativas <span id="cntMentoradasAtivas" style="font-size:11px;opacity:.7"></span>
-        </button>
-        <button class="pipeline-subtab" data-aba-mentoradas="inativas" style="border-radius:8px 8px 0 0">
-          Inativas <span id="cntMentoradasInativas" style="font-size:11px;opacity:.7"></span>
-        </button>
+      <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08);">
+        <div role="button" tabindex="0" data-aba-mentoradas="ativas" id="tabBtnAtivas"
+             style="display:inline-flex;align-items:center;gap:4px;background:none;border:0;border-bottom:2px solid #CFAE65;padding:8px 18px;font-size:13px;font-weight:600;color:#CFAE65;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;box-shadow:none;outline:none;user-select:none;">
+          Ativas <span id="cntMentoradasAtivas" style="font-size:11px;opacity:.6"></span>
+        </div>
+        <div role="button" tabindex="0" data-aba-mentoradas="inativas" id="tabBtnInativas"
+             style="display:inline-flex;align-items:center;gap:4px;background:none;border:0;border-bottom:2px solid transparent;padding:8px 18px;font-size:13px;font-weight:500;color:rgba(255,255,255,.45);cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;box-shadow:none;outline:none;user-select:none;">
+          Inativas <span id="cntMentoradasInativas" style="font-size:11px;opacity:.6"></span>
+        </div>
       </div>
 
       <!-- Toolbar -->
@@ -1210,6 +1237,38 @@
     </div>
   </div>
 
+  <!-- Modal link de acesso -->
+  <div class="modal-overlay hidden" id="modalLink">
+    <div class="modal-card" style="max-width:480px">
+      <h2 class="modal-title">Link de acesso</h2>
+      <p id="modalLinkDesc" style="font-size:13px;color:var(--text-secondary);margin-bottom:16px"></p>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Copie o link abaixo e envie manualmente para a mentorada:</p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="modalLinkInput" type="text" readonly
+          style="flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border-gold);border-radius:8px;
+                 padding:10px 12px;color:var(--white);font-size:12px;font-family:monospace;min-width:0">
+        <button id="modalLinkCopiar" onclick="
+          const inp = document.getElementById('modalLinkInput');
+          inp.select(); inp.setSelectionRange(0,99999);
+          navigator.clipboard.writeText(inp.value).then(() => {
+            this.textContent = 'Copiado ✓';
+            setTimeout(() => this.textContent = 'Copiar', 2000);
+          }).catch(() => {
+            document.execCommand('copy');
+            this.textContent = 'Copiado ✓';
+            setTimeout(() => this.textContent = 'Copiar', 2000);
+          });
+        " style="background:var(--gold);color:var(--navy);border:none;border-radius:8px;padding:10px 16px;
+                 font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Copiar</button>
+      </div>
+      <div style="margin-top:20px;text-align:right">
+        <button onclick="document.getElementById('modalLink').classList.add('hidden')"
+          style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);
+                 border-radius:8px;padding:8px 20px;cursor:pointer;font-size:13px">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal nova mentorada -->
   <div class="modal-overlay hidden" id="modalNova">
     <div class="modal-card" style="max-width:520px;overflow-y:auto;max-height:90vh">
@@ -1365,7 +1424,9 @@
              criarPlanilha, getNotionCRM,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico } from './js/api.js?v=12';
+             syncDiagnostico } from './js/api.js?v=13';
+
+    console.log('%c[admin] ✅ v13 carregado', 'color:#CFAE65;font-weight:bold');
 
     // ─── Auth guard via Custom Claim ─────────────
     const user = await exigirAdmin();
@@ -1732,10 +1793,16 @@
     });
 
     // ─── Abas Ativas / Inativas ──────────────
+    const _cssTabBase = 'display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:8px 18px;font-size:13px;cursor:pointer;font-family:\'Inter\',sans-serif;white-space:nowrap;box-shadow:none;outline:none;user-select:none;';
+    const _cssTabAtivo   = _cssTabBase + 'border-bottom:2px solid #CFAE65;color:#CFAE65;font-weight:600;';
+    const _cssTabInativo = _cssTabBase + 'border-bottom:2px solid transparent;color:rgba(255,255,255,.45);font-weight:500;';
+
     function ativarAbaMentoradas(aba) {
       abaMentoradasAtual = aba;
       document.querySelectorAll('[data-aba-mentoradas]').forEach(b => {
-        b.classList.toggle('ativo', b.dataset.abaMentoradas === aba);
+        const isAtivo = b.dataset.abaMentoradas === aba;
+        b.classList.toggle('ativo', isAtivo);
+        b.style.cssText = isAtivo ? _cssTabAtivo : _cssTabInativo;
       });
       // Filtros secundários só fazem sentido na aba Ativas
       const filtrosEl = document.getElementById('filtrosMentoradas');
@@ -1752,7 +1819,11 @@
 
     document.querySelectorAll('[data-aba-mentoradas]').forEach(btn => {
       btn.addEventListener('click', () => ativarAbaMentoradas(btn.dataset.abaMentoradas));
+      btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') ativarAbaMentoradas(btn.dataset.abaMentoradas); });
     });
+
+    // Inicializa aba corretamente ao carregar
+    ativarAbaMentoradas('ativas');
 
     // KPI cards clicáveis — atalho para os filtros correspondentes
     [
@@ -2110,9 +2181,11 @@
       try {
         const res = await reenviarAcesso(uid);
         if (res && res.link) {
-          // Copia o link para a área de transferência
-          try { await navigator.clipboard.writeText(res.link); } catch (_) {}
-          alert(`Link gerado para ${res.email}.\n\nCopie e envie manualmente:\n\n${res.link}`);
+          // E-mail falhou — mostra modal com link copiável
+          document.getElementById('modalLinkDesc').textContent =
+            `O e-mail não pôde ser enviado automaticamente para ${res.email}. Copie o link abaixo e envie manualmente.`;
+          document.getElementById('modalLinkInput').value = res.link;
+          document.getElementById('modalLink').classList.remove('hidden');
           btn.textContent = 'Link gerado ✓';
         } else {
           btn.textContent = 'Link enviado ✓';
@@ -2271,7 +2344,11 @@
         document.getElementById('modalNova').classList.add('hidden');
         limparModal();
         renderMentoradas();
-        alert(`Conta criada! Um e-mail de boas-vindas foi enviado para ${email}.`);
+        if (resultado?.emailEnviado) {
+          alert(`Conta criada! E-mail de boas-vindas enviado para ${email}.`);
+        } else {
+          alert(`Conta criada, mas o e-mail de boas-vindas NÃO foi enviado.\n\nErro: ${resultado?.emailErro || 'desconhecido'}\n\nUse o botão "Reenviar acesso" no detalhe da mentorada para tentar novamente.`);
+        }
       } catch (err) {
         alert(`Erro ao criar conta: ${err.message}`);
       } finally {
@@ -3697,6 +3774,13 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
     });
 
   </script>
-
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>

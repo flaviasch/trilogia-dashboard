@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trilogia Dashboard — Login</title>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0D2B45" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Trilogia" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -202,6 +209,96 @@
 
     document.getElementById('password').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') btnLogin.click();
+    });
+  </script>
+
+  <!-- Banner de instalação PWA (mobile only) — visível por padrão, JS esconde se desktop/standalone -->
+  <div id="pwaBanner" style="display:flex;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#0D2B45;border-top:1px solid rgba(207,174,101,0.3);padding:14px 20px;align-items:center;gap:12px;box-shadow:0 -4px 16px rgba(0,0,0,0.3);">
+    <img src="/icons/icon-192.png" style="width:40px;height:40px;border-radius:10px;flex-shrink:0;" alt="">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.3;">Instalar Trilogia Dashboard</div>
+      <div id="pwaBannerSub" style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.3;">Salve como app na tela inicial</div>
+    </div>
+    <button id="pwaBannerInstall" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Instalar</button>
+    <button id="pwaBannerDismiss" style="background:transparent;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
+  </div>
+
+  <!-- Modal instruções iOS -->
+  <div id="pwaIosModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);align-items:flex-end;">
+    <div style="background:#0D2B45;border-radius:16px 16px 0 0;padding:28px 24px 36px;width:100%;border-top:1px solid rgba(207,174,101,0.3);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <span style="font-size:16px;font-weight:700;color:#fff;">Instalar no iPhone</span>
+        <button id="pwaIosClose" style="background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="font-size:28px;flex-shrink:0;">1️⃣</span>
+          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Toque no ícone de <strong style="color:#CFAE65;">Compartilhar</strong> <span style="font-size:18px;">⬆️</span> na barra do Safari</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="font-size:28px;flex-shrink:0;">2️⃣</span>
+          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Role a lista e toque em <strong style="color:#CFAE65;">"Adicionar à Tela de Início"</strong></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="font-size:28px;flex-shrink:0;">3️⃣</span>
+          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong> no canto superior direito</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+
+    const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent);
+
+    const banner = document.getElementById('pwaBanner');
+
+    // Esconde se já instalado como app OU se for desktop
+    if (isStandalone || !isMobile) {
+      if (banner) banner.style.display = 'none';
+    } else if (isIos) {
+      document.getElementById('pwaBannerSub').textContent = 'Toque em Compartilhar ⬆️ → Adicionar à Tela';
+    }
+
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+    });
+
+    document.getElementById('pwaBannerInstall')?.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        // Android: mostra o prompt nativo
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        document.getElementById('pwaBanner').style.display = 'none';
+      } else if (isIos) {
+        // iOS: mostra modal com instruções
+        document.getElementById('pwaBanner').style.display = 'none';
+        const modal = document.getElementById('pwaIosModal');
+        modal.style.display = 'flex';
+      }
+    });
+
+    document.getElementById('pwaBannerDismiss')?.addEventListener('click', () => {
+      document.getElementById('pwaBanner').style.display = 'none';
+    });
+
+    document.getElementById('pwaIosClose')?.addEventListener('click', () => {
+      document.getElementById('pwaIosModal').style.display = 'none';
+    });
+
+    window.addEventListener('appinstalled', () => {
+      document.getElementById('pwaBanner').style.display = 'none';
     });
   </script>
 

@@ -2,8 +2,23 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    if (!location.search.includes('_v=') && !location.search.includes('viewAs=')) {
+      location.replace(location.pathname + '?_v=' + Date.now() + location.hash);
+    }
+  </script>
   <title>Reservas — Trilogia Dashboard</title>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0D2B45" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Trilogia" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -129,6 +144,7 @@
       border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
     }
+    .hidden { display: none !important; }
     .modal-dica.hidden { display: none; }
     .modal-dica-texto { font-size: 12px; color: var(--gold-light); line-height: 1.4; }
     .btn-usar-saldo {
@@ -254,6 +270,12 @@
     }
     input:focus, select:focus { outline: none; border-color: rgba(207,174,101,0.5); }
     input::placeholder { color: rgba(255,255,255,0.25); }
+    input[type="month"], input[type="date"] { color-scheme: dark; }
+    input[type="month"]::-webkit-calendar-picker-indicator,
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23CFAE65' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-size: 16px; opacity: 1; cursor: pointer; width: 20px; height: 20px;
+    }
     select option { background: var(--navy); }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .alocacao-preview {
@@ -586,13 +608,14 @@
   </div>
 
   <!-- Modal pós-retirada (multi-passo) -->
-  <div class="modal-overlay hidden" id="modalPosRetirada">
+  <div class="modal-overlay" id="modalPosRetirada" style="display:none">
     <div class="modal-card">
       <h2 class="modal-title" id="posRetiradaTitulo">Retirada registrada!</h2>
       <p class="modal-sub" id="posRetiradaSub"></p>
 
       <!-- Passo 1: Manter objetivo? -->
       <div id="posStep1">
+
         <div class="opcoes-pos-retirada">
           <button class="opcao-card" id="btnManter">
             <span class="opcao-icon">🎯</span>
@@ -613,7 +636,7 @@
       </div>
 
       <!-- Passo 2A: Confirmar encerramento -->
-      <div id="posStep2A" class="hidden">
+      <div id="posStep2A" style="display:none">
         <p id="step2AMsg" style="text-align:center;margin:16px 0 24px;color:var(--text-muted);font-size:14px;line-height:1.5"></p>
         <div class="modal-actions">
           <button class="btn-cancel" id="btnVoltarStep2A">← Voltar</button>
@@ -622,7 +645,7 @@
       </div>
 
       <!-- Passo 2B: Manter — editar objetivo -->
-      <div id="posStep2B" class="hidden">
+      <div id="posStep2B" style="display:none">
         <div class="field-group">
           <label for="posNovaMeta">Nova meta (R$)</label>
           <input type="text" inputmode="numeric" id="posNovaMeta" placeholder="0" />
@@ -639,7 +662,7 @@
           </div>
         </div>
         <!-- Aviso quando concluído: transferência ao longo prazo -->
-        <div id="avisoConcluidoLP" class="hidden" style="background:rgba(207,174,101,0.1);border:1px solid var(--gold);border-radius:8px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--gold);line-height:1.5">
+        <div id="avisoConcluidoLP" style="display:none;background:rgba(207,174,101,0.1);border:1px solid var(--gold);border-radius:8px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--gold);line-height:1.5">
           <span id="avisoConcluidoLPTexto"></span>
         </div>
         <!-- Campos extras quando não concluído -->
@@ -657,6 +680,21 @@
           <button class="btn-cancel" id="btnVoltarStep2B">← Voltar</button>
           <button class="btn-save" id="btnSalvarObjetivo">Salvar</button>
         </div>
+      </div>
+
+      <!-- Passo 3: Lembrete patrimônio — tela final após qualquer decisão -->
+      <div id="posStep3" style="display:none;text-align:center;padding:8px 0 4px">
+        <div style="font-size:48px;margin-bottom:16px">📊</div>
+        <h3 style="font-size:17px;font-weight:700;color:var(--white);margin-bottom:10px;">Atualize o patrimônio</h3>
+        <p style="font-size:13px;color:var(--text-muted);line-height:1.65;margin-bottom:24px;">
+          A retirada foi registrada nas reservas.<br>
+          Para o patrimônio ficar em dia, faça o upload<br>do extrato atualizado da corretora.
+        </p>
+        <a href="patrimonio.html?from=retirada"
+           style="display:block;text-align:center;background:var(--gold);color:var(--navy);border-radius:8px;padding:14px 24px;font-size:14px;font-weight:700;text-decoration:none;margin-bottom:12px;">
+          Ir para Patrimônio →
+        </a>
+        <button class="btn-cancel" id="btnFecharPosStep3" style="width:100%">Fechar</button>
       </div>
 
     </div>
@@ -688,13 +726,15 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid } from './js/api.js?v=6';
+    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid } from './js/api.js?v=9';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    console.log('%c[reservas] ✅ v7 carregado', 'color:#CFAE65;font-weight:bold');
 
     // Força reload quando página é restaurada do bfcache (garante JS atualizado)
     window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
@@ -1590,14 +1630,22 @@
       const idx = reservas.findIndex(x => x.id === retirandoId);
       reservas[idx] = { ...r, acumulado: novoAcumulado };
 
+      console.log('[retirada] STEP1 - valor:', valor, 'novoAcumulado:', novoAcumulado, 'patrimonioAtual.length:', patrimonioAtual.length);
+
       try {
+        console.log('[retirada] STEP2 - chamando saveReserva...');
         await saveReserva(reservas[idx]);
+        console.log('[retirada] STEP3 - saveReserva ok');
         fecharModalRetirada();
         renderAll();
-        localStorage.setItem('patrimonio_extrato_pendente', '1');
-        // Abre modal de próximo passo (passa valor retirado para o título e saldo restante para transferência)
+
+        // Abre o próximo passo imediatamente (sem aguardar patrimônio)
         abrirPosRetirada(retirandoId || r.id, valor, novoAcumulado, r.nome);
+
+        // Patrimônio é atualizado manualmente pelo upload de extrato em patrimonio.html
+        // O modal pós-retirada já orienta o usuário a fazer isso.
       } catch (err) {
+        console.error('[retirada] CATCH - erro:', err);
         toast(`Erro ao registrar retirada: ${err.message || err}`, 'error');
       }
 
@@ -1615,9 +1663,13 @@
     bindMoneyInput(document.getElementById('posNovoAporte'));
 
     function posStep(step) {
-      ['posStep1', 'posStep2A', 'posStep2B'].forEach(id =>
-        document.getElementById(id).classList.toggle('hidden', id !== step)
-      );
+      ['posStep1', 'posStep2A', 'posStep2B', 'posStep3'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (id === step) ? '' : 'none';
+      });
+      // No passo 3, oculta o subtítulo (pergunta já foi respondida)
+      const sub = document.getElementById('posRetiradaSub');
+      if (sub) sub.style.display = (step === 'posStep3') ? 'none' : '';
     }
 
     function abrirPosRetirada(id, valorRetirado, saldoRestante, nome) {
@@ -1630,11 +1682,11 @@
         ? `Saldo restante de ${brl(saldoRestante)} será direcionado ao longo prazo.`
         : `Reserva será encerrada (saldo zerado).`;
       posStep('posStep1');
-      modalPosRetirada.classList.remove('hidden');
+      modalPosRetirada.style.display = '';
     }
 
     function fecharPosRetirada() {
-      modalPosRetirada.classList.add('hidden');
+      modalPosRetirada.style.display = 'none';
       posRetiradaId    = null;
       posRetiradaValor = 0;
       posRetiradaSaldo = 0;
@@ -1674,8 +1726,7 @@
 
     // Fechar / decidir depois
     document.getElementById('btnFecharPosRetirada').addEventListener('click', () => {
-      fecharPosRetirada();
-      toast('Você pode editar a reserva quando quiser.', 'info');
+      posStep('posStep3');
     });
     modalPosRetirada.addEventListener('click', e => {
       if (e.target === modalPosRetirada) fecharPosRetirada();
@@ -1700,9 +1751,9 @@
       try {
         await transferirParaLP(id, saldo);
         await encerrarReserva(id);
-        fecharPosRetirada();
         renderAll();
         toast(saldo > 0 ? `Reserva encerrada! ${brl(saldo)} adicionados ao longo prazo.` : `Reserva encerrada!`, 'success');
+        posStep('posStep3');
       } catch (err) {
         toast(`Erro: ${err.message || err}`, 'error');
       }
@@ -1717,19 +1768,22 @@
         document.getElementById('posNovaDataMeta').value = r.dataMeta || '';
         setMoney(document.getElementById('posNovoAporte'), r.aporte);
         document.getElementById('posConcluidoNao').checked = true;
-        document.getElementById('posNaoConcluido').classList.remove('hidden');
-        document.getElementById('avisoConcluidoLP').classList.add('hidden');
+        document.getElementById('posNaoConcluido').style.display = '';
+        document.getElementById('avisoConcluidoLP').style.display = 'none';
       }
       posStep('posStep2B');
     });
 
     document.getElementById('btnVoltarStep2B').addEventListener('click', () => posStep('posStep1'));
 
+    // Passo 3: fechar modal (lembrete patrimônio visto)
+    document.getElementById('btnFecharPosStep3').addEventListener('click', fecharPosRetirada);
+
     // Toggle concluído/não concluído
     function atualizarStep2B() {
       const concluido = document.getElementById('posConcluidoSim').checked;
-      document.getElementById('posNaoConcluido').classList.toggle('hidden', concluido);
-      document.getElementById('avisoConcluidoLP').classList.toggle('hidden', !concluido);
+      document.getElementById('posNaoConcluido').style.display = concluido ? 'none' : '';
+      document.getElementById('avisoConcluidoLP').style.display = concluido ? '' : 'none';
       if (concluido) {
         const lp = reservas.find(r => r.id !== posRetiradaId && mesesAte(r.dataMeta) > 120);
         const saldo = posRetiradaSaldo;
@@ -1762,9 +1816,9 @@
           // Transfere saldo restante ao longo prazo e encerra
           await transferirParaLP(id, saldo);
           await encerrarReserva(id);
-          fecharPosRetirada();
           renderAll();
           toast(`Objetivo concluído!${saldo > 0 ? ` ${brl(saldo)} adicionados ao longo prazo.` : ''}`, 'success');
+          posStep('posStep3');
         } else {
           // Atualiza meta, prazo e aporte — mantém reserva ativa
           const novaMeta      = readMoney(document.getElementById('posNovaMeta'));
@@ -1777,9 +1831,9 @@
           }
           reservas[idx] = { ...reservas[idx], meta: novaMeta, dataMeta: novaDataMeta, aporte: novoAporte || 0, concluida: false };
           await saveReserva(reservas[idx]);
-          fecharPosRetirada();
           renderAll();
           toast('Objetivo atualizado com sucesso!', 'success');
+          posStep('posStep3');
         }
       } catch (err) {
         toast(`Erro: ${err.message || err}`, 'error');
@@ -1830,6 +1884,17 @@
     </a>
   </div>
   <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
+
+  <!-- Service Worker (PWA) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .catch((err) => console.warn('SW registration failed:', err));
+      });
+    }
+  </script>
 
 </body>
 </html>

@@ -43,35 +43,61 @@ async function sendEmail({ to, subject, html }) {
 
 // ─── Templates ────────────────────────────────────────────────────────────────
 
-const ESTILOS_BASE = `
-  body { margin:0; padding:0; background:#0D2B45; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; }
-  .wrap { max-width:560px; margin:0 auto; padding:40px 24px; }
-  .logo { font-size:18px; font-weight:700; color:#fff; margin-bottom:32px; letter-spacing:-.3px; }
-  .logo span { color:#CFAE65; }
-  h2 { font-size:22px; font-weight:700; color:#fff; margin:0 0 12px; line-height:1.3; }
-  p  { font-size:14px; color:rgba(255,255,255,.65); line-height:1.6; margin:0 0 20px; }
-  .btn {
-    display:inline-block; background:#CFAE65; color:#0D2B45; text-decoration:none;
-    font-size:14px; font-weight:700; padding:12px 28px; border-radius:8px;
-  }
-  .footer { margin-top:40px; font-size:11px; color:rgba(255,255,255,.25); line-height:1.6; }
-  hr { border:none; border-top:1px solid rgba(255,255,255,.08); margin:32px 0; }
-`;
-
 function layout(conteudo) {
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <style>${ESTILOS_BASE}</style></head>
-    <body><div class="wrap">
-      <div class="logo">Trilogia <span>Dashboard</span></div>
-      ${conteudo}
-      <hr>
-      <div class="footer">
-        Você recebeu este e-mail porque é mentorada da Trilogia Financeira.<br>
-        Para dúvidas, responda diretamente a este e-mail.
-      </div>
-    </div></body></html>`;
+  // Template com inline styles para máxima compatibilidade entre clientes de e-mail.
+  // Fundo claro + texto escuro garante legibilidade no Gmail mobile, Outlook, Apple Mail, etc.
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+        <!-- Header navy -->
+        <tr>
+          <td style="background:#0D2B45;padding:28px 32px;">
+            <span style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-.3px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+              Trilogia <span style="color:#CFAE65;">Dashboard</span>
+            </span>
+          </td>
+        </tr>
+
+        <!-- Conteúdo -->
+        <tr>
+          <td style="padding:36px 32px 28px;">
+            ${conteudo}
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 32px 28px;border-top:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+              Você recebeu este e-mail porque é mentorada da Trilogia Financeira.<br>
+              Para dúvidas, responda diretamente a este e-mail.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 }
+
+// Helpers de estilo inline reutilizáveis
+const S = {
+  h2:     'margin:0 0 12px;font-size:22px;font-weight:700;color:#0D2B45;line-height:1.3;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;',
+  p:      'margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.7;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;',
+  pSmall: 'margin:16px 0 0;font-size:12px;color:#9ca3af;line-height:1.6;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;',
+  btn:    'display:inline-block;background:#CFAE65;color:#0D2B45;text-decoration:none;font-size:14px;font-weight:700;padding:13px 28px;border-radius:8px;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;',
+};
 
 /**
  * E-mail: renovação de perfil de investidor.
@@ -80,14 +106,14 @@ function layout(conteudo) {
  */
 function emailRenovacaoPerfil(nome, meses) {
   return layout(`
-    <h2>Hora de revisar seu perfil de investidor</h2>
-    <p>Olá, ${nome}!</p>
-    <p>
+    <h2 style="${S.h2}">Hora de revisar seu perfil de investidor</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
       Seu perfil de investidor foi atualizado há <strong>${meses} meses</strong>.
       Recomendamos revisá-lo pelo menos a cada 6 meses para garantir que
       suas reservas continuem alinhadas ao seu momento de vida e objetivos.
     </p>
-    <a href="https://trilogia-dashboard.web.app/perfil.html" class="btn">
+    <a href="https://dashboard.flaviaschusciman.com/perfil.html" style="${S.btn}">
       Atualizar perfil
     </a>
   `);
@@ -98,14 +124,14 @@ function emailRenovacaoPerfil(nome, meses) {
  */
 function emailSemPerfil(nome) {
   return layout(`
-    <h2>Configure seu perfil de investidor</h2>
-    <p>Olá, ${nome}!</p>
-    <p>
+    <h2 style="${S.h2}">Configure seu perfil de investidor</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
       Você ainda não cadastrou seu perfil de investidor no Dashboard.
       Ele é a base para definir a estratégia de alocação das suas reservas
       e personalizar suas orientações financeiras.
     </p>
-    <a href="https://trilogia-dashboard.web.app/perfil.html" class="btn">
+    <a href="https://dashboard.flaviaschusciman.com/perfil.html" style="${S.btn}">
       Configurar agora
     </a>
   `);
@@ -118,13 +144,13 @@ function emailSemPerfil(nome) {
  */
 function emailLembreteOrcamento(nome, nomeMes) {
   return layout(`
-    <h2>Registre o orçamento de ${nomeMes}</h2>
-    <p>Olá, ${nome}!</p>
-    <p>
+    <h2 style="${S.h2}">Registre o orçamento de ${nomeMes}</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
       Começou um novo mês. Mantenha seu controle financeiro em dia
       lançando receitas e despesas de <strong>${nomeMes}</strong> no Dashboard.
     </p>
-    <a href="https://trilogia-dashboard.web.app/orcamento.html" class="btn">
+    <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">
       Lançar orçamento
     </a>
   `);
@@ -137,14 +163,14 @@ function emailLembreteOrcamento(nome, nomeMes) {
  */
 function emailLembreteAporte(nome, nomeMes) {
   return layout(`
-    <h2>Efetive o aporte de ${nomeMes}</h2>
-    <p>Olá, ${nome}!</p>
-    <p>
+    <h2 style="${S.h2}">Efetive o aporte de ${nomeMes}</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
       O mês está chegando ao fim. Não esqueça de confirmar o aporte
       nas suas reservas referente a <strong>${nomeMes}</strong> e registrá-lo
       no Dashboard para manter o histórico atualizado.
     </p>
-    <a href="https://trilogia-dashboard.web.app/reservas.html" class="btn">
+    <a href="https://dashboard.flaviaschusciman.com/reservas.html" style="${S.btn}">
       Ver reservas
     </a>
   `);
@@ -156,41 +182,40 @@ function emailLembreteAporte(nome, nomeMes) {
  */
 function emailIR(nome) {
   return layout(`
-    <h2>Atualize seu patrimônio com a declaração de IR</h2>
-    <p>Olá, ${nome}!</p>
-    <p>
+    <h2 style="${S.h2}">Atualize seu patrimônio com a declaração de IR</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
       É maio — época de declaração de Imposto de Renda. Aproveite para importar
       sua declaração no Dashboard e manter imóveis, participações societárias e
       outros ativos fora da corretora devidamente atualizados no seu patrimônio.
     </p>
-    <p>
+    <p style="${S.p}">
       Com o patrimônio completo, a visão de alocação e as conciliações com suas
       reservas ficam muito mais precisas.
     </p>
-    <a href="https://trilogia-dashboard.web.app/patrimonio.html" class="btn">
+    <a href="https://dashboard.flaviaschusciman.com/patrimonio.html" style="${S.btn}">
       Importar declaração IR
     </a>
   `);
 }
 
 /**
- * E-mail: reenvio de link de acesso (quando a aluna não recebeu o e-mail inicial
- * ou perdeu o link antes de criar a senha).
+ * E-mail: reenvio de link de acesso.
  * @param {string} nome      — nome da mentorada
  * @param {string} linkSenha — link gerado pelo Firebase para definir senha
  */
 function emailReenvioAcesso(nome, linkSenha) {
   return layout(`
-    <h2>Seu link de acesso ao Dashboard</h2>
-    <p>Olá, ${nome}!</p>
-    <p>
+    <h2 style="${S.h2}">Seu link de acesso ao Dashboard</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
       Um novo link de acesso foi gerado para sua conta no Trilogia Dashboard.
       Clique no botão abaixo para definir (ou redefinir) sua senha e entrar na plataforma.
     </p>
-    <a href="${linkSenha}" class="btn">
+    <a href="${linkSenha}" style="${S.btn}">
       Definir minha senha
     </a>
-    <p style="margin-top:20px">
+    <p style="${S.pSmall}">
       Se você não esperava este e-mail, pode ignorá-lo com segurança.
       O link expira em 24 horas.
     </p>
@@ -204,16 +229,16 @@ function emailReenvioAcesso(nome, linkSenha) {
  */
 function emailBoasVindas(nome, linkSenha) {
   return layout(`
-    <h2>Bem-vinda ao Trilogia Dashboard</h2>
-    <p>Olá, ${nome}!</p>
-    <p>
+    <h2 style="${S.h2}">Bem-vinda ao Trilogia Dashboard</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
       Seu acesso ao Trilogia Dashboard está pronto. Clique no botão abaixo
       para criar sua senha e acessar a plataforma pela primeira vez.
     </p>
-    <a href="${linkSenha}" class="btn">
+    <a href="${linkSenha}" style="${S.btn}">
       Criar minha senha
     </a>
-    <p style="margin-top:20px">
+    <p style="${S.pSmall}">
       Após definir sua senha, você terá acesso ao acompanhamento completo
       do seu patrimônio, reservas e orçamento — tudo no mesmo lugar.
     </p>
@@ -226,17 +251,17 @@ function emailBoasVindas(nome, linkSenha) {
  */
 function emailExpiracaoProxima(nome) {
   return layout(`
-    <h2>Seu acesso expira em 7 dias</h2>
-    <p>Olá, ${nome}!</p>
-    <p>
+    <h2 style="${S.h2}">Seu acesso expira em 7 dias</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
       Seu acesso ao Trilogia Dashboard expira em <strong>7 dias</strong>.
       Para continuar acompanhando seu patrimônio, reservas e orçamento,
       renove sua assinatura antes do vencimento.
     </p>
-    <a href="https://trilogia-dashboard.web.app" class="btn">
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
       Acessar o Dashboard
     </a>
-    <p style="margin-top:20px">
+    <p style="${S.pSmall}">
       Em caso de dúvidas, entre em contato diretamente com a Flávia
       pelo WhatsApp ou e-mail.
     </p>
@@ -263,17 +288,17 @@ function emailCobrancasDia(cobrancas) {
 
   const linhas = cobrancas.map(c => `
     <tr>
-      <td style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);color:#fff">
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;color:#111827;font-size:13px;">
         ${c.nomeAluna}
       </td>
-      <td style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);color:rgba(255,255,255,.7)">
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;color:#4b5563;font-size:13px;">
         ${PRODUTO_LABEL[c.produto] || c.produto}
-        ${c.total > 1 ? `<span style="font-size:11px;color:rgba(255,255,255,.4)"> · ${c.numero}/${c.total}</span>` : ''}
+        ${c.total > 1 ? `<span style="font-size:11px;color:#9ca3af"> · ${c.numero}/${c.total}</span>` : ''}
       </td>
-      <td style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);color:rgba(255,255,255,.7)">
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;color:#4b5563;font-size:13px;">
         ${PAGAMENTO_LABEL[c.formaPagamento] || c.formaPagamento || '—'}
       </td>
-      <td style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);color:#CFAE65;font-weight:600;text-align:right">
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;color:#0D2B45;font-weight:700;text-align:right;font-size:13px;">
         ${brl(c.valor)}
       </td>
     </tr>`).join('');
@@ -281,28 +306,26 @@ function emailCobrancasDia(cobrancas) {
   const total = cobrancas.reduce((s, c) => s + (c.valor || 0), 0);
 
   return layout(`
-    <h2>Cobranças do dia ${fmt(cobrancas[0]?.vencimento || new Date().toISOString().slice(0,10))}</h2>
-    <p>
+    <h2 style="${S.h2}">Cobranças do dia ${fmt(cobrancas[0]?.vencimento || new Date().toISOString().slice(0,10))}</h2>
+    <p style="${S.p}">
       Você tem <strong>${cobrancas.length} cobrança${cobrancas.length !== 1 ? 's' : ''}</strong>
-      com vencimento hoje. Total previsto: <strong style="color:#CFAE65">${brl(total)}</strong>.
+      com vencimento hoje. Total previsto: <strong style="color:#0D2B45">${brl(total)}</strong>.
     </p>
-    <table style="width:100%;border-collapse:collapse;background:rgba(255,255,255,.03);
-                  border-radius:8px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
       <thead>
-        <tr style="background:rgba(255,255,255,.05)">
-          <th style="padding:10px 12px;text-align:left;font-size:11px;color:rgba(255,255,255,.45);font-weight:500">Aluna</th>
-          <th style="padding:10px 12px;text-align:left;font-size:11px;color:rgba(255,255,255,.45);font-weight:500">Produto</th>
-          <th style="padding:10px 12px;text-align:left;font-size:11px;color:rgba(255,255,255,.45);font-weight:500">Forma</th>
-          <th style="padding:10px 12px;text-align:right;font-size:11px;color:rgba(255,255,255,.45);font-weight:500">Valor</th>
+        <tr style="background:#f3f4f6;">
+          <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Aluna</th>
+          <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Produto</th>
+          <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Forma</th>
+          <th style="padding:10px 12px;text-align:right;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Valor</th>
         </tr>
       </thead>
       <tbody>${linhas}</tbody>
     </table>
-    <div style="margin-top:16px;text-align:right;font-size:13px;color:rgba(255,255,255,.5)">
-      Total: <strong style="color:#CFAE65">${brl(total)}</strong>
-    </div>
-    <br>
-    <a href="https://dashboard.flaviaschusciman.com/admin.html" class="btn">
+    <p style="margin:12px 0 20px;text-align:right;font-size:13px;color:#6b7280;">
+      Total: <strong style="color:#0D2B45;">${brl(total)}</strong>
+    </p>
+    <a href="https://dashboard.flaviaschusciman.com/admin.html" style="${S.btn}">
       Abrir painel admin
     </a>
   `);

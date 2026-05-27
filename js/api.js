@@ -107,6 +107,14 @@ export async function aportePatrimonio(classe, valor) {
   return call('aportePatrimonio')({ uid: uidAtual(), classe, valor });
 }
 
+/**
+ * Debita `valor` proporcionalmente de todos os ativos financeiros — operação atômica.
+ * @param {number} valor — valor positivo a ser debitado
+ */
+export async function debitarPatrimonio(valor) {
+  return call('debitarPatrimonio')({ uid: uidAtual(), valor });
+}
+
 // ─── Dívidas ──────────────────────────────────────────────────────────────────
 
 /**

@@ -2,7 +2,17 @@
 
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule }         = require('firebase-functions/v2/scheduler');
+const { defineSecret }       = require('firebase-functions/params');
 const admin = require('firebase-admin');
+
+// Secrets via defineSecret — garante resolução para a versão mais recente a cada deploy.
+const sGmail      = defineSecret('GMAIL_APP_PASSWORD');
+const sClientId   = defineSecret('GOOGLE_CLIENT_ID');
+const sClientSec  = defineSecret('GOOGLE_CLIENT_SECRET');
+const sRefresh    = defineSecret('GOOGLE_REFRESH_TOKEN');
+const sFolderId   = defineSecret('DRIVE_FOLDER_ID');
+const sSA         = defineSecret('GOOGLE_SERVICE_ACCOUNT_JSON');
+const sNotion     = defineSecret('NOTION_TOKEN');
 
 const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId } = require('./lib/auth');
 const { SheetsClient } = require('./lib/sheets');
@@ -23,15 +33,10 @@ const {
 admin.initializeApp();
 const db = admin.firestore();
 
-// Secrets declaradas explicitamente para que o runtime v2 as injete via env.
-// GMAIL_APP_PASSWORD        : SMTP do Gmail (App Password — não expira)
-// GOOGLE_CLIENT_ID/SECRET   : OAuth2 para Drive/Sheets (criar planilhas da Flávia)
-// GOOGLE_REFRESH_TOKEN      : refresh token OAuth2 para Drive (renovar se expirar)
-// GOOGLE_SERVICE_ACCOUNT_JSON: acesso de leitura às planilhas pelas mentoradas
-const SECRETS_EMAIL  = ['GMAIL_APP_PASSWORD'];
-const SECRETS_SHEETS = ['GOOGLE_SERVICE_ACCOUNT_JSON', 'DRIVE_FOLDER_ID'];
-const SECRETS_ALL    = ['GMAIL_APP_PASSWORD', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
-                        'GOOGLE_REFRESH_TOKEN', 'DRIVE_FOLDER_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON'];
+// Arrays de defineSecret para cada grupo de funções.
+const SECRETS_EMAIL  = [sGmail];
+const SECRETS_SHEETS = [sSA, sFolderId];
+const SECRETS_ALL    = [sGmail, sClientId, sClientSec, sRefresh, sFolderId, sSA];
 
 // ID da pasta no Google Drive da Flávia onde ficam as planilhas das mentoradas.
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || '';
@@ -251,6 +256,89 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
   return { ok: true };
 });
 
+// ─── DÉBITO PROPORCIONAL DE PATRIMÔNIO (retirada de reservas) ────────────────
+
+/**
+ * Debita `valor` proporcionalmente de todos os ativos financeiros do usuário.
+ * Opera de forma ATÔMICA: lê uma vez, aplica todos os débitos, salva uma vez.
+ * Evita race condition de múltiplas chamadas simultâneas ao aportePatrimonio.
+ */
+exports.debitarPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  requireAuth(request);
+  const { uid, valor } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!uid || typeof valor !== 'number' || valor <= 0) {
+    throw new HttpsError('invalid-argument', 'uid e valor (positivo) são obrigatórios.');
+  }
+
+  const sheetId = await getSheetId(db, uid);
+  const sheets  = new SheetsClient(sheetId);
+
+  const [patrimonio, investimentos] = await Promise.all([
+    sheets.getPatrimonio(),
+    sheets.getInvestimentos(),
+  ]);
+
+  const CLASSES_NAO_FINANCEIRAS = new Set([
+    'imoveis','imóveis','imovel','imóvel','imoveis e direitos','imóveis e direitos',
+    'bens imoveis','bens imóveis','imovel residencial','imóvel residencial',
+    'veiculos','veículos','veiculo','veículo','veiculos e embarcacoes','veículos e embarcações',
+    'automovel','automóvel','carro','motocicleta','moto','caminhao','caminhão',
+    'embarcacao','embarcação','lancha','barco','aeronave','aviao','avião',
+    'joias','jóias','obras de arte','obra de arte','animais','semoventes','gado',
+    'bens moveis','bens móveis','outros bens','outros bens e direitos',
+  ]);
+
+  // Consolida para identificar os ativos financeiros e seus valores
+  const consolidado = consolidarAtivos(patrimonio, investimentos);
+  const financeiros = consolidado.filter(a => {
+    const lc = a.classe.toLowerCase();
+    return !CLASSES_NAO_FINANCEIRAS.has(lc) && a.valor > 0;
+  });
+
+  const totalFin = financeiros.reduce((s, a) => s + a.valor, 0);
+  if (totalFin <= 0) {
+    throw new HttpsError('failed-precondition', 'Nenhum ativo financeiro encontrado no patrimônio.');
+  }
+
+  // Aplica débitos proporcionais — atualiza investimentos e patrimonio em memória
+  let investimentosModificados = false;
+  let patrimonioModificado = false;
+
+  for (const ativo of financeiros) {
+    const debito = -(valor * ativo.valor / totalFin);
+    const classeLC = ativo.classe.toLowerCase();
+
+    const idxInv = investimentos.findIndex(i => i.classe.toLowerCase() === classeLC);
+    if (idxInv !== -1) {
+      investimentos[idxInv].valor += debito;
+      investimentosModificados = true;
+    } else {
+      const idxPat = patrimonio.findIndex(i => i.classe.toLowerCase() === classeLC);
+      if (idxPat !== -1) {
+        patrimonio[idxPat].valor += debito;
+        patrimonioModificado = true;
+      }
+      // Se não encontrar (classe no consolidado mas não nas fontes), ignora
+    }
+  }
+
+  // Salva cada fonte UMA ÚNICA VEZ (atômico — sem race condition)
+  const saves = [];
+  if (investimentosModificados) saves.push(sheets.saveInvestimentos(investimentos));
+  if (patrimonioModificado)     saves.push(sheets.savePatrimonio(patrimonio));
+  await Promise.all(saves);
+
+  // Atualiza histórico com o novo total
+  const consolidadoAtualizado = consolidarAtivos(patrimonio, investimentos);
+  const totalAtivos = consolidadoAtualizado.reduce((s, i) => s + i.valor, 0);
+  const data = hoje().slice(0, 7);
+  await sheets.upsertHistorico(data, totalAtivos, 0);
+
+  return { ok: true, debitado: valor };
+});
+
 // ─── APORTE PATRIMÔNIO (orcamento.html) ──────────────────────────────────────
 
 /**
@@ -263,7 +351,7 @@ exports.aportePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) =
   const { uid, classe, valor } = request.data;
   requireSelfOrAdmin(request, uid);
 
-  if (!classe || typeof valor !== 'number' || valor <= 0) {
+  if (!classe || typeof valor !== 'number' || valor === 0) {
     throw new HttpsError('invalid-argument', 'classe e valor são obrigatórios.');
   }
 
@@ -487,6 +575,8 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
   });
 
   // 4. Gerar link + enviar e-mail de boas-vindas (falha não bloqueia criação)
+  let emailEnviado = false;
+  let emailErro    = null;
   try {
     const linkSenha = await admin.auth().generatePasswordResetLink(email);
     await sendEmail({
@@ -494,12 +584,14 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
       subject: 'Bem-vinda ao Trilogia Dashboard',
       html:    emailBoasVindas(nome, linkSenha),
     });
+    emailEnviado = true;
   } catch (err) {
+    emailErro = err.message;
     console.error(`[createMentorada] Falha ao enviar e-mail de boas-vindas para ${email}:`, err.message);
     // Conta criada com sucesso — admin pode reenviar o link manualmente pelo painel
   }
 
-  return { uid: userRecord.uid, sheetId, emailEnviado: true };
+  return { uid: userRecord.uid, sheetId, emailEnviado, emailErro };
 });
 
 /**
@@ -1358,12 +1450,12 @@ function consolidarAtivos(patrimonioIR, investimentos) {
   const mapa = {};
 
   for (const item of patrimonioIR) {
-    mapa[item.classe] = { ...item };
+    mapa[item.classe] = { ...item, source: 'ir' };
   }
 
   for (const item of investimentos) {
     // Posição da corretora sobrescreve o IR para classes de ativos financeiros
-    if (item.valor > 0) mapa[item.classe] = { ...item };
+    if (item.valor > 0) mapa[item.classe] = { ...item, source: 'investimentos' };
   }
 
   return Object.values(mapa).filter(a => a.valor > 0);
@@ -1574,7 +1666,7 @@ function getRichText(richText) {
  *
  * Cacheia notionPageId + contagem de lições em Firestore para exibir badge na lista.
  */
-exports.getNotionCRM = onCall({ secrets: ['NOTION_TOKEN'] }, async (request) => {
+exports.getNotionCRM = onCall({ secrets: [sNotion] }, async (request) => {
   requireAdmin(request);
   const { uid } = request.data;
   if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
@@ -1626,20 +1718,27 @@ exports.getNotionCRM = onCall({ secrets: ['NOTION_TOKEN'] }, async (request) => 
     pageUrl = page.url;
   }
 
-  // ── 2. Ler os blocos da página ────────────────────────────────────────────
-  const blocksRes = await fetch(
-    `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
-    { headers },
-  );
+  // ── 2. Ler os blocos da página (com paginação) ───────────────────────────
+  const blocks = [];
+  let cursor   = undefined;
 
-  if (!blocksRes.ok) {
-    const err = await blocksRes.json();
-    // pageId pode estar stale — limpa o cache e tenta nova busca na próxima vez
-    await db.collection('mentoradas').doc(uid).update({ notionPageId: null }).catch(() => {});
-    throw new HttpsError('internal', `Notion blocks falhou: ${err.message || blocksRes.status}`);
-  }
+  do {
+    const url = `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`
+      + (cursor ? `&start_cursor=${cursor}` : '');
 
-  const blocks = (await blocksRes.json()).results || [];
+    const blocksRes = await fetch(url, { headers });
+
+    if (!blocksRes.ok) {
+      const err = await blocksRes.json();
+      // pageId pode estar stale — limpa o cache e tenta nova busca na próxima vez
+      await db.collection('mentoradas').doc(uid).update({ notionPageId: null }).catch(() => {});
+      throw new HttpsError('internal', `Notion blocks falhou: ${err.message || blocksRes.status}`);
+    }
+
+    const page = await blocksRes.json();
+    blocks.push(...(page.results || []));
+    cursor = page.has_more ? page.next_cursor : undefined;
+  } while (cursor);
 
   // ── 3. Parsear encontros e lições ─────────────────────────────────────────
   // Varre todos os blocos e coleta todos os encontros.
@@ -1677,7 +1776,7 @@ exports.getNotionCRM = onCall({ secrets: ['NOTION_TOKEN'] }, async (request) => 
     // Heading 3 → sub-seções do encontro ("Lição de Casa", "Alinhamentos", etc.)
     if (type === 'heading_3') {
       const text = getRichText(block.heading_3?.rich_text);
-      emLicao = /li[çc][aã]o\s+de\s+casa/i.test(text);
+      emLicao = /li[çc][õaã]o?[eE]?[sS]?\s+de\s+casa|compromissos/i.test(text);
       continue;
     }
 

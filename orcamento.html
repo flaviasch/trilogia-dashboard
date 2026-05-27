@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Orçamento — Trilogia Dashboard</title>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0D2B45" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Trilogia" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -1208,6 +1215,7 @@
 
     async function salvarEAtualizar() {
       const { mes, ano } = currentData.periodo;
+      const mesAtual = new Date().getMonth() + 1;
       const itens = [
         ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor })),
         ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor })),
@@ -1219,6 +1227,7 @@
         console.error('Erro ao salvar:', err);
       }
       render(currentData);
+      if (mes === mesAtual) refreshGrafico();
     }
 
     // ─── Aporte efetivado — fluxo em 2 passos ────────────────────────────────
@@ -1305,9 +1314,9 @@
       const inputs = document.querySelectorAll('#reservasAporteList .reserva-aporte-input');
       const distribuido = [...inputs].reduce((s, i) => s + readMoney(i), 0);
 
+      // Se distribuído excede o aporte registrado, ajusta o valor para o real
       if (distribuido > (valorAportePendente || 0) + 0.01) {
-        toast(`Distribuído (${brl(distribuido)}) excede o aporte (${brl(valorAportePendente)}).`, 'warning');
-        return;
+        valorAportePendente = distribuido;
       }
 
       alocacoesPendentes = [...inputs]
@@ -1404,6 +1413,7 @@
         toast('Aporte salvo parcialmente. Confira as reservas.', 'warning');
       } else {
         toast('Aporte confirmado!', 'success');
+        setTimeout(() => toast('Atualize a página para o gráfico refletir o aporte.', 'info', 6000), 800);
         setTimeout(() => toast(
           'Patrimônio não atualizado — importe o extrato da corretora para refletir a nova alocação.',
           'info', 5000
@@ -1415,6 +1425,7 @@
         if (idx !== -1) reservas[idx] = r;
       }
       render(currentData);
+      refreshGrafico();
     });
 
     document.getElementById('btnConfirmarClasse').addEventListener('click', async () => {
@@ -1475,6 +1486,7 @@
         toast('Aporte salvo parcialmente. Confira Patrimônio e Reservas.', 'warning');
       } else {
         toast('Aporte confirmado com sucesso!', 'success');
+        setTimeout(() => toast('Atualize a página para o gráfico refletir o aporte.', 'info', 6000), 800);
       }
 
       // Atualiza array local
@@ -1483,6 +1495,7 @@
         if (idx !== -1) reservas[idx] = r;
       }
       render(currentData);
+      refreshGrafico();
     });
 
     // Botão ✓ — inicia fluxo pelo modal de reservas
@@ -1538,7 +1551,7 @@
 
       // Carrega histórico anual em paralelo e renderiza o gráfico ao terminar
       carregarHistoricoAnual(new Date().getFullYear())
-        .then(historico => renderGrafico(historico))
+        .then(historico => { historicoAtual = historico; renderGrafico(historico); })
         .catch(err => console.error('Erro ao carregar histórico do gráfico:', err));
     }
 
@@ -1824,6 +1837,33 @@
 
     // ─── Gráfico aportes ─────────────────────────────────────────────────────
     let graficoInstance = null;
+    let historicoAtual  = null;
+
+    // Re-busca o histórico do servidor e re-renderiza o gráfico
+    async function refreshGrafico() {
+      try {
+        const historico = await carregarHistoricoAnual(new Date().getFullYear());
+        historicoAtual = historico;
+        renderGrafico(historico);
+      } catch (err) {
+        console.warn('[refreshGrafico]', err);
+      }
+    }
+
+    // Atualiza o gráfico em memória (sem re-fetch) — fallback rápido
+    function atualizarGraficoAporte() {
+      if (!historicoAtual) return;
+      const mesAtual = new Date().getMonth() + 1;
+      const totalAp = (currentData.aportes || []).reduce((s, a) => s + a.valor, 0);
+      const entry = historicoAtual.find(h => h.mes === mesAtual);
+      if (entry) {
+        entry.valor    = totalAp;
+        entry.temDados = entry.temDados || totalAp > 0;
+      } else {
+        historicoAtual.push({ mes: mesAtual, valor: totalAp, temDados: totalAp > 0 });
+      }
+      renderGrafico(historicoAtual);
+    }
 
     async function carregarHistoricoAnual(ano) {
       const mesAtual = new Date().getMonth() + 1;
@@ -2067,6 +2107,17 @@
     </a>
   </div>
   <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
+
+  <!-- Service Worker (PWA) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .catch((err) => console.warn('SW registration failed:', err));
+      });
+    }
+  </script>
 
 </body>
 </html>
