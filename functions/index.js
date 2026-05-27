@@ -1372,11 +1372,23 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: SECRETS_ALL }, async (
         ...flagsNovaM,
       });
 
-      // 5. Registrar primeira cobrança já paga
+      // 5. Criar contrato recorrente + primeira cobrança já paga
+      const contratoRef = db.collection('mentoradas').doc(novoUid).collection('contratos').doc();
+      await contratoRef.set({
+        produto:        produtoCodigo || 'mentoria',
+        tipo:           'recorrente',
+        periodicidade:  'mensal',
+        valorTotal:     valorRecebido,
+        formaPagamento: 'kiwify',
+        status:         'ativo',
+        criadoEm:       admin.firestore.FieldValue.serverTimestamp(),
+      });
+
       await db.collection('cobrancas').add({
         uidMentorada:   novoUid,
         nomeAluna:      nomeCliente,
         emailAluna:     email,
+        contratoId:     contratoRef.id,
         produto:        produtoCodigo || 'mentoria',
         tipo:           'recorrente',
         periodicidade:  'mensal',
