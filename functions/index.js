@@ -1280,12 +1280,19 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
 
     // Mapeia nome do produto para código interno
     // Combo deve vir antes de clube/dashboard (pode conter ambas as palavras)
+    // Identifica produto — ordem importa:
+    // 1. Combo: nome contém AMBOS "dashboard" e "clube" (ex: "Dashboard + Clube Trilogia")
+    //           OU contém a palavra "combo" explicitamente
+    // 2. Private: antes de mentoria (ex: "Mentoria Trilogia Private" contém "mentoria" E "private")
+    // 3. Mentoria / Clube / Dashboard
+    const hasDash  = /dashboard|dash/i.test(nomeProduto);
+    const hasClube = /clube|club/i.test(nomeProduto);
     let produtoCodigo = null;
-    if (/combo/i.test(nomeProduto))                    produtoCodigo = 'combo';
-    else if (/mentoria|mentoring/i.test(nomeProduto))  produtoCodigo = 'mentoria';
-    else if (/private/i.test(nomeProduto))             produtoCodigo = 'private';
-    else if (/clube|club/i.test(nomeProduto))          produtoCodigo = 'clube';
-    else if (/dashboard|dash/i.test(nomeProduto))      produtoCodigo = 'dashboard';
+    if ((hasDash && hasClube) || /combo/i.test(nomeProduto)) produtoCodigo = 'combo';
+    else if (/private/i.test(nomeProduto))                   produtoCodigo = 'private';
+    else if (/mentoria|mentoring/i.test(nomeProduto))        produtoCodigo = 'mentoria';
+    else if (hasClube)                                       produtoCodigo = 'clube';
+    else if (hasDash)                                        produtoCodigo = 'dashboard';
 
     // Extrai valor
     // Kiwify usa Order.amount (em reais), ou Subscription.charge_amount
