@@ -1164,7 +1164,7 @@ exports.editarContrato = onCall({}, async (request) => {
  * Eventos aceitos: order_approved, subscription_payment,
  *                  order.approved, subscription.payment (variações de formato)
  */
-exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
+exports.kiwifyWebhook = onRequest({ cors: false, secrets: SECRETS_ALL }, async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
   try {
@@ -1318,13 +1318,93 @@ exports.kiwifyWebhook = onRequest({ cors: false }, async (req, res) => {
     const mentSnap = await db.collection('mentoradas')
       .where('email', '==', email).limit(1).get();
 
+    // ── AUTO-CRIAÇÃO: compra nova, mentorada não existe ainda ─────────────────
     if (mentSnap.empty) {
-      console.warn(`[kiwify] Mentorada não encontrada para e-mail: ${email}`);
-      res.status(200).json({ ok: false, msg: `Mentorada não encontrada: ${email}` });
+      const nomeCliente = (
+        body.Customer?.name        || body.Customer?.full_name ||
+        body.Order?.Customer?.name || data?.customer?.name || ''
+      ).trim();
+
+      if (!nomeCliente) {
+        console.warn(`[kiwify] Auto-criação impossível — nome ausente para: ${email}`);
+        res.status(200).json({ ok: false, msg: `Mentorada não encontrada e nome ausente no payload: ${email}` });
+        return;
+      }
+
+      console.log(`[kiwify] 🆕 Auto-criando mentorada: "${nomeCliente}" (${email})`);
+
+      // 1. Firebase Auth
+      const senha = Math.random().toString(36).slice(-8) + 'Aa1!';
+      const userRecord = await admin.auth().createUser({ email, password: senha, displayName: nomeCliente });
+      const novoUid = userRecord.uid;
+
+      // 2. Planilha no Drive (falha não bloqueia o acesso)
+      let sheetId = null;
+      try {
+        sheetId = await provisionar(nomeCliente, DRIVE_FOLDER_ID);
+      } catch (err) {
+        console.error(`[kiwify] Falha ao provisionar planilha para ${email}:`, err.message);
+      }
+
+      // 3. Flags de produto
+      const produtoParaFS = produtoCodigo === 'combo' ? 'dashboard' : (produtoCodigo || 'mentoria');
+      const flagsNovaM   = { status: 'ativa' };
+      if (produtoCodigo === 'dashboard' || produtoCodigo === 'combo') flagsNovaM.assinaturaDashboard = true;
+      if (produtoCodigo === 'clube'     || produtoCodigo === 'combo') flagsNovaM.assinaturaClube     = true;
+
+      // dataExpiracao para produtos recorrentes
+      if (['dashboard', 'clube', 'combo'].includes(produtoCodigo)) {
+        const exp = new Date(); exp.setMonth(exp.getMonth() + 1);
+        flagsNovaM.dataExpiracao = exp.toISOString().slice(0, 10);
+      }
+
+      // 4. Documento Firestore
+      await db.collection('mentoradas').doc(novoUid).set({
+        nome:            nomeCliente,
+        email,
+        produto:         produtoParaFS,
+        valorMensal:     valorRecebido || 0,
+        formaPagamento:  'kiwify',
+        inicio:          new Date().toISOString().slice(0, 7),
+        sheetId,
+        criadoViaKiwify: true,
+        criadoEm:        admin.firestore.FieldValue.serverTimestamp(),
+        ...flagsNovaM,
+      });
+
+      // 5. Registrar primeira cobrança já paga
+      await db.collection('cobrancas').add({
+        uidMentorada:   novoUid,
+        nomeAluna:      nomeCliente,
+        emailAluna:     email,
+        produto:        produtoCodigo || 'mentoria',
+        tipo:           'recorrente',
+        periodicidade:  'mensal',
+        numero:         1,
+        valor:          valorRecebido,
+        vencimento:     dataPagamento,
+        pago:           true,
+        dataPagamento,
+        valorRecebido,
+        formaPagamento: 'kiwify',
+        cancelada:      false,
+      });
+
+      // 6. E-mail de boas-vindas (falha não bloqueia)
+      try {
+        const link = await admin.auth().generatePasswordResetLink(email);
+        await sendEmail({ to: email, subject: 'Bem-vinda ao Trilogia Dashboard', html: emailBoasVindas(nomeCliente, link) });
+      } catch (err) {
+        console.error(`[kiwify] Falha no e-mail de boas-vindas para ${email}:`, err.message);
+      }
+
+      console.log(`[kiwify] ✅ Mentorada criada via compra Kiwify: ${nomeCliente} (uid: ${novoUid})`);
+      res.status(200).json({ ok: true, acao: 'criada', uid: novoUid, nome: nomeCliente, produto: produtoCodigo });
       return;
     }
+    // ── FIM AUTO-CRIAÇÃO ──────────────────────────────────────────────────────
 
-    const uidMentorada = mentSnap.docs[0].id;
+    let uidMentorada = mentSnap.docs[0].id;
 
     // Busca cobranças pendentes desta mentorada
     let query = db.collection('cobrancas')
