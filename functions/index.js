@@ -1018,6 +1018,42 @@ exports.editarPagamento = onCall({}, async (request) => {
 });
 
 /**
+ * Estorna um pagamento já registrado — reverte cobrança para não paga
+ * e, se o contrato estava quitado (todas pagas), volta para ativo.
+ */
+exports.estornarPagamento = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { cobrancaId } = request.data;
+  if (!cobrancaId) throw new HttpsError('invalid-argument', 'cobrancaId é obrigatório.');
+
+  const cobRef  = db.collection('cobrancas').doc(cobrancaId);
+  const cobSnap = await cobRef.get();
+  if (!cobSnap.exists) throw new HttpsError('not-found', 'Cobrança não encontrada.');
+
+  const cob = cobSnap.data();
+  if (!cob.pago) throw new HttpsError('failed-precondition', 'Cobrança já está como pendente.');
+
+  await cobRef.update({
+    pago:           false,
+    dataPagamento:  admin.firestore.FieldValue.delete(),
+    valorRecebido:  admin.firestore.FieldValue.delete(),
+    formaPagamento: admin.firestore.FieldValue.delete(),
+  });
+
+  // Se o contrato estava quitado (todas as parcelas pagas), reverter para ativo
+  if (cob.contratoId && cob.uidMentorada) {
+    const contratoRef = db.collection('mentoradas').doc(cob.uidMentorada)
+      .collection('contratos').doc(cob.contratoId);
+    const contratoSnap = await contratoRef.get();
+    if (contratoSnap.exists && contratoSnap.data().status === 'quitado') {
+      await contratoRef.update({ status: 'ativo' });
+    }
+  }
+
+  return { ok: true };
+});
+
+/**
  * Cancela um contrato (não apaga histórico de cobranças pagas).
  */
 exports.cancelarCobranca = onCall({}, async (request) => {

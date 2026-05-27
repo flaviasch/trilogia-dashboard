@@ -339,6 +339,11 @@ export async function editarPagamento(dados) {
   return call('editarPagamento')(dados);
 }
 
+/** Estorna um pagamento já registrado — reverte para pendente. */
+export async function estornarPagamento(cobrancaId) {
+  return call('estornarPagamento')({ cobrancaId });
+}
+
 /** Cancela um contrato. */
 export async function cancelarCobranca(cobrancaId) {
   return call('cancelarCobranca')({ cobrancaId });

@@ -368,6 +368,13 @@
       transition: all 0.2s;
     }
     .btn-edit-inline:hover { border-color: var(--border-gold); color: var(--gold); }
+    .btn-estornar {
+      background: transparent; border: 1px solid rgba(248,113,113,.3);
+      border-radius: 6px; padding: 3px 10px; font-size: 11px;
+      color: var(--negative); cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: all 0.2s;
+    }
+    .btn-estornar:hover { border-color: var(--negative); background: rgba(248,113,113,.08); }
     .inline-edit-fields {
       display: flex; flex-direction: column; gap: 8px; margin-top: 4px;
     }
@@ -1420,13 +1427,13 @@
   <script type="module">
     import { exigirAdmin, logout, refreshAdmin } from './js/admin-guard.js';
     import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada,
-             createContrato, getContratos, pagarParcela, editarPagamento, cancelarCobranca, cancelarContrato, editarContrato, getCobrancas,
+             createContrato, getContratos, pagarParcela, editarPagamento, estornarPagamento, cancelarCobranca, cancelarContrato, editarContrato, getCobrancas,
              criarPlanilha, getNotionCRM,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico } from './js/api.js?v=13';
+             syncDiagnostico } from './js/api.js?v=14';
 
-    console.log('%c[admin] ✅ v13 carregado', 'color:#CFAE65;font-weight:bold');
+    console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
     // ─── Auth guard via Custom Claim ─────────────
     const user = await exigirAdmin();
@@ -1669,7 +1676,11 @@
           💰 ${vencemHoje.length} cobrança${vencemHoje.length > 1 ? 's' : ''} vencem hoje · ${brl(total)}
         </div>`;
         html += vencemHoje.map(c =>
-          `<div style="padding-left:12px">· <strong>${c.nomeAluna}</strong> — ${brl(c.valor)} (${PRODUTO_LABEL[c.produto] || c.produto})</div>`
+          `<div style="padding-left:12px;cursor:pointer;border-radius:4px;padding:3px 8px 3px 12px;transition:background .15s"
+                onmouseover="this.style.background='rgba(207,174,101,.08)'" onmouseout="this.style.background=''"
+                onclick="abrirDetalhe('${c.uidMentorada}')">
+            · <strong style="color:var(--gold)">${c.nomeAluna}</strong> — ${brl(c.valor)} (${PRODUTO_LABEL[c.produto] || c.produto}) <span style="opacity:.5;font-size:11px">→ ver</span>
+           </div>`
         ).join('');
       }
 
@@ -1680,7 +1691,11 @@
           ⚠️ ${emAtraso.length} cobrança${emAtraso.length > 1 ? 's' : ''} em atraso · ${brl(totalAtraso)}
         </div>`;
         html += emAtraso.map(c =>
-          `<div style="padding-left:12px">· <strong>${c.nomeAluna}</strong> — ${brl(c.valor)} · venceu ${c.vencimento.split('-').reverse().join('/')}</div>`
+          `<div style="padding-left:12px;cursor:pointer;border-radius:4px;padding:3px 8px 3px 12px;transition:background .15s"
+                onmouseover="this.style.background='rgba(248,113,113,.08)'" onmouseout="this.style.background=''"
+                onclick="abrirDetalhe('${c.uidMentorada}')">
+            · <strong style="color:var(--negative)">${c.nomeAluna}</strong> — ${brl(c.valor)} · venceu ${c.vencimento.split('-').reverse().join('/')} <span style="opacity:.5;font-size:11px">→ ver</span>
+           </div>`
         ).join('');
       }
 
@@ -2896,13 +2911,20 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
                      Registrar pagamento
                    </button>`
                 : p.pago
-                  ? `<button class="btn-edit-inline"
-                       data-cob-edit="${p.id}"
-                       data-cob-valor="${p.valorRecebido ?? p.valor}"
-                       data-cob-data="${p.dataPagamento}"
-                       data-cob-desc="${PRODUTO_LABEL[c.produto] || c.produto} · ${fmtData(p.vencimento)}">
-                       Editar
-                     </button>`
+                  ? `<span style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+                       <button class="btn-edit-inline"
+                         data-cob-edit="${p.id}"
+                         data-cob-valor="${p.valorRecebido ?? p.valor}"
+                         data-cob-data="${p.dataPagamento}"
+                         data-cob-desc="${PRODUTO_LABEL[c.produto] || c.produto} · ${fmtData(p.vencimento)}">
+                         Editar
+                       </button>
+                       <button class="btn-estornar"
+                         data-cob-id="${p.id}"
+                         data-cob-desc="${PRODUTO_LABEL[c.produto] || c.produto} · ${fmtData(p.vencimento)}">
+                         ↩ Estornar
+                       </button>
+                     </span>`
                   : ''}
             </td>
           </tr>`;
@@ -2991,6 +3013,26 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       } finally {
         btn.disabled = false;
         btn.textContent = pagModoEdicao ? 'Salvar alteração' : 'Confirmar';
+      }
+    });
+
+    // ─── Estornar pagamento ──────────────────
+    document.getElementById('detContratos').addEventListener('click', async (e) => {
+      const btn = e.target.closest('.btn-estornar');
+      if (!btn) return;
+      const cobrancaId = btn.dataset.cobId;
+      const desc       = btn.dataset.cobDesc;
+      if (!confirm(`Estornar o pagamento de "${desc}"?\nA parcela voltará para Pendente.`)) return;
+      btn.disabled = true; btn.textContent = '…';
+      try {
+        await estornarPagamento(cobrancaId);
+        const uid = mentoradaEmDetalhe?.uid || mentoradaEmDetalhe?.id;
+        await carregarContratos(uid);
+        mentoradas = await getMentoradas();
+        renderMentoradas();
+      } catch (err) {
+        alert(`Erro ao estornar: ${err.message}`);
+        btn.disabled = false; btn.textContent = '↩ Estornar';
       }
     });
 
