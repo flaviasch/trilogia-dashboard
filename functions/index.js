@@ -13,6 +13,7 @@ const sRefresh    = defineSecret('GOOGLE_REFRESH_TOKEN');
 const sFolderId   = defineSecret('DRIVE_FOLDER_ID');
 const sSA         = defineSecret('GOOGLE_SERVICE_ACCOUNT_JSON');
 const sNotion     = defineSecret('NOTION_TOKEN');
+const sDiagSecret = defineSecret('DIAGNOSTICO_WEBHOOK_SECRET');
 
 const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId } = require('./lib/auth');
 const { SheetsClient } = require('./lib/sheets');
@@ -216,6 +217,17 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const sheetId = await getSheetId(db, uid);
   const sheets  = new SheetsClient(sheetId);
   await sheets.saveOrcamento(mes, ano, itens);
+
+  // Atualiza cache de sobra no Firestore (fire-and-forget)
+  sheets.getOrcamento(mes, ano).then(todos => {
+    const receita = todos.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
+    const despesa = todos.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
+    return db.collection('mentoradas').doc(uid).update({
+      sobra: receita - despesa,
+      dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }).catch(e => console.warn('[saveOrcamento] Falha ao atualizar cache:', e.message));
+
   return { ok: true };
 });
 
@@ -285,6 +297,18 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
   } else {
     await sheets.savePatrimonio(itens);
   }
+
+  // Atualiza cache de PL no Firestore (fire-and-forget)
+  Promise.all([sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas()])
+    .then(([pat, inv, divs]) => {
+      const totalAtivos  = consolidarAtivos(pat, inv).reduce((s, a) => s + a.valor, 0);
+      const totalDividas = divs.reduce((s, d) => s + d.saldo, 0);
+      return db.collection('mentoradas').doc(uid).update({
+        pl: totalAtivos - totalDividas,
+        dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }).catch(e => console.warn('[savePatrimonio] Falha ao atualizar cache:', e.message));
+
   return { ok: true };
 });
 
@@ -460,8 +484,21 @@ exports.saveDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     throw new HttpsError('invalid-argument', 'id e nome são obrigatórios.');
   }
 
-  const sheetId = await getSheetId(db, uid);
-  await new SheetsClient(sheetId).saveDivida(divida);
+  const sheetId  = await getSheetId(db, uid);
+  const sheetsD  = new SheetsClient(sheetId);
+  await sheetsD.saveDivida(divida);
+
+  // Atualiza cache de PL (fire-and-forget)
+  Promise.all([sheetsD.getPatrimonio(), sheetsD.getInvestimentos(), sheetsD.getDividas()])
+    .then(([pat, inv, divs]) => {
+      const totalAtivos  = consolidarAtivos(pat, inv).reduce((s, a) => s + a.valor, 0);
+      const totalDividas = divs.reduce((s, d) => s + d.saldo, 0);
+      return db.collection('mentoradas').doc(uid).update({
+        pl: totalAtivos - totalDividas,
+        dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }).catch(e => console.warn('[saveDivida] Falha ao atualizar cache:', e.message));
+
   return { ok: true };
 });
 
@@ -495,8 +532,19 @@ exports.saveReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     throw new HttpsError('invalid-argument', 'id e nome são obrigatórios.');
   }
 
-  const sheetId = await getSheetId(db, uid);
-  await new SheetsClient(sheetId).saveReserva(reserva);
+  const sheetId  = await getSheetId(db, uid);
+  const sheetsR  = new SheetsClient(sheetId);
+  await sheetsR.saveReserva(reserva);
+
+  // Atualiza cache de totalReservas (fire-and-forget)
+  sheetsR.getReservas().then(todas => {
+    const totalReservas = todas.reduce((s, r) => s + (r.acumulado || 0), 0);
+    return db.collection('mentoradas').doc(uid).update({
+      totalReservas,
+      dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }).catch(e => console.warn('[saveReserva] Falha ao atualizar cache:', e.message));
+
   return { ok: true };
 });
 
@@ -505,8 +553,19 @@ exports.deleteReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const { uid, reservaId } = request.data;
   requireSelfOrAdmin(request, uid);
 
-  const sheetId = await getSheetId(db, uid);
-  await new SheetsClient(sheetId).deleteReserva(reservaId);
+  const sheetId  = await getSheetId(db, uid);
+  const sheetsDR = new SheetsClient(sheetId);
+  await sheetsDR.deleteReserva(reservaId);
+
+  // Atualiza cache de totalReservas (fire-and-forget)
+  sheetsDR.getReservas().then(todas => {
+    const totalReservas = todas.reduce((s, r) => s + (r.acumulado || 0), 0);
+    return db.collection('mentoradas').doc(uid).update({
+      totalReservas,
+      dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }).catch(e => console.warn('[deleteReserva] Falha ao atualizar cache:', e.message));
+
   return { ok: true };
 });
 
@@ -1355,6 +1414,19 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: SECRETS_ALL }, async (
       ? valorBruto / 100
       : valorBruto;
 
+    // Validação por range esperado por produto — alerta se valor for suspeito
+    const RANGES_VALOR = {
+      mentoria:  { min: 500,  max: 15000 },
+      private:   { min: 2000, max: 30000 },
+      dashboard: { min: 50,   max: 500   },
+      clube:     { min: 50,   max: 300   },
+      combo:     { min: 100,  max: 1000  },
+    };
+    const rangeValor = produtoCodigo ? RANGES_VALOR[produtoCodigo] : null;
+    if (rangeValor && (valorRecebido < rangeValor.min || valorRecebido > rangeValor.max)) {
+      console.warn(`[kiwify] ⚠️ Valor suspeito para "${produtoCodigo}": R$${valorRecebido} (bruto: ${valorBruto}). Verificar unidade no payload.`);
+    }
+
     const dataPagamento = new Date().toISOString().slice(0, 10);
 
     console.log(`[kiwify] Evento: ${event} | E-mail: ${email} | Produto: ${nomeProduto} (${produtoCodigo}) | Valor: R$${valorRecebido}`);
@@ -1767,11 +1839,12 @@ exports.notifMaioIR = onSchedule(
 );
 
 /**
- * verificarExpiracoes — diariamente às 07h (Sao_Paulo)
+ * verificarExpiracoes — diariamente às 09h (Sao_Paulo)
  * Inativa contas cuja dataExpiracao já passou.
+ * Roda APÓS notifExpiracaoProxima (07h) para garantir que o aviso chega antes do bloqueio.
  */
 exports.verificarExpiracoes = onSchedule(
-  { schedule: '0 7 * * *', timeZone: 'America/Sao_Paulo' },
+  { schedule: '0 9 * * *', timeZone: 'America/Sao_Paulo' },
   async () => {
     const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     const snap = await db.collection('mentoradas')
@@ -1801,11 +1874,12 @@ exports.verificarExpiracoes = onSchedule(
 );
 
 /**
- * notifExpiracaoProxima — diariamente às 08h (Sao_Paulo)
+ * notifExpiracaoProxima — diariamente às 07h (Sao_Paulo)
  * Avisa alunas cuja dataExpiracao é daqui a 7 dias.
+ * Roda ANTES de verificarExpiracoes (09h) para garantir que o aviso chega antes do bloqueio.
  */
 exports.notifExpiracaoProxima = onSchedule(
-  { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
+  { schedule: '0 7 * * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
   async () => {
     const em7Dias = new Date();
     em7Dias.setDate(em7Dias.getDate() + 7);
@@ -2196,9 +2270,7 @@ function mapProdutoDiagnostico(produtoIndicado) {
   return '';
 }
 
-// Chave secreta usada pelo Apps Script para chamar o webhook de sincronização.
-// Troque por qualquer string longa e aleatória de sua preferência.
-const DIAGNOSTICO_WEBHOOK_SECRET = 'trilogia-diag-sync-2026';
+// Chave secreta para o webhook de diagnóstico — armazenada no Secret Manager.
 
 // Lógica compartilhada de sync — usada tanto pelo onCall quanto pelo webhook HTTP.
 async function runSyncDiagnostico() {
@@ -2267,7 +2339,7 @@ exports.syncDiagnostico = onCall({}, async (request) => {
 });
 
 // Chamado pelo Apps Script (autenticação via chave secreta)
-exports.syncDiagnosticoWebhook = onRequest(async (req, res) => {
+exports.syncDiagnosticoWebhook = onRequest({ secrets: [sDiagSecret] }, async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') {
     res.set('Access-Control-Allow-Methods', 'POST');
@@ -2280,7 +2352,7 @@ exports.syncDiagnosticoWebhook = onRequest(async (req, res) => {
     return;
   }
   const secret = req.body?.secret;
-  if (secret !== DIAGNOSTICO_WEBHOOK_SECRET) {
+  if (secret !== sDiagSecret.value()) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
