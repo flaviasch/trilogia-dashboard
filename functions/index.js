@@ -14,6 +14,7 @@ const sFolderId   = defineSecret('DRIVE_FOLDER_ID');
 const sSA         = defineSecret('GOOGLE_SERVICE_ACCOUNT_JSON');
 const sNotion     = defineSecret('NOTION_TOKEN');
 const sDiagSecret = defineSecret('DIAGNOSTICO_WEBHOOK_SECRET');
+const sKiwify     = defineSecret('KIWIFY_WEBHOOK_SECRET');
 
 const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId } = require('./lib/auth');
 const { SheetsClient } = require('./lib/sheets');
@@ -1302,8 +1303,20 @@ exports.editarContrato = onCall({}, async (request) => {
  * Eventos aceitos: order_approved, subscription_payment,
  *                  order.approved, subscription.payment (variações de formato)
  */
-exports.kiwifyWebhook = onRequest({ cors: false, secrets: SECRETS_ALL }, async (req, res) => {
+exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwify] }, async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+  // Verificação de origem Kiwify (opcional — só valida se o secret estiver configurado)
+  // Para ativar: firebase functions:secrets:set KIWIFY_WEBHOOK_SECRET → colar o token do painel Kiwify
+  const kiwifySecret = sKiwify.value();
+  if (kiwifySecret && kiwifySecret !== 'nao-configurado') {
+    const assinatura = req.headers['x-kiwify-signature'] || req.headers['x-webhook-token'] || '';
+    if (assinatura !== kiwifySecret) {
+      console.warn(`[kiwify] Requisição rejeitada — assinatura inválida. Header: "${assinatura}"`);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+  }
 
   try {
     const body = req.body || {};
@@ -2077,7 +2090,8 @@ exports.getNotionCRM = onCall({ secrets: [sNotion] }, async (request) => {
   let encontros       = [];      // { numero, tema, data, licoes[] }
   let encontroAtual   = null;
   let licoesAtuais    = [];
-  let emLicao         = false;
+  let emLicao      = false;
+  const parseWarnings = [];
 
   for (const block of blocks) {
     const type = block.type;
@@ -2099,6 +2113,11 @@ exports.getNotionCRM = onCall({ secrets: [sNotion] }, async (request) => {
         licoesAtuais = [];
         emLicao = false;
         continue;
+      }
+      // heading_2 fora do padrão esperado — registra para diagnóstico
+      if (text.trim()) {
+        console.warn(`[getNotionCRM] heading_2 fora do padrão: "${text}" (uid=${uid})`);
+        parseWarnings.push(text.trim());
       }
     }
 
@@ -2142,7 +2161,12 @@ exports.getNotionCRM = onCall({ secrets: [sNotion] }, async (request) => {
     notionSyncedAt:        admin.firestore.FieldValue.serverTimestamp(),
   }).catch(e => console.warn('[getNotionCRM] Falha ao cachear:', e.message));
 
-  return { notionPageUrl: pageUrl, ultimoEncontro, licoesPendentes };
+  return {
+    notionPageUrl: pageUrl,
+    ultimoEncontro,
+    licoesPendentes,
+    ...(parseWarnings.length > 0 && { parseWarnings }),
+  };
 });
 
 // ─── CLUBE TRILOGIA ───────────────────────────────────────────────────────────
