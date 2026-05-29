@@ -219,6 +219,38 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   return { ok: true };
 });
 
+// ─── CATEGORIAS DE ORÇAMENTO (orcamento-v2.html) ─────────────────────────────
+
+/**
+ * Retorna as categorias de orçamento da mentorada (armazenadas no Firestore).
+ * Retorna array vazio se ainda não configurou — UI carrega defaults.
+ */
+exports.getCategorias = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const snap = await db.collection('mentoradas').doc(uid)
+    .collection('config').doc('categorias').get();
+  if (!snap.exists) return { categorias: [] };
+  return { categorias: snap.data().categorias || [] };
+});
+
+/**
+ * Salva lista de categorias de orçamento no Firestore.
+ * Espera: { uid, categorias: [{ nome, limite, cor, customizada }] }
+ */
+exports.saveCategorias = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const { uid, categorias } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!Array.isArray(categorias)) throw new HttpsError('invalid-argument', 'categorias deve ser um array.');
+  await db.collection('mentoradas').doc(uid)
+    .collection('config').doc('categorias').set({ categorias });
+  return { ok: true };
+});
+
 // ─── PATRIMÔNIO (patrimonio.html) ─────────────────────────────────────────────
 
 exports.getPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {

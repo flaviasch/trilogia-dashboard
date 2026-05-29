@@ -717,6 +717,100 @@
       .aporte-strip-row { width: 100%; }
     }
 
+    /* ─── Grupos de categoria de despesa ────── */
+    .cat-group {
+      margin-bottom: 10px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .cat-group-header {
+      background: rgba(255,255,255,0.04);
+      padding: 11px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .cat-group-nome {
+      flex: 1;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    .cat-group-total {
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+      color: var(--white);
+    }
+    .btn-set-limite {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .btn-set-limite:hover { border-color: var(--border-gold); color: var(--gold); }
+    .btn-set-limite.tem-limite { color: var(--gold); border-color: rgba(207,174,101,0.3); }
+    .cat-limit-wrap {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-shrink: 0;
+    }
+    .cat-limit-bar {
+      width: 80px;
+      height: 4px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .cat-limit-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+    .cat-limit-pct {
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .cat-group .items-list { gap: 0; }
+    .cat-group .item-row {
+      border-radius: 0;
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+    .cat-group .item-row:hover { background: rgba(255,255,255,0.025); }
+    .cat-group .item-row + .item-row { margin-top: 0; }
+    .cat-add-btn {
+      display: block;
+      background: transparent;
+      border: none;
+      border-top: 1px dashed rgba(255,255,255,0.07);
+      border-radius: 0;
+      padding: 8px 20px;
+      width: 100%;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      text-align: left;
+      transition: all 0.15s;
+    }
+    .cat-add-btn:hover { background: rgba(255,255,255,0.03); color: var(--gold); }
+
+    /* ─── Data tag dentro do item ─────────── */
+    input[type="date"] { color-scheme: dark; }
+
     /* ─── Botão de suporte ──────────────────── */
     .suporte-btn {
       position: fixed; bottom: 32px; right: 24px; z-index: 150;
@@ -984,19 +1078,27 @@
   <!-- Modal adicionar / editar item -->
   <div class="modal-overlay hidden" id="modalItem">
     <div class="modal-card">
-      <h2 class="modal-title" id="modalItemTitle">Novo item</h2>
-      <p class="modal-sub" id="modalItemSub">Preencha os dados do lançamento.</p>
+      <h2 class="modal-title" id="modalItemTitle">Novo lançamento</h2>
+      <p class="modal-sub" id="modalItemSub"></p>
 
-      <div class="field-group">
+      <div class="field-group" id="fgCategoria">
         <label for="mCategoria">Categoria</label>
         <input type="text" id="mCategoria" placeholder="ex: Salário, Moradia, Alimentação…" />
       </div>
-      <div class="field-group">
+      <div class="field-group" id="fgTipo">
         <label for="mTipo">Tipo</label>
         <select id="mTipo">
           <option value="receita">Receita</option>
           <option value="despesa">Despesa</option>
         </select>
+      </div>
+      <div class="field-group">
+        <label for="mData">Data (opcional)</label>
+        <input type="date" id="mData" />
+      </div>
+      <div class="field-group">
+        <label for="mDescricao">Descrição (opcional)</label>
+        <input type="text" id="mDescricao" placeholder="ex: Supermercado, Aluguel, iFood…" />
       </div>
       <div class="field-group">
         <label for="mValor">Valor (R$)</label>
@@ -1010,10 +1112,26 @@
     </div>
   </div>
 
+  <!-- Modal definir limite de categoria -->
+  <div class="modal-overlay hidden" id="modalLimite">
+    <div class="modal-card">
+      <h2 class="modal-title">Limite de orçamento</h2>
+      <p class="modal-sub" id="modalLimiteSub">—</p>
+      <div class="field-group">
+        <label for="mLimiteValor">Limite mensal (R$) — deixe 0 para remover</label>
+        <input type="text" inputmode="numeric" id="mLimiteValor" placeholder="ex: 1.000" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarLimite">Cancelar</button>
+        <button class="btn-save" id="btnSalvarLimite">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, setViewAsUid } from './js/api.js?v=6';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategorias, saveCategorias, setViewAsUid } from './js/api.js?v=7';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -1102,6 +1220,17 @@
     let currentData = { periodo: { mes: new Date().getMonth() + 1, ano: new Date().getFullYear() }, receitas: [], despesas: [], aportes: [] };
     let reservas = [];
     let perfilInvestidor = null;
+    let categorias = []; // [{ nome, limite, cor, customizada }]
+
+    // ─── Helpers de texto ────────────────────────────────────────────────────
+    function escapeHtml(str) {
+      return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function formatData(str) {
+      if (!str) return '';
+      const p = str.split('-');
+      return p.length === 3 ? `${p[2]}/${p[1]}` : str;
+    }
 
     // ─── Classes por prazo da reserva ────────────────────────────────────────
     const CLASSES_LABEL = {
@@ -1150,29 +1279,57 @@
     // ─── Modal ────────────────────────────────
     const modal     = document.getElementById('modalItem');
     let editandoIdx = null;  // { tipo: 'receita'|'despesa', idx: number } ou null
+    let _catLocked  = null;  // categoria pré-definida (ao clicar em "+ Adicionar em X")
 
-    function abrirModal(tipo, idx = null) {
+    function abrirModal(tipo, idx = null, catLocked = null) {
+      _catLocked  = catLocked || null;
       editandoIdx = idx !== null ? { tipo, idx } : null;
-      document.getElementById('modalItemTitle').textContent = idx !== null ? 'Editar item' : 'Novo item';
-      document.getElementById('modalItemSub').textContent =
-        tipo === 'receita' ? 'Lançamento de receita.' : 'Lançamento de despesa.';
-      document.getElementById('mTipo').value = tipo;
+
+      document.getElementById('modalItemTitle').textContent = idx !== null ? 'Editar lançamento' : 'Novo lançamento';
+      document.getElementById('modalItemSub').textContent   = _catLocked ? `Categoria: ${_catLocked}` : '';
+
+      // Categoria e tipo: ocultar quando a categoria já está definida pelo grupo
+      const fgCat  = document.getElementById('fgCategoria');
+      const fgTipo = document.getElementById('fgTipo');
+      if (_catLocked) {
+        document.getElementById('mCategoria').value = _catLocked;
+        fgCat.style.display  = 'none';
+        fgTipo.style.display = 'none';
+      } else {
+        fgCat.style.display  = '';
+        fgTipo.style.display = '';
+        document.getElementById('mTipo').value = tipo;
+      }
 
       if (idx !== null) {
-        const item = currentData[tipo === 'receita' ? 'receitas' : 'despesas'][idx];
+        const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
+        const item  = lista[idx];
         document.getElementById('mCategoria').value = item.categoria;
+        document.getElementById('mData').value      = item.data      || '';
+        document.getElementById('mDescricao').value = item.descricao || '';
         setMoney(document.getElementById('mValor'), item.valor);
+        if (!_catLocked) document.getElementById('mTipo').value = tipo;
       } else {
-        document.getElementById('mCategoria').value = '';
+        if (!_catLocked) document.getElementById('mCategoria').value = '';
+        document.getElementById('mData').value      = '';
+        document.getElementById('mDescricao').value = '';
         document.getElementById('mValor').value     = '';
       }
+
       modal.classList.remove('hidden');
-      document.getElementById('mCategoria').focus();
+      // Foco no campo mais relevante
+      setTimeout(() => {
+        (_catLocked
+          ? document.getElementById('mDescricao')
+          : document.getElementById('mCategoria')
+        ).focus();
+      }, 80);
     }
 
     function fecharModal() {
       modal.classList.add('hidden');
       editandoIdx = null;
+      _catLocked  = null;
     }
 
     document.getElementById('btnCancelarItem').addEventListener('click', fecharModal);
@@ -1180,8 +1337,12 @@
 
     document.getElementById('btnSalvarItem').addEventListener('click', async () => {
       const btnSalvarItem = document.getElementById('btnSalvarItem');
-      const categoria = document.getElementById('mCategoria').value.trim();
-      const tipo      = document.getElementById('mTipo').value;
+      const categoria = (_catLocked || document.getElementById('mCategoria').value.trim());
+      const tipo      = _catLocked
+        ? (editandoIdx ? editandoIdx.tipo : 'despesa')
+        : document.getElementById('mTipo').value;
+      const data      = document.getElementById('mData').value.trim();
+      const descricao = document.getElementById('mDescricao').value.trim();
       const valor     = readMoney(document.getElementById('mValor'));
 
       if (!categoria) { toast('Preencha a categoria.', 'warning'); return; }
@@ -1190,9 +1351,9 @@
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
 
       if (editandoIdx !== null && editandoIdx.tipo === tipo) {
-        lista[editandoIdx.idx] = { categoria, valor };
+        lista[editandoIdx.idx] = { categoria, tipo, valor, data, descricao };
       } else {
-        lista.push({ categoria, valor });
+        lista.push({ categoria, tipo, valor, data, descricao });
       }
 
       fecharModal();
@@ -1217,8 +1378,8 @@
       const { mes, ano } = currentData.periodo;
       const mesAtual = new Date().getMonth() + 1;
       const itens = [
-        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor })),
-        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor })),
+        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '' })),
+        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '' })),
         ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
       ];
       try {
@@ -1515,18 +1676,19 @@
       const mes = agora.getMonth() + 1;
       const ano = agora.getFullYear();
 
-      const [orcResult, resResult, perfilResult] = await Promise.allSettled([
+      const [orcResult, resResult, perfilResult, catResult] = await Promise.allSettled([
         getOrcamento(mes, ano),
         getReservas(),
         getPerfil(),
+        getCategorias(),
       ]);
 
       if (orcResult.status === 'fulfilled') {
         const itens = orcResult.value;
         currentData = {
           periodo:  { mes, ano },
-          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor })),
+          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '' })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '' })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
@@ -1540,6 +1702,7 @@
 
       if (resResult.status === 'fulfilled')   reservas = resResult.value || [];
       if (perfilResult.status === 'fulfilled') perfilInvestidor = perfilResult.value?.perfil || null;
+      if (catResult.status === 'fulfilled')    categorias = catResult.value || [];
 
       try {
         render(currentData);
@@ -1615,16 +1778,18 @@
       const IC_EDIT = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
       const IC_DEL  = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
 
-      // Lista receitas
+      // ── Receitas ────────────────────────────────────────────────────────────
       const recList = document.getElementById('receitasList');
       const recOrdenadas = [...data.receitas].sort((a, b) => b.valor - a.valor);
-      recList.innerHTML = recOrdenadas.map((r, i) => {
+      recList.innerHTML = recOrdenadas.map((r) => {
           const idxOriginal = data.receitas.indexOf(r);
-          const p = totalReceita > 0 ? (r.valor / totalReceita) * 100 : 0;
+          const p   = totalReceita > 0 ? (r.valor / totalReceita) * 100 : 0;
+          const sub = [r.data ? formatData(r.data) : null, r.descricao || null].filter(Boolean).join(' · ');
           return `
             <div class="item-row">
               <div>
-                <div class="item-categoria">${r.categoria}</div>
+                <div class="item-categoria">${escapeHtml(r.categoria)}</div>
+                ${sub ? `<div class="item-fonte">${escapeHtml(sub)}</div>` : ''}
               </div>
               <div class="item-bar-col">
                 <div class="item-bar-track">
@@ -1645,49 +1810,14 @@
         </div>
         <button class="btn-add-item" id="btnAddReceita">+ Adicionar receita</button>`;
 
-      // Lista despesas
-      const despList = document.getElementById('despesasList');
-      const despOrdenadas = [...data.despesas].sort((a, b) => b.valor - a.valor);
-      despList.innerHTML = despOrdenadas.map((d, i) => {
-          const idxOriginal = data.despesas.indexOf(d);
-          const pDesp = totalDespesa > 0 ? (d.valor / totalDespesa) * 100 : 0;
-          return `
-            <div class="item-row">
-              <div>
-                <div class="item-categoria">${d.categoria}</div>
-                <div class="item-fonte">${pct(d.valor, totalReceita)} da receita</div>
-              </div>
-              <div class="item-bar-col">
-                <div class="item-bar-track">
-                  <div class="item-bar-fill despesa" style="width:${pDesp}%"></div>
-                </div>
-                <div class="item-pct">${pDesp.toFixed(1)}% das despesas</div>
-              </div>
-              <div class="item-value despesa">${brl(d.valor)}</div>
-              <div class="item-actions">
-                <button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_EDIT}</button>
-                <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_DEL}</button>
-              </div>
-            </div>`;
-        }).join('') +
-        `<div class="total-row">
-          <span class="total-label">Total despesas</span>
-          <span class="total-value despesa">${brl(totalDespesa)}</span>
-        </div>
-        <button class="btn-add-item" id="btnAddDespesa">+ Adicionar despesa</button>`;
-
-      // Listeners dos botões de linha
       recList.querySelectorAll('[data-edit-rec]').forEach(btn =>
         btn.addEventListener('click', () => abrirModal('receita', +btn.dataset.editRec)));
       recList.querySelectorAll('[data-del-rec]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec)));
-      despList.querySelectorAll('[data-edit-desp]').forEach(btn =>
-        btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
-      despList.querySelectorAll('[data-del-desp]').forEach(btn =>
-        btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
-
       document.getElementById('btnAddReceita').addEventListener('click', () => abrirModal('receita'));
-      document.getElementById('btnAddDespesa').addEventListener('click', () => abrirModal('despesa'));
+
+      // ── Despesas — agrupadas por categoria com limite ────────────────────────
+      renderDespesasGrupos(data, totalDespesa);
 
       renderAportesList(data);
 
@@ -1793,6 +1923,155 @@
       container.querySelectorAll('[data-del-aporte]').forEach(btn =>
         btn.addEventListener('click', () => deletarAporte(+btn.dataset.delAporte)));
     }
+
+    // ─── Despesas agrupadas por categoria com limite ──────────────────────────
+    function renderDespesasGrupos(data, totalDespesa) {
+      const despList = document.getElementById('despesasList');
+
+      // Agrupa mantendo ordem de inserção; depois ordena por total desc
+      const ordem  = [];
+      const grupos = {};
+      data.despesas.forEach((d, idx) => {
+        const cat = d.categoria;
+        if (!grupos[cat]) { grupos[cat] = { items: [], total: 0 }; ordem.push(cat); }
+        grupos[cat].items.push({ ...d, _idx: idx });
+        grupos[cat].total += d.valor;
+      });
+      ordem.sort((a, b) => grupos[b].total - grupos[a].total);
+
+      const IC_E = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
+      const IC_D = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
+
+      const gruposHTML = ordem.map(catNome => {
+        const grupo  = grupos[catNome];
+        const catObj = categorias.find(c => c.nome === catNome);
+        const limite = catObj?.limite || 0;
+
+        // Barra de limite
+        let limiteHTML = '';
+        if (limite > 0) {
+          const p   = Math.min((grupo.total / limite) * 100, 200);
+          const cor = p > 100 ? 'var(--negative)' : p > 80 ? '#f59e0b' : 'var(--positive)';
+          limiteHTML = `
+            <div class="cat-limit-wrap">
+              <div class="cat-limit-bar">
+                <div class="cat-limit-fill" style="width:${Math.min(p,100).toFixed(1)}%;background:${cor}"></div>
+              </div>
+              <span class="cat-limit-pct" style="color:${cor}">${p.toFixed(0)}%</span>
+            </div>`;
+        }
+
+        const itemsHTML = grupo.items.map(item => {
+          const primary = item.descricao
+            ? escapeHtml(item.descricao)
+            : `<span style="color:var(--text-muted)">—</span>`;
+          const dataTag = item.data
+            ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}</div>` : '';
+          return `
+            <div class="item-row">
+              <div>
+                <div class="item-categoria">${primary}</div>
+                ${dataTag}
+              </div>
+              <div></div>
+              <div class="item-value despesa">${brl(item.valor)}</div>
+              <div class="item-actions">
+                <button class="btn-item" data-edit-desp="${item._idx}" title="Editar">${IC_E}</button>
+                <button class="btn-item del" data-del-desp="${item._idx}" title="Excluir">${IC_D}</button>
+              </div>
+            </div>`;
+        }).join('');
+
+        const btnLimClass = limite > 0 ? 'btn-set-limite tem-limite' : 'btn-set-limite';
+        const btnLimText  = limite > 0 ? `${brl(limite)}/mês` : '+ limite';
+
+        return `
+          <div class="cat-group">
+            <div class="cat-group-header">
+              <span class="cat-group-nome">${escapeHtml(catNome)}</span>
+              ${limiteHTML}
+              <span class="cat-group-total">${brl(grupo.total)}</span>
+              <button class="${btnLimClass}" data-cat="${escapeHtml(catNome)}">${btnLimText}</button>
+            </div>
+            <div class="items-list">${itemsHTML}</div>
+            <button class="cat-add-btn" data-cat="${escapeHtml(catNome)}">+ Adicionar em ${escapeHtml(catNome)}</button>
+          </div>`;
+      }).join('');
+
+      despList.innerHTML = gruposHTML + `
+        <div class="total-row">
+          <span class="total-label">Total despesas</span>
+          <span class="total-value despesa">${brl(totalDespesa)}</span>
+        </div>
+        <button class="btn-add-item" id="btnAddDespesa">+ Nova categoria de despesa</button>`;
+
+      despList.querySelectorAll('[data-edit-desp]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
+      despList.querySelectorAll('[data-del-desp]').forEach(btn =>
+        btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
+      despList.querySelectorAll('.btn-set-limite').forEach(btn =>
+        btn.addEventListener('click', () => abrirModalLimite(btn.dataset.cat)));
+      despList.querySelectorAll('.cat-add-btn').forEach(btn =>
+        btn.addEventListener('click', () => abrirModal('despesa', null, btn.dataset.cat)));
+      document.getElementById('btnAddDespesa')?.addEventListener('click', () => abrirModal('despesa'));
+    }
+
+    // ─── Modal de limite de categoria ────────────────────────────────────────
+    const modalLimite = document.getElementById('modalLimite');
+    let editandoLimiteCat = null;
+
+    bindMoneyInput(document.getElementById('mLimiteValor'));
+
+    function abrirModalLimite(cat) {
+      editandoLimiteCat = cat;
+      const catObj     = categorias.find(c => c.nome === cat);
+      const limiteAtual = catObj?.limite || 0;
+      document.getElementById('modalLimiteSub').textContent = `Categoria: ${cat}`;
+      if (limiteAtual > 0) {
+        setMoney(document.getElementById('mLimiteValor'), limiteAtual);
+      } else {
+        document.getElementById('mLimiteValor').value = '';
+      }
+      modalLimite.classList.remove('hidden');
+      setTimeout(() => document.getElementById('mLimiteValor').focus(), 80);
+    }
+
+    document.getElementById('btnCancelarLimite').addEventListener('click', () => {
+      modalLimite.classList.add('hidden');
+      editandoLimiteCat = null;
+    });
+    modalLimite.addEventListener('click', e => {
+      if (e.target === modalLimite) { modalLimite.classList.add('hidden'); editandoLimiteCat = null; }
+    });
+
+    document.getElementById('btnSalvarLimite').addEventListener('click', async () => {
+      if (!editandoLimiteCat) return;
+      const btn    = document.getElementById('btnSalvarLimite');
+      const limite = readMoney(document.getElementById('mLimiteValor'));
+
+      // Upsert na lista local de categorias
+      const idx = categorias.findIndex(c => c.nome === editandoLimiteCat);
+      if (idx === -1) {
+        categorias.push({ nome: editandoLimiteCat, limite, cor: '', customizada: false });
+      } else {
+        categorias[idx] = { ...categorias[idx], limite };
+      }
+
+      modalLimite.classList.add('hidden');
+      const cat = editandoLimiteCat;
+      editandoLimiteCat = null;
+
+      setLoading(btn, true);
+      try {
+        await saveCategorias(categorias);
+        renderDespesasGrupos(currentData, currentData.despesas.reduce((s, d) => s + d.valor, 0));
+        toast(limite > 0 ? `Limite de ${brl(limite)}/mês definido para ${cat}.` : 'Limite removido.', 'success');
+      } catch (err) {
+        toast('Erro ao salvar limite. Tente novamente.', 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
 
     // ─── Editar / excluir aporte ─────────────────────────────────────────────
     let editandoAporteIdx = null;
@@ -2023,8 +2302,8 @@
         const itens = await getOrcamento(mes, ano);
         return {
           periodo:  { mes, ano },
-          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor })),
+          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '' })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '' })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,

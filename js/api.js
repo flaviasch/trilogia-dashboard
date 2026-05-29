@@ -464,37 +464,47 @@ export const PATRIMONIO_COR = {
 /**
  * Parseia o CSV do Raio-X para o formato esperado por saveOrcamento.
  *
- * Formato esperado do CSV (gerado pelo Agente Raio-X):
- *   categoria,tipo,valor
- *   Salário,receita,15000
- *   Moradia,despesa,4200
- *   ...
+ * Formato mínimo (legado):   categoria,tipo,valor
+ * Formato completo (v2):     data,descricao,categoria,tipo,valor
+ * Colunas opcionais aceitam qualquer ordem; separador auto-detectado (,;tab).
  *
- * @param {string} csvText - conteúdo do arquivo CSV
- * @returns {Array<{categoria, tipo, valor}>}
+ * @param {string} csvText
+ * @returns {Array<{categoria, tipo, valor, data?, descricao?}>}
  */
 export function parsearCsvRaioX(csvText) {
   const linhas = csvText.trim().split('\n').map(l => l.trim()).filter(Boolean);
   if (linhas.length < 2) throw new Error('CSV vazio ou sem dados.');
 
-  const cabecalho = linhas[0].split(',').map(c => c.trim().toLowerCase());
+  const primeiraLinha = linhas[0];
+  const sep = primeiraLinha.includes('\t') ? '\t'
+            : primeiraLinha.includes(';')  ? ';'
+            : ',';
+
+  const cabecalho = primeiraLinha.split(sep).map(c => c.trim().toLowerCase());
+
   const idxCategoria = cabecalho.indexOf('categoria');
   const idxTipo      = cabecalho.indexOf('tipo');
   const idxValor     = cabecalho.indexOf('valor');
+  const idxData      = cabecalho.indexOf('data');
+  const idxDescricao = ['descricao','descrição','descricão','description']
+    .map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
 
   if (idxCategoria === -1 || idxTipo === -1 || idxValor === -1) {
     throw new Error('CSV inválido: colunas esperadas são "categoria", "tipo", "valor".');
   }
 
   return linhas.slice(1).map((linha, i) => {
-    const cols = linha.split(',').map(c => c.trim());
+    const cols = linha.split(sep).map(c => c.trim());
     const tipo = cols[idxTipo]?.toLowerCase();
     if (tipo !== 'receita' && tipo !== 'despesa') {
       throw new Error(`Linha ${i + 2}: tipo inválido "${cols[idxTipo]}". Use "receita" ou "despesa".`);
     }
     const valor = parseFloat(cols[idxValor]?.replace(',', '.'));
     if (isNaN(valor)) throw new Error(`Linha ${i + 2}: valor inválido "${cols[idxValor]}".`);
-    return { categoria: cols[idxCategoria] || 'Sem categoria', tipo, valor };
+    const item = { categoria: cols[idxCategoria] || 'Sem categoria', tipo, valor };
+    if (idxData      !== -1 && cols[idxData])      item.data      = cols[idxData];
+    if (idxDescricao !== -1 && cols[idxDescricao]) item.descricao = cols[idxDescricao];
+    return item;
   });
 }
 
@@ -678,6 +688,26 @@ export function parsearCsvPatrimonio(csvText) {
   });
 
   return Object.values(acumulado);
+}
+
+// ─── Categorias de orçamento ──────────────────────────────────────────────────
+
+/**
+ * Retorna as categorias de orçamento da mentorada.
+ * Retorna [] se ainda não configurou — UI usa defaults.
+ * @returns {Promise<Array<{nome, limite, cor, customizada}>>}
+ */
+export async function getCategorias() {
+  const res = await call('getCategorias')({ uid: uidAtual() });
+  return res?.categorias || [];
+}
+
+/**
+ * Salva lista de categorias no Firestore.
+ * @param {Array<{nome, limite, cor, customizada}>} categorias
+ */
+export async function saveCategorias(categorias) {
+  return call('saveCategorias')({ uid: uidAtual(), categorias });
 }
 
 // ─── Clube Trilogia ───────────────────────────────────────────────────────────

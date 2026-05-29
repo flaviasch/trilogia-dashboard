@@ -90,11 +90,11 @@ class SheetsClient {
   }
 
   // ─── Orçamento ─────────────────────────────────────────────────────────────
-  // Aba: orcamento | Colunas: mes | ano | categoria | tipo | valor
-  // tipo: 'receita' | 'despesa'
+  // Aba: orcamento | Colunas: mes | ano | categoria | tipo | valor | data | descricao
+  // tipo: 'receita' | 'despesa' | 'aporte'
 
   async getOrcamento(mes, ano) {
-    const rows = await this.read('orcamento!A2:E');
+    const rows = await this.read('orcamento!A2:G');
     return rows
       .filter(r => parseInt(r[0]) === mes && parseInt(r[1]) === ano)
       .map(r => ({
@@ -103,18 +103,23 @@ class SheetsClient {
         categoria: r[2] || '',
         tipo:      r[3] || 'despesa',
         valor:     parseFloat(r[4]) || 0,
+        data:      r[5] || '',
+        descricao: r[6] || '',
       }));
   }
 
   /**
    * Substitui todos os registros do mês/ano pelos novos itens.
-   * Chamado após importar CSV do Raio-X.
+   * Chamado após importar CSV do Raio-X ou salvar edições manuais.
+   * Itens aceitos: { categoria, tipo, valor, data?, descricao? }
    */
   async saveOrcamento(mes, ano, itens) {
-    const rows = await this.read('orcamento!A2:E');
-    const outros = rows.filter(r => !(parseInt(r[0]) === mes && parseInt(r[1]) === ano));
-    const novos  = itens.map(i => [mes, ano, i.categoria, i.tipo, i.valor]);
-    await this.clear('orcamento!A2:E');
+    const rows = await this.read('orcamento!A2:G');
+    const outros = rows
+      .filter(r => !(parseInt(r[0]) === mes && parseInt(r[1]) === ano))
+      .map(r => [r[0]||'', r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||'', r[6]||'']);
+    const novos = itens.map(i => [mes, ano, i.categoria, i.tipo, i.valor, i.data || '', i.descricao || '']);
+    await this.clear('orcamento!A2:G');
     const tudo = [...outros, ...novos];
     if (tudo.length > 0) await this.write('orcamento!A2', tudo);
   }
