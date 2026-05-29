@@ -785,6 +785,10 @@ exports.deletarMentorada = onCall({}, async (request) => {
   const { uid } = request.data;
   if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
 
+  // Lê dados antes de apagar (audit log LGPD + preservar sheetId)
+  const docSnap = await db.collection('mentoradas').doc(uid).get();
+  const docData = docSnap.exists ? docSnap.data() : {};
+
   // Apaga conta Auth (ignora se já não existir)
   try {
     await admin.auth().deleteUser(uid);
@@ -792,10 +796,9 @@ exports.deletarMentorada = onCall({}, async (request) => {
     if (err.code !== 'auth/user-not-found') {
       throw new HttpsError('internal', `Erro ao remover conta: ${err.message}`);
     }
-    // Se já não existia no Auth, continua para limpar o Firestore
   }
 
-  // Apaga cobranças da mentorada (coleção raiz — não são subcoleção)
+  // Apaga cobranças (coleção raiz)
   try {
     const cobsSnap = await db.collection('cobrancas').where('uidMentorada', '==', uid).get();
     if (!cobsSnap.empty) {
@@ -805,10 +808,40 @@ exports.deletarMentorada = onCall({}, async (request) => {
     }
   } catch (err) {
     console.warn(`[deletarMentorada] Falha ao remover cobranças de ${uid}:`, err.message);
-    // Falha não impede remoção da conta
   }
 
-  // Apaga documento Firestore (inclui subcoleção contratos via delete recursivo não disponível no SDK — contratos ficam como documentos órfãos inofensivos)
+  // Apaga contratos (subcoleção)
+  try {
+    const contratosSnap = await db.collection('mentoradas').doc(uid)
+      .collection('contratos').get();
+    if (!contratosSnap.empty) {
+      const batch = db.batch();
+      contratosSnap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+  } catch (err) {
+    console.warn(`[deletarMentorada] Falha ao remover contratos de ${uid}:`, err.message);
+  }
+
+  // Audit log LGPD: registra deleção para rastreabilidade e para agendar limpeza da planilha
+  // Planilha é mantida 12 meses para possibilitar reativação, depois apagada por limparDadosExpirados
+  try {
+    await db.collection('mentoradas_deletadas').doc(uid).set({
+      nome:            docData.nome            || null,
+      email:           docData.email           || null,
+      produto:         docData.produto         || null,
+      inicio:          docData.inicio          || null,
+      sheetId:         docData.sheetId         || null,
+      planilhaApagada: false,
+      deletadoEm:      admin.firestore.FieldValue.serverTimestamp(),
+      deletadoPor:     request.auth?.uid       || 'admin',
+    });
+  } catch (err) {
+    // Não bloqueia a deleção — apenas registra o problema
+    console.warn(`[deletarMentorada] Falha ao criar audit log para ${uid}:`, err.message);
+  }
+
+  // Apaga documento principal
   try {
     await db.collection('mentoradas').doc(uid).delete();
   } catch (err) {
@@ -1835,6 +1868,49 @@ exports.notifMaioIR = onSchedule(
         subject: 'Atualize seu patrimônio com a declaração de IR',
         html:    emailIR(m.nome || 'mentorada'),
       }).catch(err => console.error(`Erro ao enviar IR para ${m.email}:`, err));
+    }
+  },
+);
+
+/**
+ * limparDadosExpirados — dia 1 de cada mês às 09h30 (Sao_Paulo)
+ * Conformidade LGPD: apaga planilhas Google Drive de mentoradas deletadas há mais de 12 meses.
+ * A planilha é mantida intencionalmente durante esse período para possibilitar reativação.
+ */
+exports.limparDadosExpirados = onSchedule(
+  { schedule: '30 9 1 * *', timeZone: 'America/Sao_Paulo', secrets: [sClientId, sClientSec, sRefresh] },
+  async () => {
+    const prazo = new Date();
+    prazo.setMonth(prazo.getMonth() - 12);
+
+    const snap = await db.collection('mentoradas_deletadas')
+      .where('planilhaApagada', '==', false)
+      .where('deletadoEm', '<', prazo)
+      .get();
+
+    if (snap.empty) {
+      console.log('[limparDadosExpirados] Nenhuma planilha para apagar.');
+      return;
+    }
+
+    const { google } = require('googleapis');
+    const auth = new google.auth.OAuth2(sClientId.value(), sClientSec.value());
+    auth.setCredentials({ refresh_token: sRefresh.value() });
+    const drive = google.drive({ version: 'v3', auth });
+
+    for (const doc of snap.docs) {
+      const { sheetId, nome } = doc.data();
+      if (!sheetId) {
+        await doc.ref.update({ planilhaApagada: true, planilhaApagadaEm: new Date() });
+        continue;
+      }
+      try {
+        await drive.files.delete({ fileId: sheetId });
+        await doc.ref.update({ planilhaApagada: true, planilhaApagadaEm: new Date() });
+        console.log(`[limparDadosExpirados] Planilha apagada: ${nome} (${sheetId})`);
+      } catch (err) {
+        console.error(`[limparDadosExpirados] Falha ao apagar ${sheetId} (${nome}):`, err.message);
+      }
     }
   },
 );
