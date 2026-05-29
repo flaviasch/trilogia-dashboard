@@ -2046,14 +2046,15 @@
       document.getElementById('periodoLabel').textContent =
         `${MESES[data.periodo.mes - 1]} de ${data.periodo.ano}`;
 
-      // Bloqueio de mês futuro
-      const _agora = new Date();
-      const _eMesAtual = data.periodo.mes === _agora.getMonth() + 1 &&
-                         data.periodo.ano === _agora.getFullYear();
+      // Permite navegar até 2 meses à frente (para ver faturas de cartão futuras)
+      const _agora   = new Date();
+      const _limiteTotal = (_agora.getFullYear() * 12 + _agora.getMonth() + 1) + 2;
+      const _periodoTotal = data.periodo.ano * 12 + data.periodo.mes;
+      const _noLimite = _periodoTotal >= _limiteTotal;
       const _btnNext = document.getElementById('btnNext');
-      _btnNext.disabled = _eMesAtual;
-      _btnNext.style.opacity = _eMesAtual ? '0.25' : '';
-      _btnNext.style.cursor  = _eMesAtual ? 'not-allowed' : '';
+      _btnNext.disabled = _noLimite;
+      _btnNext.style.opacity = _noLimite ? '0.25' : '';
+      _btnNext.style.cursor  = _noLimite ? 'not-allowed' : '';
 
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
       const totalDespesa = data.despesas.reduce((s, r) => s + r.valor, 0);
@@ -3023,7 +3024,9 @@
     document.getElementById('btnNext').addEventListener('click', async () => {
       let { mes, ano } = currentData.periodo;
       const agora = new Date();
-      if (mes === agora.getMonth() + 1 && ano === agora.getFullYear()) return; // já no mês atual
+      const limiteTotal  = (agora.getFullYear() * 12 + agora.getMonth() + 1) + 2;
+      const periodoTotal = ano * 12 + mes;
+      if (periodoTotal >= limiteTotal) return; // já no limite (+2 meses)
       mes++;
       if (mes > 12) { mes = 1; ano++; }
       currentData = await buscarPeriodo(mes, ano);
