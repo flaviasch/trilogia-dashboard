@@ -479,12 +479,17 @@
     .notif-card.aporte {
       background: rgba(74,222,128,0.07); border: 1px solid rgba(74,222,128,0.22);
     }
+    .notif-card.novidades {
+      background: linear-gradient(135deg, rgba(207,174,101,0.12), rgba(147,197,253,0.08));
+      border: 1px solid rgba(207,174,101,0.35);
+    }
     .notif-icon { font-size: 17px; line-height: 1; flex-shrink: 0; margin-top: 1px; }
     .notif-body { flex: 1; min-width: 0; }
     .notif-titulo { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
     .notif-card.perfil   .notif-titulo { color: var(--gold); }
     .notif-card.orcamento .notif-titulo { color: #93C5FD; }
     .notif-card.aporte   .notif-titulo { color: var(--positive); }
+    .notif-card.novidades .notif-titulo { color: var(--gold); font-size: 14px; }
     .notif-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
     .notif-cta {
       display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600;
@@ -493,6 +498,7 @@
     .notif-card.perfil   .notif-cta { color: var(--gold);    border: 1px solid rgba(207,174,101,0.3); }
     .notif-card.orcamento .notif-cta { color: #93C5FD;        border: 1px solid rgba(147,197,253,0.3); }
     .notif-card.aporte   .notif-cta { color: var(--positive); border: 1px solid rgba(74,222,128,0.3); }
+    .notif-card.novidades .notif-cta { color: var(--gold); border: 1px solid rgba(207,174,101,0.4); background: rgba(207,174,101,0.1); }
     .notif-dismiss {
       background: none; border: none; color: var(--text-muted); font-size: 14px;
       cursor: pointer; line-height: 1; padding: 2px 4px; flex-shrink: 0;
@@ -1157,6 +1163,17 @@
       const mesKey = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
 
       const notifs = [];
+
+      // ⓪ Novidades Fase 2 — banner comemorativo (aparece uma vez)
+      const novidadesKey = 'notif_novidades_fase2_orcamento';
+      if (!localStorage.getItem(novidadesKey)) {
+        notifs.unshift({
+          id: 'novidades', type: 'novidades', key: novidadesKey, icon: '🎉',
+          titulo: 'Orçamento com superpoderes: 4 novas abas no seu dashboard!',
+          desc: 'Planejamento por categoria com alertas de 80%, gráfico de pizza, tendência mês a mês e lançamentos individuais. Você escolhe: usa a planilha + app, ou só o app.',
+          cta: { label: 'Explorar as novidades', href: 'orcamento.html' },
+        });
+      }
 
       // ① Perfil de investidor — ausente ou > 180 dias sem atualizar
       const perfilKey = `notif_perfil_${mesKey}`;

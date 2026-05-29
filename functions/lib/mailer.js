@@ -354,6 +354,54 @@ function emailLembretePlanejamento(nome, proximoMes) {
   `);
 }
 
+/**
+ * E-mail: anúncio das novidades da Fase 2 do orçamento.
+ * @param {string} nome — nome da mentorada
+ */
+function emailNovidades(nome) {
+  const featureItem = (emoji, titulo, desc) =>
+    `<tr><td style="padding:12px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:32px;vertical-align:top;padding-top:2px;font-size:20px;">${emoji}</td>
+        <td style="padding-left:12px;">
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Seu dashboard acaba de ganhar superpoderes 🎉</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Tenho uma novidade pra você: o seu Dashboard Trilogia acabou de receber uma
+      atualização que transforma o controle de orçamento em algo bem mais poderoso.
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      O que mudou na página de Orçamento:
+    </p>
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
+      ${featureItem('🎯','Planejamento','Defina quanto você pretende gastar em cada categoria e receba um alerta automático quando estiver se aproximando do limite. Nunca mais ser pega de surpresa no fim do mês.')}
+      ${featureItem('📊','Gráficos','Veja um gráfico de pizza com seus gastos por categoria e acompanhe a tendência dos últimos 3 meses. Padrões financeiros ficam visíveis de um jeito que a planilha nunca mostrou.')}
+      ${featureItem('🔍','Detalhe','Registre cada lançamento com data e descrição. Aquela dúvida "onde foi esse dinheiro?" não existe mais.')}
+    </table>
+    <p style="${S.p}">
+      E o melhor: <strong style="color:#0D2B45;">você escolhe como usar.</strong>
+      Quer continuar usando a planilha do Raio-X e importar o CSV todo mês?
+      O dashboard processa e organiza tudo automaticamente.
+      Prefere lançar direto no app, sem planilha? Também funciona — é só adicionar manualmente.
+    </p>
+    <p style="margin:0 0 28px;font-size:14px;color:#4b5563;line-height:1.7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      <strong style="color:#0D2B45;">Dois jeitos de usar. Um resultado só:</strong>
+      controle financeiro real, sem esforço dobrado.
+    </p>
+    <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">
+      Acessar agora →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia</strong></p>
+  `);
+}
+
 module.exports = {
   sendEmail,
   emailRenovacaoPerfil,
@@ -361,6 +409,7 @@ module.exports = {
   emailLembreteOrcamento,
   emailLembreteAporte,
   emailLembretePlanejamento,
+  emailNovidades,
   emailIR,
   emailReenvioAcesso,
   emailBoasVindas,

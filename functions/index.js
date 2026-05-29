@@ -26,6 +26,7 @@ const {
   emailLembreteOrcamento,
   emailLembreteAporte,
   emailLembretePlanejamento,
+  emailNovidades,
   emailIR,
   emailReenvioAcesso,
   emailBoasVindas,
@@ -1875,6 +1876,31 @@ exports.notifDia1 = onSchedule(
  * Dia 28 de cada mês às 08h (Brasília):
  *   • Lembrete de aporte (todas as ativas)
  */
+/**
+ * Dispara e-mail de novidades para todas as mentoradas ativas.
+ * Função one-shot — chamar uma vez pelo admin após cada release importante.
+ */
+exports.anunciarNovidades = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Seu dashboard acaba de ganhar superpoderes 🎉',
+        html:    emailNovidades(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarNovidades] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  return { ok: true, enviados, erros };
+});
+
 exports.notifDia28 = onSchedule(
   { schedule: '0 8 28 * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
   async () => {
