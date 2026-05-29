@@ -277,6 +277,7 @@
         itens = await getClubeContent();
       } catch (err) {
         if (err.code === 'functions/permission-denied' || err.code === 'permission-denied') {
+          localStorage.removeItem('clubeAccess'); // limpa cache local — link some do menu
           document.getElementById('loadingOverlay').innerHTML =
             `<p style="color:var(--negative);font-size:14px">Você não tem acesso ao Clube Trilogia.<br><a href="index.html" style="color:var(--negative);text-decoration:underline">Voltar ao dashboard</a></p>`;
           return;
