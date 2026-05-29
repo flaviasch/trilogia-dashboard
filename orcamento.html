@@ -1328,6 +1328,18 @@
         <input type="text" inputmode="numeric" id="mValor" placeholder="0" />
       </div>
 
+      <!-- Cartão de crédito -->
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-secondary);user-select:none">
+          <input type="checkbox" id="mCartao" style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer" />
+          💳 Despesa no cartão de crédito
+        </label>
+      </div>
+      <div class="field-group" id="fgFatura" style="display:none">
+        <label for="mFatura">Mês da fatura (quando vai debitar)</label>
+        <input type="month" id="mFatura" />
+      </div>
+
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelarItem">Cancelar</button>
         <button class="btn-save" id="btnSalvarItem">Salvar</button>
@@ -1572,12 +1584,21 @@
         document.getElementById('mDescricao').value = item.descricao || '';
         setMoney(document.getElementById('mValor'), item.valor);
         if (!_catLocked) document.getElementById('mTipo').value = tipo;
+        // Cartão
+        const isCartao = !!item.cartao;
+        document.getElementById('mCartao').checked = isCartao;
+        document.getElementById('fgFatura').style.display = isCartao ? '' : 'none';
+        document.getElementById('mFatura').value = item.fatura || '';
       } else {
         if (!_catLocked) document.getElementById('mCategoria').value = '';
         // Pré-preenche com hoje para novos lançamentos
         document.getElementById('mData').value      = new Date().toISOString().split('T')[0];
         document.getElementById('mDescricao').value = '';
         document.getElementById('mValor').value     = '';
+        // Cartão: limpa
+        document.getElementById('mCartao').checked = false;
+        document.getElementById('fgFatura').style.display = 'none';
+        document.getElementById('mFatura').value = '';
       }
 
       modal.classList.remove('hidden');
@@ -1599,6 +1620,20 @@
     document.getElementById('btnCancelarItem').addEventListener('click', fecharModal);
     modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
 
+    // Toggle cartão → mostra/oculta fatura e pré-preenche próximo mês
+    document.getElementById('mCartao').addEventListener('change', () => {
+      const checked = document.getElementById('mCartao').checked;
+      const fgFatura = document.getElementById('fgFatura');
+      fgFatura.style.display = checked ? '' : 'none';
+      if (checked && !document.getElementById('mFatura').value) {
+        // Padrão: próximo mês
+        const d = new Date();
+        d.setMonth(d.getMonth() + 1);
+        document.getElementById('mFatura').value =
+          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
+      }
+    });
+
     document.getElementById('btnSalvarItem').addEventListener('click', async () => {
       const btnSalvarItem = document.getElementById('btnSalvarItem');
       const categoria = (_catLocked || document.getElementById('mCategoria').value.trim());
@@ -1608,17 +1643,40 @@
       const data      = document.getElementById('mData').value.trim();
       const descricao = document.getElementById('mDescricao').value.trim();
       const valor     = readMoney(document.getElementById('mValor'));
+      const cartao    = document.getElementById('mCartao').checked;
+      const fatura    = cartao ? document.getElementById('mFatura').value.trim() : '';
 
       if (!categoria) { toast('Preencha a categoria.', 'warning'); return; }
       if (!data) { toast('Preencha a data do lançamento.', 'warning'); return; }
+      if (cartao && !fatura) { toast('Selecione o mês da fatura.', 'warning'); return; }
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
 
-      const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
+      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura };
 
+      if (cartao && fatura) {
+        // Salva diretamente no mês da fatura (não no mês exibido)
+        const [fatAno, fatMes] = fatura.split('-').map(Number);
+        fecharModal();
+        setLoading(btnSalvarItem, true);
+        try {
+          const itensFatura = await getOrcamento(fatMes, fatAno);
+          itensFatura.push(novoItem);
+          await saveOrcamento(fatMes, fatAno, itensFatura);
+          toast(`💳 Salvo na fatura de ${MESES[fatMes - 1]} — visualize navegando para aquele mês.`, 'success', 5000);
+        } catch (err) {
+          toast('Erro ao salvar na fatura.', 'error');
+        } finally {
+          setLoading(btnSalvarItem, false);
+        }
+        return;
+      }
+
+      // Despesa normal: salva no mês atual
+      const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
       if (editandoIdx !== null && editandoIdx.tipo === tipo) {
-        lista[editandoIdx.idx] = { categoria, tipo, valor, data, descricao };
+        lista[editandoIdx.idx] = novoItem;
       } else {
-        lista.push({ categoria, tipo, valor, data, descricao });
+        lista.push(novoItem);
       }
 
       fecharModal();
@@ -1643,8 +1701,8 @@
       const { mes, ano } = currentData.periodo;
       const mesAtual = new Date().getMonth() + 1;
       const itens = [
-        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '' })),
-        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '' })),
+        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '' })),
+        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '' })),
         ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
       ];
       try {
@@ -1952,8 +2010,8 @@
         const itens = orcResult.value;
         currentData = {
           periodo:  { mes, ano },
-          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '' })),
+          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '' })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '' })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
@@ -2093,6 +2151,7 @@
           const sub = [
             d.data ? formatData(d.data) : null,
             `${pct(d.valor, totalReceita)} da receita`,
+            d.cartao && d.fatura ? `💳 Fatura ${MESES[parseInt(d.fatura.split('-')[1]) - 1]}` : null,
             ultrapassou ? '🔴 acima do limite planejado' : null
           ].filter(Boolean).join(' · ');
           return `
@@ -2275,8 +2334,12 @@
           const primary = item.descricao
             ? escapeHtml(item.descricao)
             : escapeHtml(item.categoria);
+          const faturaTag = item.cartao && item.fatura
+            ? `<span style="font-size:10px;background:rgba(207,174,101,0.15);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px">💳 Fatura ${MESES[parseInt(item.fatura.split('-')[1])-1]}</span>`
+            : '';
           const dataTag = item.data
-            ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}</div>` : '';
+            ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}${faturaTag}</div>`
+            : faturaTag ? `<div class="item-fonte">${faturaTag}</div>` : '';
           return `
             <div class="item-row">
               <div>
@@ -2935,8 +2998,8 @@
         categoriasMes = cats || [];
         return {
           periodo:  { mes, ano },
-          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '' })),
+          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '' })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '' })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,

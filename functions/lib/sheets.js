@@ -94,7 +94,7 @@ class SheetsClient {
   // tipo: 'receita' | 'despesa' | 'aporte'
 
   async getOrcamento(mes, ano) {
-    const rows = await this.read('orcamento!A2:G');
+    const rows = await this.read('orcamento!A2:I');
     return rows
       .filter(r => parseInt(r[0]) === mes && parseInt(r[1]) === ano)
       .map(r => ({
@@ -105,6 +105,8 @@ class SheetsClient {
         valor:     parseFloat(r[4]) || 0,
         data:      r[5] || '',
         descricao: r[6] || '',
+        cartao:    r[7] === '1',
+        fatura:    r[8] || '',
       }));
   }
 
@@ -114,12 +116,12 @@ class SheetsClient {
    * Itens aceitos: { categoria, tipo, valor, data?, descricao? }
    */
   async saveOrcamento(mes, ano, itens) {
-    const rows = await this.read('orcamento!A2:G');
+    const rows = await this.read('orcamento!A2:I');
     const outros = rows
       .filter(r => !(parseInt(r[0]) === mes && parseInt(r[1]) === ano))
-      .map(r => [r[0]||'', r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||'', r[6]||'']);
-    const novos = itens.map(i => [mes, ano, i.categoria, i.tipo, i.valor, i.data || '', i.descricao || '']);
-    await this.clear('orcamento!A2:G');
+      .map(r => [r[0]||'', r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||'', r[6]||'', r[7]||'', r[8]||'']);
+    const novos = itens.map(i => [mes, ano, i.categoria, i.tipo, i.valor, i.data || '', i.descricao || '', i.cartao ? '1' : '', i.fatura || '']);
+    await this.clear('orcamento!A2:I');
     const tudo = [...outros, ...novos];
     if (tudo.length > 0) await this.write('orcamento!A2', tudo);
   }
