@@ -24,6 +24,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Rate limiting — somente Cloud Functions (admin SDK)
+    match /rateLimit/{docId} {
+      allow read, write: if false;
+    }
+
     // Audit log LGPD — somente Cloud Functions (admin SDK) acessam; cliente nunca acessa.
     match /mentoradas_deletadas/{uid} {
       allow read, write: if false;

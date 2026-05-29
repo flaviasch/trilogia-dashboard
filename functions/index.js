@@ -51,6 +51,41 @@ function hoje() {
   return new Date().toISOString().split('T')[0];
 }
 
+/**
+ * Rate limiting por usuária/ação usando Firestore como contador.
+ * Lança HttpsError 'resource-exhausted' se o limite for atingido.
+ *
+ * @param {string} uid          — uid da usuária
+ * @param {string} action       — nome da ação (ex: 'saveOrcamento')
+ * @param {number} maxCalls     — máximo de chamadas permitidas na janela
+ * @param {number} windowMs     — tamanho da janela em milissegundos
+ */
+async function checkRateLimit(uid, action, maxCalls, windowMs) {
+  const now   = Date.now();
+  const docId = `${uid}_${action}`;
+  const ref   = db.collection('rateLimit').doc(docId);
+
+  await db.runTransaction(async (tx) => {
+    const doc = await tx.get(ref);
+    if (doc.exists) {
+      const { count, resetAt } = doc.data();
+      if (now < resetAt) {
+        if (count >= maxCalls) {
+          throw new HttpsError(
+            'resource-exhausted',
+            `Limite de requisições atingido para "${action}". Tente em alguns instantes.`
+          );
+        }
+        tx.update(ref, { count: admin.firestore.FieldValue.increment(1) });
+      } else {
+        tx.set(ref, { count: 1, resetAt: now + windowMs, uid, action });
+      }
+    } else {
+      tx.set(ref, { count: 1, resetAt: now + windowMs, uid, action });
+    }
+  });
+}
+
 // ─── DASHBOARD (index.html) ───────────────────────────────────────────────────
 
 /**
@@ -228,6 +263,7 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const { uid, mes, ano, itens } = request.data;
   requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveOrcamento', 30, 60_000); // 30/min
 
   // ── Validação ──────────────────────────────────────────────────────────────
   if (!Number.isInteger(mes) || mes < 1 || mes > 12)
@@ -414,6 +450,7 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
   const auth = requireAuth(request);
   const { uid, itens, tipo } = request.data; // tipo: 'ir' | 'corretora'
   requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'savePatrimonio', 10, 60_000); // 10/min
 
   // ── Validação ──────────────────────────────────────────────────────────────
   if (!Array.isArray(itens))
@@ -630,6 +667,7 @@ exports.saveDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     throw new HttpsError('invalid-argument', 'id e nome são obrigatórios.');
   }
 
+  await checkRateLimit(uid, 'saveDivida', 10, 60_000);
   const sheetId  = await getSheetId(db, uid);
   const sheetsD  = new SheetsClient(sheetId);
   await sheetsD.saveDivida(divida);
@@ -678,6 +716,7 @@ exports.saveReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     throw new HttpsError('invalid-argument', 'id e nome são obrigatórios.');
   }
 
+  await checkRateLimit(uid, 'saveReserva', 10, 60_000);
   const sheetId  = await getSheetId(db, uid);
   const sheetsR  = new SheetsClient(sheetId);
   await sheetsR.saveReserva(reserva);
@@ -1089,6 +1128,7 @@ exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) 
   const auth = requireAuth(request);
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'exportarMeusDados', 3, 3_600_000); // 3/hora
 
   // Dados do Firestore
   const docSnap = await db.collection('mentoradas').doc(uid).get();
