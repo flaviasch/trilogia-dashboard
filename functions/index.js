@@ -319,7 +319,8 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
  * Opera de forma ATÔMICA: lê uma vez, aplica todos os débitos, salva uma vez.
  * Evita race condition de múltiplas chamadas simultâneas ao aportePatrimonio.
  */
-exports.debitarPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+// exports.debitarPatrimonio — removido do deploy (fluxo manual preferido; código mantido para referência)
+const debitarPatrimonio = async (request) => { // eslint-disable-line no-unused-vars
   requireAuth(request);
   const { uid, valor } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -393,7 +394,7 @@ exports.debitarPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) 
   await sheets.upsertHistorico(data, totalAtivos, 0);
 
   return { ok: true, debitado: valor };
-});
+}; // fim debitarPatrimonio (não exportado)
 
 // ─── APORTE PATRIMÔNIO (orcamento.html) ──────────────────────────────────────
 

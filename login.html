@@ -197,7 +197,9 @@
       } catch (err) {
         btnLogin.disabled = false;
         btnLogin.textContent = 'Entrar';
-        if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        if (err.code === 'auth/user-disabled') {
+          showError('Seu acesso está suspenso. Entre em contato com a Flávia para reativar seu plano.');
+        } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
           showError('E-mail ou senha incorretos. Verifique e tente novamente.');
         } else if (err.code === 'auth/too-many-requests') {
           showError('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
