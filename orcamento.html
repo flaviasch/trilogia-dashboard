@@ -712,10 +712,12 @@
       /* Gráfico um pouco menor para caber na tela */
       .grafico-canvas-wrap { height: 200px; }
 
-      /* Strip de aporte: empilha e botão não transborda */
+      /* Strip de aporte: empilha label + row em coluna */
       .aporte-strip { flex-direction: column; align-items: stretch; gap: 10px; }
-      .aporte-strip-row { width: 100%; }
-      .aporte-strip-btn { flex-shrink: 1; white-space: normal; min-width: 90px; }
+      .aporte-strip-row { width: 100%; display: flex; }
+      /* Input ocupa todo o espaço; botão com largura fixa adequada */
+      .aporte-strip-input { flex: 1; min-width: 0; }
+      .aporte-strip-btn { flex-shrink: 0; width: auto; min-width: 100px; max-width: 130px; white-space: nowrap; font-size: 12px; padding: 10px 12px; }
 
       /* ─── Aba Planejamento — tabela mobile ── */
       /* Esconde a coluna de barra de progresso; mantém %, status e valores */
@@ -2984,6 +2986,14 @@
       };
       reader.readAsText(file, 'utf-8');
     });
+
+    // ─── Expõe funções usadas em onclick para o escopo global ────────────────
+    // Necessário porque <script type="module"> não adiciona ao window por padrão.
+    window.ativarTab        = ativarTab;
+    window.toggleReceitas   = toggleReceitas;
+    window.toggleDespesas   = toggleDespesas;
+    window.copiarMesAnterior = copiarMesAnterior;
+    window.editarLimitePlan = editarLimitePlan;
 
     // ─── Suporte ─────────────────────────────
     (function() {
