@@ -1217,7 +1217,22 @@
         });
       }
 
-      // ⑤ Extrato pendente — retirada de reserva sem atualização da corretora
+      // ⑤ Planejamento do próximo mês — dias 28-31
+      const proxMesNum   = agora.getMonth() + 2 > 12 ? 1 : agora.getMonth() + 2;
+      const proxMesAno   = agora.getMonth() + 2 > 12 ? agora.getFullYear() + 1 : agora.getFullYear();
+      const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+      const nomePM = MESES_PT[proxMesNum - 1];
+      const planKey = `notif_plan_${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2,'0')}`;
+      if (dia >= 28 && !localStorage.getItem(planKey)) {
+        notifs.push({
+          id: 'planejamento', type: 'orcamento', key: planKey, icon: '📅',
+          titulo: `Configure o planejamento de ${nomePM}`,
+          desc: `Defina quanto planeja gastar em cada categoria em ${nomePM} e receba alertas automáticos quando estiver próxima do limite.`,
+          cta: { label: 'Configurar planejamento', href: 'orcamento.html' },
+        });
+      }
+
+      // ⑥ Extrato pendente — retirada de reserva sem atualização da corretora
       if (localStorage.getItem('patrimonio_extrato_pendente') === '1') {
         notifs.push({
           id: 'extrato', type: 'orcamento', removeKey: 'patrimonio_extrato_pendente', icon: '📊',

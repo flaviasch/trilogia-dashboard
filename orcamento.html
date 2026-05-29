@@ -717,6 +717,138 @@
       .aporte-strip-row { width: 100%; }
     }
 
+    /* ─── Abas ──────────────────────────────── */
+    .tabs-bar {
+      display: flex; gap: 4px; margin-bottom: 28px;
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 10px; padding: 4px;
+    }
+    .tab-btn {
+      flex: 1; background: transparent; border: none; border-radius: 7px;
+      padding: 9px 8px; font-size: 13px; font-weight: 500; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all .2s;
+      white-space: nowrap;
+    }
+    .tab-btn.active { background: var(--navy-mid); color: var(--white); font-weight: 600; }
+    .tab-btn:hover:not(.active) { color: var(--text-secondary); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+    @media (max-width: 640px) {
+      .tab-btn { font-size: 11px; padding: 8px 4px; }
+    }
+
+    /* ─── Seção colapsável ───────────────────── */
+    .section-header.expansivel {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 20px; margin-bottom: 0; cursor: pointer; user-select: none;
+      transition: border-color .2s; display: flex; align-items: center; justify-content: space-between;
+    }
+    .section-header.expansivel:hover { border-color: rgba(255,255,255,.14); }
+    .section-header.expansivel.aberta { border-radius: 12px 12px 0 0; border-bottom-color: transparent; }
+    .section-title-row { display: flex; align-items: center; gap: 10px; }
+    .section-chevron {
+      font-size: 12px; color: var(--text-muted); transition: transform .25s;
+      display: flex; align-items: center; flex-shrink: 0;
+    }
+    .section-header.aberta .section-chevron { transform: rotate(180deg); }
+    .section-body-col {
+      background: var(--navy); border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 12px 12px; overflow: hidden;
+      max-height: 0; transition: max-height .3s ease;
+    }
+    .section-body-col.aberta { max-height: 3000px; padding-bottom: 4px; }
+    .section-body-col .items-list { padding: 12px 16px 0; }
+    .section-body-col .total-row { padding: 14px 36px 4px; }
+    .section-body-col .btn-add-item { margin: 4px 16px 12px; width: calc(100% - 32px); }
+
+    /* ─── Aba Planejamento ───────────────────── */
+    .plan-acoes {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px; gap: 12px; flex-wrap: wrap;
+    }
+    .plan-desc { font-size: 13px; color: var(--text-muted); }
+    .btn-copiar-mes {
+      background: transparent; border: 1px solid var(--border-gold); border-radius: 8px;
+      padding: 8px 16px; font-size: 13px; font-weight: 500; color: var(--gold);
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      display: flex; align-items: center; gap: 7px; transition: all .2s; white-space: nowrap;
+    }
+    .btn-copiar-mes:hover { background: var(--gold-dim); }
+    .btn-copiar-mes:disabled { opacity: .5; cursor: default; }
+    .alertas-banner {
+      background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3);
+      border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;
+      display: flex; align-items: flex-start; gap: 14px;
+    }
+    .alertas-banner-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .alertas-banner-title { font-size: 14px; font-weight: 600; color: var(--negative); margin-bottom: 6px; }
+    .alertas-lista { display: flex; flex-direction: column; gap: 5px; }
+    .alertas-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+    .alertas-pct {
+      font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; flex-shrink: 0;
+    }
+    .alertas-pct.amarelo { background: rgba(245,158,11,.15); color: #f59e0b; }
+    .alertas-pct.vermelho { background: var(--negative-dim); color: var(--negative); }
+    .plan-table-wrap {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; margin-bottom: 16px;
+    }
+    .plan-table { width: 100%; border-collapse: collapse; }
+    .plan-thead th {
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--text-muted); padding: 14px 16px 12px; text-align: left;
+    }
+    .plan-thead th:not(:first-child) { text-align: right; }
+    .plan-row td { padding: 13px 16px; font-size: 14px; vertical-align: middle; border-top: 1px solid var(--border); }
+    .plan-row td:not(:first-child) { text-align: right; }
+    .plan-row:hover td { background: rgba(255,255,255,.02); }
+    .plan-cat { font-weight: 500; }
+    .plan-plan-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+    .plan-valor-plan { font-weight: 600; color: var(--gold); }
+    .btn-edit-plan {
+      background: transparent; border: 1px solid var(--border); border-radius: 4px;
+      width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+      font-size: 10px; cursor: pointer; color: var(--text-muted);
+      opacity: 0; transition: opacity .15s; flex-shrink: 0;
+    }
+    .plan-row:hover .btn-edit-plan { opacity: 1; }
+    .btn-edit-plan:hover { border-color: var(--border-gold); color: var(--gold); }
+    .input-plan {
+      background: rgba(255,255,255,.06); border: 1px solid var(--border-gold); border-radius: 6px;
+      padding: 4px 8px; font-size: 13px; font-weight: 600; color: var(--gold);
+      font-family: 'Inter', sans-serif; text-align: right; width: 90px; outline: none;
+    }
+    .plan-bar-wrap { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+    .plan-bar-track { width: 80px; height: 5px; background: rgba(255,255,255,.07); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
+    .plan-bar-fill { height: 100%; border-radius: 4px; transition: width .3s; }
+    .plan-pct-text { font-size: 12px; font-weight: 700; width: 34px; text-align: right; flex-shrink: 0; }
+    .plan-status { font-size: 16px; }
+    .plan-total-row td {
+      padding: 13px 16px; font-size: 14px; font-weight: 700; border-top: 2px solid var(--border);
+    }
+    .plan-total-row td:not(:first-child) { text-align: right; }
+    .plan-nenhum { padding: 32px 20px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    .notif-info-box {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 18px; display: flex; align-items: flex-start; gap: 12px;
+    }
+    .notif-info-box-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .notif-info-box-title { font-size: 13px; font-weight: 600; color: var(--gold); margin-bottom: 3px; }
+    .notif-info-box-text { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ─── Aba Gráficos ───────────────────────── */
+    .graficos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 640px) { .graficos-grid { grid-template-columns: 1fr; } }
+    .pizza-wrap { position: relative; height: 280px; max-width: 280px; margin: 0 auto; }
+    .tend-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .tend-table th {
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+      color: var(--text-muted); padding: 0 8px 10px; text-align: right;
+    }
+    .tend-table th:first-child { text-align: left; }
+    .tend-table td { font-size: 13px; padding: 8px; border-top: 1px solid var(--border); }
+    .tend-table td:not(:first-child) { text-align: right; font-weight: 600; }
+
     /* ─── Grupos de categoria de despesa ────── */
     .cat-group {
       margin-bottom: 10px;
@@ -939,65 +1071,111 @@
       </div>
     </div>
 
-    <!-- Receitas -->
-    <div class="section">
-      <div class="section-header">
-        <h2 class="section-title">Receitas</h2>
-        <span class="section-total" id="receitaTotal">—</span>
-      </div>
-      <div class="items-list" id="receitasList"></div>
+    <!-- Abas -->
+    <div class="tabs-bar">
+      <button class="tab-btn active" id="tabBtnResumo"      onclick="ativarTab('resumo')">📋 Resumo</button>
+      <button class="tab-btn"        id="tabBtnPlanejamento" onclick="ativarTab('planejamento')">🎯 Planejamento</button>
+      <button class="tab-btn"        id="tabBtnGraficos"     onclick="ativarTab('graficos')">📊 Gráficos</button>
+      <button class="tab-btn"        id="tabBtnDetalhe"      onclick="ativarTab('detalhe')">🔍 Detalhe</button>
     </div>
 
-    <!-- Despesas -->
-    <div class="section">
-      <div class="section-header">
-        <h2 class="section-title">Despesas por categoria</h2>
-        <span class="section-total" id="despesaTotal">—</span>
-      </div>
-      <div class="items-list" id="despesasList"></div>
-    </div>
+    <!-- ═══ ABA RESUMO ════════════════════════════════════════════════ -->
+    <div class="tab-pane active" id="tab-resumo">
 
-    <!-- Sobra destacada -->
-    <div id="sobraBox"></div>
-
-    <!-- Strip: registrar aporte -->
-    <div class="aporte-strip">
-      <div class="aporte-strip-label">Registrar aporte</div>
-      <div class="aporte-strip-row">
-        <input type="text" inputmode="numeric" class="aporte-strip-input"
-               id="aporteEfetivadoInput" placeholder="Valor (R$)" />
-        <button class="aporte-strip-btn" id="btnSalvarAporte">Registrar →</button>
-      </div>
-    </div>
-
-    <!-- Histórico de aportes do mês -->
-    <div id="aportesList"></div>
-
-    <!-- Ritmo dos aportes nas reservas -->
-    <div id="ritmoBox"></div>
-
-    <!-- Gráfico aportes: realizado × planejado -->
-    <div class="grafico-section" id="graficoSection" style="display:none">
-      <div class="grafico-card">
-        <div class="grafico-header">
-          <h2 class="grafico-title">Aportes — Realizado × Planejado</h2>
-          <span class="grafico-ano" id="graficoAno"></span>
-        </div>
-        <div class="grafico-canvas-wrap">
-          <canvas id="graficoCanvas"></canvas>
-        </div>
-        <div class="grafico-legenda">
-          <div class="grafico-leg-item">
-            <div class="grafico-leg-dot" style="background:rgba(207,174,101,0.75)"></div>
-            Aporte realizado (acumulado)
+      <!-- Receitas (colapsável) -->
+      <div class="section" id="secaoReceitas">
+        <div class="section-header expansivel" id="headerReceitas" onclick="toggleReceitas()">
+          <div class="section-title-row">
+            <h2 class="section-title">Receitas</h2>
           </div>
-          <div class="grafico-leg-item">
-            <div class="grafico-leg-dot linha" style="background:#4ade80"></div>
-            Meta acumulada (planejado)
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="section-total" id="receitaTotal" style="color:var(--positive)">—</span>
+            <span class="section-chevron">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4,6 8,10 12,6"/></svg>
+            </span>
           </div>
         </div>
-        <div id="graficoVelocidade"></div>
+        <div class="section-body-col" id="bodyReceitas">
+          <div class="items-list" id="receitasList"></div>
+        </div>
       </div>
+
+      <!-- Despesas totais (colapsável) -->
+      <div class="section" id="secaoDespesas" style="margin-top:12px">
+        <div class="section-header expansivel" id="headerDespesas" onclick="toggleDespesas()">
+          <div class="section-title-row">
+            <h2 class="section-title">Despesas totais</h2>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="section-total" id="despesaTotal" style="color:var(--negative)">—</span>
+            <span class="section-chevron">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4,6 8,10 12,6"/></svg>
+            </span>
+          </div>
+        </div>
+        <div class="section-body-col" id="bodyDespesas">
+          <div class="items-list" id="despesasList"></div>
+        </div>
+      </div>
+
+      <!-- Sobra destacada -->
+      <div id="sobraBox" style="margin-top:24px"></div>
+
+      <!-- Strip: registrar aporte -->
+      <div class="aporte-strip">
+        <div class="aporte-strip-label">Registrar aporte</div>
+        <div class="aporte-strip-row">
+          <input type="text" inputmode="numeric" class="aporte-strip-input"
+                 id="aporteEfetivadoInput" placeholder="Valor (R$)" />
+          <button class="aporte-strip-btn" id="btnSalvarAporte">Registrar →</button>
+        </div>
+      </div>
+
+      <!-- Histórico de aportes do mês -->
+      <div id="aportesList"></div>
+
+      <!-- Ritmo dos aportes nas reservas -->
+      <div id="ritmoBox"></div>
+
+      <!-- Gráfico aportes: realizado × planejado -->
+      <div class="grafico-section" id="graficoSection" style="display:none">
+        <div class="grafico-card">
+          <div class="grafico-header">
+            <h2 class="grafico-title">Aportes — Realizado × Planejado</h2>
+            <span class="grafico-ano" id="graficoAno"></span>
+          </div>
+          <div class="grafico-canvas-wrap">
+            <canvas id="graficoCanvas"></canvas>
+          </div>
+          <div class="grafico-legenda">
+            <div class="grafico-leg-item">
+              <div class="grafico-leg-dot" style="background:rgba(207,174,101,0.75)"></div>
+              Aporte realizado (acumulado)
+            </div>
+            <div class="grafico-leg-item">
+              <div class="grafico-leg-dot linha" style="background:#4ade80"></div>
+              Meta acumulada (planejado)
+            </div>
+          </div>
+          <div id="graficoVelocidade"></div>
+        </div>
+      </div>
+
+    </div><!-- /tab-resumo -->
+
+    <!-- ═══ ABA PLANEJAMENTO ══════════════════════════════════════════ -->
+    <div class="tab-pane" id="tab-planejamento">
+      <div id="planejamentoContent"></div>
+    </div>
+
+    <!-- ═══ ABA GRÁFICOS ═════════════════════════════════════════════ -->
+    <div class="tab-pane" id="tab-graficos">
+      <div id="graficosContent"></div>
+    </div>
+
+    <!-- ═══ ABA DETALHE ══════════════════════════════════════════════ -->
+    <div class="tab-pane" id="tab-detalhe">
+      <div id="detalheContent"></div>
     </div>
 
   </main>
@@ -1117,6 +1295,10 @@
     <div class="modal-card">
       <h2 class="modal-title">Limite de orçamento</h2>
       <p class="modal-sub" id="modalLimiteSub">—</p>
+      <div class="field-group" id="modalLimiteNomeWrap" style="display:none">
+        <label for="mLimiteNome">Categoria</label>
+        <input type="text" id="mLimiteNome" placeholder="ex: Alimentação, Lazer…" />
+      </div>
       <div class="field-group">
         <label for="mLimiteValor">Limite mensal (R$) — deixe 0 para remover</label>
         <input type="text" inputmode="numeric" id="mLimiteValor" placeholder="ex: 1.000" />
@@ -1131,7 +1313,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategorias, saveCategorias, setViewAsUid } from './js/api.js?v=7';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid } from './js/api.js?v=8';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -1196,6 +1378,32 @@
     const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
+    // ─── Navegação por abas ───────────────────────────────────────────────────
+    function ativarTab(id) {
+      _tabAtiva = id;
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + id)?.classList.add('active');
+      document.getElementById('tabBtn' + id.charAt(0).toUpperCase() + id.slice(1))?.classList.add('active');
+      if (id === 'planejamento') renderPlanejamento(currentData, categoriasMes);
+      if (id === 'graficos')    renderGraficos(currentData);
+      if (id === 'detalhe')     renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
+    }
+
+    // ─── Colapsáveis ─────────────────────────────────────────────────────────
+    function toggleReceitas() {
+      const h = document.getElementById('headerReceitas');
+      const b = document.getElementById('bodyReceitas');
+      const open = b.classList.toggle('aberta');
+      h.classList.toggle('aberta', open);
+    }
+    function toggleDespesas() {
+      const h = document.getElementById('headerDespesas');
+      const b = document.getElementById('bodyDespesas');
+      const open = b.classList.toggle('aberta');
+      h.classList.toggle('aberta', open);
+    }
+
     // ─── Formatação monetária em inputs ──────────────────────────────────────
     function bindMoneyInput(el) {
       el.addEventListener('input', () => {
@@ -1220,7 +1428,9 @@
     let currentData = { periodo: { mes: new Date().getMonth() + 1, ano: new Date().getFullYear() }, receitas: [], despesas: [], aportes: [] };
     let reservas = [];
     let perfilInvestidor = null;
-    let categorias = []; // [{ nome, limite, cor, customizada }]
+    let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
+    let _tabAtiva = 'resumo';
+    let _pizzaInstance = null;
 
     // ─── Helpers de texto ────────────────────────────────────────────────────
     function escapeHtml(str) {
@@ -1680,7 +1890,7 @@
         getOrcamento(mes, ano),
         getReservas(),
         getPerfil(),
-        getCategorias(),
+        getCategoriasMes(mes, ano),
       ]);
 
       if (orcResult.status === 'fulfilled') {
@@ -1702,7 +1912,7 @@
 
       if (resResult.status === 'fulfilled')   reservas = resResult.value || [];
       if (perfilResult.status === 'fulfilled') perfilInvestidor = perfilResult.value?.perfil || null;
-      if (catResult.status === 'fulfilled')    categorias = catResult.value || [];
+      if (catResult.status === 'fulfilled')    categoriasMes = catResult.value || [];
 
       try {
         render(currentData);
@@ -1816,8 +2026,53 @@
         btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec)));
       document.getElementById('btnAddReceita').addEventListener('click', () => abrirModal('receita'));
 
-      // ── Despesas — agrupadas por categoria com limite ────────────────────────
-      renderDespesasGrupos(data, totalDespesa);
+      // ── Despesas — lista plana no Resumo ────────────────────────────────────
+      const despList = document.getElementById('despesasList');
+      const despOrdenadas = [...data.despesas].sort((a, b) => b.valor - a.valor);
+      despList.innerHTML = despOrdenadas.map((d) => {
+          const idxOriginal = data.despesas.indexOf(d);
+          const pDesp = totalDespesa > 0 ? (d.valor / totalDespesa) * 100 : 0;
+          // Verifica se tem limite definido e se ultrapassou
+          const catPlan = categoriasMes.find(c => c.nome === d.categoria);
+          const ultrapassou = catPlan?.limite > 0 && d.valor > catPlan.limite;
+          const sub = [
+            d.data ? formatData(d.data) : null,
+            `${pct(d.valor, totalReceita)} da receita`,
+            ultrapassou ? '🔴 acima do limite planejado' : null
+          ].filter(Boolean).join(' · ');
+          return `
+            <div class="item-row">
+              <div>
+                <div class="item-categoria">${escapeHtml(d.categoria)}</div>
+                <div class="item-fonte">${escapeHtml(sub)}</div>
+              </div>
+              <div class="item-bar-col">
+                <div class="item-bar-track"><div class="item-bar-fill despesa" style="width:${pDesp}%"></div></div>
+                <div class="item-pct">${pDesp.toFixed(1)}% das despesas</div>
+              </div>
+              <div class="item-value despesa" style="${ultrapassou?'color:var(--negative)':''}">${brl(d.valor)}</div>
+              <div class="item-actions">
+                <button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_EDIT}</button>
+                <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_DEL}</button>
+              </div>
+            </div>`;
+        }).join('') +
+        `<div class="total-row">
+          <span class="total-label">Total despesas</span>
+          <span class="total-value despesa">${brl(totalDespesa)}</span>
+        </div>
+        <button class="btn-add-item" id="btnAddDespesa">+ Adicionar despesa</button>`;
+
+      despList.querySelectorAll('[data-edit-desp]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
+      despList.querySelectorAll('[data-del-desp]').forEach(btn =>
+        btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
+      document.getElementById('btnAddDespesa').addEventListener('click', () => abrirModal('despesa'));
+
+      // Re-renderiza abas abertas
+      if (_tabAtiva === 'planejamento') renderPlanejamento(data, categoriasMes);
+      if (_tabAtiva === 'graficos')     renderGraficos(data);
+      if (_tabAtiva === 'detalhe')      renderDespesasGrupos(data, totalDespesa);
 
       renderAportesList(data);
 
@@ -1944,7 +2199,7 @@
 
       const gruposHTML = ordem.map(catNome => {
         const grupo  = grupos[catNome];
-        const catObj = categorias.find(c => c.nome === catNome);
+        const catObj = categoriasMes.find(c => c.nome === catNome);
         const limite = catObj?.limite || 0;
 
         // Barra de limite
@@ -2010,10 +2265,314 @@
       despList.querySelectorAll('[data-del-desp]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
       despList.querySelectorAll('.btn-set-limite').forEach(btn =>
-        btn.addEventListener('click', () => abrirModalLimite(btn.dataset.cat)));
+        btn.addEventListener('click', (e) => { e.stopPropagation(); abrirModalLimite(btn.dataset.cat); }));
       despList.querySelectorAll('.cat-add-btn').forEach(btn =>
         btn.addEventListener('click', () => abrirModal('despesa', null, btn.dataset.cat)));
       document.getElementById('btnAddDespesa')?.addEventListener('click', () => abrirModal('despesa'));
+    }
+
+    // ─── Aba Planejamento ─────────────────────────────────────────────────────
+    function renderPlanejamento(data, cats) {
+      const el = document.getElementById('planejamentoContent');
+      if (!el) return;
+
+      const { mes, ano } = data.periodo;
+      const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
+
+      // Agrega despesas por categoria
+      const porCat = {};
+      data.despesas.forEach(d => {
+        porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
+      });
+
+      // Todas as categorias (union: despesas reais + categorias planejadas)
+      const todasCats = [...new Set([
+        ...Object.keys(porCat),
+        ...cats.map(c => c.nome),
+      ])].sort((a, b) => (porCat[b] || 0) - (porCat[a] || 0));
+
+      // Alertas: categorias >= 80% do limite
+      const alertas = todasCats.filter(cat => {
+        const plan = cats.find(c => c.nome === cat);
+        if (!plan?.limite) return false;
+        const pct = (porCat[cat] || 0) / plan.limite * 100;
+        return pct >= 80;
+      }).map(cat => {
+        const plan = cats.find(c => c.nome === cat);
+        const real = porCat[cat] || 0;
+        const p = Math.round(real / plan.limite * 100);
+        return { cat, real, limite: plan.limite, pct: p };
+      });
+
+      // Banner de alertas
+      let alertasHTML = '';
+      if (alertas.length > 0) {
+        const itens = alertas.map(a => {
+          const cls = a.pct >= 100 ? 'vermelho' : 'amarelo';
+          const msg = a.pct >= 100
+            ? `${brl(a.real - a.limite)} acima do limite`
+            : `restam ${brl(a.limite - a.real)}`;
+          return `<div class="alertas-item">
+            <span class="alertas-pct ${cls}">${a.pct}%</span>
+            <span><strong>${escapeHtml(a.cat)}</strong> — ${brl(a.real)} de ${brl(a.limite)} — <em>${msg}</em></span>
+          </div>`;
+        }).join('');
+        alertasHTML = `
+          <div class="alertas-banner">
+            <div class="alertas-banner-icon">⚠️</div>
+            <div>
+              <div class="alertas-banner-title">${alertas.length} categori${alertas.length > 1 ? 'as precisam' : 'a precisa'} de atenção</div>
+              <div class="alertas-lista">${itens}</div>
+            </div>
+          </div>`;
+      }
+
+      // Totais
+      const totalPlan = cats.reduce((s, c) => s + (c.limite || 0), 0);
+      const totalReal = data.despesas.reduce((s, d) => s + d.valor, 0);
+
+      // Linhas da tabela
+      const linhas = todasCats.map(cat => {
+        const plan  = cats.find(c => c.nome === cat);
+        const limite = plan?.limite || 0;
+        const real   = porCat[cat] || 0;
+        const pct    = limite > 0 ? Math.min(real / limite * 100, 200) : 0;
+        const cor    = pct > 100 ? 'var(--negative)' : pct > 80 ? '#f59e0b' : 'var(--positive)';
+        const emoji  = pct > 100 ? '🔴' : pct > 80 ? '🟡' : limite > 0 ? '🟢' : '⚪';
+        const realCor = pct > 100 ? 'color:var(--negative)' : pct > 80 ? 'color:#f59e0b' : pct > 0 ? 'color:var(--positive)' : '';
+        const planCell = limite > 0
+          ? `<div class="plan-plan-wrap">
+               <span class="plan-valor-plan" data-cat-plan="${escapeHtml(cat)}">${brl(limite)}</span>
+               <button class="btn-edit-plan" onclick="editarLimitePlan('${escapeHtml(cat)}')" title="Editar">✎</button>
+             </div>`
+          : `<div class="plan-plan-wrap">
+               <span style="color:var(--text-muted);font-size:12px;font-style:italic">não definido</span>
+               <button class="btn-edit-plan" style="opacity:1" onclick="editarLimitePlan('${escapeHtml(cat)}')" title="Definir">+</button>
+             </div>`;
+        const barCell = limite > 0
+          ? `<div class="plan-bar-wrap">
+               <div class="plan-bar-track"><div class="plan-bar-fill" style="width:${Math.min(pct,100).toFixed(1)}%;background:${cor}"></div></div>
+               <span class="plan-pct-text" style="color:${cor}">${pct.toFixed(0)}%</span>
+             </div>`
+          : `<div class="plan-bar-wrap"><span style="color:var(--text-muted);font-size:12px">—</span></div>`;
+        return `<tr class="plan-row">
+          <td class="plan-cat" style="padding-left:20px">${escapeHtml(cat)}</td>
+          <td>${planCell}</td>
+          <td><span style="${realCor};font-weight:600">${brl(real)}</span></td>
+          <td style="min-width:140px">${barCell}</td>
+          <td style="padding-right:20px;text-align:center"><span class="plan-status">${emoji}</span></td>
+        </tr>`;
+      }).join('');
+
+      const totalPctGlobal = totalPlan > 0 ? Math.round(totalReal / totalPlan * 100) : 0;
+      const totalCorGlobal = totalPctGlobal > 100 ? 'var(--negative)' : totalPctGlobal > 80 ? '#f59e0b' : 'var(--positive)';
+
+      el.innerHTML = `
+        <div class="plan-acoes">
+          <span class="plan-desc">Defina quanto planeja gastar em cada categoria este mês.</span>
+          <button class="btn-copiar-mes" id="btnCopiarMes" onclick="copiarMesAnterior()">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="9" height="9" rx="1"/><path d="M5 5V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-1"/></svg>
+            Copiar de ${nomeMesCurto(mes > 1 ? mes - 1 : 12, mes > 1 ? ano : ano - 1)}
+          </button>
+        </div>
+        ${alertasHTML}
+        <div class="plan-table-wrap">
+          <table class="plan-table">
+            <thead class="plan-thead">
+              <tr>
+                <th style="padding-left:20px">Categoria</th>
+                <th>Planejado</th>
+                <th>Realizado</th>
+                <th>Progresso</th>
+                <th style="padding-right:20px;text-align:center">Status</th>
+              </tr>
+            </thead>
+            <tbody>${linhas || `<tr><td colspan="5" class="plan-nenhum">Nenhuma despesa lançada este mês.<br>Importe o CSV ou adicione manualmente na aba Resumo.</td></tr>`}</tbody>
+            <tfoot>
+              <tr class="plan-total-row">
+                <td style="padding-left:20px;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em">Total</td>
+                <td style="color:var(--gold)">${totalPlan > 0 ? brl(totalPlan) : '—'}</td>
+                <td style="color:var(--negative);font-weight:700">${brl(totalReal)}</td>
+                <td>${totalPlan > 0 ? `<div class="plan-bar-wrap"><div class="plan-bar-track"><div class="plan-bar-fill" style="width:${Math.min(totalPctGlobal,100)}%;background:${totalCorGlobal}"></div></div><span class="plan-pct-text" style="color:${totalCorGlobal}">${totalPctGlobal}%</span></div>` : '—'}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="notif-info-box">
+          <div class="notif-info-box-icon">🔔</div>
+          <div>
+            <div class="notif-info-box-title">Notificações automáticas</div>
+            <div class="notif-info-box-text">
+              Ao atingir <strong style="color:var(--white)">80%</strong> do limite de uma categoria, um alerta aparece aqui no painel.<br>
+              Todo dia <strong style="color:var(--white)">28</strong> você também recebe um e-mail lembrando de configurar o planejamento do próximo mês.
+            </div>
+          </div>
+        </div>
+        <button class="btn-add-item" style="margin-top:14px" onclick="editarLimitePlan('')">+ Definir limite para nova categoria</button>`;
+    }
+
+    function nomeMesCurto(mes, ano) {
+      const nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      return nomes[mes - 1];
+    }
+
+    function editarLimitePlan(cat) {
+      // Abre o modal de limite (já existente) com a categoria
+      abrirModalLimite(cat);
+    }
+
+    async function copiarMesAnterior() {
+      const { mes, ano } = currentData.periodo;
+      const mesPrev = mes > 1 ? mes - 1 : 12;
+      const anoPrev = mes > 1 ? ano : ano - 1;
+      const btn = document.getElementById('btnCopiarMes');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = '⏳ Copiando...';
+      try {
+        const cats = await getCategoriasMes(mesPrev, anoPrev);
+        if (!cats || cats.length === 0) {
+          toast(`Nenhum planejamento encontrado em ${nomeMesCurto(mesPrev, anoPrev)}.`, 'info');
+          return;
+        }
+        await saveCategoriasMes(mes, ano, cats);
+        categoriasMes = cats;
+        renderPlanejamento(currentData, categoriasMes);
+        toast(`Planejamento de ${nomeMesCurto(mesPrev, anoPrev)} copiado!`, 'success');
+      } catch (err) {
+        toast('Erro ao copiar planejamento.', 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="9" height="9" rx="1"/><path d="M5 5V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-1"/></svg> Copiar de ${nomeMesCurto(mesPrev, anoPrev)}`; }
+      }
+    }
+
+    // ─── Aba Gráficos ─────────────────────────────────────────────────────────
+    function renderGraficos(data) {
+      const el = document.getElementById('graficosContent');
+      if (!el) return;
+
+      const totalDespesa = data.despesas.reduce((s, d) => s + d.valor, 0);
+
+      // Agrega por categoria para a pizza
+      const porCat = {};
+      data.despesas.forEach(d => {
+        porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
+      });
+      const cats    = Object.keys(porCat).sort((a, b) => porCat[b] - porCat[a]);
+      const valores = cats.map(c => porCat[c]);
+
+      // Tendência: últimos 3 meses para cada categoria
+      const { mes, ano } = data.periodo;
+      const CORES_PIZZA = ['#3b82f6','#CFAE65','#8b5cf6','#f87171','#4ade80','#94a3b8','#f59e0b','#06b6d4','#ec4899'];
+
+      el.innerHTML = `
+        <div class="graficos-grid">
+          <div class="grafico-card">
+            <div class="grafico-header">
+              <h2 class="grafico-title">Despesas por categoria</h2>
+              <span class="grafico-sub">${MESES[mes-1]} ${ano}</span>
+            </div>
+            ${cats.length > 0
+              ? `<div class="pizza-wrap"><canvas id="pizzaCanvas"></canvas></div>`
+              : `<p style="color:var(--text-muted);font-size:13px;padding:32px 0;text-align:center">Nenhuma despesa lançada.</p>`
+            }
+          </div>
+          <div class="grafico-card">
+            <div class="grafico-header">
+              <h2 class="grafico-title">Tendência por categoria</h2>
+              <span class="grafico-sub" id="tendenciaStatus" style="font-size:12px;color:var(--text-muted)">carregando...</span>
+            </div>
+            <div id="tendenciaTabela"></div>
+          </div>
+        </div>`;
+
+      // Pizza
+      if (cats.length > 0) {
+        if (_pizzaInstance) { _pizzaInstance.destroy(); _pizzaInstance = null; }
+        const ctx = document.getElementById('pizzaCanvas')?.getContext('2d');
+        if (ctx) {
+          _pizzaInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: cats,
+              datasets: [{
+                data: valores,
+                backgroundColor: cats.map((_, i) => CORES_PIZZA[i % CORES_PIZZA.length]),
+                borderWidth: 0, hoverOffset: 6,
+              }],
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false, cutout: '62%',
+              plugins: {
+                legend: { position: 'bottom', labels: { color: 'rgba(255,255,255,.65)', boxWidth: 10, padding: 12, font: { size: 11 } } },
+                tooltip: {
+                  backgroundColor: '#0D2B45', borderColor: 'rgba(207,174,101,.25)', borderWidth: 1,
+                  callbacks: {
+                    label: ctx => `  ${brl(ctx.parsed)} (${totalDespesa > 0 ? ((ctx.parsed/totalDespesa)*100).toFixed(1) : 0}%)`,
+                  },
+                },
+              },
+            },
+          });
+        }
+      }
+
+      // Tendência — busca meses anteriores
+      carregarTendencia(mes, ano, cats);
+    }
+
+    async function carregarTendencia(mes, ano, cats) {
+      const statusEl = document.getElementById('tendenciaStatus');
+      const tabelaEl = document.getElementById('tendenciaTabela');
+      if (!tabelaEl) return;
+
+      try {
+        const meses3 = [];
+        for (let i = 2; i >= 0; i--) {
+          const m = mes - i > 0 ? mes - i : mes - i + 12;
+          const a = mes - i > 0 ? ano : ano - 1;
+          meses3.push({ mes: m, ano: a, label: MESES[m-1].slice(0,3) });
+        }
+
+        const resultados = await Promise.all(
+          meses3.map(({ mes: m, ano: a }) => getOrcamento(m, a).catch(() => []))
+        );
+
+        // Agrega por categoria para cada mês
+        const dadosPorMes = resultados.map(itens => {
+          const r = {};
+          itens.filter(i => i.tipo === 'despesa').forEach(d => {
+            r[d.categoria] = (r[d.categoria] || 0) + d.valor;
+          });
+          return r;
+        });
+
+        if (statusEl) statusEl.textContent = `${meses3[0].label}–${meses3[2].label}`;
+
+        const linhas = cats.slice(0, 8).map(cat => {
+          const vals = dadosPorMes.map(d => d[cat] || 0);
+          const tendencia = vals[2] > vals[1] ? `<span style="color:var(--negative)">↑</span>` :
+                            vals[2] < vals[1] ? `<span style="color:var(--positive)">↓</span>` : '→';
+          return `<tr>
+            <td style="color:var(--text-secondary)">${escapeHtml(cat)}</td>
+            ${vals.map((v, i) => `<td style="${i===2?'color:var(--white)':'color:var(--text-muted)'}">${v > 0 ? brl(v) : '—'}</td>`).join('')}
+            <td>${tendencia}</td>
+          </tr>`;
+        }).join('');
+
+        tabelaEl.innerHTML = `
+          <table class="tend-table">
+            <thead><tr>
+              <th style="text-align:left">Categoria</th>
+              ${meses3.map(m => `<th>${m.label}</th>`).join('')}
+              <th></th>
+            </tr></thead>
+            <tbody>${linhas || '<tr><td colspan="5" style="color:var(--text-muted);font-size:13px;padding:16px 0">Sem dados suficientes.</td></tr>'}</tbody>
+          </table>`;
+      } catch (err) {
+        if (tabelaEl) tabelaEl.innerHTML = `<p style="color:var(--text-muted);font-size:13px;padding:16px 0">Erro ao carregar tendência.</p>`;
+      }
     }
 
     // ─── Modal de limite de categoria ────────────────────────────────────────
@@ -2023,17 +2582,24 @@
     bindMoneyInput(document.getElementById('mLimiteValor'));
 
     function abrirModalLimite(cat) {
-      editandoLimiteCat = cat;
-      const catObj     = categorias.find(c => c.nome === cat);
+      editandoLimiteCat = cat || null;
+      const catObj      = categoriasMes.find(c => c.nome === cat);
       const limiteAtual = catObj?.limite || 0;
-      document.getElementById('modalLimiteSub').textContent = `Categoria: ${cat}`;
+      document.getElementById('modalLimiteSub').textContent = cat ? `Categoria: ${cat}` : 'Nova categoria';
+      if (!cat) {
+        // Nova categoria: mostrar campo de nome
+        document.getElementById('modalLimiteNomeWrap').style.display = '';
+        document.getElementById('mLimiteNome').value = '';
+      } else {
+        document.getElementById('modalLimiteNomeWrap').style.display = 'none';
+      }
       if (limiteAtual > 0) {
         setMoney(document.getElementById('mLimiteValor'), limiteAtual);
       } else {
         document.getElementById('mLimiteValor').value = '';
       }
       modalLimite.classList.remove('hidden');
-      setTimeout(() => document.getElementById('mLimiteValor').focus(), 80);
+      setTimeout(() => document.getElementById(cat ? 'mLimiteValor' : 'mLimiteNome').focus(), 80);
     }
 
     document.getElementById('btnCancelarLimite').addEventListener('click', () => {
@@ -2045,27 +2611,34 @@
     });
 
     document.getElementById('btnSalvarLimite').addEventListener('click', async () => {
-      if (!editandoLimiteCat) return;
       const btn    = document.getElementById('btnSalvarLimite');
       const limite = readMoney(document.getElementById('mLimiteValor'));
+      const nomeCat = editandoLimiteCat || document.getElementById('mLimiteNome')?.value.trim();
 
-      // Upsert na lista local de categorias
-      const idx = categorias.findIndex(c => c.nome === editandoLimiteCat);
+      if (!nomeCat) { toast('Preencha o nome da categoria.', 'warning'); return; }
+
+      // Upsert na lista local por mês
+      const { mes, ano } = currentData.periodo;
+      const idx = categoriasMes.findIndex(c => c.nome === nomeCat);
       if (idx === -1) {
-        categorias.push({ nome: editandoLimiteCat, limite, cor: '', customizada: false });
+        categoriasMes.push({ nome: nomeCat, limite });
       } else {
-        categorias[idx] = { ...categorias[idx], limite };
+        categoriasMes[idx] = { ...categoriasMes[idx], limite };
       }
+      // Remove entradas com limite 0 (significa remover)
+      if (limite === 0) categoriasMes = categoriasMes.filter(c => c.nome !== nomeCat || c.limite > 0);
 
       modalLimite.classList.add('hidden');
-      const cat = editandoLimiteCat;
       editandoLimiteCat = null;
 
       setLoading(btn, true);
       try {
-        await saveCategorias(categorias);
-        renderDespesasGrupos(currentData, currentData.despesas.reduce((s, d) => s + d.valor, 0));
-        toast(limite > 0 ? `Limite de ${brl(limite)}/mês definido para ${cat}.` : 'Limite removido.', 'success');
+        await saveCategoriasMes(mes, ano, categoriasMes);
+        // Re-renderiza as abas que dependem de limites
+        render(currentData);
+        if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
+        if (_tabAtiva === 'detalhe')      renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
+        toast(limite > 0 ? `Limite de ${brl(limite)}/mês definido.` : 'Limite removido.', 'success');
       } catch (err) {
         toast('Erro ao salvar limite. Tente novamente.', 'error');
       } finally {
@@ -2299,7 +2872,11 @@
     // ─── Navegação de período ─────────────────
     async function buscarPeriodo(mes, ano) {
       try {
-        const itens = await getOrcamento(mes, ano);
+        const [itens, cats] = await Promise.all([
+          getOrcamento(mes, ano),
+          getCategoriasMes(mes, ano),
+        ]);
+        categoriasMes = cats || [];
         return {
           periodo:  { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '' })),

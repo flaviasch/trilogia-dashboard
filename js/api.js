@@ -690,22 +690,34 @@ export function parsearCsvPatrimonio(csvText) {
   return Object.values(acumulado);
 }
 
-// ─── Categorias de orçamento ──────────────────────────────────────────────────
+// ─── Planejamento de orçamento por mês ───────────────────────────────────────
 
 /**
- * Retorna as categorias de orçamento da mentorada.
- * Retorna [] se ainda não configurou — UI usa defaults.
- * @returns {Promise<Array<{nome, limite, cor, customizada}>>}
+ * Retorna o planejamento de categorias para um mês/ano específico.
+ * @param {number} mes - 1 a 12
+ * @param {number} ano
+ * @returns {Promise<Array<{nome, limite}>>}
  */
-export async function getCategorias() {
-  const res = await call('getCategorias')({ uid: uidAtual() });
+export async function getCategoriasMes(mes, ano) {
+  const res = await call('getCategoriasMes')({ uid: uidAtual(), mes, ano });
   return res?.categorias || [];
 }
 
 /**
- * Salva lista de categorias no Firestore.
- * @param {Array<{nome, limite, cor, customizada}>} categorias
+ * Salva o planejamento de categorias para um mês/ano específico.
+ * @param {number} mes
+ * @param {number} ano
+ * @param {Array<{nome, limite}>} categorias
  */
+export async function saveCategoriasMes(mes, ano, categorias) {
+  return call('saveCategoriasMes')({ uid: uidAtual(), mes, ano, categorias });
+}
+
+// ─── Categorias globais (legacy) ─────────────────────────────────────────────
+export async function getCategorias() {
+  const res = await call('getCategorias')({ uid: uidAtual() });
+  return res?.categorias || [];
+}
 export async function saveCategorias(categorias) {
   return call('saveCategorias')({ uid: uidAtual(), categorias });
 }

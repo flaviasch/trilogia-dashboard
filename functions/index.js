@@ -25,6 +25,7 @@ const {
   emailSemPerfil,
   emailLembreteOrcamento,
   emailLembreteAporte,
+  emailLembretePlanejamento,
   emailIR,
   emailReenvioAcesso,
   emailBoasVindas,
@@ -232,32 +233,61 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   return { ok: true };
 });
 
-// ─── CATEGORIAS DE ORÇAMENTO (orcamento-v2.html) ─────────────────────────────
+// ─── PLANEJAMENTO DE ORÇAMENTO POR MÊS ───────────────────────────────────────
+// Armazena o orçamento planejado por categoria para um mês específico.
+// Coleção: mentoradas/{uid}/planejamento/{YYYY-MM}
+// Documento: { categorias: [{ nome, limite }], atualizadoEm }
 
 /**
- * Retorna as categorias de orçamento da mentorada (armazenadas no Firestore).
- * Retorna array vazio se ainda não configurou — UI carrega defaults.
+ * Retorna o planejamento de categorias para um mês/ano específico.
+ * Retorna array vazio se ainda não configurou.
  */
-exports.getCategorias = onCall(async (request) => {
-  const auth = requireAuth(request);
-  const { uid } = request.data;
+exports.getCategoriasMes = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, mes, ano } = request.data;
   requireSelfOrAdmin(request, uid);
 
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  const snap = await db.collection('mentoradas').doc(uid)
+    .collection('planejamento').doc(mesKey).get();
+  if (!snap.exists) return { categorias: [] };
+  return { categorias: snap.data().categorias || [] };
+});
+
+/**
+ * Salva o planejamento de categorias para um mês/ano específico.
+ * Espera: { uid, mes, ano, categorias: [{ nome, limite }] }
+ */
+exports.saveCategoriasMes = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, mes, ano, categorias } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!Array.isArray(categorias)) throw new HttpsError('invalid-argument', 'categorias deve ser um array.');
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  await db.collection('mentoradas').doc(uid)
+    .collection('planejamento').doc(mesKey).set({
+      categorias,
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  return { ok: true };
+});
+
+// ─── CATEGORIAS GLOBAIS (legacy — mantido para compatibilidade) ───────────────
+exports.getCategorias = onCall(async (request) => {
+  requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
   const snap = await db.collection('mentoradas').doc(uid)
     .collection('config').doc('categorias').get();
   if (!snap.exists) return { categorias: [] };
   return { categorias: snap.data().categorias || [] };
 });
 
-/**
- * Salva lista de categorias de orçamento no Firestore.
- * Espera: { uid, categorias: [{ nome, limite, cor, customizada }] }
- */
 exports.saveCategorias = onCall(async (request) => {
-  const auth = requireAuth(request);
+  requireAuth(request);
   const { uid, categorias } = request.data;
   requireSelfOrAdmin(request, uid);
-
   if (!Array.isArray(categorias)) throw new HttpsError('invalid-argument', 'categorias deve ser um array.');
   await db.collection('mentoradas').doc(uid)
     .collection('config').doc('categorias').set({ categorias });
@@ -1853,15 +1883,27 @@ exports.notifDia28 = onSchedule(
     const ano      = agora.getFullYear();
     const nomesMes = nomeMesPt(mes, ano);
 
+    // Próximo mês para o lembrete de planejamento
+    const proxMes     = mes === 12 ? 1 : mes + 1;
+    const proxAno     = mes === 12 ? ano + 1 : ano;
+    const nomeProxMes = nomeMesPt(proxMes, proxAno);
+
     const mentoradas = await getAtivas();
 
     for (const m of mentoradas) {
       if (!m.email) continue;
+      // Lembrete de aporte do mês atual
       await sendEmail({
         to:      m.email,
         subject: `Efetive o aporte de ${nomesMes}`,
         html:    emailLembreteAporte(m.nome || 'mentorada', nomesMes),
       }).catch(err => console.error(`Erro ao enviar aporte para ${m.email}:`, err));
+      // Lembrete de planejamento do próximo mês
+      await sendEmail({
+        to:      m.email,
+        subject: `Configure o planejamento de ${nomeProxMes}`,
+        html:    emailLembretePlanejamento(m.nome || 'mentorada', nomeProxMes),
+      }).catch(err => console.error(`Erro ao enviar planejamento para ${m.email}:`, err));
     }
   },
 );

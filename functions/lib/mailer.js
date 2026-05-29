@@ -331,12 +331,36 @@ function emailCobrancasDia(cobrancas) {
   `);
 }
 
+/**
+ * E-mail: lembrete para configurar o planejamento do próximo mês (enviado no dia 28).
+ * @param {string} nome        — nome da mentorada
+ * @param {string} proximoMes  — ex. "junho de 2026"
+ */
+function emailLembretePlanejamento(nome, proximoMes) {
+  return layout(`
+    <h2 style="${S.h2}">Configure o planejamento de ${proximoMes}</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      O mês está chegando ao fim. Que tal já definir quanto você planeja gastar
+      em cada categoria em <strong>${proximoMes}</strong>?
+    </p>
+    <p style="${S.p}">
+      Com o planejamento configurado, você recebe alertas automáticos quando
+      estiver se aproximando do limite em qualquer categoria.
+    </p>
+    <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">
+      Configurar planejamento
+    </a>
+  `);
+}
+
 module.exports = {
   sendEmail,
   emailRenovacaoPerfil,
   emailSemPerfil,
   emailLembreteOrcamento,
   emailLembreteAporte,
+  emailLembretePlanejamento,
   emailIR,
   emailReenvioAcesso,
   emailBoasVindas,
