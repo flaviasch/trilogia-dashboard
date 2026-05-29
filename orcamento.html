@@ -2272,7 +2272,7 @@
         const itemsHTML = grupo.items.map(item => {
           const primary = item.descricao
             ? escapeHtml(item.descricao)
-            : `<span style="color:var(--text-muted);font-style:italic">${item.data ? 'Lançamento' : 'Sem descrição'}</span>`;
+            : escapeHtml(item.categoria);
           const dataTag = item.data
             ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}</div>` : '';
           return `
