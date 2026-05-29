@@ -712,9 +712,10 @@
       /* Gráfico um pouco menor para caber na tela */
       .grafico-canvas-wrap { height: 200px; }
 
-      /* Strip de aporte: empilha */
+      /* Strip de aporte: empilha e botão não transborda */
       .aporte-strip { flex-direction: column; align-items: stretch; gap: 10px; }
       .aporte-strip-row { width: 100%; }
+      .aporte-strip-btn { flex-shrink: 1; white-space: normal; min-width: 90px; }
 
       /* ─── Aba Planejamento — tabela mobile ── */
       /* Esconde a coluna de barra de progresso; mantém %, status e valores */
