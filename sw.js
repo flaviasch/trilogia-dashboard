@@ -1,8 +1,9 @@
-// Trilogia Dashboard — Service Worker v9
-// HTML: SEMPRE interceptado e servido direto da rede (cache: 'no-store')
-// Assets estáticos: Cache First
+// Trilogia Dashboard — Service Worker v10
+// HTML:          sempre rede (no-store)
+// JS/CSS locais: Network First → garante versão atual; fallback cache se offline
+// Fontes/CDN:    Cache First (raramente mudam)
 
-const CACHE_NAME = 'trilogia-v9';
+const CACHE_NAME = 'trilogia-v10';
 
 const ASSETS_TO_CACHE = [
   '/manifest.json',
@@ -93,7 +94,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ❹ JS, CSS, imagens, manifest: Cache First (URLs versionadas garantem frescor)
+  // ❹ JS e CSS locais: Network First — garante código atual; cache só se offline
+  if (
+    url.hostname === self.location.hostname &&
+    (url.pathname.endsWith('.js') || url.pathname.endsWith('.css'))
+  ) {
+    event.respondWith(
+      fetch(new Request(event.request.url, { cache: 'no-store' }))
+        .then((res) => {
+          if (res && res.status === 200) {
+            caches.open(CACHE_NAME).then((c) => c.put(event.request, res.clone()));
+          }
+          return res;
+        })
+        .catch(() => caches.match(event.request)
+          .then(cached => cached || new Response('', { status: 503 }))
+        )
+    );
+    return;
+  }
+
+  // ❺ Imagens, manifest e demais assets: Cache First
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
