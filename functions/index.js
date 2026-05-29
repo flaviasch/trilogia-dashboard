@@ -1077,6 +1077,66 @@ exports.aceitarLGPD = onCall({}, async (request) => {
   return { ok: true };
 });
 
+// ─── EXPORTAÇÃO DE DADOS (LGPD — direito à portabilidade) ────────────────────
+
+/**
+ * Retorna todos os dados pessoais da usuária em formato estruturado.
+ * LGPD Art. 18, inciso V: direito à portabilidade dos dados.
+ * Inclui: conta, orçamento (todos os meses), patrimônio, investimentos,
+ *         dívidas, reservas e perfil de investidor.
+ */
+exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+
+  // Dados do Firestore
+  const docSnap = await db.collection('mentoradas').doc(uid).get();
+  if (!docSnap.exists) throw new HttpsError('not-found', 'Usuária não encontrada.');
+  const conta = docSnap.data();
+
+  // Orçamento: todos os meses no Firestore
+  const orcSnap = await db.collection('mentoradas').doc(uid)
+    .collection('orcamento').orderBy('__name__').get();
+  const orcamento = orcSnap.docs.map(d => ({
+    periodo: d.id,
+    ...d.data(),
+    atualizadoEm: d.data().atualizadoEm?.toDate?.()?.toISOString() || null,
+  }));
+
+  // Dados das Sheets (patrimônio, reservas, dívidas, perfil)
+  let patrimonio = [], investimentos = [], dividas = [], reservas = [], perfil = null;
+  const sheetId = conta.sheetId;
+  if (sheetId) {
+    const sheets = new SheetsClient(sheetId);
+    [patrimonio, investimentos, dividas, reservas, perfil] = await Promise.allSettled([
+      sheets.getPatrimonio(),
+      sheets.getInvestimentos(),
+      sheets.getDividas(),
+      sheets.getReservas(),
+      sheets.getPerfil(),
+    ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : null));
+  }
+
+  return {
+    exportadoEm: new Date().toISOString(),
+    conta: {
+      nome:           conta.nome,
+      email:          conta.email,
+      inicio:         conta.inicio,
+      produto:        conta.produto,
+      lgpdAceite:     conta.lgpdAceite,
+      lgpdAceiteData: conta.lgpdAceiteData?.toDate?.()?.toISOString() || null,
+    },
+    orcamento,
+    patrimonio:     patrimonio   || [],
+    investimentos:  investimentos || [],
+    dividas:        dividas      || [],
+    reservas:       reservas     || [],
+    perfil:         perfil       || null,
+  };
+});
+
 // ─── ADMIN — Bootstrap inicial ───────────────────────────────────────────────
 
 /**

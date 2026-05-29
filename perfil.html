@@ -366,6 +366,21 @@
       </div>
     </div>
 
+    <!-- Exportar dados (LGPD) -->
+    <div style="margin-top:40px;padding:24px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;">
+      <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:600;margin-bottom:8px;">Seus dados</div>
+      <p style="font-size:13px;color:rgba(255,255,255,0.55);margin-bottom:16px;line-height:1.6;">
+        Pela LGPD você tem direito a receber uma cópia de todos os seus dados financeiros
+        armazenados no dashboard — orçamento, patrimônio, reservas, dívidas e perfil.
+      </p>
+      <button id="btnExportarDados" style="
+        background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:8px;
+        padding:10px 20px;font-size:13px;font-weight:500;color:rgba(255,255,255,0.65);
+        cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;
+      ">⬇ Exportar meus dados (JSON)</button>
+      <span id="exportStatus" style="font-size:12px;color:rgba(255,255,255,0.4);margin-left:12px;"></span>
+    </div>
+
   </main>
 
   <!-- Bottom nav (mobile) -->
@@ -394,7 +409,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getPerfil, savePerfil, getReservas, setViewAsUid } from './js/api.js?v=6';
+    import { getPerfil, savePerfil, getReservas, exportarMeusDados, setViewAsUid } from './js/api.js?v=17';
     import { toast, setLoading } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -775,6 +790,39 @@
       btn.addEventListener('click', e => { e.stopPropagation(); pop.classList.toggle('hidden'); });
       document.addEventListener('click', () => pop.classList.add('hidden'));
     })();
+
+    // ─── Exportar dados (LGPD portabilidade) ────────────────────────────────
+    document.getElementById('btnExportarDados')?.addEventListener('click', async () => {
+      const btn    = document.getElementById('btnExportarDados');
+      const status = document.getElementById('exportStatus');
+      btn.disabled = true;
+      btn.textContent = '⏳ Preparando...';
+      status.textContent = '';
+      try {
+        const dados = await exportarMeusDados();
+        const json  = JSON.stringify(dados, null, 2);
+        const blob  = new Blob([json], { type: 'application/json' });
+        const url   = URL.createObjectURL(blob);
+        const a     = document.createElement('a');
+        const nome  = (dados.conta?.nome || 'meus-dados').replace(/\s+/g, '-').toLowerCase();
+        a.href      = url;
+        a.download  = `trilogia-${nome}-${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        btn.textContent  = '✓ Download iniciado';
+        status.textContent = 'Arquivo JSON com todos os seus dados.';
+        status.style.color = '#4ade80';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = '⬇ Exportar meus dados (JSON)';
+        }, 3000);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = '⬇ Exportar meus dados (JSON)';
+        status.textContent = 'Erro ao exportar. Tente novamente.';
+        status.style.color = '#f87171';
+      }
+    });
   </script>
 
   <!-- Botão de suporte -->

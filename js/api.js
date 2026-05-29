@@ -711,6 +711,14 @@ export async function migrarOrcamento() {
   return call('migrarOrcamento')({});
 }
 
+/**
+ * Exporta todos os dados pessoais da usuária (LGPD portabilidade).
+ * @returns {Promise<Object>} JSON com todos os dados
+ */
+export async function exportarMeusDados() {
+  return call('exportarMeusDados')({ uid: uidAtual() });
+}
+
 // ─── Planejamento de orçamento por mês ───────────────────────────────────────
 
 /**
