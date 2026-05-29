@@ -715,6 +715,48 @@
       /* Strip de aporte: empilha */
       .aporte-strip { flex-direction: column; align-items: stretch; gap: 10px; }
       .aporte-strip-row { width: 100%; }
+
+      /* ─── Aba Planejamento — tabela mobile ── */
+      /* Esconde a coluna de barra de progresso; mantém %, status e valores */
+      .plan-table th:nth-child(4),
+      .plan-table td:nth-child(4) { display: none; }
+      /* Planejado + realizado ficam lado a lado em células compactas */
+      .plan-table th,
+      .plan-table td { padding: 11px 8px; font-size: 13px; }
+      .plan-table th:first-child,
+      .plan-table td:first-child { padding-left: 14px; }
+      .plan-table th:last-child,
+      .plan-table td:last-child { padding-right: 14px; }
+      /* Botão de edição sempre visível no mobile */
+      .btn-edit-plan { opacity: 1; }
+      /* Barra de ações do planejamento: empilha */
+      .plan-acoes { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .btn-copiar-mes { width: 100%; justify-content: center; }
+      /* Banner de alertas: layout compacto */
+      .alertas-banner { padding: 12px 14px; gap: 10px; }
+
+      /* ─── Aba Gráficos — tendência mobile ── */
+      /* Esconde colunas dos 2 meses mais antigos; mantém categoria e mês atual */
+      .tend-table th:nth-child(2),
+      .tend-table td:nth-child(2),
+      .tend-table th:nth-child(3),
+      .tend-table td:nth-child(3) { display: none; }
+      .tend-table th,
+      .tend-table td { font-size: 12px; padding: 7px 6px; }
+
+      /* ─── Aba Detalhe — cat-items mobile ── */
+      .cat-group-header { padding: 10px 14px; gap: 8px; flex-wrap: wrap; }
+      .cat-limit-bar { width: 60px; }
+      /* Ações sempre visíveis */
+      .cat-group .item-row .item-actions { opacity: 1; }
+      .cat-item-row { padding: 10px 14px; }
+      .cat-add-btn { padding: 8px 14px; }
+
+      /* ─── Seções colapsáveis mobile ── */
+      .section-header.expansivel { padding: 13px 16px; }
+      .section-body-col .items-list { padding: 8px 10px 0; }
+      .section-body-col .total-row { padding: 12px 26px 4px; }
+      .section-body-col .btn-add-item { margin: 4px 10px 10px; width: calc(100% - 20px); }
     }
 
     /* ─── Abas ──────────────────────────────── */
@@ -2355,12 +2397,13 @@
                <span class="plan-pct-text" style="color:${cor}">${pct.toFixed(0)}%</span>
              </div>`
           : `<div class="plan-bar-wrap"><span style="color:var(--text-muted);font-size:12px">—</span></div>`;
+        const pctLabel = limite > 0 ? `<span style="font-size:10px;color:${cor};font-weight:700;display:block;line-height:1.2">${pct.toFixed(0)}%</span>` : '';
         return `<tr class="plan-row">
           <td class="plan-cat" style="padding-left:20px">${escapeHtml(cat)}</td>
           <td>${planCell}</td>
           <td><span style="${realCor};font-weight:600">${brl(real)}</span></td>
           <td style="min-width:140px">${barCell}</td>
-          <td style="padding-right:20px;text-align:center"><span class="plan-status">${emoji}</span></td>
+          <td style="padding-right:20px;text-align:center"><span class="plan-status">${emoji}</span>${pctLabel}</td>
         </tr>`;
       }).join('');
 
