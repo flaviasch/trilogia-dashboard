@@ -493,19 +493,28 @@ export function parsearCsvRaioX(csvText) {
     throw new Error('CSV inválido: colunas esperadas são "categoria", "tipo", "valor".');
   }
 
-  return linhas.slice(1).map((linha, i) => {
+  // Padrões de linhas de totais/subtotais que devem ser ignorados
+  const IGNORAR_CAT = /^(totais?|subtotais?|total\s*geral|grand\s*total|soma)$/i;
+
+  return linhas.slice(1).reduce((acc, linha, i) => {
     const cols = linha.split(sep).map(c => c.trim());
+    const catBruta = cols[idxCategoria] || '';
+
+    // Pula linhas de totais/subtotais
+    if (IGNORAR_CAT.test(catBruta.trim())) return acc;
+
     const tipo = cols[idxTipo]?.toLowerCase();
     if (tipo !== 'receita' && tipo !== 'despesa') {
       throw new Error(`Linha ${i + 2}: tipo inválido "${cols[idxTipo]}". Use "receita" ou "despesa".`);
     }
     const valor = parseFloat(cols[idxValor]?.replace(',', '.'));
     if (isNaN(valor)) throw new Error(`Linha ${i + 2}: valor inválido "${cols[idxValor]}".`);
-    const item = { categoria: cols[idxCategoria] || 'Sem categoria', tipo, valor };
+    const item = { categoria: catBruta || 'Sem categoria', tipo, valor };
     if (idxData      !== -1 && cols[idxData])      item.data      = cols[idxData];
     if (idxDescricao !== -1 && cols[idxDescricao]) item.descricao = cols[idxDescricao];
-    return item;
-  });
+    acc.push(item);
+    return acc;
+  }, []);
 }
 
 /**
