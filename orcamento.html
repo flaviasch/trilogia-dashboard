@@ -1316,8 +1316,8 @@
         </select>
       </div>
       <div class="field-group">
-        <label for="mData">Data (opcional)</label>
-        <input type="date" id="mData" />
+        <label for="mData">Data</label>
+        <input type="date" id="mData" required />
       </div>
       <div class="field-group">
         <label for="mDescricao">Descrição (opcional)</label>
@@ -1574,7 +1574,8 @@
         if (!_catLocked) document.getElementById('mTipo').value = tipo;
       } else {
         if (!_catLocked) document.getElementById('mCategoria').value = '';
-        document.getElementById('mData').value      = '';
+        // Pré-preenche com hoje para novos lançamentos
+        document.getElementById('mData').value      = new Date().toISOString().split('T')[0];
         document.getElementById('mDescricao').value = '';
         document.getElementById('mValor').value     = '';
       }
@@ -1609,6 +1610,7 @@
       const valor     = readMoney(document.getElementById('mValor'));
 
       if (!categoria) { toast('Preencha a categoria.', 'warning'); return; }
+      if (!data) { toast('Preencha a data do lançamento.', 'warning'); return; }
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
 
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
