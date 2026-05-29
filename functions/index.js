@@ -197,13 +197,27 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 // ─── ORÇAMENTO (orcamento.html) ───────────────────────────────────────────────
 
 exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
-  const auth = requireAuth(request);
+  requireAuth(request);
   const { uid, mes, ano } = request.data;
   requireSelfOrAdmin(request, uid);
 
-  const sheetId = await getSheetId(db, uid);
-  const sheets  = new SheetsClient(sheetId);
-  return sheets.getOrcamento(mes, ano);
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+
+  // ── Firestore first ───────────────────────────────────────────────────────
+  const docSnap = await db.collection('mentoradas').doc(uid)
+    .collection('orcamento').doc(mesKey).get();
+  if (docSnap.exists) {
+    return docSnap.data().itens || [];
+  }
+
+  // ── Fallback: Sheets (dados antes da migração) ────────────────────────────
+  try {
+    const sheetId = await getSheetId(db, uid);
+    if (!sheetId) return [];
+    return await new SheetsClient(sheetId).getOrcamento(mes, ano);
+  } catch {
+    return [];
+  }
 });
 
 /**
@@ -241,21 +255,79 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     if (it.descricao && it.descricao.length > 500) it.descricao = it.descricao.slice(0, 500);
   }
 
-  const sheetId = await getSheetId(db, uid);
-  const sheets  = new SheetsClient(sheetId);
-  await sheets.saveOrcamento(mes, ano, itens);
-
-  // Atualiza cache de sobra no Firestore (fire-and-forget)
-  sheets.getOrcamento(mes, ano).then(todos => {
-    const receita = todos.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
-    const despesa = todos.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
-    return db.collection('mentoradas').doc(uid).update({
-      sobra: receita - despesa,
-      dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  // ── Grava no Firestore (operação atômica — sem clear+write) ─────────────
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  await db.collection('mentoradas').doc(uid)
+    .collection('orcamento').doc(mesKey).set({
+      uid, mes, ano, itens,
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+  // ── Cache de sobra calculado direto dos itens (sem re-leitura) ──────────
+  const receita = itens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
+  const despesa = itens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
+  db.collection('mentoradas').doc(uid).update({
+    sobra: receita - despesa,
+    dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
   }).catch(e => console.warn('[saveOrcamento] Falha ao atualizar cache:', e.message));
 
   return { ok: true };
+});
+
+/**
+ * Migra os dados de orçamento do Sheets para o Firestore para todas as usuárias.
+ * Pula meses que já existem no Firestore. Idempotente — seguro rodar múltiplas vezes.
+ * Admin only.
+ */
+exports.migrarOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  requireAdmin(request);
+  const snap = await db.collection('mentoradas').get();
+  let migradas = 0, erros = 0, mesesMigrados = 0;
+
+  for (const doc of snap.docs) {
+    const { sheetId } = doc.data();
+    if (!sheetId) continue;
+    try {
+      const sheets = new SheetsClient(sheetId);
+      let rows;
+      try {
+        rows = await sheets.read('orcamento!A2:I');
+      } catch { continue; }
+
+      // Agrupa por mes+ano
+      const porMes = {};
+      for (const r of rows) {
+        const m = parseInt(r[0]), a = parseInt(r[1]);
+        if (!m || !a) continue;
+        const key = `${a}-${String(m).padStart(2, '0')}`;
+        if (!porMes[key]) porMes[key] = { mes: m, ano: a, itens: [] };
+        porMes[key].itens.push({
+          categoria: r[2] || '', tipo: r[3] || 'despesa',
+          valor: parseFloat(r[4]) || 0,
+          data: r[5] || '', descricao: r[6] || '',
+          cartao: r[7] === '1', fatura: r[8] || '',
+        });
+      }
+
+      for (const [key, data] of Object.entries(porMes)) {
+        const ref = db.collection('mentoradas').doc(doc.id)
+          .collection('orcamento').doc(key);
+        const existing = await ref.get();
+        if (!existing.exists) {
+          await ref.set({
+            uid: doc.id, mes: data.mes, ano: data.ano, itens: data.itens,
+            atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          mesesMigrados++;
+        }
+      }
+      migradas++;
+    } catch (err) {
+      console.error(`[migrarOrcamento] Erro em ${doc.id}:`, err.message);
+      erros++;
+    }
+  }
+  return { ok: true, migradas, mesesMigrados, erros };
 });
 
 // ─── PLANEJAMENTO DE ORÇAMENTO POR MÊS ───────────────────────────────────────

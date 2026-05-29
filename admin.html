@@ -526,6 +526,15 @@
         </div>
       </div>
 
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🗄️ Migrar orçamento → Firestore</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Copia histórico do Sheets para Firestore. Idempotente — seguro rodar várias vezes.</div>
+        <button id="btnMigrarOrcamento" style="background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);border-radius:7px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">
+          Executar migração →
+        </button>
+        <span id="statusMigracao" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+      </div>
+
       <button id="btnFecharComunicados" style="
         width:100%;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:8px;
         padding:10px;font-size:14px;color:rgba(255,255,255,0.45);cursor:pointer;
@@ -1465,7 +1474,7 @@
              criarPlanilha, getNotionCRM,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico, anunciarNovidades } from './js/api.js?v=15';
+             syncDiagnostico, anunciarNovidades, migrarOrcamento } from './js/api.js?v=16';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -1495,6 +1504,27 @@
     modalCom.addEventListener('click', e => {
       if (e.target === modalCom) modalCom.style.display = 'none';
     });
+    document.getElementById('btnMigrarOrcamento').addEventListener('click', async () => {
+      const btn    = document.getElementById('btnMigrarOrcamento');
+      const status = document.getElementById('statusMigracao');
+      if (!confirm('Migrar orçamento de TODAS as mentoradas do Sheets para Firestore?')) return;
+      btn.disabled = true;
+      btn.textContent = '⏳ Migrando...';
+      status.textContent = '';
+      try {
+        const res = await migrarOrcamento();
+        btn.textContent = '✓ Concluído';
+        btn.style.color = '#4ade80';
+        status.textContent = `${res.migradas} usuárias · ${res.mesesMigrados} meses migrados${res.erros > 0 ? ` · ${res.erros} erros` : ''}`;
+        status.style.color = res.erros > 0 ? '#f87171' : '#4ade80';
+      } catch (err) {
+        btn.textContent = 'Executar migração →';
+        btn.disabled = false;
+        status.textContent = 'Erro: ' + (err.message || 'tente novamente');
+        status.style.color = '#f87171';
+      }
+    });
+
     document.getElementById('btnDispararNovidades').addEventListener('click', async () => {
       const btn    = document.getElementById('btnDispararNovidades');
       const status = document.getElementById('statusNovidades');

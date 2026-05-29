@@ -706,6 +706,11 @@ export async function anunciarNovidades() {
   return call('anunciarNovidades')({});
 }
 
+/** Migra dados de orçamento do Sheets para Firestore. Admin only. */
+export async function migrarOrcamento() {
+  return call('migrarOrcamento')({});
+}
+
 // ─── Planejamento de orçamento por mês ───────────────────────────────────────
 
 /**
