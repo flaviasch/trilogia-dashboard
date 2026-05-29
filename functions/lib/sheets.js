@@ -272,8 +272,9 @@ class SheetsClient {
       } else {
         await this.write(`historico!A${idx + 2}:D${idx + 2}`, [row]);
       }
-    } catch {
-      // Silencioso: não bloqueia o restante
+    } catch (err) {
+      // Não bloqueia o fluxo principal, mas registra para diagnóstico
+      console.error(`[upsertHistorico] Falha ao gravar histórico (${this.sheetId}, ${data}):`, err.message);
     }
   }
 

@@ -215,7 +215,31 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const { uid, mes, ano, itens } = request.data;
   requireSelfOrAdmin(request, uid);
 
-  if (!Array.isArray(itens)) throw new HttpsError('invalid-argument', 'itens deve ser um array.');
+  // ── Validação ──────────────────────────────────────────────────────────────
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12)
+    throw new HttpsError('invalid-argument', 'mes deve ser inteiro entre 1 e 12.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100)
+    throw new HttpsError('invalid-argument', 'ano deve ser inteiro entre 2020 e 2100.');
+  if (!Array.isArray(itens))
+    throw new HttpsError('invalid-argument', 'itens deve ser um array.');
+  if (itens.length > 500)
+    throw new HttpsError('invalid-argument', 'Limite de 500 itens por mês excedido.');
+
+  const TIPOS_VALIDOS = new Set(['receita', 'despesa', 'aporte']);
+  for (let i = 0; i < itens.length; i++) {
+    const it = itens[i];
+    if (!it.categoria || typeof it.categoria !== 'string' || it.categoria.trim() === '')
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: categoria é obrigatória.`);
+    if (!TIPOS_VALIDOS.has(it.tipo))
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: tipo inválido "${it.tipo}". Use receita, despesa ou aporte.`);
+    if (typeof it.valor !== 'number' || isNaN(it.valor) || it.valor < 0)
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: valor deve ser número não-negativo.`);
+    if (it.valor > 10_000_000)
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: valor acima do limite permitido.`);
+    // Sanitiza strings longas
+    if (it.categoria.length > 200) it.categoria = it.categoria.slice(0, 200);
+    if (it.descricao && it.descricao.length > 500) it.descricao = it.descricao.slice(0, 500);
+  }
 
   const sheetId = await getSheetId(db, uid);
   const sheets  = new SheetsClient(sheetId);
@@ -319,7 +343,24 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
   const { uid, itens, tipo } = request.data; // tipo: 'ir' | 'corretora'
   requireSelfOrAdmin(request, uid);
 
-  if (!Array.isArray(itens)) throw new HttpsError('invalid-argument', 'itens deve ser um array.');
+  // ── Validação ──────────────────────────────────────────────────────────────
+  if (!Array.isArray(itens))
+    throw new HttpsError('invalid-argument', 'itens deve ser um array.');
+  if (!['ir', 'corretora'].includes(tipo))
+    throw new HttpsError('invalid-argument', 'tipo deve ser "ir" ou "corretora".');
+  if (itens.length > 200)
+    throw new HttpsError('invalid-argument', 'Limite de 200 ativos excedido.');
+
+  for (let i = 0; i < itens.length; i++) {
+    const it = itens[i];
+    if (!it.classe || typeof it.classe !== 'string' || it.classe.trim() === '')
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: classe é obrigatória.`);
+    if (typeof it.valor !== 'number' || isNaN(it.valor) || it.valor < 0)
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: valor deve ser número não-negativo.`);
+    if (it.valor > 100_000_000)
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: valor acima do limite permitido.`);
+    if (it.classe.length > 200) it.classe = it.classe.slice(0, 200);
+  }
 
   const sheetId = await getSheetId(db, uid);
   const sheets  = new SheetsClient(sheetId);
