@@ -496,9 +496,43 @@
     </div>
     <div class="navbar-right">
       <span class="admin-badge">Admin</span>
+      <button id="btnComunicados" title="Enviar comunicado para mentoradas" style="
+        background:transparent;border:1px solid rgba(207,174,101,0.3);border-radius:6px;
+        padding:5px 12px;font-size:12px;color:var(--gold);cursor:pointer;
+        font-family:'Inter',sans-serif;transition:all .2s;
+      " onmouseover="this.style.background='rgba(207,174,101,0.1)'" onmouseout="this.style.background='transparent'">
+        📣 Comunicados
+      </button>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </nav>
+
+  <!-- Modal Comunicados -->
+  <div id="modalComunicados" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;display:none;align-items:center;justify-content:center;padding:24px;">
+    <div style="background:#0D2B45;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px;width:100%;max-width:420px;">
+      <h2 style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:6px;">Comunicados</h2>
+      <p style="font-size:13px;color:rgba(255,255,255,0.45);margin-bottom:24px;">Envia e-mail para todas as mentoradas ativas.</p>
+
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:28px;">
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🎉 Novidades da Fase 2</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">4 novas abas no orçamento: Planejamento, Gráficos, Detalhe + alertas de limite.</div>
+          <button id="btnDispararNovidades" style="
+            background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;
+            padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;
+            font-family:'Inter',sans-serif;
+          ">Disparar agora →</button>
+          <span id="statusNovidades" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+        </div>
+      </div>
+
+      <button id="btnFecharComunicados" style="
+        width:100%;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:8px;
+        padding:10px;font-size:14px;color:rgba(255,255,255,0.45);cursor:pointer;
+        font-family:'Inter',sans-serif;
+      ">Fechar</button>
+    </div>
+  </div>
 
   <!-- Banner de cobranças do dia -->
   <div id="notifBanner">
@@ -1431,7 +1465,7 @@
              criarPlanilha, getNotionCRM,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico } from './js/api.js?v=14';
+             syncDiagnostico, anunciarNovidades } from './js/api.js?v=15';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -1449,6 +1483,38 @@
     }
 
     document.getElementById('btnLogout').addEventListener('click', () => logout());
+
+    // ─── Modal Comunicados ───────────────────────────────────────────────────
+    const modalCom = document.getElementById('modalComunicados');
+    document.getElementById('btnComunicados').addEventListener('click', () => {
+      modalCom.style.display = 'flex';
+    });
+    document.getElementById('btnFecharComunicados').addEventListener('click', () => {
+      modalCom.style.display = 'none';
+    });
+    modalCom.addEventListener('click', e => {
+      if (e.target === modalCom) modalCom.style.display = 'none';
+    });
+    document.getElementById('btnDispararNovidades').addEventListener('click', async () => {
+      const btn    = document.getElementById('btnDispararNovidades');
+      const status = document.getElementById('statusNovidades');
+      if (!confirm('Disparar e-mail de novidades para TODAS as mentoradas ativas?')) return;
+      btn.disabled = true;
+      btn.textContent = '⏳ Enviando...';
+      status.textContent = '';
+      try {
+        const res = await anunciarNovidades();
+        btn.textContent = '✓ Enviado!';
+        btn.style.background = '#4ade80';
+        status.textContent = `${res.enviados} e-mails enviados${res.erros > 0 ? `, ${res.erros} erros` : ''}`;
+        status.style.color = res.erros > 0 ? '#f87171' : '#4ade80';
+      } catch (err) {
+        btn.textContent = 'Disparar agora →';
+        btn.disabled = false;
+        status.textContent = 'Erro: ' + (err.message || 'tente novamente');
+        status.style.color = '#f87171';
+      }
+    });
 
     // ─── Helpers ────────────────────────────
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });

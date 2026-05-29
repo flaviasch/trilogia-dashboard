@@ -690,6 +690,13 @@ export function parsearCsvPatrimonio(csvText) {
   return Object.values(acumulado);
 }
 
+// ─── Comunicados (admin only) ────────────────────────────────────────────────
+
+/** Dispara e-mail de novidades para todas as mentoradas ativas. Admin only. */
+export async function anunciarNovidades() {
+  return call('anunciarNovidades')({});
+}
+
 // ─── Planejamento de orçamento por mês ───────────────────────────────────────
 
 /**
