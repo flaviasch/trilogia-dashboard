@@ -2067,6 +2067,56 @@ exports.notifMaioIR = onSchedule(
 );
 
 /**
+ * agendarLimpezaEncerradas — dia 1 de cada mês às 09h00 (Sao_Paulo)
+ * LGPD retenção: mentoradas com mentoriaEncerrada=true E status=inativa há 12+ meses
+ * são adicionadas à coleção mentoradas_deletadas para limpeza pelo limparDadosExpirados.
+ * Não apaga dados imediatamente — agenda para o próximo ciclo.
+ */
+exports.agendarLimpezaEncerradas = onSchedule(
+  { schedule: '0 9 1 * *', timeZone: 'America/Sao_Paulo' },
+  async () => {
+    const prazo = new Date();
+    prazo.setMonth(prazo.getMonth() - 12);
+
+    const snap = await db.collection('mentoradas')
+      .where('mentoriaEncerrada', '==', true)
+      .where('status', '==', 'inativa')
+      .get();
+
+    let agendadas = 0;
+    for (const doc of snap.docs) {
+      const { ultimoAcesso, sheetId, nome, email, produto, inicio } = doc.data();
+      // Só agenda se o último acesso foi há mais de 12 meses (ou nunca acessou)
+      const ts = ultimoAcesso?.toDate?.() || null;
+      if (ts && ts > prazo) continue;
+
+      // Verifica se já está em mentoradas_deletadas
+      const existing = await db.collection('mentoradas_deletadas').doc(doc.id).get();
+      if (existing.exists) continue;
+
+      try {
+        await db.collection('mentoradas_deletadas').doc(doc.id).set({
+          nome:            nome            || null,
+          email:           email           || null,
+          produto:         produto         || null,
+          inicio:          inicio          || null,
+          sheetId:         sheetId         || null,
+          planilhaApagada: false,
+          deletadoEm:      admin.firestore.FieldValue.serverTimestamp(),
+          deletadoPor:     'auto-lgpd-retencao',
+          motivo:          'mentoriaEncerrada + inativa 12 meses sem acesso',
+        });
+        agendadas++;
+        console.log(`[agendarLimpeza] Agendada: ${nome} (${doc.id})`);
+      } catch (err) {
+        console.error(`[agendarLimpeza] Erro em ${doc.id}:`, err.message);
+      }
+    }
+    console.log(`[agendarLimpeza] ${agendadas} mentoradas agendadas para limpeza.`);
+  }
+);
+
+/**
  * limparDadosExpirados — dia 1 de cada mês às 09h30 (Sao_Paulo)
  * Conformidade LGPD: apaga planilhas Google Drive de mentoradas deletadas há mais de 12 meses.
  * A planilha é mantida intencionalmente durante esse período para possibilitar reativação.
