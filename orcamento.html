@@ -1118,10 +1118,10 @@
 
     <!-- Abas -->
     <div class="tabs-bar">
-      <button class="tab-btn active" id="tabBtnResumo"      onclick="ativarTab('resumo')">📋 Resumo</button>
-      <button class="tab-btn"        id="tabBtnPlanejamento" onclick="ativarTab('planejamento')">🎯 Planejamento</button>
-      <button class="tab-btn"        id="tabBtnGraficos"     onclick="ativarTab('graficos')">📊 Gráficos</button>
-      <button class="tab-btn"        id="tabBtnDetalhe"      onclick="ativarTab('detalhe')">🔍 Detalhe</button>
+      <button class="tab-btn active" id="tabBtnResumo">📋 Resumo</button>
+      <button class="tab-btn"        id="tabBtnPlanejamento">🎯 Planejamento</button>
+      <button class="tab-btn"        id="tabBtnGraficos">📊 Gráficos</button>
+      <button class="tab-btn"        id="tabBtnDetalhe">🔍 Detalhe</button>
     </div>
 
     <!-- ═══ ABA RESUMO ════════════════════════════════════════════════ -->
@@ -1129,7 +1129,7 @@
 
       <!-- Receitas (colapsável) -->
       <div class="section" id="secaoReceitas">
-        <div class="section-header expansivel" id="headerReceitas" onclick="toggleReceitas()">
+        <div class="section-header expansivel" id="headerReceitas">
           <div class="section-title-row">
             <h2 class="section-title">Receitas</h2>
           </div>
@@ -1147,7 +1147,7 @@
 
       <!-- Despesas totais (colapsável) -->
       <div class="section" id="secaoDespesas" style="margin-top:12px">
-        <div class="section-header expansivel" id="headerDespesas" onclick="toggleDespesas()">
+        <div class="section-header expansivel" id="headerDespesas">
           <div class="section-title-row">
             <h2 class="section-title">Despesas totais</h2>
           </div>
@@ -1434,6 +1434,14 @@
       if (id === 'graficos')    renderGraficos(currentData);
       if (id === 'detalhe')     renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
     }
+
+    // ─── Listeners das abas e colapsáveis (via JS, não onclick no HTML) ───────
+    document.getElementById('tabBtnResumo')     ?.addEventListener('click', () => ativarTab('resumo'));
+    document.getElementById('tabBtnPlanejamento')?.addEventListener('click', () => ativarTab('planejamento'));
+    document.getElementById('tabBtnGraficos')   ?.addEventListener('click', () => ativarTab('graficos'));
+    document.getElementById('tabBtnDetalhe')    ?.addEventListener('click', () => ativarTab('detalhe'));
+    document.getElementById('headerReceitas')   ?.addEventListener('click', toggleReceitas);
+    document.getElementById('headerDespesas')   ?.addEventListener('click', toggleDespesas);
 
     // ─── Colapsáveis ─────────────────────────────────────────────────────────
     function toggleReceitas() {
