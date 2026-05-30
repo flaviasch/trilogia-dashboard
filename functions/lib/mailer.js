@@ -402,6 +402,83 @@ function emailNovidades(nome) {
   `);
 }
 
+// ─── Retenção (série de alerta de pagamento) ──────────────────────────────────
+
+/**
+ * Retenção dia 1 — tom suave, lembrete amigável.
+ */
+function emailRetencaoDia1(nome) {
+  return layout(`
+    <h2 style="${S.h2}">Identificamos um atraso no seu pagamento</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Parece que houve um atraso na cobrança da sua assinatura do Trilogia Dashboard.
+      Isso pode acontecer por vencimento do cartão, limite ou instabilidade temporária.
+    </p>
+    <p style="${S.p}">
+      Regularize pelo link que você recebeu na compra ou entre em contato respondendo este e-mail
+      para que a gente possa te ajudar rapidinho.
+    </p>
+    <p style="${S.p}">Seu acesso continua ativo enquanto isso é resolvido.</p>
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Acessar o dashboard
+    </a>
+  `);
+}
+
+/**
+ * Retenção dia 3 — tom mais urgente, mostra o que está em risco.
+ */
+function emailRetencaoDia3(nome) {
+  return layout(`
+    <h2 style="${S.h2}">Seu acesso ao Dashboard está em risco</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      O pagamento da sua assinatura ainda não foi identificado. Se não for regularizado
+      em breve, seu acesso ao Trilogia Dashboard será suspenso.
+    </p>
+    <p style="${S.p}">Você perderia o acompanhamento de:</p>
+    <ul style="color:#C8C8D0;font-size:15px;line-height:1.8;padding-left:20px;margin:12px 0 20px;">
+      <li>Orçamento mensal e planejamento por categoria</li>
+      <li>Evolução do patrimônio líquido e reservas</li>
+      <li>Metas e progresso das suas reservas financeiras</li>
+      <li>Histórico de 12 meses do seu patrimônio</li>
+    </ul>
+    <p style="${S.p}">
+      Regularize agora para não perder o fio da meada — especialmente com tudo que
+      você já construiu até aqui.
+    </p>
+    <a href="mailto:flaviasch@gmail.com?subject=Regularizar%20assinatura%20Dashboard" style="${S.btn}">
+      Falar com a Flávia
+    </a>
+  `);
+}
+
+/**
+ * Retenção dia 7 — último aviso antes do bloqueio.
+ */
+function emailRetencaoDia7(nome) {
+  return layout(`
+    <h2 style="${S.h2}">Último aviso — acesso será suspenso em breve</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Este é o último aviso antes da suspensão do seu acesso ao Trilogia Dashboard.
+      O pagamento está em atraso há 7 dias e, caso não seja regularizado, o acesso
+      será bloqueado automaticamente.
+    </p>
+    <p style="${S.p}">
+      Se quiser manter tudo que construiu — seu histórico financeiro, reservas
+      e planejamento — regularize agora ou responda este e-mail para conversar.
+    </p>
+    <p style="${S.p}">
+      Você pode reativar o acesso a qualquer momento após a regularização.
+    </p>
+    <a href="mailto:flaviasch@gmail.com?subject=Reativar%20acesso%20Dashboard" style="${S.btn}">
+      Reativar meu acesso
+    </a>
+  `);
+}
+
 module.exports = {
   sendEmail,
   emailRenovacaoPerfil,
@@ -415,4 +492,7 @@ module.exports = {
   emailBoasVindas,
   emailExpiracaoProxima,
   emailCobrancasDia,
+  emailRetencaoDia1,
+  emailRetencaoDia3,
+  emailRetencaoDia7,
 };

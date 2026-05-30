@@ -34,6 +34,9 @@ const {
   emailBoasVindas,
   emailExpiracaoProxima,
   emailCobrancasDia,
+  emailRetencaoDia1,
+  emailRetencaoDia3,
+  emailRetencaoDia7,
 } = require('./lib/mailer');
 
 admin.initializeApp();
@@ -1841,8 +1844,12 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         console.log(`[kiwify] ${mantemAcesso ? '🟡' : '🔴'} ${acao} — ${nomeProdutoCancelado || 'produto'} cancelado: ${emailCancelado}`);
         res.status(200).json({ ok: true, acao, flags: flagsRevogados, uid: mUid });
       } else {
-        // Atraso: marca alerta (não bloqueia ainda)
-        await mRef.update({ status: 'alerta' });
+        // Atraso: marca alerta (não bloqueia ainda) + registra quando começou
+        await mRef.update({
+          status:             'alerta',
+          alertaSince:        admin.firestore.FieldValue.serverTimestamp(),
+          alertaEmailsEnviados: [],
+        });
         console.log(`[kiwify] ⚠️ Alerta de atraso marcado: ${emailCancelado}`);
         res.status(200).json({ ok: true, acao: 'alerta', uid: mUid });
       }
@@ -2092,7 +2099,12 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       const updates = {};
       if (ehClubePag)     updates.assinaturaClube     = true;
       if (ehDashboardPag) updates.assinaturaDashboard = true;
-      if (mData.status === 'inativa') updates.status = 'ativa';
+      if (mData.status === 'inativa' || mData.status === 'alerta') updates.status = 'ativa';
+      // Limpa flags de alerta ao regularizar pagamento
+      if (mData.status === 'alerta') {
+        updates.alertaSince         = admin.firestore.FieldValue.delete();
+        updates.alertaEmailsEnviados = admin.firestore.FieldValue.delete();
+      }
       await db.collection('mentoradas').doc(uidMentorada).update(updates);
       // Desbloqueia no Auth se estava desabilitada
       const authUser = await admin.auth().getUser(uidMentorada).catch(() => null);
@@ -2379,6 +2391,74 @@ exports.notifDia28 = onSchedule(
       url:    '/orcamento.html',
       tag:    'lembrete-aporte',
     }).catch(e => console.warn('[notifDia28] Push falhou:', e.message));
+  },
+);
+
+/**
+ * notifRetencao — diariamente às 10h (Sao_Paulo)
+ * Envia série de e-mails para mentoradas com status=alerta:
+ *   Dia 1: lembrete suave
+ *   Dia 3: urgência (o que está em risco)
+ *   Dia 7: último aviso antes do bloqueio
+ */
+exports.notifRetencao = onSchedule(
+  { schedule: '0 10 * * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
+  async () => {
+    const agora = new Date();
+    const snap  = await db.collection('mentoradas')
+      .where('status', '==', 'alerta').get();
+
+    for (const doc of snap.docs) {
+      const { email, nome, alertaSince, alertaEmailsEnviados = [] } = doc.data();
+      if (!email || !alertaSince) continue;
+
+      const diasEmAlerta = Math.floor(
+        (agora - alertaSince.toDate()) / 86_400_000
+      );
+
+      const tarefas = [];
+
+      if (diasEmAlerta >= 1 && !alertaEmailsEnviados.includes(1)) {
+        tarefas.push(
+          sendEmail({
+            to:      email,
+            subject: 'Identificamos um atraso no seu pagamento',
+            html:    emailRetencaoDia1(nome || 'mentorada'),
+          }).then(() =>
+            doc.ref.update({ alertaEmailsEnviados: admin.firestore.FieldValue.arrayUnion(1) })
+          )
+        );
+      }
+
+      if (diasEmAlerta >= 3 && !alertaEmailsEnviados.includes(3)) {
+        tarefas.push(
+          sendEmail({
+            to:      email,
+            subject: 'Seu acesso ao Dashboard está em risco',
+            html:    emailRetencaoDia3(nome || 'mentorada'),
+          }).then(() =>
+            doc.ref.update({ alertaEmailsEnviados: admin.firestore.FieldValue.arrayUnion(3) })
+          )
+        );
+      }
+
+      if (diasEmAlerta >= 7 && !alertaEmailsEnviados.includes(7)) {
+        tarefas.push(
+          sendEmail({
+            to:      email,
+            subject: 'Último aviso — acesso será suspenso em breve',
+            html:    emailRetencaoDia7(nome || 'mentorada'),
+          }).then(() =>
+            doc.ref.update({ alertaEmailsEnviados: admin.firestore.FieldValue.arrayUnion(7) })
+          )
+        );
+      }
+
+      if (tarefas.length) {
+        await Promise.allSettled(tarefas);
+        console.log(`[retencao] ${tarefas.length} e-mail(s) enviados para ${email} (dia ${diasEmAlerta} de alerta)`);
+      }
+    }
   },
 );
 
