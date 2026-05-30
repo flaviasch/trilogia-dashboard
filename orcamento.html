@@ -1085,9 +1085,9 @@
       </div>
     </div>
 
-    <!-- Disclaimer inserção manual -->
-    <p style="font-size:12px; color:var(--text-muted); margin-top:-20px; margin-bottom:28px; padding: 0 4px;">
-      💡 Prefere inserir manualmente? Use os botões <strong style="color:rgba(255,255,255,0.5)">+ Adicionar</strong> em cada seção abaixo — receitas, despesas e aporte do mês podem ser lançados diretamente, sem CSV.
+    <!-- Disclaimer inserção manual + botão SMS -->
+    <p style="font-size:12px; color:var(--text-muted); margin-top:-20px; margin-bottom:16px; padding: 0 4px;">
+      💡 Prefere inserir manualmente? Use os botões <strong style="color:rgba(255,255,255,0.5)">+ Adicionar</strong> em cada seção abaixo — ou <button id="btnImportarSMS" style="background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;">📱 cole uma notificação do cartão</button> para lançar uma despesa automaticamente.
     </p>
 
     <!-- Resumo -->
@@ -1141,7 +1141,30 @@
         </div>
       </div>
 
-      <!-- Modal gestão de cartões -->
+      <!-- Modal importar notificação do cartão (SMS/push) -->
+  <div id="modalSMS" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width:460px;width:94%;">
+      <h3 style="font-family:'Playfair Display',serif;font-size:17px;margin:0 0 8px;">📱 Importar notificação do cartão</h3>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">Cole o texto do SMS ou notificação push do banco — o sistema extrai o valor e o estabelecimento automaticamente.</p>
+      <textarea id="smsTexto" rows="4" placeholder='Ex: "Compra de R$89,90 no iFood em 30/05"&#10;ou "Nubank: R$ 45,00 em UBER *TRIP"'
+        style="width:100%;padding:10px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;resize:vertical;box-sizing:border-box;font-family:'Inter',sans-serif;"></textarea>
+      <div id="smsPreview" style="display:none;margin-top:12px;padding:12px 14px;background:rgba(207,174,101,0.08);border:1px solid rgba(207,174,101,0.25);border-radius:8px;">
+        <div style="font-size:12px;color:var(--gold);margin-bottom:8px;">Detectado:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div><span style="font-size:11px;color:var(--text-secondary);">Valor</span><div id="smsValorDetect" style="font-size:15px;font-weight:700;color:var(--negative);"></div></div>
+          <div><span style="font-size:11px;color:var(--text-secondary);">Data</span><div id="smsDataDetect" style="font-size:14px;font-weight:600;"></div></div>
+        </div>
+        <div style="margin-top:8px;"><span style="font-size:11px;color:var(--text-secondary);">Estabelecimento (descrição)</span><div id="smsDescDetect" style="font-size:13px;margin-top:2px;"></div></div>
+      </div>
+      <div id="smsErro" style="display:none;font-size:12px;color:var(--negative);margin-top:8px;"></div>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button id="btnSMSLancar" class="btn-primary" style="flex:1;font-size:14px;" disabled>Lançar como despesa</button>
+        <button id="btnSMSCancelar" class="btn-secondary" style="font-size:14px;padding:10px 16px;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal gestão de cartões -->
   <div id="modalCartoes" class="modal-overlay hidden">
     <div class="modal-card" style="max-width:500px;width:94%;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
@@ -3273,6 +3296,114 @@
     window.toggleDespesas   = toggleDespesas;
     window.copiarMesAnterior = copiarMesAnterior;
     window.editarLimitePlan = editarLimitePlan;
+
+    // ─── PARSE SMS / NOTIFICAÇÃO DE CARTÃO ───────────────────────────────────
+
+    let _smsDetectado = null;
+
+    function parsearSMS(texto) {
+      if (!texto?.trim()) return null;
+      const t = texto.trim();
+
+      // ── Extrai valor ──────────────────────────────────────────────────────
+      // Padrões: R$89,90 | R$ 89.90 | BRL 89,90 | 89,90 reais
+      const regexValor = /R\$\s*([\d.]+,\d{2})|R\$\s*([\d,]+\.\d{2})|([\d.]+,\d{2})\s*reais?|([\d]+[.,]\d{2})\b/i;
+      const matchValor = t.match(regexValor);
+      if (!matchValor) return null;
+      const valorStr = (matchValor[1] || matchValor[2] || matchValor[3] || matchValor[4] || '0')
+        .replace(/\./g, '').replace(',', '.');
+      const valor = parseFloat(valorStr);
+      if (!valor || valor <= 0) return null;
+
+      // ── Extrai data ───────────────────────────────────────────────────────
+      // Padrões: 30/05/2026 | 30/05 | 30 de maio
+      const mesesNomes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+      let dataISO = new Date().toISOString().split('T')[0]; // fallback: hoje
+      const regexData1 = /(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/;
+      const regexData2 = new RegExp(`(\\d{1,2})\\s+de\\s+(${mesesNomes.join('|')})`, 'i');
+      const mData1 = t.match(regexData1);
+      const mData2 = t.match(regexData2);
+      if (mData1) {
+        const [, d, m, a] = mData1;
+        const ano = a ? (a.length === 2 ? '20' + a : a) : new Date().getFullYear();
+        dataISO = `${ano}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+      } else if (mData2) {
+        const [, d, mes] = mData2;
+        const mIdx = mesesNomes.indexOf(mes.toLowerCase().slice(0,3)) + 1;
+        dataISO = `${new Date().getFullYear()}-${String(mIdx).padStart(2,'0')}-${d.padStart(2,'0')}`;
+      }
+
+      // ── Extrai estabelecimento ────────────────────────────────────────────
+      // Remove o valor e termos de trigger, pega o que sobra como descrição
+      const semValor = t
+        .replace(/R\$\s*[\d.,]+/gi, '')
+        .replace(/\b(compra|pagamento|débito|debit|purchase|transação|autorizada?|aprovada?|no valor de|em|de|na)\b/gi, ' ')
+        .replace(/\d{1,2}\/\d{1,2}(\/\d{2,4})?/g, '')
+        .replace(/\s{2,}/g, ' ').trim();
+      // Pega a parte mais limpa: remove pontuação final e trunca
+      const desc = semValor.replace(/^[:*\-\s]+|[:*\-\s]+$/g, '').slice(0, 60).trim();
+
+      return { valor, data: dataISO, descricao: desc || '' };
+    }
+
+    document.getElementById('btnImportarSMS')?.addEventListener('click', () => {
+      document.getElementById('smsTexto').value = '';
+      document.getElementById('smsPreview').style.display = 'none';
+      document.getElementById('smsErro').style.display = 'none';
+      document.getElementById('btnSMSLancar').disabled = true;
+      _smsDetectado = null;
+      document.getElementById('modalSMS').classList.remove('hidden');
+      setTimeout(() => document.getElementById('smsTexto')?.focus(), 80);
+    });
+
+    document.getElementById('smsTexto')?.addEventListener('input', () => {
+      const texto = document.getElementById('smsTexto').value;
+      const resultado = parsearSMS(texto);
+      const preview = document.getElementById('smsPreview');
+      const erroEl  = document.getElementById('smsErro');
+      const btnLancar = document.getElementById('btnSMSLancar');
+
+      if (!texto.trim()) {
+        preview.style.display = 'none'; erroEl.style.display = 'none';
+        btnLancar.disabled = true; _smsDetectado = null; return;
+      }
+      if (!resultado) {
+        preview.style.display = 'none';
+        erroEl.textContent = 'Não foi possível identificar o valor. Verifique o texto ou insira manualmente.';
+        erroEl.style.display = ''; btnLancar.disabled = true; _smsDetectado = null; return;
+      }
+      erroEl.style.display = 'none';
+      document.getElementById('smsValorDetect').textContent = brl(resultado.valor);
+      document.getElementById('smsDataDetect').textContent  = formatData(resultado.data);
+      document.getElementById('smsDescDetect').textContent  = resultado.descricao || '(sem descrição detectada)';
+      preview.style.display = '';
+      btnLancar.disabled = false;
+      _smsDetectado = resultado;
+    });
+
+    document.getElementById('btnSMSLancar')?.addEventListener('click', async () => {
+      if (!_smsDetectado) return;
+      const { mes, ano } = currentData.periodo;
+      // Pré-preenche o modal de despesa com os dados detectados
+      document.getElementById('modalSMS').classList.add('hidden');
+      // Abre modal de lançamento pré-preenchido
+      await abrirModal('despesa', null, null);
+      setTimeout(() => {
+        document.getElementById('mValor').value    = _smsDetectado.valor.toFixed(2).replace('.', ',');
+        document.getElementById('mData').value     = _smsDetectado.data;
+        document.getElementById('mDescricao').value = _smsDetectado.descricao;
+        document.getElementById('mCartao').checked = true;
+        document.getElementById('fgCartaoOpcoes').style.display = '';
+        preencherSeletorCartoes(null);
+        calcularFaturaAutomatica();
+      }, 50);
+    });
+
+    document.getElementById('btnSMSCancelar')?.addEventListener('click', () =>
+      document.getElementById('modalSMS').classList.add('hidden'));
+    document.getElementById('modalSMS')?.addEventListener('click', e => {
+      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
 
     // ─── CARTÕES DE CRÉDITO ──────────────────────────────────────────────────
 

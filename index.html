@@ -1429,6 +1429,16 @@
     <button id="pwaBannerDismiss" style="background:transparent;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
   </div>
 
+  <!-- Banner iOS — instalar como app para ativar notificações -->
+  <div id="pushBannerIOS" style="display:none;position:fixed;bottom:70px;left:12px;right:12px;z-index:9998;background:#0D2B45;border:1px solid rgba(207,174,101,0.35);border-radius:14px;padding:14px 16px;align-items:flex-start;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);">
+    <div style="font-size:22px;flex-shrink:0;">📲</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.3;">Instale o app para receber notificações</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:4px;line-height:1.5;">No Safari, toque em <strong style="color:rgba(255,255,255,0.85);">Compartilhar ↑</strong> e depois <strong style="color:rgba(255,255,255,0.85);">"Adicionar à Tela de Início"</strong>.</div>
+    </div>
+    <button id="pushBannerIOSDismiss" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:20px;line-height:1;padding:0 2px;flex-shrink:0;">✕</button>
+  </div>
+
   <!-- Banner ativar notificações push -->
   <div id="pushBanner" style="display:none;position:fixed;bottom:70px;left:12px;right:12px;z-index:9998;background:#0D2B45;border:1px solid rgba(207,174,101,0.35);border-radius:14px;padding:14px 16px;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);">
     <div style="font-size:22px;flex-shrink:0;">🔔</div>
@@ -1452,21 +1462,34 @@
       return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
     }
 
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
     async function registrarPush() {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        // iOS sem suporte a push web — mostra dica de instalação
+        if (isIOS && !isStandalone) {
+          document.getElementById('pushBannerIOS')?.style.setProperty('display', 'flex');
+        }
+        return;
+      }
       if (Notification.permission === 'denied') return;
       if (localStorage.getItem('push_dismissed') === '1') return;
+
+      // iOS com PWA instalado (standalone) — suporta push desde iOS 16.4
+      // iOS sem PWA — push não funciona, mostra dica
+      if (isIOS && !isStandalone) {
+        document.getElementById('pushBannerIOS')?.style.setProperty('display', 'flex');
+        return;
+      }
 
       try {
         const reg = await navigator.serviceWorker.ready;
         const existente = await reg.pushManager.getSubscription();
         if (existente) {
-          // Já subscrito — apenas garante que está salvo no servidor
           await savePushSubscription(existente.toJSON()).catch(() => {});
           return;
         }
-
-        // Primeira vez — mostra banner suave (não usa window.Notification.requestPermission diretamente)
         document.getElementById('pushBanner')?.style.setProperty('display', 'flex');
       } catch (e) {
         console.warn('[push] Erro ao verificar subscription:', e.message);
@@ -1529,6 +1552,10 @@
 
     // Listeners do banner de push
     document.getElementById('pushBannerAtivar')?.addEventListener('click', ativarPush);
+    document.getElementById('pushBannerIOSDismiss')?.addEventListener('click', () => {
+      document.getElementById('pushBannerIOS').style.display = 'none';
+      localStorage.setItem('push_dismissed', '1');
+    });
     document.getElementById('pushBannerDismiss')?.addEventListener('click', () => {
       document.getElementById('pushBanner').style.display = 'none';
       localStorage.setItem('push_dismissed', '1');

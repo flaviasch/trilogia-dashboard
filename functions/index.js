@@ -52,6 +52,54 @@ const SECRETS_PUSH   = [sVapidPub, sVapidPriv];
 // ID da pasta no Google Drive da Flávia onde ficam as planilhas das mentoradas.
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || '';
 
+// ─── Monitoramento de erros ───────────────────────────────────────────────────
+
+/**
+ * Envia alerta de erro para o admin por e-mail.
+ * Usado pelas funções agendadas críticas quando falham de forma inesperada.
+ */
+async function alertarErro(funcao, erro) {
+  const nodemailer = require('nodemailer');
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: 'flaviasch@gmail.com', pass: process.env.GMAIL_APP_PASSWORD },
+    });
+    await transporter.sendMail({
+      from:    '"Trilogia Dashboard" <flaviasch@gmail.com>',
+      to:      'flaviasch@gmail.com',
+      subject: `⚠️ Erro na função ${funcao}`,
+      html: `
+        <p style="font-family:sans-serif;font-size:14px;">
+          A função <strong>${funcao}</strong> falhou em
+          <strong>${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</strong>.
+        </p>
+        <pre style="background:#f4f4f5;padding:16px;border-radius:8px;font-size:13px;overflow:auto;">${String(erro?.stack || erro?.message || erro)}</pre>
+        <p style="font-family:sans-serif;font-size:13px;color:#6b7280;">
+          Verifique os logs em
+          <a href="https://console.firebase.google.com/project/trilogia-dashboard/functions/logs">Firebase Console → Functions → Logs</a>.
+        </p>`,
+    });
+  } catch (emailErr) {
+    console.error('[alertarErro] Falha ao enviar alerta:', emailErr.message);
+  }
+}
+
+/**
+ * Envolve uma função agendada com try/catch + alerta de erro.
+ */
+function comMonitoramento(nomeFuncao, fn) {
+  return async (...args) => {
+    try {
+      return await fn(...args);
+    } catch (err) {
+      console.error(`[${nomeFuncao}] ERRO CRÍTICO:`, err);
+      await alertarErro(nomeFuncao, err).catch(() => {});
+      throw err; // propaga para o Cloud Functions registrar no log
+    }
+  };
+}
+
 // ─── Push helper ─────────────────────────────────────────────────────────────
 
 /**
@@ -1202,6 +1250,12 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
     sheetId = await provisionar(nome, DRIVE_FOLDER_ID);
   } catch (err) {
     console.error(`[createMentorada] Falha ao criar planilha para ${email}:`, err.message);
+    // Alerta imediato — provável expiração do token OAuth2 do Drive
+    alertarErro('createMentorada (Drive OAuth2)', new Error(
+      `Falha ao criar planilha para ${email}: ${err.message}\n\n` +
+      `Se o erro for "invalid_grant" ou "Token has been expired", o token OAuth2 expirou.\n` +
+      `Acesse o Firebase Console → Functions → Secrets e regenere GOOGLE_REFRESH_TOKEN.`
+    )).catch(() => {});
     // Continua — planilha pode ser criada/vinculada manualmente depois
   }
 
@@ -2587,7 +2641,7 @@ async function getAtivas() {
  */
 exports.notifDia1 = onSchedule(
   { schedule: '0 8 1 * *', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, ...SECRETS_PUSH] },
-  async () => {
+  comMonitoramento('notifDia1', async () => {
     const agora   = new Date();
     const mes     = agora.getMonth() + 1;
     const ano     = agora.getFullYear();
@@ -2674,8 +2728,8 @@ exports.notifDia1 = onSchedule(
       url:    '/orcamento.html',
       tag:    'lembrete-orcamento',
     }).catch(e => console.warn('[notifDia1] Push falhou:', e.message));
-  },
-);
+  }));
+
 
 /**
  * Dia 28 de cada mês às 08h (Brasília):
@@ -2756,7 +2810,7 @@ exports.notifDia28 = onSchedule(
  */
 exports.notifRetencao = onSchedule(
   { schedule: '0 10 * * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
-  async () => {
+  comMonitoramento('notifRetencao', async () => {
     const agora = new Date();
     const snap  = await db.collection('mentoradas')
       .where('status', '==', 'alerta').get();
@@ -2812,8 +2866,7 @@ exports.notifRetencao = onSchedule(
         console.log(`[retencao] ${tarefas.length} e-mail(s) enviados para ${email} (dia ${diasEmAlerta} de alerta)`);
       }
     }
-  },
-);
+  }));
 
 /**
  * notifMaioIR — todo dia 5 de maio, 08h (Sao_Paulo)
@@ -2933,8 +2986,8 @@ exports.limparDadosExpirados = onSchedule(
  * Roda APÓS notifExpiracaoProxima (07h) para garantir que o aviso chega antes do bloqueio.
  */
 exports.verificarExpiracoes = onSchedule(
-  { schedule: '0 9 * * *', timeZone: 'America/Sao_Paulo' },
-  async () => {
+  { schedule: '0 9 * * *', timeZone: 'America/Sao_Paulo', secrets: [sGmail] },
+  comMonitoramento('verificarExpiracoes', async () => {
     const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     const snap = await db.collection('mentoradas')
       .where('status', '==', 'ativa')
@@ -2959,8 +3012,7 @@ exports.verificarExpiracoes = onSchedule(
       await doc.ref.update({ status: 'inativa' });
       console.log(`Conta expirada e inativada: ${doc.id} (${dataExpiracao})`);
     }
-  },
-);
+  }));
 
 /**
  * notifExpiracaoProxima — diariamente às 07h (Sao_Paulo)
@@ -3015,8 +3067,8 @@ exports.getBackupStatus = onCall({}, async (request) => {
 });
 
 exports.backupDiario = onSchedule(
-  { schedule: '0 3 * * *', timeZone: 'America/Sao_Paulo' },
-  async () => {
+  { schedule: '0 3 * * *', timeZone: 'America/Sao_Paulo', secrets: [sGmail] },
+  comMonitoramento('backupDiario', async () => {
     const dataHoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
     // ── 1. Snapshot das mentoradas ────────────────────────────────────────
@@ -3073,8 +3125,7 @@ exports.backupDiario = onSchedule(
     }
 
     console.log(`[backup] ${dataHoje}: ${mentSnap.size} mentoradas. ${velhos.size} backup(s) antigo(s) removidos.`);
-  },
-);
+  }));
 
 // ─── NOTION CRM ───────────────────────────────────────────────────────────────
 
