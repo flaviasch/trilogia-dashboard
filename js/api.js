@@ -814,3 +814,8 @@ export function registrarEvento(evento) {
 export async function getAnalytics(uid) {
   return call('getAnalytics')({ uid });
 }
+
+export async function getAdmins()              { return call('getAdmins')({}); }
+export async function addAdmin(email, nome)    { return call('addAdmin')({ email, nome }); }
+export async function removeAdmin(uid)         { return call('removeAdmin')({ uid }); }
+export async function getBackupStatus()        { return call('getBackupStatus')({}); }

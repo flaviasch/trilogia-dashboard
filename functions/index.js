@@ -1664,16 +1664,97 @@ exports.setAdminClaim = onCall({}, async (request) => {
   const { uid, conceder } = request.data;
   if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
 
-  // Nunca remova sua própria claim de admin acidentalmente
   if (uid === request.auth.uid && conceder === false) {
     throw new HttpsError('failed-precondition', 'Você não pode remover seu próprio acesso admin.');
   }
 
-  const user          = await admin.auth().getUser(uid);
-  const claimsAtuais  = user.customClaims || {};
+  const user         = await admin.auth().getUser(uid);
+  const claimsAtuais = user.customClaims || {};
   await admin.auth().setCustomUserClaims(uid, { ...claimsAtuais, admin: conceder === true });
 
   return { ok: true, uid, admin: conceder === true };
+});
+
+// ─── MULTI-ADMIN ──────────────────────────────────────────────────────────────
+
+/**
+ * Lista todos os admins cadastrados (doc config/admins).
+ */
+exports.getAdmins = onCall({}, async (request) => {
+  requireAdmin(request);
+  const snap = await db.collection('config').doc('admins').get();
+  return snap.exists ? (snap.data().lista || []) : [];
+});
+
+/**
+ * Adiciona um novo admin por e-mail.
+ * Espera: { email, nome }
+ * Só o master (ADMIN_MASTER_EMAIL) pode conceder acesso admin.
+ */
+exports.addAdmin = onCall({}, async (request) => {
+  const auth = requireAdmin(request);
+  if (request.auth?.token?.email !== ADMIN_MASTER_EMAIL) {
+    throw new HttpsError('permission-denied', 'Apenas a conta master pode adicionar admins.');
+  }
+
+  const { email, nome } = request.data;
+  if (!email) throw new HttpsError('invalid-argument', 'email é obrigatório.');
+
+  // Busca o usuário pelo e-mail no Firebase Auth
+  let userRecord;
+  try {
+    userRecord = await admin.auth().getUserByEmail(email);
+  } catch {
+    throw new HttpsError('not-found', `Nenhuma conta encontrada com o e-mail ${email}. O usuário precisa ter feito login ao menos uma vez.`);
+  }
+
+  // Concede custom claim admin
+  const claims = userRecord.customClaims || {};
+  await admin.auth().setCustomUserClaims(userRecord.uid, { ...claims, admin: true });
+
+  // Registra na lista de admins
+  const configRef = db.collection('config').doc('admins');
+  const snap = await configRef.get();
+  const lista = snap.exists ? (snap.data().lista || []) : [];
+  if (!lista.find(a => a.email === email)) {
+    lista.push({ email, nome: nome || email, uid: userRecord.uid, addedAt: new Date().toISOString() });
+    await configRef.set({ lista });
+  }
+
+  return { ok: true, uid: userRecord.uid };
+});
+
+/**
+ * Remove um admin por uid.
+ * Só o master pode remover. Não pode remover a si mesmo.
+ */
+exports.removeAdmin = onCall({}, async (request) => {
+  requireAdmin(request);
+  if (request.auth?.token?.email !== ADMIN_MASTER_EMAIL) {
+    throw new HttpsError('permission-denied', 'Apenas a conta master pode remover admins.');
+  }
+
+  const { uid } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+
+  const userRecord = await admin.auth().getUser(uid);
+  if (userRecord.email === ADMIN_MASTER_EMAIL) {
+    throw new HttpsError('failed-precondition', 'Não é possível remover a conta master.');
+  }
+
+  // Revoga claim
+  const claims = userRecord.customClaims || {};
+  await admin.auth().setCustomUserClaims(uid, { ...claims, admin: false });
+
+  // Remove da lista
+  const configRef = db.collection('config').doc('admins');
+  const snap = await configRef.get();
+  if (snap.exists) {
+    const lista = (snap.data().lista || []).filter(a => a.uid !== uid);
+    await configRef.update({ lista });
+  }
+
+  return { ok: true };
 });
 
 // ─── CONTRATOS & COBRANÇAS ───────────────────────────────────────────────────
@@ -2909,6 +2990,89 @@ exports.notifExpiracaoProxima = onSchedule(
         html:    emailExpiracaoProxima(m.nome || 'mentorada'),
       }).catch(err => console.error(`Erro ao enviar expiração para ${m.email}:`, err));
     }
+  },
+);
+
+// ─── BACKUP AUTOMÁTICO ───────────────────────────────────────────────────────
+
+/**
+ * backupDiario — todo dia às 03h (Sao_Paulo)
+ * Cria snapshot de todos os docs de mentoradas em backups/{YYYY-MM-DD}.
+ * Mantém os últimos 30 dias. Backups mais antigos são removidos automaticamente.
+ *
+ * Estrutura: backups/{data}/mentoradas/{uid} → campos principais
+ *            backups/{data}/cobrancas_count  → número total de cobranças
+ */
+/**
+ * Retorna metadata do backup mais recente.
+ */
+exports.getBackupStatus = onCall({}, async (request) => {
+  requireAdmin(request);
+  const snap = await db.collection('backups').orderBy('data', 'desc').limit(1).get();
+  if (snap.empty) return null;
+  const d = snap.docs[0].data();
+  return { data: d.data, totalMentoradas: d.totalMentoradas, criadoEm: d.criadoEm?.toDate?.()?.toISOString() || null };
+});
+
+exports.backupDiario = onSchedule(
+  { schedule: '0 3 * * *', timeZone: 'America/Sao_Paulo' },
+  async () => {
+    const dataHoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // ── 1. Snapshot das mentoradas ────────────────────────────────────────
+    const mentSnap = await db.collection('mentoradas').get();
+    const backupRef = db.collection('backups').doc(dataHoje);
+
+    const batch = db.batch();
+    for (const doc of mentSnap.docs) {
+      const d = doc.data();
+      // Salva campos críticos (sem subcoleções volumosas)
+      batch.set(
+        backupRef.collection('mentoradas').doc(doc.id),
+        {
+          nome:            d.nome            || null,
+          email:           d.email           || null,
+          status:          d.status          || null,
+          produto:         d.produto         || null,
+          sheetId:         d.sheetId         || null,
+          dataExpiracao:   d.dataExpiracao   || null,
+          assinaturaDashboard: d.assinaturaDashboard || false,
+          assinaturaClube: d.assinaturaClube || false,
+          mentoriaEncerrada: d.mentoriaEncerrada || false,
+          pl:              d.pl              || 0,
+          totalReservas:   d.totalReservas   || 0,
+          lgpdAceite:      d.lgpdAceite      || false,
+          backedUpAt:      admin.firestore.FieldValue.serverTimestamp(),
+        }
+      );
+    }
+    await batch.commit();
+
+    // ── 2. Metadata do backup ─────────────────────────────────────────────
+    await backupRef.set({
+      data:          dataHoje,
+      totalMentoradas: mentSnap.size,
+      criadoEm:      admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // ── 3. Remove backups com mais de 30 dias ─────────────────────────────
+    const limite = new Date();
+    limite.setDate(limite.getDate() - 30);
+    const limitStr = limite.toISOString().slice(0, 10);
+
+    const velhos = await db.collection('backups')
+      .where('data', '<', limitStr).get();
+
+    for (const velho of velhos.docs) {
+      // Remove subcoleção de mentoradas do backup antigo
+      const subSnap = await velho.ref.collection('mentoradas').get();
+      const delBatch = db.batch();
+      subSnap.docs.forEach(d => delBatch.delete(d.ref));
+      if (!subSnap.empty) await delBatch.commit();
+      await velho.ref.delete();
+    }
+
+    console.log(`[backup] ${dataHoje}: ${mentSnap.size} mentoradas. ${velhos.size} backup(s) antigo(s) removidos.`);
   },
 );
 

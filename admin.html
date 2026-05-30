@@ -493,6 +493,7 @@
       <button class="nav-tab" data-tab="financeiro">Financeiro</button>
       <button class="nav-tab" data-tab="clube">Clube</button>
       <button class="nav-tab" data-tab="pipeline">Pipeline</button>
+      <button class="nav-tab" data-tab="configuracoes">⚙️ Config</button>
     </div>
     <div class="navbar-right">
       <span class="admin-badge">Admin</span>
@@ -1185,6 +1186,47 @@
 
     </div><!-- /view-pipeline -->
 
+    <!-- ─── ABA CONFIGURAÇÕES ──────────────────────────────────────────── -->
+    <div id="view-configuracoes" class="view" style="max-width:600px;margin:0 auto;">
+
+      <!-- Gestão de admins -->
+      <div class="detalhe-card" style="margin-bottom:24px;">
+        <div class="card-header-row" style="margin-bottom:16px;">
+          <div class="detalhe-card-label">Admins do painel</div>
+        </div>
+        <p style="font-size:13px;color:var(--text-secondary);margin:0 0 16px;">
+          Admins têm acesso total ao painel. Apenas você (conta master) pode adicionar ou remover.
+        </p>
+        <div id="listaAdmins" style="margin-bottom:16px;"></div>
+        <div style="display:flex;gap:10px;align-items:flex-end;">
+          <div style="flex:1;">
+            <label style="font-size:12px;color:var(--text-secondary);">E-mail do novo admin</label>
+            <input type="email" id="novoAdminEmail" placeholder="email@exemplo.com"
+              style="width:100%;margin-top:4px;padding:9px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Nome</label>
+            <input type="text" id="novoAdminNome" placeholder="Opcional"
+              style="width:140px;margin-top:4px;padding:9px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;box-sizing:border-box;">
+          </div>
+          <button id="btnAddAdmin" class="btn-acao" style="padding:9px 18px;font-size:13px;flex-shrink:0;">Adicionar</button>
+        </div>
+        <div id="adminsErro" style="font-size:12px;color:var(--negative);margin-top:8px;display:none;"></div>
+      </div>
+
+      <!-- Status do backup -->
+      <div class="detalhe-card">
+        <div class="card-header-row" style="margin-bottom:12px;">
+          <div class="detalhe-card-label">Backup automático</div>
+        </div>
+        <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px;">
+          Snapshot diário às 03h com dados de todas as mentoradas. Mantém os últimos 30 dias no Firestore.
+        </p>
+        <div id="backupStatus" style="font-size:13px;color:var(--text-secondary);">Carregando…</div>
+      </div>
+
+    </div><!-- /view-configuracoes -->
+
   </main>
 
   <!-- Toast de notificação -->
@@ -1482,12 +1524,14 @@
 
   <script type="module">
     import { exigirAdmin, logout, refreshAdmin } from './js/admin-guard.js';
+    import { auth } from './js/firebase-config.js';
     import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada,
              createContrato, getContratos, pagarParcela, editarPagamento, estornarPagamento, cancelarCobranca, cancelarContrato, editarContrato, getCobrancas,
              criarPlanilha, getNotionCRM,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico, anunciarNovidades, migrarOrcamento, getAnalytics } from './js/api.js?v=12';
+             syncDiagnostico, anunciarNovidades, migrarOrcamento, getAnalytics,
+             getAdmins, addAdmin, removeAdmin, getBackupStatus } from './js/api.js?v=12';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -1693,9 +1737,10 @@
         const nome = tab.dataset.tab;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('ativo'));
         document.getElementById(`view-${nome}`)?.classList.add('ativo');
-        if (nome === 'financeiro') renderFinanceiro();
-        if (nome === 'clube') renderClube();
-        if (nome === 'pipeline') renderPipeline();
+        if (nome === 'financeiro')    renderFinanceiro();
+        if (nome === 'clube')         renderClube();
+        if (nome === 'pipeline')      renderPipeline();
+        if (nome === 'configuracoes') carregarConfiguracoes();
       });
     });
 
@@ -2017,6 +2062,88 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 </body></html>`);
       w.document.close();
     }
+
+    // ─── Configurações (multi-admin + backup) ────────────────────────────────
+
+    const MASTER_EMAIL = 'flaviasch@gmail.com';
+    let _isMaster = false;
+
+    async function carregarConfiguracoes() {
+      // Verifica se é master
+      _isMaster = auth.currentUser?.email === MASTER_EMAIL;
+
+      await Promise.allSettled([carregarAdmins(), carregarStatusBackup()]);
+
+      // Mostra campo de adicionar só se for master
+      document.querySelector('#view-configuracoes .btn-acao')?.style.setProperty('display', _isMaster ? '' : 'none');
+      document.getElementById('novoAdminEmail')?.closest('div[style*="flex"]')?.style.setProperty('display', _isMaster ? 'flex' : 'none');
+    }
+
+    async function carregarAdmins() {
+      const el = document.getElementById('listaAdmins');
+      if (!el) return;
+      try {
+        const lista = await getAdmins();
+        if (!lista.length) { el.innerHTML = '<p style="font-size:13px;color:var(--text-secondary);">Nenhum admin adicional cadastrado.</p>'; return; }
+        el.innerHTML = lista.map(a => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+            <div>
+              <div style="font-size:14px;font-weight:600;">${escHtml(a.nome || a.email)}</div>
+              <div style="font-size:12px;color:var(--text-secondary);">${escHtml(a.email)} · desde ${a.addedAt?.slice(0,10) || '?'}</div>
+            </div>
+            ${_isMaster && a.email !== MASTER_EMAIL
+              ? `<button class="btn-acao btn-danger" data-rm-admin="${a.uid}" style="font-size:12px;padding:5px 12px;">Remover</button>`
+              : `<span style="font-size:11px;color:var(--gold);">master</span>`}
+          </div>`).join('');
+        el.querySelectorAll('[data-rm-admin]').forEach(b =>
+          b.addEventListener('click', () => removerAdmin(b.dataset.rmAdmin)));
+      } catch (e) {
+        el.innerHTML = `<p style="font-size:12px;color:var(--negative);">Erro ao carregar admins.</p>`;
+      }
+    }
+
+    async function removerAdmin(uid) {
+      if (!confirm('Remover acesso admin deste usuário?')) return;
+      try {
+        await removeAdmin(uid);
+        mostrarToast('Admin removido.');
+        await carregarAdmins();
+      } catch (e) { mostrarToast('Erro: ' + e.message); }
+    }
+
+    async function carregarStatusBackup() {
+      const el = document.getElementById('backupStatus');
+      if (!el) return;
+      try {
+        const d = await getBackupStatus();
+        if (!d) { el.textContent = 'Nenhum backup realizado ainda. Próximo: hoje às 03h.'; return; }
+        el.innerHTML = `✅ Último backup: <strong>${d.data}</strong> — ${d.totalMentoradas} mentoradas. Próximo: amanhã às 03h.`;
+      } catch { el.textContent = '—'; }
+    }
+
+    function escHtml(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    document.getElementById('btnAddAdmin')?.addEventListener('click', async () => {
+      const email = document.getElementById('novoAdminEmail')?.value.trim();
+      const nome  = document.getElementById('novoAdminNome')?.value.trim();
+      const erroEl = document.getElementById('adminsErro');
+      if (!email) { erroEl.textContent = 'Informe o e-mail.'; erroEl.style.display = ''; return; }
+      erroEl.style.display = 'none';
+      const btn = document.getElementById('btnAddAdmin');
+      btn.disabled = true; btn.textContent = 'Adicionando…';
+      try {
+        await addAdmin(email, nome);
+        document.getElementById('novoAdminEmail').value = '';
+        document.getElementById('novoAdminNome').value = '';
+        mostrarToast('Admin adicionado!');
+        await carregarAdmins();
+      } catch (e) {
+        erroEl.textContent = e.message || 'Erro ao adicionar.';
+        erroEl.style.display = '';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Adicionar';
+      }
+    });
 
     // ─── CRM Notion ──────────────────────────
     const LABEL_EVENTO = {
