@@ -761,7 +761,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, bootstrapAdmin, aceitarLGPD } from './js/api.js?v=6';
+    import { getDashboard, bootstrapAdmin, aceitarLGPD, savePushSubscription } from './js/api.js?v=11';
     import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
@@ -1429,12 +1429,76 @@
     <button id="pwaBannerDismiss" style="background:transparent;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
   </div>
 
+  <!-- Banner ativar notificações push -->
+  <div id="pushBanner" style="display:none;position:fixed;bottom:70px;left:12px;right:12px;z-index:9998;background:#0D2B45;border:1px solid rgba(207,174,101,0.35);border-radius:14px;padding:14px 16px;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);">
+    <div style="font-size:22px;flex-shrink:0;">🔔</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.3;">Ativar notificações</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:2px;">Receba lembretes de aporte e orçamento direto no celular.</div>
+    </div>
+    <button id="pushBannerAtivar" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Ativar</button>
+    <button id="pushBannerDismiss" style="background:transparent;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
+  </div>
+
   <!-- Service Worker (PWA) -->
   <script>
+    // ─── Service Worker + Push ───────────────────────────────────────────────
+    const VAPID_PUBLIC_KEY = 'BBngLCtoPtyX5vvdzY3q7whYtK8UtAJB12CVGzoc9tAv_T8JvOq9dXzKLUYBsbG00ZUXUjUDYTZrZ_iCfRT3FC0';
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const raw     = atob(base64);
+      return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+    }
+
+    async function registrarPush() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      if (Notification.permission === 'denied') return;
+      if (localStorage.getItem('push_dismissed') === '1') return;
+
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const existente = await reg.pushManager.getSubscription();
+        if (existente) {
+          // Já subscrito — apenas garante que está salvo no servidor
+          await savePushSubscription(existente.toJSON()).catch(() => {});
+          return;
+        }
+
+        // Primeira vez — mostra banner suave (não usa window.Notification.requestPermission diretamente)
+        document.getElementById('pushBanner')?.style.setProperty('display', 'flex');
+      } catch (e) {
+        console.warn('[push] Erro ao verificar subscription:', e.message);
+      }
+    }
+
+    async function ativarPush() {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          document.getElementById('pushBanner')?.style.setProperty('display', 'none');
+          return;
+        }
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+        await savePushSubscription(sub.toJSON());
+        document.getElementById('pushBanner')?.style.setProperty('display', 'none');
+        localStorage.setItem('push_ativo', '1');
+      } catch (e) {
+        console.warn('[push] Erro ao ativar:', e.message);
+        document.getElementById('pushBanner')?.style.setProperty('display', 'none');
+      }
+    }
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
+          .then(() => registrarPush())
           .catch((err) => console.warn('SW registration failed:', err));
       });
     }
@@ -1461,6 +1525,13 @@
     window.addEventListener('appinstalled', () => {
       document.getElementById('pwaBanner').style.display = 'none';
       deferredPrompt = null;
+    });
+
+    // Listeners do banner de push
+    document.getElementById('pushBannerAtivar')?.addEventListener('click', ativarPush);
+    document.getElementById('pushBannerDismiss')?.addEventListener('click', () => {
+      document.getElementById('pushBanner').style.display = 'none';
+      localStorage.setItem('push_dismissed', '1');
     });
   </script>
 

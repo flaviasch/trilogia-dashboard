@@ -1,9 +1,10 @@
-// Trilogia Dashboard — Service Worker v10
+// Trilogia Dashboard — Service Worker v11
 // HTML:          sempre rede (no-store)
 // JS/CSS locais: Network First → garante versão atual; fallback cache se offline
 // Fontes/CDN:    Cache First (raramente mudam)
+// Push:          exibe notificação + abre dashboard ao clicar
 
-const CACHE_NAME = 'trilogia-v10';
+const CACHE_NAME = 'trilogia-v11';
 
 const ASSETS_TO_CACHE = [
   '/manifest.json',
@@ -31,8 +32,48 @@ self.addEventListener('activate', (event) => {
       .then(() => self.clients.claim())
       .then(() => self.clients.matchAll({ type: 'window' }))
       .then((clients) => {
-        // Força reload — o fetch handler abaixo já garante que HTML vem da rede
         clients.forEach((client) => client.navigate(client.url));
+      })
+  );
+});
+
+// ── Push: recebe notificação do servidor ─────────────────────────────────────
+self.addEventListener('push', (event) => {
+  let data = { titulo: 'Trilogia Dashboard', corpo: '', url: '/index.html', tag: 'geral' };
+  try {
+    if (event.data) data = { ...data, ...event.data.json() };
+  } catch (e) {
+    if (event.data) data.corpo = event.data.text();
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.titulo, {
+      body:    data.corpo,
+      icon:    '/icons/icon-192.png',
+      badge:   '/icons/icon-192.png',
+      tag:     data.tag,
+      data:    { url: data.url },
+      vibrate: [200, 100, 200],
+    })
+  );
+});
+
+// ── NotificationClick: abre ou foca o dashboard ──────────────────────────────
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/index.html';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        // Se já tiver uma aba aberta do dashboard, foca ela
+        const dashClient = clients.find(c => c.url.includes(self.location.origin));
+        if (dashClient) {
+          dashClient.focus();
+          dashClient.navigate(targetUrl);
+        } else {
+          self.clients.openWindow(targetUrl);
+        }
       })
   );
 });
@@ -43,8 +84,7 @@ self.addEventListener('fetch', (event) => {
 
   if (event.request.method !== 'GET') return;
 
-  // ❶ HTML: SEMPRE vai à rede com cache: 'no-store', ignorando cache HTTP
-  //    Isso garante que qualquer navegação para .html entrega o arquivo atual
+  // ❶ HTML: SEMPRE vai à rede com cache: 'no-store'
   if (
     url.pathname.endsWith('.html') ||
     url.pathname === '/' ||
@@ -94,7 +134,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ❹ JS e CSS locais: Network First — garante código atual; cache só se offline
+  // ❹ JS e CSS locais: Network First
   if (
     url.hostname === self.location.hostname &&
     (url.pathname.endsWith('.js') || url.pathname.endsWith('.css'))

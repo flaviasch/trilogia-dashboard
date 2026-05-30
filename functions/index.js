@@ -15,6 +15,8 @@ const sSA         = defineSecret('GOOGLE_SERVICE_ACCOUNT_JSON');
 const sNotion     = defineSecret('NOTION_TOKEN');
 const sDiagSecret = defineSecret('DIAGNOSTICO_WEBHOOK_SECRET');
 const sKiwify     = defineSecret('KIWIFY_WEBHOOK_SECRET');
+const sVapidPub   = defineSecret('VAPID_PUBLIC_KEY');
+const sVapidPriv  = defineSecret('VAPID_PRIVATE_KEY');
 
 const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId } = require('./lib/auth');
 const { SheetsClient } = require('./lib/sheets');
@@ -41,9 +43,68 @@ const db = admin.firestore();
 const SECRETS_EMAIL  = [sGmail];
 const SECRETS_SHEETS = [sSA, sFolderId];
 const SECRETS_ALL    = [sGmail, sClientId, sClientSec, sRefresh, sFolderId, sSA];
+const SECRETS_PUSH   = [sVapidPub, sVapidPriv];
 
 // ID da pasta no Google Drive da Flávia onde ficam as planilhas das mentoradas.
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || '';
+
+// ─── Push helper ─────────────────────────────────────────────────────────────
+
+/**
+ * Envia push para todas as subscriptions ativas de um uid.
+ * Limpa automaticamente subscriptions inválidas (410 Gone).
+ * Requer que sVapidPub e sVapidPriv estejam nos secrets da função chamadora.
+ */
+async function sendPushToUid(uid, payload) {
+  const webpush = require('web-push');
+  webpush.setVapidDetails(
+    'mailto:flaviasch@gmail.com',
+    sVapidPub.value(),
+    sVapidPriv.value(),
+  );
+
+  const snap = await db.collection('mentoradas').doc(uid)
+    .collection('pushSubscriptions').get();
+  if (snap.empty) return;
+
+  const payloadStr = JSON.stringify(payload);
+  const promises = snap.docs.map(async (doc) => {
+    try {
+      await webpush.sendNotification(doc.data(), payloadStr);
+    } catch (err) {
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        // Subscription expirada — remove do Firestore
+        await doc.ref.delete().catch(() => {});
+      }
+    }
+  });
+  await Promise.allSettled(promises);
+}
+
+/**
+ * Envia push para todas as mentoradas ativas.
+ */
+async function sendPushToAtivas(payload) {
+  const webpush = require('web-push');
+  webpush.setVapidDetails(
+    'mailto:flaviasch@gmail.com',
+    sVapidPub.value(),
+    sVapidPriv.value(),
+  );
+
+  const payloadStr = JSON.stringify(payload);
+  const subsSnap = await db.collectionGroup('pushSubscriptions').get();
+  const promises = subsSnap.docs.map(async (doc) => {
+    try {
+      await webpush.sendNotification(doc.data(), payloadStr);
+    } catch (err) {
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        await doc.ref.delete().catch(() => {});
+      }
+    }
+  });
+  await Promise.allSettled(promises);
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1231,6 +1292,43 @@ exports.aceitarLGPD = onCall({}, async (request) => {
   return { ok: true };
 });
 
+// ─── PUSH NOTIFICATIONS ──────────────────────────────────────────────────────
+
+/**
+ * Salva ou atualiza a subscription de push de uma mentorada.
+ * Espera: { subscription } — objeto PushSubscription serializado pelo browser.
+ */
+exports.savePushSubscription = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const { subscription } = request.data;
+
+  if (!subscription?.endpoint) throw new HttpsError('invalid-argument', 'subscription inválida.');
+
+  // Usa hash do endpoint como ID do doc (idempotente — mesmo browser não duplica)
+  const id = Buffer.from(subscription.endpoint).toString('base64').slice(-40).replace(/[^a-zA-Z0-9]/g, '_');
+  await db.collection('mentoradas').doc(auth.uid)
+    .collection('pushSubscriptions').doc(id).set({
+      ...subscription,
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  return { ok: true };
+});
+
+/**
+ * Remove a subscription de push do dispositivo atual.
+ * Espera: { endpoint }
+ */
+exports.deletePushSubscription = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const { endpoint } = request.data;
+  if (!endpoint) throw new HttpsError('invalid-argument', 'endpoint obrigatório.');
+
+  const id = Buffer.from(endpoint).toString('base64').slice(-40).replace(/[^a-zA-Z0-9]/g, '_');
+  await db.collection('mentoradas').doc(auth.uid)
+    .collection('pushSubscriptions').doc(id).delete();
+  return { ok: true };
+});
+
 // ─── EXPORTAÇÃO DE DADOS (LGPD — direito à portabilidade) ────────────────────
 
 /**
@@ -2160,7 +2258,7 @@ async function getAtivas() {
  *   • Renovação de perfil (perfil ausente ou > 180 dias)
  */
 exports.notifDia1 = onSchedule(
-  { schedule: '0 8 1 * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
+  { schedule: '0 8 1 * *', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, ...SECRETS_PUSH] },
   async () => {
     const agora   = new Date();
     const mes     = agora.getMonth() + 1;
@@ -2203,6 +2301,14 @@ exports.notifDia1 = onSchedule(
 
       await Promise.allSettled(tarefas);
     }
+
+    // Push para todas as ativas: lembrete de orçamento
+    await sendPushToAtivas({
+      titulo: `Orçamento de ${nomesMes}`,
+      corpo:  'Que tal registrar o orçamento deste mês? Leva menos de 5 minutos.',
+      url:    '/orcamento.html',
+      tag:    'lembrete-orcamento',
+    }).catch(e => console.warn('[notifDia1] Push falhou:', e.message));
   },
 );
 
@@ -2236,7 +2342,7 @@ exports.anunciarNovidades = onCall({ secrets: SECRETS_EMAIL }, async (request) =
 });
 
 exports.notifDia28 = onSchedule(
-  { schedule: '0 8 28 * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
+  { schedule: '0 8 28 * *', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, ...SECRETS_PUSH] },
   async () => {
     const agora    = new Date();
     const mes      = agora.getMonth() + 1;
@@ -2265,6 +2371,14 @@ exports.notifDia28 = onSchedule(
         html:    emailLembretePlanejamento(m.nome || 'mentorada', nomeProxMes),
       }).catch(err => console.error(`Erro ao enviar planejamento para ${m.email}:`, err));
     }
+
+    // Push: lembrete de aporte
+    await sendPushToAtivas({
+      titulo: `Aporte de ${nomesMes}`,
+      corpo:  'Faltam 3 dias para o fim do mês. Já transferiu para seus investimentos?',
+      url:    '/orcamento.html',
+      tag:    'lembrete-aporte',
+    }).catch(e => console.warn('[notifDia28] Push falhou:', e.message));
   },
 );
 

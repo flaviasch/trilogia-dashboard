@@ -793,3 +793,13 @@ export async function saveCartao(cartao) {
 export async function deleteCartao(id) {
   return call('deleteCartao')({ uid: uidAtual(), id });
 }
+
+// ─── PUSH NOTIFICATIONS ──────────────────────────────────────────────────────
+
+export async function savePushSubscription(subscription) {
+  return call('savePushSubscription')({ subscription });
+}
+
+export async function deletePushSubscription(endpoint) {
+  return call('deletePushSubscription')({ endpoint });
+}
