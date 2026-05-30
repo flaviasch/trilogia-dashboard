@@ -38,6 +38,20 @@
       "fields": [
         { "fieldPath": "atualizadoEm", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "criadoEm", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "historico",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "data", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

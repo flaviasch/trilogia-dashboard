@@ -207,50 +207,70 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const ano      = agora.getFullYear();
   const mesAtual = agora.toISOString().slice(0, 7); // YYYY-MM
 
-  // Fallback: dados da planilha zerados enquanto SA não tem acesso
-  let orcamento = [], patrimonio = [], investimentos = [], dividas = [], reservas = [];
-  let perfil     = { perfil: perfilFirestore || null, dataAtualizacao: null };
+  let orcamento = [], ir = [], corretora = [], dividas = [], reservas = [];
+  let perfil     = { perfil: perfilFirestore?.perfil || perfilFirestore || null, dataAtualizacao: null };
   let sheetError = false;
 
-  // Encapsula a criação do cliente E a leitura das abas em try/catch unificado.
-  // Se GOOGLE_SERVICE_ACCOUNT_JSON não estiver disponível ou a SA não tiver
-  // permissão na planilha, o dashboard ainda carrega com dados do Firestore.
-  try {
-    const sheets = new SheetsClient(sheetId);
-
-    const [orcResult, patResult, invResult, divResult, resResult, perfilResult] =
-      await Promise.allSettled([
-        sheets.getOrcamento(mes, ano),
-        sheets.getPatrimonio(),
-        sheets.getInvestimentos(),
-        sheets.getDividas(),
-        sheets.getReservas(),
-        sheets.getPerfil(),
-      ]);
-
-    orcamento     = orcResult.status === 'fulfilled' ? orcResult.value : [];
-    patrimonio    = patResult.status === 'fulfilled' ? patResult.value : [];
-    investimentos = invResult.status === 'fulfilled' ? invResult.value : [];
-    dividas       = divResult.status === 'fulfilled' ? divResult.value : [];
-    reservas      = resResult.status === 'fulfilled' ? resResult.value : [];
-    // Perfil da planilha sobrescreve o Firestore quando disponível
-    if (perfilResult.status === 'fulfilled') perfil = perfilResult.value;
-
-    sheetError = [orcResult, patResult, invResult, divResult, resResult, perfilResult]
-      .some(r => r.status === 'rejected');
-    if (sheetError) {
-      const motivo = [orcResult, patResult, invResult, divResult, resResult, perfilResult]
-        .find(r => r.status === 'rejected')?.reason?.message || 'desconhecido';
-      console.warn(`[getDashboard] Falha parcial na planilha (uid=${uid}): ${motivo}`);
-    }
-  } catch (e) {
-    // Exceção inesperada ao criar o cliente (ex: secret não configurado)
-    sheetError = true;
-    console.error(`[getDashboard] Erro ao inicializar SheetsClient (uid=${uid}): ${e.message}`);
+  // ── Orçamento: Firestore ─────────────────────────────────────────────────
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  const orcSnap = await db.collection('mentoradas').doc(uid)
+    .collection('orcamento').doc(mesKey).get().catch(() => null);
+  if (orcSnap?.exists) {
+    orcamento = orcSnap.data().itens || [];
   }
 
-  // Consolida ativos = patrimônio declarado no IR + posição da corretora
-  const ativosConsolidados = consolidarAtivos(patrimonio, investimentos);
+  // ── Patrimônio + dívidas: Firestore ─────────────────────────────────────
+  const patSnap = await db.collection('mentoradas').doc(uid)
+    .collection('patrimonio').doc('dados').get().catch(() => null);
+  if (patSnap?.exists) {
+    ir        = patSnap.data().ir        || [];
+    corretora = patSnap.data().corretora || [];
+    dividas   = patSnap.data().dividas   || [];
+  }
+
+  // ── Reservas: Firestore ──────────────────────────────────────────────────
+  const resSnap = await db.collection('mentoradas').doc(uid)
+    .collection('reservas').get().catch(() => null);
+  if (resSnap && !resSnap.empty) {
+    reservas = resSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+  }
+
+  // ── Perfil: Firestore ────────────────────────────────────────────────────
+  const perfilSnap = await db.collection('mentoradas').doc(uid)
+    .collection('perfil').doc('dados').get().catch(() => null);
+  if (perfilSnap?.exists) perfil = perfilSnap.data();
+
+  // ── Fallback Sheets: só usa se Firestore não tiver dados ─────────────────
+  const precisaSheets = (!patSnap?.exists || !resSnap || resSnap.empty || !perfilSnap?.exists);
+  if (precisaSheets && sheetId) {
+    try {
+      const sheets = new SheetsClient(sheetId);
+      const tarefas = [];
+
+      if (!orcamento.length) tarefas.push(['orc', sheets.getOrcamento(mes, ano)]);
+      if (!patSnap?.exists)  tarefas.push(['ir', sheets.getPatrimonio()], ['cor', sheets.getInvestimentos()], ['div', sheets.getDividas()]);
+      if (!resSnap || resSnap.empty) tarefas.push(['res', sheets.getReservas()]);
+      if (!perfilSnap?.exists) tarefas.push(['per', sheets.getPerfil()]);
+
+      const results = await Promise.allSettled(tarefas.map(([, p]) => p));
+      tarefas.forEach(([key], i) => {
+        const r = results[i];
+        if (r.status !== 'fulfilled') { sheetError = true; return; }
+        if (key === 'orc') orcamento = r.value;
+        if (key === 'ir')  ir        = r.value;
+        if (key === 'cor') corretora = r.value;
+        if (key === 'div') dividas   = r.value;
+        if (key === 'res') reservas  = r.value;
+        if (key === 'per') perfil    = r.value;
+      });
+    } catch (e) {
+      sheetError = true;
+      console.error(`[getDashboard] Erro no fallback Sheets (uid=${uid}): ${e.message}`);
+    }
+  }
+
+  // Consolida ativos = IR + corretora
+  const ativosConsolidados = consolidarAtivos(ir, corretora);
 
   const totalAtivos  = ativosConsolidados.reduce((s, a) => s + a.valor, 0);
   const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
@@ -614,16 +634,26 @@ exports.getPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
 
-  const sheetId = await getSheetId(db, uid);
-  const sheets  = new SheetsClient(sheetId);
-  const [patrimonio, investimentos, dividas] = await Promise.all([
-    sheets.getPatrimonio(),
-    sheets.getInvestimentos(),
-    sheets.getDividas(),
-  ]);
+  // ── Firestore first ───────────────────────────────────────────────────────
+  const docSnap = await db.collection('mentoradas').doc(uid)
+    .collection('patrimonio').doc('dados').get();
+  if (docSnap.exists) {
+    const { ir = [], corretora = [], dividas = [] } = docSnap.data();
+    return { ativos: consolidarAtivos(ir, corretora), dividas };
+  }
 
-  const ativos = consolidarAtivos(patrimonio, investimentos);
-  return { ativos, dividas };
+  // ── Fallback: Sheets + auto-migra ────────────────────────────────────────
+  const sheetId = await getSheetId(db, uid);
+  if (!sheetId) return { ativos: [], dividas: [] };
+  const sheets  = new SheetsClient(sheetId);
+  const [ir, corretora, dividas] = await Promise.all([
+    sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas(),
+  ]);
+  // Persiste no Firestore para próximas leituras
+  db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados')
+    .set({ ir, corretora, dividas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() })
+    .catch(e => console.warn('[getPatrimonio] Falha ao migrar:', e.message));
+  return { ativos: consolidarAtivos(ir, corretora), dividas };
 });
 
 exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
@@ -651,25 +681,49 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
     if (it.classe.length > 200) it.classe = it.classe.slice(0, 200);
   }
 
-  const sheetId = await getSheetId(db, uid);
-  const sheets  = new SheetsClient(sheetId);
+  // ── Lê estado atual do Firestore (ou Sheets como fallback) ──────────────
+  const patRef  = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
+  const patSnap = await patRef.get();
+  let ir        = patSnap.exists ? (patSnap.data().ir       || []) : [];
+  let corretora = patSnap.exists ? (patSnap.data().corretora || []) : [];
+  let dividas   = patSnap.exists ? (patSnap.data().dividas   || []) : [];
 
-  if (tipo === 'corretora') {
-    await sheets.saveInvestimentos(itens);
-  } else {
-    await sheets.savePatrimonio(itens);
+  if (!patSnap.exists) {
+    // Fallback Sheets
+    try {
+      const sheetId = await getSheetId(db, uid);
+      if (sheetId) {
+        const sheets = new SheetsClient(sheetId);
+        [ir, corretora, dividas] = await Promise.all([
+          sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas(),
+        ]);
+      }
+    } catch (e) { console.warn('[savePatrimonio] Fallback Sheets falhou:', e.message); }
   }
 
-  // Atualiza cache de PL no Firestore (fire-and-forget)
-  Promise.all([sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas()])
-    .then(([pat, inv, divs]) => {
-      const totalAtivos  = consolidarAtivos(pat, inv).reduce((s, a) => s + a.valor, 0);
-      const totalDividas = divs.reduce((s, d) => s + d.saldo, 0);
-      return db.collection('mentoradas').doc(uid).update({
-        pl: totalAtivos - totalDividas,
-        dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    }).catch(e => console.warn('[savePatrimonio] Falha ao atualizar cache:', e.message));
+  // Aplica a atualização
+  if (tipo === 'corretora') corretora = itens;
+  else                      ir        = itens;
+
+  await patRef.set({
+    ir, corretora, dividas,
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Backup no Sheets (fire-and-forget, não bloqueia resposta)
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    const sheets = new SheetsClient(sheetId);
+    return tipo === 'corretora' ? sheets.saveInvestimentos(itens) : sheets.savePatrimonio(itens);
+  }).catch(e => console.warn('[savePatrimonio] Backup Sheets falhou:', e.message));
+
+  // Atualiza cache de PL
+  const totalAtivos  = consolidarAtivos(ir, corretora).reduce((s, a) => s + a.valor, 0);
+  const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+  db.collection('mentoradas').doc(uid).update({
+    pl: totalAtivos - totalDividas,
+    dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(e => console.warn('[savePatrimonio] Cache PL falhou:', e.message));
 
   return { ok: true };
 });
@@ -774,37 +828,70 @@ exports.aportePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) =
     throw new HttpsError('invalid-argument', 'classe e valor são obrigatórios.');
   }
 
-  const sheetId = await getSheetId(db, uid);
-  const sheets  = new SheetsClient(sheetId);
+  const patRef  = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
+  const patSnap = await patRef.get();
+  let ir        = patSnap.exists ? (patSnap.data().ir        || []) : [];
+  let corretora = patSnap.exists ? (patSnap.data().corretora || []) : [];
+  let dividas   = patSnap.exists ? (patSnap.data().dividas   || []) : [];
 
-  const [patrimonio, investimentos] = await Promise.all([
-    sheets.getPatrimonio(),
-    sheets.getInvestimentos(),
-  ]);
+  // Fallback Sheets se Firestore ainda não tem dados
+  if (!patSnap.exists) {
+    try {
+      const sheetId = await getSheetId(db, uid);
+      if (sheetId) {
+        const sheets = new SheetsClient(sheetId);
+        [ir, corretora, dividas] = await Promise.all([
+          sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas(),
+        ]);
+      }
+    } catch (e) { console.warn('[aportePatrimonio] Fallback Sheets falhou:', e.message); }
+  }
 
   const classeLC = classe.toLowerCase();
 
-  // Investimentos tem prioridade no consolidado — atualiza lá se já existir
-  const idxInv = investimentos.findIndex(i => i.classe.toLowerCase() === classeLC);
+  // Corretora tem prioridade — atualiza lá se a classe já existir
+  const idxInv = corretora.findIndex(i => i.classe.toLowerCase() === classeLC);
   if (idxInv !== -1) {
-    investimentos[idxInv].valor += valor;
-    await sheets.saveInvestimentos(investimentos);
+    corretora[idxInv].valor += valor;
   } else {
-    // Classe está em patrimônio (IR) ou é nova — grava em patrimônio
-    const idxPat = patrimonio.findIndex(i => i.classe.toLowerCase() === classeLC);
-    if (idxPat !== -1) {
-      patrimonio[idxPat].valor += valor;
-    } else {
-      patrimonio.push({ classe, valor });
-    }
-    await sheets.savePatrimonio(patrimonio);
+    const idxPat = ir.findIndex(i => i.classe.toLowerCase() === classeLC);
+    if (idxPat !== -1) ir[idxPat].valor += valor;
+    else               ir.push({ classe, valor });
   }
 
-  // Upsert histórico com o total consolidado
-  const consolidado = consolidarAtivos(patrimonio, investimentos);
+  // Salva no Firestore
+  await patRef.set({
+    ir, corretora, dividas,
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Atualiza cache de PL + upsert histórico no Firestore
+  const consolidado = consolidarAtivos(ir, corretora);
   const totalAtivos = consolidado.reduce((s, i) => s + i.valor, 0);
-  const data = hoje().slice(0, 7);
-  await sheets.upsertHistorico(data, totalAtivos, 0);
+  const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+  const mesKey = hoje().slice(0, 7);
+  await Promise.allSettled([
+    db.collection('mentoradas').doc(uid).update({
+      pl: totalAtivos - totalDividas,
+      dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    }),
+    db.collection('mentoradas').doc(uid).collection('historico').doc(mesKey).set({
+      data: mesKey, ativos: totalAtivos, dividas: totalDividas,
+      pl: totalAtivos - totalDividas,
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true }),
+  ]);
+
+  // Backup Sheets (fire-and-forget)
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    const sheets = new SheetsClient(sheetId);
+    return Promise.all([
+      sheets.saveInvestimentos(corretora),
+      sheets.savePatrimonio(ir),
+      sheets.upsertHistorico(mesKey, totalAtivos, totalDividas),
+    ]);
+  }).catch(e => console.warn('[aportePatrimonio] Backup Sheets falhou:', e.message));
 
   return { ok: true };
 });
@@ -816,8 +903,26 @@ exports.getHistoricoPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (requ
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
 
+  // ── Firestore first ───────────────────────────────────────────────────────
+  const snap = await db.collection('mentoradas').doc(uid)
+    .collection('historico').orderBy('data', 'asc').limit(12).get();
+  if (!snap.empty) {
+    return snap.docs.map(d => ({ data: d.id, ...d.data() }));
+  }
+
+  // ── Fallback Sheets + auto-migra ──────────────────────────────────────────
   const sheetId = await getSheetId(db, uid);
-  return new SheetsClient(sheetId).getHistorico();
+  if (!sheetId) return [];
+  const historico = await new SheetsClient(sheetId).getHistorico();
+  // Persiste no Firestore
+  const batch = db.batch();
+  historico.forEach(h => {
+    if (!h.data) return;
+    const ref = db.collection('mentoradas').doc(uid).collection('historico').doc(h.data);
+    batch.set(ref, { ...h, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  });
+  batch.commit().catch(e => console.warn('[getHistorico] Falha ao migrar:', e.message));
+  return historico;
 });
 
 /**
@@ -830,9 +935,21 @@ exports.upsertHistoricoPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (r
   const { uid, ativos, dividas } = request.data;
   requireSelfOrAdmin(request, uid);
 
-  const data = hoje().slice(0, 7); // AAAA-MM
-  const sheetId = await getSheetId(db, uid);
-  await new SheetsClient(sheetId).upsertHistorico(data, ativos ?? 0, dividas ?? 0);
+  const mesKey = hoje().slice(0, 7);
+  const pl = (ativos ?? 0) - (dividas ?? 0);
+
+  // Firestore primary
+  await db.collection('mentoradas').doc(uid).collection('historico').doc(mesKey).set({
+    data: mesKey, ativos: ativos ?? 0, dividas: dividas ?? 0, pl,
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  // Backup Sheets (fire-and-forget)
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    return new SheetsClient(sheetId).upsertHistorico(mesKey, ativos ?? 0, dividas ?? 0);
+  }).catch(e => console.warn('[upsertHistorico] Backup Sheets:', e.message));
+
   return { ok: true };
 });
 
@@ -843,25 +960,38 @@ exports.saveDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const { uid, divida } = request.data;
   requireSelfOrAdmin(request, uid);
 
-  if (!divida?.id || !divida?.nome) {
+  if (!divida?.id || !divida?.nome)
     throw new HttpsError('invalid-argument', 'id e nome são obrigatórios.');
-  }
 
   await checkRateLimit(uid, 'saveDivida', 10, 60_000);
-  const sheetId  = await getSheetId(db, uid);
-  const sheetsD  = new SheetsClient(sheetId);
-  await sheetsD.saveDivida(divida);
 
-  // Atualiza cache de PL (fire-and-forget)
-  Promise.all([sheetsD.getPatrimonio(), sheetsD.getInvestimentos(), sheetsD.getDividas()])
-    .then(([pat, inv, divs]) => {
-      const totalAtivos  = consolidarAtivos(pat, inv).reduce((s, a) => s + a.valor, 0);
-      const totalDividas = divs.reduce((s, d) => s + d.saldo, 0);
-      return db.collection('mentoradas').doc(uid).update({
-        pl: totalAtivos - totalDividas,
-        dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    }).catch(e => console.warn('[saveDivida] Falha ao atualizar cache:', e.message));
+  // Lê estado atual do Firestore
+  const patRef  = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
+  const patSnap = await patRef.get();
+  let ir        = patSnap.exists ? (patSnap.data().ir        || []) : [];
+  let corretora = patSnap.exists ? (patSnap.data().corretora || []) : [];
+  let dividas   = patSnap.exists ? (patSnap.data().dividas   || []) : [];
+
+  // Upsert da dívida
+  const idx = dividas.findIndex(d => d.id === divida.id);
+  if (idx !== -1) dividas[idx] = divida;
+  else            dividas.push(divida);
+
+  await patRef.set({ ir, corretora, dividas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+
+  // Atualiza cache PL
+  const totalAtivos  = consolidarAtivos(ir, corretora).reduce((s, a) => s + a.valor, 0);
+  const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+  db.collection('mentoradas').doc(uid).update({
+    pl: totalAtivos - totalDividas,
+    dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(e => console.warn('[saveDivida] Cache PL:', e.message));
+
+  // Backup Sheets
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    return new SheetsClient(sheetId).saveDivida(divida);
+  }).catch(e => console.warn('[saveDivida] Backup Sheets:', e.message));
 
   return { ok: true };
 });
@@ -871,8 +1001,20 @@ exports.deleteDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const { uid, dividaId } = request.data;
   requireSelfOrAdmin(request, uid);
 
-  const sheetId = await getSheetId(db, uid);
-  await new SheetsClient(sheetId).deleteDivida(dividaId);
+  const patRef  = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
+  const patSnap = await patRef.get();
+  if (patSnap.exists) {
+    const data = patSnap.data();
+    const dividas = (data.dividas || []).filter(d => d.id !== dividaId);
+    await patRef.update({ dividas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+  }
+
+  // Backup Sheets
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    return new SheetsClient(sheetId).deleteDivida(dividaId);
+  }).catch(e => console.warn('[deleteDivida] Backup Sheets:', e.message));
+
   return { ok: true };
 });
 
@@ -883,8 +1025,26 @@ exports.getReservas = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
 
+  // ── Firestore first ───────────────────────────────────────────────────────
+  const snap = await db.collection('mentoradas').doc(uid)
+    .collection('reservas').orderBy('criadoEm', 'asc').get();
+  if (!snap.empty) {
+    return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+  }
+
+  // ── Fallback Sheets + auto-migra ──────────────────────────────────────────
   const sheetId = await getSheetId(db, uid);
-  return new SheetsClient(sheetId).getReservas();
+  if (!sheetId) return [];
+  const reservas = await new SheetsClient(sheetId).getReservas();
+  // Persiste no Firestore
+  const batch = db.batch();
+  reservas.forEach(r => {
+    if (!r.id) return;
+    const ref = db.collection('mentoradas').doc(uid).collection('reservas').doc(String(r.id));
+    batch.set(ref, { ...r, criadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  });
+  batch.commit().catch(e => console.warn('[getReservas] Falha ao migrar:', e.message));
+  return reservas;
 });
 
 exports.saveReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
@@ -892,23 +1052,30 @@ exports.saveReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const { uid, reserva } = request.data;
   requireSelfOrAdmin(request, uid);
 
-  if (!reserva?.id || !reserva?.nome) {
+  if (!reserva?.id || !reserva?.nome)
     throw new HttpsError('invalid-argument', 'id e nome são obrigatórios.');
-  }
 
   await checkRateLimit(uid, 'saveReserva', 10, 60_000);
-  const sheetId  = await getSheetId(db, uid);
-  const sheetsR  = new SheetsClient(sheetId);
-  await sheetsR.saveReserva(reserva);
 
-  // Atualiza cache de totalReservas (fire-and-forget)
-  sheetsR.getReservas().then(todas => {
-    const totalReservas = todas.reduce((s, r) => s + (r.acumulado || 0), 0);
-    return db.collection('mentoradas').doc(uid).update({
-      totalReservas,
-      dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  }).catch(e => console.warn('[saveReserva] Falha ao atualizar cache:', e.message));
+  // Firestore primary
+  await db.collection('mentoradas').doc(uid).collection('reservas').doc(String(reserva.id)).set({
+    ...reserva,
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    criadoEm:     admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  // Atualiza cache totalReservas
+  const snap = await db.collection('mentoradas').doc(uid).collection('reservas').get();
+  const totalReservas = snap.docs.reduce((s, d) => s + (d.data().acumulado || 0), 0);
+  db.collection('mentoradas').doc(uid).update({
+    totalReservas, dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(() => {});
+
+  // Backup Sheets
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    return new SheetsClient(sheetId).saveReserva(reserva);
+  }).catch(e => console.warn('[saveReserva] Backup Sheets:', e.message));
 
   return { ok: true };
 });
@@ -918,18 +1085,21 @@ exports.deleteReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const { uid, reservaId } = request.data;
   requireSelfOrAdmin(request, uid);
 
-  const sheetId  = await getSheetId(db, uid);
-  const sheetsDR = new SheetsClient(sheetId);
-  await sheetsDR.deleteReserva(reservaId);
+  // Firestore primary
+  await db.collection('mentoradas').doc(uid).collection('reservas').doc(String(reservaId)).delete();
 
-  // Atualiza cache de totalReservas (fire-and-forget)
-  sheetsDR.getReservas().then(todas => {
-    const totalReservas = todas.reduce((s, r) => s + (r.acumulado || 0), 0);
-    return db.collection('mentoradas').doc(uid).update({
-      totalReservas,
-      dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  }).catch(e => console.warn('[deleteReserva] Falha ao atualizar cache:', e.message));
+  // Atualiza cache totalReservas
+  const snap = await db.collection('mentoradas').doc(uid).collection('reservas').get();
+  const totalReservas = snap.docs.reduce((s, d) => s + (d.data().acumulado || 0), 0);
+  db.collection('mentoradas').doc(uid).update({
+    totalReservas, dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(() => {});
+
+  // Backup Sheets
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    return new SheetsClient(sheetId).deleteReserva(reservaId);
+  }).catch(e => console.warn('[deleteReserva] Backup Sheets:', e.message));
 
   return { ok: true };
 });
@@ -941,8 +1111,21 @@ exports.getPerfil = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
 
+  // ── Firestore first ───────────────────────────────────────────────────────
+  const snap = await db.collection('mentoradas').doc(uid)
+    .collection('perfil').doc('dados').get();
+  if (snap.exists) return snap.data();
+
+  // ── Fallback Sheets + auto-migra ──────────────────────────────────────────
   const sheetId = await getSheetId(db, uid);
-  return new SheetsClient(sheetId).getPerfil();
+  if (!sheetId) return null;
+  const perfilData = await new SheetsClient(sheetId).getPerfil();
+  if (perfilData?.perfil) {
+    db.collection('mentoradas').doc(uid).collection('perfil').doc('dados')
+      .set({ ...perfilData, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
+      .catch(() => {});
+  }
+  return perfilData;
 });
 
 exports.savePerfil = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
@@ -952,12 +1135,24 @@ exports.savePerfil = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 
   if (!perfil) throw new HttpsError('invalid-argument', 'perfil é obrigatório.');
 
-  const sheetId = await getSheetId(db, uid);
-  await new SheetsClient(sheetId).savePerfil(perfil, hoje());
+  const dataAtualizacao = hoje();
 
-  // Espelha no Firestore para servir de fallback no getDashboard
-  // quando a planilha estiver temporariamente inacessível.
-  await db.collection('mentoradas').doc(uid).update({ perfil });
+  // Firestore primary
+  await db.collection('mentoradas').doc(uid).collection('perfil').doc('dados').set({
+    perfil, dataAtualizacao,
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Espelha no doc principal (para getDashboard e alertas de renovação)
+  await db.collection('mentoradas').doc(uid).update({
+    perfil: { perfil, dataAtualizacao },
+  });
+
+  // Backup Sheets
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    return new SheetsClient(sheetId).savePerfil(perfil, dataAtualizacao);
+  }).catch(e => console.warn('[savePerfil] Backup Sheets:', e.message));
 
   return { ok: true };
 });
