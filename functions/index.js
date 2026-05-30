@@ -1664,16 +1664,13 @@ exports.editarContrato = onCall({}, async (request) => {
 exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwify] }, async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
-  // Verificação de origem Kiwify (opcional — só valida se o secret estiver configurado)
-  // Para ativar: firebase functions:secrets:set KIWIFY_WEBHOOK_SECRET → colar o token do painel Kiwify
+  // Verificação de origem Kiwify — obrigatória
   const kiwifySecret = sKiwify.value();
-  if (kiwifySecret && kiwifySecret !== 'nao-configurado') {
-    const assinatura = req.headers['x-kiwify-signature'] || req.headers['x-webhook-token'] || '';
-    if (assinatura !== kiwifySecret) {
-      console.warn(`[kiwify] Requisição rejeitada — assinatura inválida. Header: "${assinatura}"`);
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+  const assinatura   = req.headers['x-kiwify-signature'] || req.headers['x-webhook-token'] || '';
+  if (!kiwifySecret || assinatura !== kiwifySecret) {
+    console.warn(`[kiwify] Requisição rejeitada — assinatura inválida. Header: "${assinatura}"`);
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
 
   try {
@@ -1724,17 +1721,26 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       const mRef = db.collection('mentoradas').doc(mUid);
 
       if (eventosCancelamento.includes(event)) {
-        // Todo cancelamento bloqueia o acesso e revoga os flags do produto cancelado.
-        await admin.auth().updateUser(mUid, { disabled: true });
+        const mData = mSnap.docs[0].data();
+        const temDashboardAtivo = mData.assinaturaDashboard === true;
 
-        const flagsRevogados = { status: 'inativa' };
+        const flagsRevogados = {};
         if (ehDashboard || ehCombo) flagsRevogados.assinaturaDashboard = false;
         if (ehClube     || ehCombo) flagsRevogados.assinaturaClube     = false;
-        if (ehMentoria && !ehClube && !ehDashboard && !ehCombo) flagsRevogados.mentoriaEncerrada = true;
+        if (ehMentoria) flagsRevogados.mentoriaEncerrada = true;
+
+        // Só bloqueia Auth e marca inativa se não houver dashboard ativo
+        // (mentorada pode ter encerrado a mentoria mas continuar no produto dashboard)
+        const mantemAcesso = temDashboardAtivo && !ehDashboard && !ehCombo;
+        if (!mantemAcesso) {
+          await admin.auth().updateUser(mUid, { disabled: true });
+          flagsRevogados.status = 'inativa';
+        }
 
         await mRef.update(flagsRevogados);
-        console.log(`[kiwify] 🔴 Acesso bloqueado — ${nomeProdutoCancelado || 'produto'} cancelado: ${emailCancelado}`);
-        res.status(200).json({ ok: true, acao: 'bloqueada', flags: flagsRevogados, uid: mUid });
+        const acao = mantemAcesso ? 'mentoria_encerrada_dashboard_ativo' : 'bloqueada';
+        console.log(`[kiwify] ${mantemAcesso ? '🟡' : '🔴'} ${acao} — ${nomeProdutoCancelado || 'produto'} cancelado: ${emailCancelado}`);
+        res.status(200).json({ ok: true, acao, flags: flagsRevogados, uid: mUid });
       } else {
         // Atraso: marca alerta (não bloqueia ainda)
         await mRef.update({ status: 'alerta' });
