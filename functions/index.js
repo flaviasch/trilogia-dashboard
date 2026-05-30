@@ -191,6 +191,7 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
   const receita      = orcamento.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
   const despesa      = orcamento.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
+  const aporte       = orcamento.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0);
 
   const pl           = totalAtivos - totalDividas;
   const sobra        = receita - despesa;
@@ -218,7 +219,7 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 
   return {
     nome:            nome            || null,
-    orcamento:      { receita, despesa, sobra, mes, ano },
+    orcamento:      { receita, despesa, sobra, aporte, mes, ano },
     patrimonio:     { ativos: totalAtivos, dividas: totalDividas, pl },
     reservas,
     perfil,

@@ -433,6 +433,13 @@
       background: var(--gold-dim);
     }
     .setup-etapa.pendente:hover { background: rgba(207,174,101,0.25); }
+    .setup-proximo {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-top: 14px; padding: 12px 14px;
+      background: rgba(207,174,101,0.08); border: 1px solid rgba(207,174,101,0.25);
+      border-radius: 10px; text-decoration: none; transition: background 0.2s;
+    }
+    .setup-proximo:hover { background: rgba(207,174,101,0.14); }
 
     /* ─── Modal LGPD ────────────────────────── */
     .modal-lgpd-overlay {
@@ -624,7 +631,7 @@
     <div class="welcome-screen">
       <div class="welcome-hero">
         <h1 class="welcome-title">Bem-vinda ao <span>Trilogia Dashboard</span></h1>
-        <p class="welcome-sub">Configure seu painel em 4 etapas simples para começar a acompanhar sua saúde financeira.</p>
+        <p class="welcome-sub">5 passos para começar. Leva menos de 15 minutos — e você sai daqui com uma visão clara da sua vida financeira.</p>
       </div>
       <div class="welcome-steps" id="welcomeSteps">
         <!-- preenchido por JS -->
@@ -639,7 +646,7 @@
     <div id="setupProgress" style="display:none">
       <div class="setup-progress">
         <div class="setup-progress-header">
-          <span class="setup-progress-titulo">Configuração do painel</span>
+          <span class="setup-progress-titulo">Sua jornada de configuração</span>
           <span class="setup-progress-pct" id="setupPct"></span>
         </div>
         <div class="setup-track">
@@ -874,11 +881,21 @@
       document.getElementById('modalLGPD')?.classList.remove('hidden');
     }
 
+    // Checkbox habilita o botão de confirmação
+    document.getElementById('chkLGPD')?.addEventListener('change', (e) => {
+      const btn = document.getElementById('btnAceitarLGPD');
+      if (!btn) return;
+      btn.disabled = !e.target.checked;
+      btn.style.opacity = e.target.checked ? '1' : '0.4';
+      btn.style.cursor  = e.target.checked ? 'pointer' : 'not-allowed';
+    });
+
     document.getElementById('btnAceitarLGPD')?.addEventListener('click', async () => {
+      if (!document.getElementById('chkLGPD')?.checked) return;
       localStorage.setItem(LGPD_KEY, '1'); // grava imediatamente no cliente
       document.getElementById('modalLGPD')?.classList.add('hidden');
       try {
-        await aceitarLGPD(); // persiste no servidor em background
+        await aceitarLGPD(); // persiste no servidor (lgpdAceite + lgpdAceiteData)
       } catch { /* continua mesmo se falhar */ }
     });
 
@@ -1071,23 +1088,33 @@
       const temPatrimonio = (data.patrimonio?.ativos || 0) > 0;
       const temReservas   = (data.reservas || []).length > 0;
       const temOrcamento  = (data.orcamento?.receita || 0) > 0;
+      const temAporte     = (data.orcamento?.aporte  || 0) > 0;
 
       const steps = [
         {
-          num: 1, titulo: 'Perfil de Investidor', href: 'perfil.html', done: temPerfil,
-          desc: 'Defina seu perfil para receber alocações de carteira personalizadas.'
+          num: 1, titulo: 'Perfil de investidor', href: 'perfil.html', done: temPerfil,
+          desc: 'Responda 5 perguntas e descubra seu perfil. Define como suas reservas devem ser alocadas.',
+          tag: 'setup',
         },
         {
-          num: 2, titulo: 'Patrimônio', href: 'patrimonio.html', done: temPatrimonio,
-          desc: 'Cadastre seus ativos e dívidas para calcular seu patrimônio líquido.'
+          num: 2, titulo: 'Seu patrimônio', href: 'patrimonio.html', done: temPatrimonio,
+          desc: 'Cadastre ativos e dívidas. A partir daqui você vê seu patrimônio líquido real.',
+          tag: 'setup',
         },
         {
-          num: 3, titulo: 'Reservas', href: 'reservas.html', done: temReservas,
-          desc: 'Configure suas reservas financeiras com metas e prazos definidos.'
+          num: 3, titulo: 'Suas reservas', href: 'reservas.html', done: temReservas,
+          desc: 'Crie ao menos uma reserva com nome, meta e prazo. O dashboard cuida do acompanhamento.',
+          tag: 'setup',
         },
         {
-          num: 4, titulo: 'Orçamento', href: 'orcamento.html', done: temOrcamento,
-          desc: 'Registre receitas e despesas para acompanhar seu fluxo de caixa.'
+          num: 4, titulo: 'Orçamento do mês', href: 'orcamento.html', done: temOrcamento,
+          desc: 'Registre sua renda e despesas. Use o CSV do Raio-X ou insira manualmente.',
+          tag: 'setup',
+        },
+        {
+          num: 5, titulo: 'Primeiro aporte', href: 'orcamento.html', done: temAporte,
+          desc: 'Registre um investimento feito este mês. É o momento em que o dinheiro começa a trabalhar por você.',
+          tag: 'acao',
         },
       ];
 
@@ -1103,7 +1130,7 @@
         aceitarLGPDInline();
       } else {
         document.getElementById('mainContent').style.display = 'block';
-        if (totalDone < 4) {
+        if (totalDone < steps.length) {
           renderSetupProgress(steps, totalDone);
           document.getElementById('setupProgress').style.display = 'block';
         }
@@ -1146,14 +1173,29 @@
 
     function renderSetupProgress(steps, totalDone) {
       const pct = Math.round((totalDone / steps.length) * 100);
-      document.getElementById('setupPct').textContent = `${totalDone} de ${steps.length} etapas`;
+      document.getElementById('setupPct').textContent = `${totalDone} de ${steps.length} concluídos`;
       document.getElementById('setupFill').style.width = pct + '%';
 
-      document.getElementById('setupEtapas').innerHTML = steps.map(s =>
-        s.done
-          ? `<span class="setup-etapa done">✓ ${s.titulo}</span>`
-          : `<a href="${s.href}" class="setup-etapa pendente">${s.titulo} →</a>`
-      ).join('');
+      // Próximo passo pendente em destaque
+      const proximo = steps.find(s => !s.done);
+      const proximoHTML = proximo ? `
+        <a href="${proximo.href}" class="setup-proximo">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${proximo.num}</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--white);">${proximo.titulo}</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">${proximo.desc}</div>
+            </div>
+          </div>
+          <span style="color:var(--gold);font-size:13px;flex-shrink:0;">Fazer agora →</span>
+        </a>` : '';
+
+      document.getElementById('setupEtapas').innerHTML =
+        steps.map(s =>
+          s.done
+            ? `<span class="setup-etapa done">✓ ${s.titulo}</span>`
+            : `<a href="${s.href}" class="setup-etapa pendente">${s.titulo} →</a>`
+        ).join('') + proximoHTML;
     }
 
     // ─── Notificações in-app ─────────────────────
@@ -1353,8 +1395,12 @@
         Você pode solicitar a exclusão imediata dos seus dados a qualquer momento
         pelo suporte.
       </div>
-      <button class="btn-aceitar-lgpd" id="btnAceitarLGPD">
-        Entendi e concordo
+      <label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:18px;cursor:pointer;font-size:13px;color:rgba(255,255,255,0.75);line-height:1.5;">
+        <input type="checkbox" id="chkLGPD" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:#CFAE65;cursor:pointer;" />
+        <span>Li e concordo com o uso dos meus dados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da mentoria.</span>
+      </label>
+      <button class="btn-aceitar-lgpd" id="btnAceitarLGPD" disabled style="opacity:0.4;cursor:not-allowed;">
+        Confirmar ciência
       </button>
     </div>
   </div>
