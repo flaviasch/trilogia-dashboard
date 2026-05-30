@@ -1141,7 +1141,49 @@
         </div>
       </div>
 
-      <!-- Modal seleção de fixas para lançar -->
+      <!-- Modal gestão de cartões -->
+  <div id="modalCartoes" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width:500px;width:94%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0;">Meus cartões</h3>
+        <button id="btnFecharModalCartoes" style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;">×</button>
+      </div>
+      <div id="listaCartoes" style="margin-bottom:16px;"></div>
+      <button id="btnAddCartao" class="btn-primary" style="width:100%;font-size:14px;">+ Adicionar cartão</button>
+
+      <div id="formCartao" class="hidden" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+        <input type="hidden" id="cartaoId">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Nome do cartão *</label>
+            <input type="text" id="cartaoNome" maxlength="100" placeholder="Ex: Nubank, Inter Visa…"
+              style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Dia de corte *</label>
+            <input type="number" id="cartaoDiaCorte" min="1" max="28" placeholder="1–28"
+              style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Dia vencimento</label>
+            <input type="number" id="cartaoDiaVcto" min="1" max="28" placeholder="opcional"
+              style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--text-secondary);">Limite (R$, opcional)</label>
+          <input type="number" id="cartaoLimite" min="0" step="100" placeholder="Ex: 5000"
+            style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button id="btnSalvarCartao" class="btn-primary" style="flex:1;font-size:14px;">Salvar</button>
+          <button id="btnCancelarCartao" class="btn-secondary" style="font-size:14px;padding:10px 18px;">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal seleção de fixas para lançar -->
       <div id="modalSelecionarFixas" class="modal-overlay hidden">
         <div class="modal-card" style="max-width:460px;width:94%;">
           <h3 style="font-family:'Playfair Display',serif;font-size:17px;margin:0 0 6px;">Selecionar despesas fixas</h3>
@@ -1440,9 +1482,22 @@
           💳 Despesa no cartão de crédito
         </label>
       </div>
-      <div class="field-group" id="fgFatura" style="display:none">
-        <label for="mFatura">Mês da fatura (quando vai debitar)</label>
-        <input type="month" id="mFatura" />
+      <div id="fgCartaoOpcoes" style="display:none">
+        <div class="field-group">
+          <label for="mCartaoSelecionado">Cartão</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="mCartaoSelecionado" style="flex:1;padding:9px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;"></select>
+            <button type="button" id="btnGerenciarCartoes" style="background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;white-space:nowrap;padding:0;">⚙️ Gerenciar</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="mFatura">Mês da fatura</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="month" id="mFatura" style="flex:1;" />
+            <span id="mFaturaVcto" style="font-size:12px;color:var(--text-secondary);white-space:nowrap;"></span>
+          </div>
+          <div id="mFaturaHint" style="font-size:11px;color:var(--gold);margin-top:4px;display:none;"></div>
+        </div>
       </div>
 
       <div class="modal-actions">
@@ -1475,7 +1530,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente } from './js/api.js?v=9';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao } from './js/api.js?v=10';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -1692,8 +1747,12 @@
         // Cartão
         const isCartao = !!item.cartao;
         document.getElementById('mCartao').checked = isCartao;
-        document.getElementById('fgFatura').style.display = isCartao ? '' : 'none';
+        document.getElementById('fgCartaoOpcoes').style.display = isCartao ? '' : 'none';
         document.getElementById('mFatura').value = item.fatura || '';
+        if (isCartao) {
+          preencherSeletorCartoes(item.cartaoId || null);
+          atualizarVctoCartao();
+        }
       } else {
         if (!_catLocked) document.getElementById('mCategoria').value = '';
         // Pré-preenche com hoje para novos lançamentos
@@ -1702,7 +1761,7 @@
         document.getElementById('mValor').value     = '';
         // Cartão: limpa
         document.getElementById('mCartao').checked = false;
-        document.getElementById('fgFatura').style.display = 'none';
+        document.getElementById('fgCartaoOpcoes').style.display = 'none';
         document.getElementById('mFatura').value = '';
       }
 
@@ -1725,19 +1784,26 @@
     document.getElementById('btnCancelarItem').addEventListener('click', fecharModal);
     modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
 
-    // Toggle cartão → mostra/oculta fatura e pré-preenche próximo mês
+    // Toggle cartão → mostra/oculta opções e auto-calcula fatura
     document.getElementById('mCartao').addEventListener('change', () => {
       const checked = document.getElementById('mCartao').checked;
-      const fgFatura = document.getElementById('fgFatura');
-      fgFatura.style.display = checked ? '' : 'none';
-      if (checked && !document.getElementById('mFatura').value) {
-        // Padrão: próximo mês
-        const d = new Date();
-        d.setMonth(d.getMonth() + 1);
-        document.getElementById('mFatura').value =
-          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
+      document.getElementById('fgCartaoOpcoes').style.display = checked ? '' : 'none';
+      if (checked) {
+        preencherSeletorCartoes(null);
+        calcularFaturaAutomatica();
       }
     });
+
+    document.getElementById('mCartaoSelecionado')?.addEventListener('change', () => {
+      calcularFaturaAutomatica();
+      atualizarVctoCartao();
+    });
+
+    document.getElementById('mData')?.addEventListener('change', () => {
+      if (document.getElementById('mCartao').checked) calcularFaturaAutomatica();
+    });
+
+    document.getElementById('btnGerenciarCartoes')?.addEventListener('click', () => abrirModalCartoes());
 
     document.getElementById('btnSalvarItem').addEventListener('click', async () => {
       const btnSalvarItem = document.getElementById('btnSalvarItem');
@@ -1750,13 +1816,14 @@
       const valor     = readMoney(document.getElementById('mValor'));
       const cartao    = document.getElementById('mCartao').checked;
       const fatura    = cartao ? document.getElementById('mFatura').value.trim() : '';
+      const cartaoId  = cartao ? (document.getElementById('mCartaoSelecionado')?.value || '') : '';
 
       if (!categoria) { toast('Preencha a categoria.', 'warning'); return; }
       if (!data) { toast('Preencha a data do lançamento.', 'warning'); return; }
       if (cartao && !fatura) { toast('Selecione o mês da fatura.', 'warning'); return; }
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
 
-      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura };
+      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, ...(cartaoId ? { cartaoId } : {}) };
 
       if (cartao && fatura) {
         // Salva diretamente no mês da fatura (não no mês exibido)
@@ -1807,7 +1874,7 @@
       const mesAtual = new Date().getMonth() + 1;
       const itens = [
         ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '' })),
-        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}) })),
+        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}) })),
         ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
       ];
       try {
@@ -2116,7 +2183,7 @@
         currentData = {
           periodo:  { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}) })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}) })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
@@ -2443,9 +2510,16 @@
           const primary = item.descricao
             ? escapeHtml(item.descricao)
             : escapeHtml(item.categoria);
-          const faturaTag = item.cartao && item.fatura
-            ? `<span style="font-size:10px;background:rgba(207,174,101,0.15);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px">💳 Fatura ${MESES[parseInt(item.fatura.split('-')[1])-1]}</span>`
-            : '';
+          const faturaTag = (() => {
+            if (!item.cartao || !item.fatura) return '';
+            const nomeMesFat = MESES[parseInt(item.fatura.split('-')[1]) - 1];
+            const cartaoObj  = _cartoes.find(c => c.id === item.cartaoId);
+            const nomeCartao = cartaoObj ? escapeHtml(cartaoObj.nome) : '';
+            const vcto = cartaoObj?.diaVencimento
+              ? ` · vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${item.fatura.split('-')[1]}`
+              : '';
+            return `<span style="font-size:10px;background:rgba(207,174,101,0.15);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px">💳 ${nomeCartao ? nomeCartao + ' · ' : ''}Fatura ${nomeMesFat}${vcto}</span>`;
+          })();
           const recTag = item.recorrenteId
             ? `<span style="font-size:10px;background:rgba(207,174,101,0.1);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px" title="Despesa fixa automática">🔄 Fixa</span>`
             : '';
@@ -3116,7 +3190,7 @@
         return {
           periodo:  { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}) })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}) })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
@@ -3196,6 +3270,173 @@
     window.toggleDespesas   = toggleDespesas;
     window.copiarMesAnterior = copiarMesAnterior;
     window.editarLimitePlan = editarLimitePlan;
+
+    // ─── CARTÕES DE CRÉDITO ──────────────────────────────────────────────────
+
+    let _cartoes = [];
+
+    async function carregarCartoes() {
+      try { _cartoes = await getCartoes(); }
+      catch (e) { console.warn('[cartoes]', e.message); _cartoes = []; }
+    }
+
+    // Calcula mês da fatura pela regra: compra após o corte → próximo mês
+    function sugerirFatura(dataCompra, diaCorte) {
+      const [, , diaStr] = dataCompra.split('-');
+      const dia = parseInt(diaStr, 10);
+      const d = new Date(dataCompra);
+      if (dia > diaCorte) d.setMonth(d.getMonth() + 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    function calcularFaturaAutomatica() {
+      const cartaoId = document.getElementById('mCartaoSelecionado')?.value;
+      const cartaoObj = _cartoes.find(c => c.id === cartaoId);
+      if (!cartaoObj) return;
+      const data = document.getElementById('mData').value;
+      if (!data) return;
+      const sugerido = sugerirFatura(data, cartaoObj.diaCorte);
+      const faturaEl = document.getElementById('mFatura');
+      faturaEl.value = sugerido;
+      // Hint explicativo
+      const [, , diaStr] = data.split('-');
+      const dia = parseInt(diaStr, 10);
+      const hint = document.getElementById('mFaturaHint');
+      const nomeMesFat = MESES[parseInt(sugerido.split('-')[1]) - 1];
+      hint.textContent = dia > cartaoObj.diaCorte
+        ? `Compra após o corte (dia ${cartaoObj.diaCorte}) → fatura ${nomeMesFat}`
+        : `Compra antes do corte (dia ${cartaoObj.diaCorte}) → fatura ${nomeMesFat}`;
+      hint.style.display = '';
+      atualizarVctoCartao();
+    }
+
+    function atualizarVctoCartao() {
+      const cartaoId  = document.getElementById('mCartaoSelecionado')?.value;
+      const cartaoObj = _cartoes.find(c => c.id === cartaoId);
+      const fatura    = document.getElementById('mFatura')?.value;
+      const vctoEl    = document.getElementById('mFaturaVcto');
+      if (!vctoEl) return;
+      if (cartaoObj?.diaVencimento && fatura) {
+        const [fAno, fMes] = fatura.split('-');
+        vctoEl.textContent = `vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${fMes}/${fAno}`;
+      } else {
+        vctoEl.textContent = '';
+      }
+    }
+
+    function preencherSeletorCartoes(cartaoIdSelecionado) {
+      const sel = document.getElementById('mCartaoSelecionado');
+      if (!sel) return;
+      if (!_cartoes.length) {
+        sel.innerHTML = '<option value="">Nenhum cartão cadastrado</option>';
+        return;
+      }
+      sel.innerHTML = _cartoes.filter(c => c.ativo).map(c =>
+        `<option value="${c.id}" ${c.id === cartaoIdSelecionado ? 'selected' : ''}>${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`
+      ).join('');
+    }
+
+    // ── Gestão de cartões (modal) ─────────────────────────────────────────────
+
+    function renderListaCartoes() {
+      const el = document.getElementById('listaCartoes');
+      if (!_cartoes.length) {
+        el.innerHTML = `<p style="font-size:13px;color:var(--text-secondary);text-align:center;padding:16px 0;">Nenhum cartão cadastrado.</p>`;
+        return;
+      }
+      el.innerHTML = _cartoes.map(c => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:14px;font-weight:600;">💳 ${escapeHtml(c.nome)}</div>
+            <div style="font-size:12px;color:var(--text-secondary);">
+              Corte dia ${c.diaCorte}${c.diaVencimento ? ` · Vence dia ${c.diaVencimento}` : ''}${c.limite ? ` · Limite ${brl(c.limite)}` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-item" data-edit-cartao="${c.id}" title="Editar">✎</button>
+            <button class="btn-item del" data-del-cartao="${c.id}" title="Excluir">🗑</button>
+          </div>
+        </div>`).join('');
+      el.querySelectorAll('[data-edit-cartao]').forEach(b => b.addEventListener('click', () => abrirFormCartao(b.dataset.editCartao)));
+      el.querySelectorAll('[data-del-cartao]').forEach(b => b.addEventListener('click', () => excluirCartao(b.dataset.delCartao)));
+    }
+
+    async function abrirModalCartoes() {
+      await carregarCartoes();
+      renderListaCartoes();
+      document.getElementById('formCartao').classList.add('hidden');
+      document.getElementById('modalCartoes').classList.remove('hidden');
+    }
+
+    function abrirFormCartao(id) {
+      document.getElementById('formCartao').classList.remove('hidden');
+      document.getElementById('cartaoId').value = id || '';
+      if (id) {
+        const c = _cartoes.find(x => x.id === id);
+        if (c) {
+          document.getElementById('cartaoNome').value     = c.nome;
+          document.getElementById('cartaoDiaCorte').value = c.diaCorte;
+          document.getElementById('cartaoDiaVcto').value  = c.diaVencimento || '';
+          document.getElementById('cartaoLimite').value   = c.limite || '';
+        }
+      } else {
+        document.getElementById('cartaoNome').value     = '';
+        document.getElementById('cartaoDiaCorte').value = '';
+        document.getElementById('cartaoDiaVcto').value  = '';
+        document.getElementById('cartaoLimite').value   = '';
+      }
+      document.getElementById('formCartao').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function salvarCartao() {
+      const id          = document.getElementById('cartaoId').value || undefined;
+      const nome        = document.getElementById('cartaoNome').value.trim();
+      const diaCorte    = parseInt(document.getElementById('cartaoDiaCorte').value, 10);
+      const diaVcto     = parseInt(document.getElementById('cartaoDiaVcto').value, 10) || null;
+      const limite      = parseFloat(document.getElementById('cartaoLimite').value) || null;
+
+      if (!nome) return mostrarToast('Informe o nome do cartão.');
+      if (!diaCorte || diaCorte < 1 || diaCorte > 28) return mostrarToast('Dia de corte deve ser entre 1 e 28.');
+
+      const btn = document.getElementById('btnSalvarCartao');
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await saveCartao({ id, nome, diaCorte, diaVencimento: diaVcto, limite, ativo: true });
+        await carregarCartoes();
+        renderListaCartoes();
+        document.getElementById('formCartao').classList.add('hidden');
+        mostrarToast('Cartão salvo!');
+      } catch (e) {
+        mostrarToast('Erro: ' + e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    }
+
+    async function excluirCartao(id) {
+      if (!confirm('Excluir este cartão? Os lançamentos já feitos não serão afetados.')) return;
+      try {
+        await deleteCartao(id);
+        await carregarCartoes();
+        renderListaCartoes();
+        mostrarToast('Cartão removido.');
+      } catch (e) {
+        mostrarToast('Erro: ' + e.message);
+      }
+    }
+
+    document.getElementById('btnFecharModalCartoes')?.addEventListener('click', () =>
+      document.getElementById('modalCartoes').classList.add('hidden'));
+    document.getElementById('modalCartoes')?.addEventListener('click', e => {
+      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
+    document.getElementById('btnAddCartao')?.addEventListener('click', () => abrirFormCartao(null));
+    document.getElementById('btnSalvarCartao')?.addEventListener('click', salvarCartao);
+    document.getElementById('btnCancelarCartao')?.addEventListener('click', () =>
+      document.getElementById('formCartao').classList.add('hidden'));
+
+    // Carrega cartões no load (junto com recorrentes)
+    carregarCartoes();
 
     // ─── Suporte ─────────────────────────────
     (function() {

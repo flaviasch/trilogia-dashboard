@@ -779,3 +779,17 @@ export async function saveRecorrente(recorrente) {
 export async function deleteRecorrente(id) {
   return call('deleteRecorrente')({ uid: uidAtual(), id });
 }
+
+// ─── CARTÕES ──────────────────────────────────────────────────────────────────
+
+export async function getCartoes() {
+  return call('getCartoes')({ uid: uidAtual() });
+}
+
+export async function saveCartao(cartao) {
+  return call('saveCartao')({ uid: uidAtual(), cartao });
+}
+
+export async function deleteCartao(id) {
+  return call('deleteCartao')({ uid: uidAtual(), id });
+}

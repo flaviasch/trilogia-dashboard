@@ -374,6 +374,56 @@ exports.deleteRecorrente = onCall(async (request) => {
   return { ok: true };
 });
 
+// ─── CARTÕES DE CRÉDITO ───────────────────────────────────────────────────────
+
+exports.getCartoes = onCall(async (request) => {
+  requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const snap = await db.collection('mentoradas').doc(uid)
+    .collection('cartoes').orderBy('criadoEm', 'asc').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+exports.saveCartao = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, cartao } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!cartao?.nome || typeof cartao.nome !== 'string')
+    throw new HttpsError('invalid-argument', 'nome é obrigatório.');
+  if (!Number.isInteger(cartao.diaCorte) || cartao.diaCorte < 1 || cartao.diaCorte > 28)
+    throw new HttpsError('invalid-argument', 'diaCorte deve ser entre 1 e 28.');
+  if (cartao.diaVencimento != null && (!Number.isInteger(cartao.diaVencimento) || cartao.diaVencimento < 1 || cartao.diaVencimento > 28))
+    throw new HttpsError('invalid-argument', 'diaVencimento deve ser entre 1 e 28.');
+
+  const dados = {
+    nome:           cartao.nome.trim().slice(0, 100),
+    diaCorte:       cartao.diaCorte,
+    diaVencimento:  cartao.diaVencimento || null,
+    limite:         typeof cartao.limite === 'number' ? cartao.limite : null,
+    ativo:          cartao.ativo !== false,
+  };
+
+  const col = db.collection('mentoradas').doc(uid).collection('cartoes');
+  if (cartao.id) {
+    await col.doc(cartao.id).update(dados);
+    return { id: cartao.id };
+  } else {
+    const ref = await col.add({ ...dados, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    return { id: ref.id };
+  }
+});
+
+exports.deleteCartao = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, id } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  await db.collection('mentoradas').doc(uid).collection('cartoes').doc(id).delete();
+  return { ok: true };
+});
+
 /**
  * Migra os dados de orçamento do Sheets para o Firestore para todas as usuárias.
  * Pula meses que já existem no Firestore. Idempotente — seguro rodar múltiplas vezes.
