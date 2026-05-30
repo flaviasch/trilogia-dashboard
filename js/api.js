@@ -803,3 +803,14 @@ export async function savePushSubscription(subscription) {
 export async function deletePushSubscription(endpoint) {
   return call('deletePushSubscription')({ endpoint });
 }
+
+// ─── ANALYTICS ───────────────────────────────────────────────────────────────
+
+export function registrarEvento(evento) {
+  // Fire-and-forget — nunca bloqueia a UI
+  call('registrarEvento')({ evento }).catch(() => {});
+}
+
+export async function getAnalytics(uid) {
+  return call('getAnalytics')({ uid });
+}

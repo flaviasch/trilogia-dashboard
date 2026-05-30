@@ -689,6 +689,10 @@
               <span class="label">Aceite LGPD</span>
               <span class="valor" id="detLGPD" style="font-size:12px">—</span>
             </div>
+            <div class="detalhe-card-pair" style="margin-top:8px;">
+              <span class="label">Features usadas</span>
+              <span class="valor" id="detAnalytics" style="font-size:11px;color:var(--text-secondary);">—</span>
+            </div>
             <div style="margin-top:10px;">
               <button class="btn-acao btn-secundario" id="btnComprovanteLGPD" style="font-size:12px;padding:6px 14px;display:none;" onclick="gerarComprovanteLGPD()">
                 📄 Gerar comprovante
@@ -1483,7 +1487,7 @@
              criarPlanilha, getNotionCRM,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico, anunciarNovidades, migrarOrcamento } from './js/api.js?v=16';
+             syncDiagnostico, anunciarNovidades, migrarOrcamento, getAnalytics } from './js/api.js?v=12';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -2015,6 +2019,33 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
     }
 
     // ─── CRM Notion ──────────────────────────
+    const LABEL_EVENTO = {
+      csv_importado:            '📥 CSV importado',
+      aporte_registrado:        '💰 Aporte registrado',
+      patrimonio_atualizado:    '🏦 Patrimônio atualizado',
+      reserva_salva:            '🎯 Reserva salva',
+      perfil_atualizado:        '📋 Perfil atualizado',
+      planejamento_configurado: '📊 Planejamento configurado',
+      fixa_cadastrada:          '🔄 Fixa cadastrada',
+      cartao_cadastrado:        '💳 Cartão cadastrado',
+    };
+
+    async function carregarAnalytics(uid) {
+      const el = document.getElementById('detAnalytics');
+      if (!el) return;
+      try {
+        const { geral } = await getAnalytics(uid);
+        if (!geral?.eventos) { el.textContent = 'Sem dados ainda.'; return; }
+        const itens = Object.entries(geral.eventos)
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `${LABEL_EVENTO[k] || k} ×${v}`)
+          .join(' · ');
+        el.textContent = itens || 'Sem dados ainda.';
+      } catch (e) {
+        el.textContent = '—';
+      }
+    }
+
     async function carregarNotionCRM(uid) {
       const el = document.getElementById('detNotionConteudo');
       if (!el) return;
@@ -2183,6 +2214,9 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 
       // Carrega contratos em background (também ajusta btnFecharMentoria / btnMarcarEncerrada)
       carregarContratos(uid);
+
+      // Carrega analytics de engajamento
+      carregarAnalytics(uid);
 
       // Botão criar planilha — só aparece se sheetId ausente
       document.getElementById('btnCriarPlanilha').style.display = m.sheetId ? 'none' : '';

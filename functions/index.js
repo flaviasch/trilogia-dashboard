@@ -1480,6 +1480,45 @@ exports.registrarAcesso = onCall({}, async (request) => {
 });
 
 /**
+ * Registra um evento de uso de feature (analytics de engajamento).
+ * Espera: { evento } — string, ex: 'csv_importado', 'aporte_registrado', etc.
+ * Incrementa contador acumulado + mensal no doc analytics/geral e analytics/YYYY-MM.
+ */
+const EVENTOS_VALIDOS = new Set([
+  'csv_importado', 'aporte_registrado', 'patrimonio_atualizado',
+  'reserva_salva', 'perfil_atualizado', 'planejamento_configurado',
+  'fixa_cadastrada', 'cartao_cadastrado',
+]);
+
+exports.registrarEvento = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const { evento } = request.data;
+  if (!evento || !EVENTOS_VALIDOS.has(evento)) return { ok: true }; // ignora silenciosamente
+
+  const uid    = auth.uid;
+  const mesKey = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const inc    = admin.firestore.FieldValue.increment(1);
+  const ts     = admin.firestore.FieldValue.serverTimestamp();
+
+  const base = db.collection('mentoradas').doc(uid).collection('analytics');
+  await Promise.allSettled([
+    // Acumulado total
+    base.doc('geral').set({
+      [`eventos.${evento}`]: inc,
+      ultimoEventoEm: ts,
+    }, { merge: true }),
+    // Breakdown mensal
+    base.doc(mesKey).set({
+      [`eventos.${evento}`]: inc,
+      mes: mesKey,
+      ultimoEventoEm: ts,
+    }, { merge: true }),
+  ]);
+
+  return { ok: true };
+});
+
+/**
  * Registra aceite do termo LGPD pela aluna.
  */
 exports.aceitarLGPD = onCall({}, async (request) => {
@@ -3126,6 +3165,32 @@ exports.deleteClubeItem = onCall({}, async (request) => {
  * Filtros opcionais: segmento, estagio, origem.
  * Inclui campo calculado `diasSemContato`.
  */
+
+// ─── ANALYTICS DE ENGAJAMENTO ─────────────────────────────────────────────────
+
+/**
+ * Retorna os dados de engajamento de uma mentorada (acumulado + últimos 3 meses).
+ * Exclusivo para admin.
+ */
+exports.getAnalytics = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { uid } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid obrigatório.');
+
+  const base = db.collection('mentoradas').doc(uid).collection('analytics');
+  const [geralSnap, mesesSnap] = await Promise.all([
+    base.doc('geral').get(),
+    base.orderBy('mes', 'desc').limit(3).get(),
+  ]);
+
+  return {
+    geral:  geralSnap.exists ? geralSnap.data() : null,
+    meses:  mesesSnap.docs
+      .filter(d => d.id !== 'geral')
+      .map(d => ({ mes: d.id, ...d.data() })),
+  };
+});
+
 exports.getLeads = onCall({}, async (request) => {
   requireAdmin(request);
   const { segmento, estagio, origem } = request.data || {};

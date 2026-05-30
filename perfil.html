@@ -409,7 +409,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getPerfil, savePerfil, getReservas, exportarMeusDados, setViewAsUid } from './js/api.js?v=17';
+    import { getPerfil, savePerfil, getReservas, exportarMeusDados, setViewAsUid, registrarEvento } from './js/api.js?v=12';
     import { toast, setLoading } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -767,6 +767,7 @@
 
       try {
         await savePerfil(perfil);
+        registrarEvento('perfil_atualizado');
         // Redireciona para o dashboard para refletir o perfil atualizado
         window.location.href = 'index.html';
       } catch (err) {

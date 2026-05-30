@@ -1530,7 +1530,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao } from './js/api.js?v=10';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento } from './js/api.js?v=12';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -2142,6 +2142,7 @@
         toast('Aporte salvo parcialmente. Confira Patrimônio e Reservas.', 'warning');
       } else {
         toast('Aporte confirmado com sucesso!', 'success');
+        registrarEvento('aporte_registrado');
         setTimeout(() => toast('Atualize a página para o gráfico refletir o aporte.', 'info', 6000), 800);
       }
 
@@ -2949,6 +2950,7 @@
         if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
         if (_tabAtiva === 'detalhe')      renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
         toast(limite > 0 ? `Limite de ${brl(limite)}/mês definido.` : 'Limite removido.', 'success');
+        if (limite > 0) registrarEvento('planejamento_configurado');
       } catch (err) {
         toast('Erro ao salvar limite. Tente novamente.', 'error');
       } finally {
@@ -3254,6 +3256,7 @@
           render(currentData);
           verificarBannerFixas(currentData);
           toast('Raio-X importado com sucesso!', 'success');
+          registrarEvento('csv_importado');
         } catch (err) {
           toast(`Erro ao importar CSV: ${err.message || err}`, 'error');
         } finally {
@@ -3406,6 +3409,7 @@
         renderListaCartoes();
         document.getElementById('formCartao').classList.add('hidden');
         mostrarToast('Cartão salvo!');
+        registrarEvento('cartao_cadastrado');
       } catch (e) {
         mostrarToast('Erro: ' + e.message);
       } finally {
@@ -3634,6 +3638,7 @@
         renderListaFixas();
         document.getElementById('formFixa').classList.add('hidden');
         mostrarToast('Despesa fixa salva!');
+        registrarEvento('fixa_cadastrada');
       } catch (e) {
         mostrarToast('Erro ao salvar: ' + e.message);
       } finally {

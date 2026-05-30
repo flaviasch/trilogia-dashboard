@@ -659,8 +659,8 @@
       getPatrimonio, savePatrimonio,
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
-      getReservas, saveReserva, setViewAsUid,
-    } from './js/api.js?v=10';
+      getReservas, saveReserva, setViewAsUid, registrarEvento,
+    } from './js/api.js?v=12';
 
     // Detecta se veio de uma retirada de reserva
     if (new URLSearchParams(window.location.search).get('from') === 'retirada') {
@@ -1300,6 +1300,7 @@
                 : 'Posição da corretora importada com sucesso!',
               'success'
             );
+            registrarEvento('patrimonio_atualizado');
             // Se havia retirada pendente de atualização, sinaliza como resolvido
             if (tipo === 'corretora') localStorage.removeItem('patrimonio_extrato_pendente');
             conciliarReservas(ativos);
