@@ -1155,6 +1155,7 @@
           <div><span style="font-size:11px;color:var(--text-secondary);">Data</span><div id="smsDataDetect" style="font-size:14px;font-weight:600;"></div></div>
         </div>
         <div style="margin-top:8px;"><span style="font-size:11px;color:var(--text-secondary);">Estabelecimento (descrição)</span><div id="smsDescDetect" style="font-size:13px;margin-top:2px;"></div></div>
+        <div style="margin-top:8px;"><span style="font-size:11px;color:var(--text-secondary);">Categoria sugerida</span><div id="smsCatDetect" style="font-size:13px;margin-top:2px;font-weight:600;color:var(--gold);"></div></div>
       </div>
       <div id="smsErro" style="display:none;font-size:12px;color:var(--negative);margin-top:8px;"></div>
       <div style="display:flex;gap:10px;margin-top:16px;">
@@ -3301,6 +3302,39 @@
 
     let _smsDetectado = null;
 
+    // Mapa de palavras-chave → categoria (ordem importa: mais específico primeiro)
+    const SMS_CATEGORIAS = [
+      // Alimentação
+      { cat: 'Alimentação', words: ['ifood','rappi','uber eats','james','goomer','pedir','delivery','restaurante','lanchonete','pizzaria','burguer','burger','mcdonald','mc donalds','bob\'s','subway','outback','domino','habib','giraffas','china in box','madero','supermercado','mercado','pão de açúcar','carrefour','extra','atacadão','assaí','assai','sams club','sam\'s','hortifruti','padaria','açougue','mercearia','armazém','sacolão','feira'] },
+      // Transporte
+      { cat: 'Transporte', words: ['uber','99','cabify','táxi','taxi','trip','corrida','combustível','gasolina','etanol','shell','ipiranga','posto','estacionamento','pedágio','metro','metrô','ônibus','transporte','bus','99pay','indriver'] },
+      // Saúde
+      { cat: 'Saúde', words: ['farmácia','farmacia','drogaria','droga','ultrafarma','pacheco','drogasil','drogaraia','panvel','consultório','consulta','clínica','clinica','hospital','laboratorio','laboratório','exame','dentista','odonto','fisio','psicólogo','psicologia','nutri','nutrição','plano de saúde','unimed','bradesco saúde','sulamerica','amil'] },
+      // Educação
+      { cat: 'Educação', words: ['escola','colégio','colegio','faculdade','universidade','uni','aula','curso','alura','udemy','coursera','livro','livraria','amazon kindle','cultura','saraiva','papelaria'] },
+      // Assinaturas
+      { cat: 'Assinaturas', words: ['netflix','spotify','amazon prime','disney','hbo','max','apple','icloud','youtube premium','deezer','globoplay','paramount','star+','crunchyroll','adobe','microsoft','office','google one','dropbox','notion','canva','semrush'] },
+      // Lazer
+      { cat: 'Lazer', words: ['cinema','teatro','show','ingresso','eventim','sympla','ticketmaster','parque','viagem','hotel','airbnb','booking','decolar','latam','gol','azul','emirates','bar','balada','clube','academia','smartfit','bodytech','bluefit','crossfit','beach tennis'] },
+      // Moradia
+      { cat: 'Moradia', words: ['aluguel','condomínio','condominio','iptu','luz','energia','enel','cemig','copel','coelba','agua','sabesp','copasa','gás','gas','comgas','cômodo','comodo','reforma','construção','construcao','loja de materiais','leroy','telha norte','c&c'] },
+      // Vestuário
+      { cat: 'Vestuário', words: ['renner','riachuelo','c&a','marisa','forever 21','zara','hm','h&m','shein','shopee','americanas','magazine','magalu','roupa','calçado','calcado','sapato','tenis','tênis','nike','adidas','puma'] },
+      // Pessoal
+      { cat: 'Pessoal', words: ['salão','salao','cabelereiro','barbearia','beleza','manicure','spa','estética','estetica','massagem','perfum','beauty','boticario','natura','o boticário','sephora','mac cosmetics'] },
+    ];
+
+    function sugerirCategoria(texto) {
+      if (!texto) return null;
+      const t = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      for (const { cat, words } of SMS_CATEGORIAS) {
+        if (words.some(w => t.includes(w.normalize('NFD').replace(/[̀-ͯ]/g, '')))) {
+          return cat;
+        }
+      }
+      return null;
+    }
+
     function parsearSMS(texto) {
       if (!texto?.trim()) return null;
       const t = texto.trim();
@@ -3343,7 +3377,8 @@
       // Pega a parte mais limpa: remove pontuação final e trunca
       const desc = semValor.replace(/^[:*\-\s]+|[:*\-\s]+$/g, '').slice(0, 60).trim();
 
-      return { valor, data: dataISO, descricao: desc || '' };
+      const categoria = sugerirCategoria(t);
+      return { valor, data: dataISO, descricao: desc || '', categoria };
     }
 
     document.getElementById('btnImportarSMS')?.addEventListener('click', () => {
@@ -3376,6 +3411,7 @@
       document.getElementById('smsValorDetect').textContent = brl(resultado.valor);
       document.getElementById('smsDataDetect').textContent  = formatData(resultado.data);
       document.getElementById('smsDescDetect').textContent  = resultado.descricao || '(sem descrição detectada)';
+      document.getElementById('smsCatDetect').textContent   = resultado.categoria || '(não identificada — você escolhe ao lançar)';
       preview.style.display = '';
       btnLancar.disabled = false;
       _smsDetectado = resultado;
@@ -3387,12 +3423,12 @@
       // Pré-preenche o modal de despesa com os dados detectados
       document.getElementById('modalSMS').classList.add('hidden');
       // Abre modal de lançamento pré-preenchido
-      await abrirModal('despesa', null, null);
+      await abrirModal('despesa', null, _smsDetectado.categoria || null);
       setTimeout(() => {
-        document.getElementById('mValor').value    = _smsDetectado.valor.toFixed(2).replace('.', ',');
-        document.getElementById('mData').value     = _smsDetectado.data;
+        document.getElementById('mValor').value     = _smsDetectado.valor.toFixed(2).replace('.', ',');
+        document.getElementById('mData').value      = _smsDetectado.data;
         document.getElementById('mDescricao').value = _smsDetectado.descricao;
-        document.getElementById('mCartao').checked = true;
+        document.getElementById('mCartao').checked  = true;
         document.getElementById('fgCartaoOpcoes').style.display = '';
         preencherSeletorCartoes(null);
         calcularFaturaAutomatica();
