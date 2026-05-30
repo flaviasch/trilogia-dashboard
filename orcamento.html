@@ -1127,6 +1127,18 @@
     <!-- ═══ ABA RESUMO ════════════════════════════════════════════════ -->
     <div class="tab-pane active" id="tab-resumo">
 
+      <!-- Banner despesas fixas pendentes -->
+      <div id="bannerFixas" style="display:none;background:rgba(207,174,101,0.1);border:1px solid rgba(207,174,101,0.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span id="bannerFixasTexto" style="font-size:13px;color:var(--gold);"></span>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button id="btnBannerLancarFixas" class="btn-primary" style="font-size:12px;padding:6px 14px;">Lançar agora</button>
+            <button id="btnBannerGerenciarFixas" class="btn-secondary" style="font-size:12px;padding:6px 12px;">Gerenciar</button>
+            <button id="btnBannerDismissFixas" style="background:none;border:none;color:var(--text-secondary);font-size:18px;cursor:pointer;line-height:1;padding:0 2px;">×</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Receitas (colapsável) -->
       <div class="section" id="secaoReceitas">
         <div class="section-header expansivel" id="headerReceitas">
@@ -1221,8 +1233,8 @@
     <!-- ═══ ABA DETALHE ══════════════════════════════════════════════ -->
     <div class="tab-pane" id="tab-detalhe">
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-        <button id="btnGerenciarFixas" class="btn-secondary" style="font-size:13px;padding:7px 14px;display:flex;align-items:center;gap:6px;">
-          ⚙️ Despesas fixas
+        <button id="btnGerenciarFixas" style="background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;opacity:0.8;padding:4px 0;">
+          ⚙️ Gerenciar despesas fixas
         </button>
       </div>
       <div id="detalheContent"></div>
@@ -2089,7 +2101,7 @@
         currentData = {
           periodo:  { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '' })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}) })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
@@ -2104,6 +2116,9 @@
       if (resResult.status === 'fulfilled')   reservas = resResult.value || [];
       if (perfilResult.status === 'fulfilled') perfilInvestidor = perfilResult.value?.perfil || null;
       if (catResult.status === 'fulfilled')    categoriasMes = catResult.value || [];
+
+      // Carrega recorrentes em paralelo (sem bloquear o render)
+      carregarRecorrentes().then(() => verificarBannerFixas(currentData));
 
       try {
         render(currentData);
@@ -3086,7 +3101,7 @@
         return {
           periodo:  { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '' })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}) })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
@@ -3105,6 +3120,7 @@
       if (mes < 1) { mes = 12; ano--; }
       currentData = await buscarPeriodo(mes, ano);
       render(currentData);
+      verificarBannerFixas(currentData);
     });
 
     document.getElementById('btnNext').addEventListener('click', async () => {
@@ -3117,6 +3133,7 @@
       if (mes > 12) { mes = 1; ano++; }
       currentData = await buscarPeriodo(mes, ano);
       render(currentData);
+      verificarBannerFixas(currentData);
     });
 
     // ─── Upload CSV ───────────────────────────
@@ -3169,6 +3186,48 @@
     // ─── DESPESAS FIXAS (Recorrentes) ────────────────────────────────────────
 
     let _recorrentes = [];
+
+    // Verifica recorrentes não lançadas no mês e exibe/oculta banner
+    function verificarBannerFixas(data) {
+      const banner = document.getElementById('bannerFixas');
+      if (!banner || !_recorrentes.length) { if (banner) banner.style.display = 'none'; return; }
+      const jainseridos = new Set(data.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
+      const pendentes = _recorrentes.filter(r => r.ativo && !jainseridos.has(r.id));
+      if (!pendentes.length) { banner.style.display = 'none'; return; }
+      const n = pendentes.length;
+      const nomeMes = MESES[data.periodo.mes - 1];
+      document.getElementById('bannerFixasTexto').textContent =
+        `🔄 ${n} despesa${n > 1 ? 's fixas' : ' fixa'} ainda não lançada${n > 1 ? 's' : ''} em ${nomeMes}`;
+      banner.style.display = '';
+    }
+
+    // Lança todas as recorrentes pendentes no mês atual
+    async function lancarFixasPendentes() {
+      const { mes, ano } = currentData.periodo;
+      const jainseridos = new Set(currentData.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
+      const pendentes = _recorrentes.filter(r => r.ativo && !jainseridos.has(r.id));
+      if (!pendentes.length) return;
+      const novos = pendentes.map(r => ({
+        categoria:    r.categoria,
+        tipo:         'despesa',
+        valor:        r.valor,
+        descricao:    r.descricao || '',
+        data:         `${ano}-${String(mes).padStart(2,'0')}-${String(r.dia).padStart(2,'0')}`,
+        cartao:       false,
+        fatura:       '',
+        recorrenteId: r.id,
+      }));
+      currentData.despesas.push(...novos);
+      await salvarEAtualizar();
+      document.getElementById('bannerFixas').style.display = 'none';
+      mostrarToast(`${novos.length} despesa${novos.length > 1 ? 's fixas lançadas' : ' fixa lançada'}!`);
+    }
+
+    document.getElementById('btnBannerLancarFixas')?.addEventListener('click', lancarFixasPendentes);
+    document.getElementById('btnBannerGerenciarFixas')?.addEventListener('click', abrirModalFixas);
+    document.getElementById('btnBannerDismissFixas')?.addEventListener('click', () => {
+      document.getElementById('bannerFixas').style.display = 'none';
+    });
 
     async function carregarRecorrentes() {
       try { _recorrentes = await getRecorrentes(); }

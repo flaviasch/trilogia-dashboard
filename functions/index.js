@@ -310,6 +310,70 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   return { ok: true };
 });
 
+// ─── RECORRENTES (despesas fixas mensais) ─────────────────────────────────────
+
+/**
+ * Lista as despesas recorrentes de uma mentorada.
+ * Espera: { uid }
+ */
+exports.getRecorrentes = onCall(async (request) => {
+  requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const snap = await db.collection('mentoradas').doc(uid)
+    .collection('recorrentes').orderBy('criadoEm', 'asc').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+/**
+ * Cria ou atualiza uma despesa recorrente.
+ * Espera: { uid, recorrente: { id?, categoria, descricao, valor, dia, ativo } }
+ */
+exports.saveRecorrente = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, recorrente } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!recorrente?.categoria || typeof recorrente.categoria !== 'string')
+    throw new HttpsError('invalid-argument', 'categoria é obrigatória.');
+  if (typeof recorrente.valor !== 'number' || recorrente.valor < 0 || recorrente.valor > 10_000_000)
+    throw new HttpsError('invalid-argument', 'valor inválido.');
+  if (!Number.isInteger(recorrente.dia) || recorrente.dia < 1 || recorrente.dia > 28)
+    throw new HttpsError('invalid-argument', 'dia deve ser inteiro entre 1 e 28.');
+
+  const col = db.collection('mentoradas').doc(uid).collection('recorrentes');
+  const dados = {
+    categoria:  recorrente.categoria.trim().slice(0, 200),
+    descricao:  (recorrente.descricao || '').trim().slice(0, 500),
+    valor:      recorrente.valor,
+    dia:        recorrente.dia,
+    ativo:      recorrente.ativo !== false,
+  };
+
+  if (recorrente.id) {
+    await col.doc(recorrente.id).update(dados);
+    return { id: recorrente.id };
+  } else {
+    const ref = await col.add({ ...dados, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    return { id: ref.id };
+  }
+});
+
+/**
+ * Exclui uma despesa recorrente.
+ * Espera: { uid, id }
+ */
+exports.deleteRecorrente = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, id } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  await db.collection('mentoradas').doc(uid).collection('recorrentes').doc(id).delete();
+  return { ok: true };
+});
+
 /**
  * Migra os dados de orçamento do Sheets para o Firestore para todas as usuárias.
  * Pula meses que já existem no Firestore. Idempotente — seguro rodar múltiplas vezes.
