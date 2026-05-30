@@ -1220,10 +1220,88 @@
 
     <!-- ═══ ABA DETALHE ══════════════════════════════════════════════ -->
     <div class="tab-pane" id="tab-detalhe">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button id="btnGerenciarFixas" class="btn-secondary" style="font-size:13px;padding:7px 14px;display:flex;align-items:center;gap:6px;">
+          ⚙️ Despesas fixas
+        </button>
+      </div>
       <div id="detalheContent"></div>
     </div>
 
   </main>
+
+  <!-- Modal Despesas Fixas -->
+  <div id="modalFixas" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width:520px;width:94%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0;">Despesas fixas mensais</h3>
+        <button id="btnFecharModalFixas" style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;line-height:1;">×</button>
+      </div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        Cadastre aqui suas contas fixas — elas serão lançadas automaticamente no dia 1º de cada mês.
+      </p>
+      <div id="listaFixas" style="margin-bottom:16px;"></div>
+      <button id="btnAddFixa" class="btn-primary" style="width:100%;font-size:14px;">+ Adicionar despesa fixa</button>
+
+      <!-- Formulário inline de nova/editar recorrente -->
+      <div id="formFixa" class="hidden" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+        <input type="hidden" id="fixaId">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Categoria *</label>
+            <select id="fixaCategoria" style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;"></select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Valor (R$) *</label>
+            <input type="number" id="fixaValor" min="0" step="0.01" placeholder="0,00"
+              style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:14px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Descrição</label>
+            <input type="text" id="fixaDescricao" maxlength="200" placeholder="Ex: Aluguel, Netflix…"
+              style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Dia do mês *</label>
+            <input type="number" id="fixaDia" min="1" max="28" placeholder="1–28"
+              style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button id="btnSalvarFixa" class="btn-primary" style="flex:1;font-size:14px;">Salvar</button>
+          <button id="btnCancelarFixa" class="btn-secondary" style="font-size:14px;padding:10px 18px;">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dialog edição de item recorrente no mês -->
+  <div id="modalEditRecorrente" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width:400px;width:94%;">
+      <h3 style="font-family:'Playfair Display',serif;font-size:17px;margin:0 0 12px;">Editar lançamento fixo</h3>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:18px;">
+        Este lançamento foi gerado automaticamente por uma despesa fixa.<br>Como deseja aplicar a alteração?
+      </p>
+      <input type="hidden" id="editRecIdx">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:var(--text-secondary);">Novo valor (R$)</label>
+        <input type="number" id="editRecValor" min="0" step="0.01"
+          style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:14px;box-sizing:border-box;">
+      </div>
+      <div style="margin-bottom:18px;">
+        <label style="font-size:12px;color:var(--text-secondary);">Descrição</label>
+        <input type="text" id="editRecDescricao" maxlength="200"
+          style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:14px;box-sizing:border-box;">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button id="btnEditRecSoMes" class="btn-primary" style="font-size:13px;">Alterar só este mês</button>
+        <button id="btnEditRecEProximos" class="btn-primary" style="font-size:13px;background:var(--gold);color:var(--navy);">Alterar este e próximos meses</button>
+        <button id="btnEditRecCancelar" class="btn-secondary" style="font-size:13px;">Cancelar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Bottom nav (mobile) -->
   <nav class="bottom-nav">
@@ -1370,7 +1448,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid } from './js/api.js?v=8';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente } from './js/api.js?v=9';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -1702,7 +1780,7 @@
       const mesAtual = new Date().getMonth() + 1;
       const itens = [
         ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '' })),
-        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '' })),
+        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}) })),
         ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
       ];
       try {
@@ -2338,9 +2416,15 @@
           const faturaTag = item.cartao && item.fatura
             ? `<span style="font-size:10px;background:rgba(207,174,101,0.15);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px">💳 Fatura ${MESES[parseInt(item.fatura.split('-')[1])-1]}</span>`
             : '';
+          const recTag = item.recorrenteId
+            ? `<span style="font-size:10px;background:rgba(207,174,101,0.1);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px" title="Despesa fixa automática">🔄 Fixa</span>`
+            : '';
           const dataTag = item.data
-            ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}${faturaTag}</div>`
-            : faturaTag ? `<div class="item-fonte">${faturaTag}</div>` : '';
+            ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}${faturaTag}${recTag}</div>`
+            : (faturaTag || recTag) ? `<div class="item-fonte">${faturaTag}${recTag}</div>` : '';
+          const editAttr = item.recorrenteId
+            ? `data-edit-rec="${item._idx}" data-rec-id="${item.recorrenteId}"`
+            : `data-edit-desp="${item._idx}"`;
           return `
             <div class="item-row">
               <div>
@@ -2350,7 +2434,7 @@
               <div></div>
               <div class="item-value despesa">${brl(item.valor)}</div>
               <div class="item-actions">
-                <button class="btn-item" data-edit-desp="${item._idx}" title="Editar">${IC_E}</button>
+                <button class="btn-item" ${editAttr} title="Editar">${IC_E}</button>
                 <button class="btn-item del" data-del-desp="${item._idx}" title="Excluir">${IC_D}</button>
               </div>
             </div>`;
@@ -2381,6 +2465,8 @@
 
       despList.querySelectorAll('[data-edit-desp]').forEach(btn =>
         btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
+      despList.querySelectorAll('[data-edit-rec]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModalEditRecorrente(+btn.dataset.editRec, btn.dataset.recId)));
       despList.querySelectorAll('[data-del-desp]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
       despList.querySelectorAll('.btn-set-limite').forEach(btn =>
@@ -3079,6 +3165,167 @@
       btn.addEventListener('click', e => { e.stopPropagation(); pop.classList.toggle('hidden'); });
       document.addEventListener('click', () => pop.classList.add('hidden'));
     })();
+
+    // ─── DESPESAS FIXAS (Recorrentes) ────────────────────────────────────────
+
+    let _recorrentes = [];
+
+    async function carregarRecorrentes() {
+      try { _recorrentes = await getRecorrentes(); }
+      catch (e) { console.warn('[recorrentes]', e.message); _recorrentes = []; }
+    }
+
+    function renderListaFixas() {
+      const el = document.getElementById('listaFixas');
+      if (!_recorrentes.length) {
+        el.innerHTML = `<p style="font-size:13px;color:var(--text-secondary);text-align:center;padding:16px 0;">Nenhuma despesa fixa cadastrada ainda.</p>`;
+        return;
+      }
+      el.innerHTML = _recorrentes.map(r => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:14px;font-weight:600;">${escapeHtml(r.descricao || r.categoria)}</div>
+            <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(r.categoria)} · dia ${r.dia} · ${r.ativo ? '✅ Ativa' : '⏸ Pausada'}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-weight:700;color:var(--negative);">${brl(r.valor)}</span>
+            <button class="btn-item" data-edit-fixa="${r.id}" title="Editar">✎</button>
+            <button class="btn-item del" data-del-fixa="${r.id}" title="Excluir">🗑</button>
+          </div>
+        </div>`).join('');
+      el.querySelectorAll('[data-edit-fixa]').forEach(b => b.addEventListener('click', () => abrirFormFixa(b.dataset.editFixa)));
+      el.querySelectorAll('[data-del-fixa]').forEach(b => b.addEventListener('click', () => excluirFixa(b.dataset.delFixa)));
+    }
+
+    async function abrirModalFixas() {
+      await carregarRecorrentes();
+      renderListaFixas();
+      // Popula categorias no select
+      const sel = document.getElementById('fixaCategoria');
+      const cats = [...new Set((currentData?.despesas || []).map(d => d.categoria))].sort();
+      const padrao = ['Moradia','Alimentação','Transporte','Saúde','Educação','Lazer','Assinaturas','Pessoal','Outros'];
+      const todas = [...new Set([...padrao, ...cats])].sort();
+      sel.innerHTML = todas.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      document.getElementById('formFixa').classList.add('hidden');
+      document.getElementById('modalFixas').classList.remove('hidden');
+    }
+
+    function fecharModalFixas() {
+      document.getElementById('modalFixas').classList.add('hidden');
+    }
+
+    function abrirFormFixa(id) {
+      const form = document.getElementById('formFixa');
+      form.classList.remove('hidden');
+      document.getElementById('fixaId').value = id || '';
+      if (id) {
+        const r = _recorrentes.find(x => x.id === id);
+        if (r) {
+          document.getElementById('fixaCategoria').value = r.categoria;
+          document.getElementById('fixaValor').value     = r.valor;
+          document.getElementById('fixaDescricao').value = r.descricao || '';
+          document.getElementById('fixaDia').value       = r.dia;
+        }
+      } else {
+        document.getElementById('fixaCategoria').selectedIndex = 0;
+        document.getElementById('fixaValor').value     = '';
+        document.getElementById('fixaDescricao').value = '';
+        document.getElementById('fixaDia').value       = '';
+      }
+      form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function salvarFixa() {
+      const id        = document.getElementById('fixaId').value || undefined;
+      const categoria = document.getElementById('fixaCategoria').value;
+      const valor     = parseFloat(document.getElementById('fixaValor').value);
+      const descricao = document.getElementById('fixaDescricao').value.trim();
+      const dia       = parseInt(document.getElementById('fixaDia').value, 10);
+
+      if (!categoria) return mostrarToast('Selecione uma categoria.');
+      if (isNaN(valor) || valor < 0) return mostrarToast('Informe um valor válido.');
+      if (!dia || dia < 1 || dia > 28) return mostrarToast('O dia deve ser entre 1 e 28.');
+
+      const btnSalvar = document.getElementById('btnSalvarFixa');
+      btnSalvar.disabled = true;
+      btnSalvar.textContent = 'Salvando…';
+      try {
+        await saveRecorrente({ id, categoria, valor, descricao, dia, ativo: true });
+        await carregarRecorrentes();
+        renderListaFixas();
+        document.getElementById('formFixa').classList.add('hidden');
+        mostrarToast('Despesa fixa salva!');
+      } catch (e) {
+        mostrarToast('Erro ao salvar: ' + e.message);
+      } finally {
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = 'Salvar';
+      }
+    }
+
+    async function excluirFixa(id) {
+      if (!confirm('Excluir esta despesa fixa? Ela não será mais lançada nos próximos meses.')) return;
+      try {
+        await deleteRecorrente(id);
+        await carregarRecorrentes();
+        renderListaFixas();
+        mostrarToast('Despesa fixa removida.');
+      } catch (e) {
+        mostrarToast('Erro: ' + e.message);
+      }
+    }
+
+    // ── Dialog edição de item recorrente no mês ────────────────────────────
+    let _editRecIdx = null;
+    let _editRecId  = null;
+
+    function abrirModalEditRecorrente(idx, recId) {
+      const item = currentData?.despesas?.[idx];
+      if (!item) return;
+      _editRecIdx = idx;
+      _editRecId  = recId;
+      document.getElementById('editRecIdx').value      = idx;
+      document.getElementById('editRecValor').value    = item.valor;
+      document.getElementById('editRecDescricao').value = item.descricao || '';
+      document.getElementById('modalEditRecorrente').classList.remove('hidden');
+    }
+
+    async function aplicarEditRecorrente(escopo) {
+      const novoValor = parseFloat(document.getElementById('editRecValor').value);
+      const novaDesc  = document.getElementById('editRecDescricao').value.trim();
+      if (isNaN(novoValor) || novoValor < 0) return mostrarToast('Valor inválido.');
+
+      // Atualiza item no mês atual
+      if (currentData?.despesas && _editRecIdx !== null) {
+        currentData.despesas[_editRecIdx].valor    = novoValor;
+        currentData.despesas[_editRecIdx].descricao = novaDesc;
+      }
+
+      // Se "este e próximos": atualiza o template
+      if (escopo === 'proximos' && _editRecId) {
+        const rec = _recorrentes.find(r => r.id === _editRecId);
+        if (rec) {
+          await saveRecorrente({ id: _editRecId, categoria: rec.categoria, valor: novoValor, descricao: novaDesc, dia: rec.dia, ativo: rec.ativo });
+        }
+      }
+
+      // Salva o mês atual
+      await salvarEAtualizar();
+      document.getElementById('modalEditRecorrente').classList.add('hidden');
+      mostrarToast(escopo === 'proximos' ? 'Alterado neste e nos próximos meses.' : 'Alterado só neste mês.');
+    }
+
+    // Listeners dos modais de recorrentes
+    document.getElementById('btnGerenciarFixas')?.addEventListener('click', abrirModalFixas);
+    document.getElementById('btnFecharModalFixas')?.addEventListener('click', fecharModalFixas);
+    document.getElementById('modalFixas')?.addEventListener('click', e => { if (e.target === e.currentTarget) fecharModalFixas(); });
+    document.getElementById('btnAddFixa')?.addEventListener('click', () => abrirFormFixa(null));
+    document.getElementById('btnSalvarFixa')?.addEventListener('click', salvarFixa);
+    document.getElementById('btnCancelarFixa')?.addEventListener('click', () => document.getElementById('formFixa').classList.add('hidden'));
+    document.getElementById('btnEditRecSoMes')?.addEventListener('click', () => aplicarEditRecorrente('soeste'));
+    document.getElementById('btnEditRecEProximos')?.addEventListener('click', () => aplicarEditRecorrente('proximos'));
+    document.getElementById('btnEditRecCancelar')?.addEventListener('click', () => document.getElementById('modalEditRecorrente').classList.add('hidden'));
+    document.getElementById('modalEditRecorrente')?.addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
   </script>
 
   <!-- Botão de suporte -->

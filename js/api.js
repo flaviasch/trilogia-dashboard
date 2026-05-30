@@ -765,3 +765,17 @@ export async function saveClubeItem(item) {
 export async function deleteClubeItem(id) {
   return call('deleteClubeItem')({ id });
 }
+
+// ─── RECORRENTES ─────────────────────────────────────────────────────────────
+
+export async function getRecorrentes() {
+  return call('getRecorrentes')({ uid: uidAtual() });
+}
+
+export async function saveRecorrente(recorrente) {
+  return call('saveRecorrente')({ uid: uidAtual(), recorrente });
+}
+
+export async function deleteRecorrente(id) {
+  return call('deleteRecorrente')({ uid: uidAtual(), id });
+}
