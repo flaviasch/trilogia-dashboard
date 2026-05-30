@@ -1102,6 +1102,7 @@
           <div class="resumo-label">Despesa Total</div>
           <div class="resumo-value negative" id="totalDespesa">—</div>
           <div class="resumo-sub" id="pctDespesa">—</div>
+          <div id="fixasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;cursor:pointer;" onclick="document.getElementById('bannerFixas').scrollIntoView({behavior:'smooth'})"></div>
         </div>
         <div class="resumo-card destaque">
           <div class="resumo-label">Sobra do Mês</div>
@@ -1128,13 +1129,27 @@
     <div class="tab-pane active" id="tab-resumo">
 
       <!-- Banner despesas fixas pendentes -->
-      <div id="bannerFixas" style="display:none;background:rgba(207,174,101,0.1);border:1px solid rgba(207,174,101,0.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:none;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-          <span id="bannerFixasTexto" style="font-size:13px;color:var(--gold);"></span>
-          <div style="display:flex;gap:8px;flex-shrink:0;">
-            <button id="btnBannerLancarFixas" class="btn-primary" style="font-size:12px;padding:6px 14px;">Lançar agora</button>
-            <button id="btnBannerGerenciarFixas" class="btn-secondary" style="font-size:12px;padding:6px 12px;">Gerenciar</button>
+      <div id="bannerFixas" style="display:none;background:rgba(207,174,101,0.1);border:1px solid rgba(207,174,101,0.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <span id="bannerFixasTexto" style="font-size:13px;color:var(--gold);font-weight:600;"></span>
+          <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+            <button id="btnBannerLancarFixas" class="btn-primary" style="font-size:12px;padding:6px 14px;">Selecionar e lançar</button>
+            <button id="btnBannerPularMes" class="btn-secondary" style="font-size:12px;padding:6px 10px;" title="Não lançar este mês (as fixas continuam ativas nos próximos meses)">Pular este mês</button>
+            <button id="btnBannerGerenciarFixas" class="btn-secondary" style="font-size:12px;padding:6px 10px;">Gerenciar</button>
             <button id="btnBannerDismissFixas" style="background:none;border:none;color:var(--text-secondary);font-size:18px;cursor:pointer;line-height:1;padding:0 2px;">×</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal seleção de fixas para lançar -->
+      <div id="modalSelecionarFixas" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width:460px;width:94%;">
+          <h3 style="font-family:'Playfair Display',serif;font-size:17px;margin:0 0 6px;">Selecionar despesas fixas</h3>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Desmarque as que não deseja lançar este mês.</p>
+          <div id="listaSelecaoFixas" style="margin-bottom:16px;max-height:260px;overflow-y:auto;"></div>
+          <div style="display:flex;gap:10px;">
+            <button id="btnConfirmarSelecaoFixas" class="btn-primary" style="flex:1;font-size:14px;">Lançar selecionadas</button>
+            <button id="btnCancelarSelecaoFixas" class="btn-secondary" style="font-size:14px;padding:10px 16px;">Cancelar</button>
           </div>
         </div>
       </div>
@@ -3151,11 +3166,19 @@
       const reader = new FileReader();
       reader.onload = async (ev) => {
         try {
-          const itens = parsearCsvRaioX(ev.target.result);
+          const itensCsv = parsearCsvRaioX(ev.target.result);
           const { mes, ano } = currentData.periodo;
+          // Preserva fixas já lançadas neste mês (não sobrescreve com o CSV)
+          const fixasExist = currentData.despesas.filter(d => d.recorrenteId).map(d => ({
+            categoria: d.categoria, tipo: 'despesa', valor: d.valor,
+            data: d.data || '', descricao: d.descricao || '',
+            cartao: !!d.cartao, fatura: d.fatura || '', recorrenteId: d.recorrenteId,
+          }));
+          const itens = [...itensCsv, ...fixasExist];
           await saveOrcamento(mes, ano, itens);
           currentData = await buscarPeriodo(mes, ano);
           render(currentData);
+          verificarBannerFixas(currentData);
           toast('Raio-X importado com sucesso!', 'success');
         } catch (err) {
           toast(`Erro ao importar CSV: ${err.message || err}`, 'error');
@@ -3187,46 +3210,102 @@
 
     let _recorrentes = [];
 
-    // Verifica recorrentes não lançadas no mês e exibe/oculta banner
+    // IDs de fixas puladas nesta sessão (pular este mês não inativa a fixa)
+    const _fixasPuladas = new Set();
+
+    // Verifica recorrentes não lançadas e não puladas — exibe/oculta banner e indicador
     function verificarBannerFixas(data) {
-      const banner = document.getElementById('bannerFixas');
-      if (!banner || !_recorrentes.length) { if (banner) banner.style.display = 'none'; return; }
+      const banner    = document.getElementById('bannerFixas');
+      const indicador = document.getElementById('fixasPendentesIndicador');
       const jainseridos = new Set(data.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
-      const pendentes = _recorrentes.filter(r => r.ativo && !jainseridos.has(r.id));
+      const pendentes = _recorrentes.filter(r => r.ativo && !jainseridos.has(r.id) && !_fixasPuladas.has(r.id + '_' + data.periodo.mes + '_' + data.periodo.ano));
+
+      // Indicador no card de despesas
+      if (indicador) {
+        if (pendentes.length) {
+          indicador.textContent = `+ ${pendentes.length} fixa${pendentes.length > 1 ? 's' : ''} pendente${pendentes.length > 1 ? 's' : ''} 🔄`;
+          indicador.style.display = '';
+        } else {
+          indicador.style.display = 'none';
+        }
+      }
+
+      if (!banner) return;
       if (!pendentes.length) { banner.style.display = 'none'; return; }
       const n = pendentes.length;
       const nomeMes = MESES[data.periodo.mes - 1];
       document.getElementById('bannerFixasTexto').textContent =
-        `🔄 ${n} despesa${n > 1 ? 's fixas' : ' fixa'} ainda não lançada${n > 1 ? 's' : ''} em ${nomeMes}`;
+        `🔄 ${n} despesa${n > 1 ? 's fixas' : ' fixa'} pendente${n > 1 ? 's' : ''} em ${nomeMes}`;
       banner.style.display = '';
     }
 
-    // Lança todas as recorrentes pendentes no mês atual
-    async function lancarFixasPendentes() {
+    // Abre modal de seleção antes de lançar
+    function abrirSelecaoFixas() {
       const { mes, ano } = currentData.periodo;
       const jainseridos = new Set(currentData.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
-      const pendentes = _recorrentes.filter(r => r.ativo && !jainseridos.has(r.id));
+      const pendentes = _recorrentes.filter(r => r.ativo && !jainseridos.has(r.id) && !_fixasPuladas.has(r.id + '_' + mes + '_' + ano));
       if (!pendentes.length) return;
-      const novos = pendentes.map(r => ({
-        categoria:    r.categoria,
-        tipo:         'despesa',
-        valor:        r.valor,
-        descricao:    r.descricao || '',
-        data:         `${ano}-${String(mes).padStart(2,'0')}-${String(r.dia).padStart(2,'0')}`,
-        cartao:       false,
-        fatura:       '',
-        recorrenteId: r.id,
-      }));
-      currentData.despesas.push(...novos);
-      await salvarEAtualizar();
-      document.getElementById('bannerFixas').style.display = 'none';
-      mostrarToast(`${novos.length} despesa${novos.length > 1 ? 's fixas lançadas' : ' fixa lançada'}!`);
+      const lista = document.getElementById('listaSelecaoFixas');
+      lista.innerHTML = pendentes.map(r => `
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+          <input type="checkbox" checked value="${r.id}" style="width:16px;height:16px;accent-color:var(--gold);flex-shrink:0;">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;">${escapeHtml(r.descricao || r.categoria)}</div>
+            <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(r.categoria)} · dia ${r.dia}</div>
+          </div>
+          <span style="font-weight:700;color:var(--negative);">${brl(r.valor)}</span>
+        </label>`).join('');
+      document.getElementById('modalSelecionarFixas').classList.remove('hidden');
     }
 
-    document.getElementById('btnBannerLancarFixas')?.addEventListener('click', lancarFixasPendentes);
+    // Confirma e lança as fixas selecionadas
+    async function confirmarSelecaoFixas() {
+      const { mes, ano } = currentData.periodo;
+      const checks = document.querySelectorAll('#listaSelecaoFixas input[type=checkbox]');
+      const selecionadas = new Set([...checks].filter(c => c.checked).map(c => c.value));
+      if (!selecionadas.size) { mostrarToast('Selecione ao menos uma despesa.'); return; }
+
+      const btn = document.getElementById('btnConfirmarSelecaoFixas');
+      btn.disabled = true; btn.textContent = 'Lançando…';
+      try {
+        const novos = _recorrentes
+          .filter(r => selecionadas.has(r.id))
+          .map(r => ({
+            categoria:    r.categoria,
+            tipo:         'despesa',
+            valor:        r.valor,
+            descricao:    r.descricao || '',
+            data:         `${ano}-${String(mes).padStart(2,'0')}-${String(r.dia).padStart(2,'0')}`,
+            cartao:       false,
+            fatura:       '',
+            recorrenteId: r.id,
+          }));
+        currentData.despesas.push(...novos);
+        await salvarEAtualizar();
+        document.getElementById('modalSelecionarFixas').classList.add('hidden');
+        verificarBannerFixas(currentData);
+        mostrarToast(`${novos.length} despesa${novos.length > 1 ? 's fixas lançadas' : ' fixa lançada'}!`);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Lançar selecionadas';
+      }
+    }
+
+    document.getElementById('btnBannerLancarFixas')?.addEventListener('click', abrirSelecaoFixas);
     document.getElementById('btnBannerGerenciarFixas')?.addEventListener('click', abrirModalFixas);
+    document.getElementById('btnBannerPularMes')?.addEventListener('click', () => {
+      const { mes, ano } = currentData.periodo;
+      _recorrentes.filter(r => r.ativo).forEach(r => _fixasPuladas.add(r.id + '_' + mes + '_' + ano));
+      verificarBannerFixas(currentData);
+      mostrarToast('Fixas puladas este mês. Voltarão no próximo.');
+    });
     document.getElementById('btnBannerDismissFixas')?.addEventListener('click', () => {
       document.getElementById('bannerFixas').style.display = 'none';
+    });
+    document.getElementById('btnConfirmarSelecaoFixas')?.addEventListener('click', confirmarSelecaoFixas);
+    document.getElementById('btnCancelarSelecaoFixas')?.addEventListener('click', () =>
+      document.getElementById('modalSelecionarFixas').classList.add('hidden'));
+    document.getElementById('modalSelecionarFixas')?.addEventListener('click', e => {
+      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
     });
 
     async function carregarRecorrentes() {
