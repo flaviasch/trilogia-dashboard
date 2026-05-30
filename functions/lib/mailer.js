@@ -402,6 +402,82 @@ function emailNovidades(nome) {
   `);
 }
 
+// ─── Relatório Mensal ─────────────────────────────────────────────────────────
+
+/**
+ * E-mail: relatório do mês anterior enviado no dia 1.
+ * @param {string} nome
+ * @param {string} nomeMes  — ex: "Maio de 2026"
+ * @param {object} orc      — { receita, despesa, sobra, aporte }
+ * @param {number} pl       — patrimônio líquido atual
+ * @param {number} totalReservas
+ */
+function emailRelatorioMensal(nome, nomeMes, orc, pl, totalReservas) {
+  const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const pct = (v, t) => t > 0 ? ((v / t) * 100).toFixed(1) + '%' : '—';
+
+  const sobraPositiva = (orc.sobra || 0) >= 0;
+  const sobraColor    = sobraPositiva ? '#16a34a' : '#dc2626';
+  const aporteFeito   = (orc.aporte || 0) > 0;
+
+  const card = (label, valor, cor = '#0D2B45', sub = '') => `
+    <td style="width:50%;padding:4px;">
+      <div style="background:#f8fafc;border-radius:10px;padding:16px 14px;border-left:3px solid ${cor};">
+        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${label}</div>
+        <div style="font-size:18px;font-weight:700;color:${cor};font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${valor}</div>
+        ${sub ? `<div style="font-size:11px;color:#9ca3af;margin-top:3px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${sub}</div>` : ''}
+      </div>
+    </td>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Seu resumo de ${nomeMes}</h2>
+    <p style="${S.p}">Olá, ${nome}! Aqui está como foi o seu mês financeiro.</p>
+
+    <!-- Cards de orçamento -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
+      <tr>
+        ${card('Receita', brl(orc.receita), '#0D2B45')}
+        ${card('Despesas', brl(orc.despesa), '#dc2626', pct(orc.despesa, orc.receita) + ' da receita')}
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
+      <tr>
+        ${card('Sobra do mês', brl(orc.sobra), sobraColor, pct(Math.abs(orc.sobra), orc.receita) + ' da receita')}
+        ${card('Aporte efetivado', aporteFeito ? brl(orc.aporte) : '—', aporteFeito ? '#16a34a' : '#9ca3af', aporteFeito ? pct(orc.aporte, orc.receita) + ' da receita' : 'Nenhum aporte registrado')}
+      </tr>
+    </table>
+
+    <!-- Patrimônio -->
+    ${pl > 0 ? `
+    <div style="background:#0D2B45;border-radius:10px;padding:18px 20px;margin:16px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:.05em;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Patrimônio Líquido</div>
+          <div style="font-size:22px;font-weight:700;color:#CFAE65;margin-top:4px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${brl(pl)}</div>
+        </div>
+        ${totalReservas > 0 ? `
+        <div style="text-align:right;">
+          <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:.05em;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Total em reservas</div>
+          <div style="font-size:16px;font-weight:600;color:#fff;margin-top:4px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${brl(totalReservas)}</div>
+        </div>` : ''}
+      </div>
+    </div>` : ''}
+
+    <!-- Mensagem motivacional personalizada -->
+    <p style="${S.p}">
+      ${!aporteFeito
+        ? 'Que tal registrar um aporte este mês? Pequenos investimentos consistentes fazem a maior diferença no longo prazo.'
+        : sobraPositiva
+          ? 'Ótimo trabalho! Você teve sobra positiva e ainda efetivou um aporte. Siga assim.'
+          : 'Você efetivou um aporte — isso é o mais importante. Revise as categorias de despesa para aumentar a sobra no próximo mês.'}
+    </p>
+
+    <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">
+      Ver orçamento completo →
+    </a>
+  `);
+}
+
 // ─── Retenção (série de alerta de pagamento) ──────────────────────────────────
 
 /**
@@ -495,4 +571,5 @@ module.exports = {
   emailRetencaoDia1,
   emailRetencaoDia3,
   emailRetencaoDia7,
+  emailRelatorioMensal,
 };

@@ -37,6 +37,7 @@ const {
   emailRetencaoDia1,
   emailRetencaoDia3,
   emailRetencaoDia7,
+  emailRelatorioMensal,
 } = require('./lib/mailer');
 
 admin.initializeApp();
@@ -2277,11 +2278,48 @@ exports.notifDia1 = onSchedule(
     const ano     = agora.getFullYear();
     const nomesMes = nomeMesPt(mes, ano);
 
+    // Mês anterior para o relatório
+    const mesPrevNum = mes === 1 ? 12 : mes - 1;
+    const anoPrev    = mes === 1 ? ano - 1 : ano;
+    const mesKeyPrev = `${anoPrev}-${String(mesPrevNum).padStart(2, '0')}`;
+    const nomeMesPrev = nomeMesPt(mesPrevNum, anoPrev);
+
     const mentoradas = await getAtivas();
 
     for (const m of mentoradas) {
       if (!m.email) continue;
       const tarefas = [];
+
+      // Relatório do mês anterior — lê orçamento do Firestore
+      try {
+        const orcSnap = await db.collection('mentoradas').doc(m.id)
+          .collection('orcamento').doc(mesKeyPrev).get();
+        if (orcSnap.exists) {
+          const itens = orcSnap.data().itens || [];
+          const orc = {
+            receita: itens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0),
+            despesa: itens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0),
+            aporte:  itens.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0),
+          };
+          orc.sobra = orc.receita - orc.despesa;
+          // Só envia se tiver ao menos receita ou despesa registrada
+          if (orc.receita > 0 || orc.despesa > 0) {
+            tarefas.push(sendEmail({
+              to:      m.email,
+              subject: `Seu resumo financeiro de ${nomeMesPrev}`,
+              html:    emailRelatorioMensal(
+                m.nome || 'mentorada',
+                nomeMesPrev,
+                orc,
+                m.pl || 0,
+                m.totalReservas || 0,
+              ),
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn(`[notifDia1] Erro ao gerar relatório para ${m.id}:`, err.message);
+      }
 
       // Lembrete de orçamento — todas as ativas
       tarefas.push(sendEmail({
