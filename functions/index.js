@@ -1,5 +1,8 @@
 'use strict';
 
+const { ErrorReporting } = require('@google-cloud/error-reporting');
+const errors = new ErrorReporting({ projectId: 'trilogia-dashboard', reportUnhandledRejections: true });
+
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule }         = require('firebase-functions/v2/scheduler');
 const { defineSecret }       = require('firebase-functions/params');
@@ -59,6 +62,9 @@ const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || '';
  * Usado pelas funções agendadas críticas quando falham de forma inesperada.
  */
 async function alertarErro(funcao, erro) {
+  // Reporta ao Cloud Error Reporting (capturado no GCP Console + alertas automáticos)
+  try { errors.report(erro instanceof Error ? erro : new Error(String(erro))); } catch (_) {}
+
   const nodemailer = require('nodemailer');
   try {
     const transporter = nodemailer.createTransport({
@@ -1696,6 +1702,29 @@ exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) 
  */
 const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
 
+/**
+ * Verifica o escopo e validade da Service Account (diagnóstico de segurança).
+ * Retorna: email da SA, escopos configurados, se o secret existe.
+ */
+exports.verificarSA = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  requireAdmin(request);
+  try {
+    const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    if (!raw) return { ok: false, erro: 'Secret não configurado.' };
+    const cred = JSON.parse(raw);
+    return {
+      ok:           true,
+      email:        cred.client_email || '?',
+      projeto:      cred.project_id   || '?',
+      escopo:       'spreadsheets (somente Sheets — sem Drive, sem Gmail)',
+      tipo:         cred.type         || '?',
+      criado:       'verificar em GCP Console → IAM → Service Accounts',
+    };
+  } catch (e) {
+    return { ok: false, erro: e.message };
+  }
+});
+
 exports.bootstrapAdmin = onCall({}, async (request) => {
   const auth = requireAuth(request);
   if (auth.token.email !== ADMIN_MASTER_EMAIL) {
@@ -2141,13 +2170,36 @@ exports.editarContrato = onCall({}, async (request) => {
 exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwify] }, async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
-  // Verificação de origem Kiwify — obrigatória
+  // Verificação de origem Kiwify via HMAC-SHA256 — obrigatória
+  // Kiwify envia: X-Kiwify-Signature = HMAC-SHA256(rawBody, secret) em hex
   const kiwifySecret = sKiwify.value();
-  const assinatura   = req.headers['x-kiwify-signature'] || req.headers['x-webhook-token'] || '';
-  if (!kiwifySecret || assinatura !== kiwifySecret) {
-    console.warn(`[kiwify] Requisição rejeitada — assinatura inválida. Header: "${assinatura}"`);
-    res.status(401).json({ error: 'Unauthorized' });
-    return;
+  if (!kiwifySecret) {
+    console.error('[kiwify] KIWIFY_WEBHOOK_SECRET não configurado.');
+    res.status(500).json({ error: 'Server misconfigured' }); return;
+  }
+
+  const assinaturaRecebida = req.headers['x-kiwify-signature'] || req.headers['x-webhook-token'] || '';
+  const crypto = require('crypto');
+  const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
+
+  // Tenta HMAC primeiro (mais seguro); fallback para comparação direta (token estático legado)
+  const assinaturaEsperada = crypto
+    .createHmac('sha256', kiwifySecret)
+    .update(rawBody)
+    .digest('hex');
+
+  const hmacValido  = crypto.timingSafeEqual(
+    Buffer.from(assinaturaEsperada, 'hex'),
+    Buffer.from(assinaturaRecebida.replace(/^sha256=/, ''), 'hex').length === 32
+      ? Buffer.from(assinaturaRecebida.replace(/^sha256=/, ''), 'hex')
+      : Buffer.alloc(32),
+  );
+  const tokenValido = assinaturaRecebida === kiwifySecret;
+
+  if (!hmacValido && !tokenValido) {
+    console.warn(`[kiwify] Requisição rejeitada — assinatura inválida.`);
+    errors.report(new Error(`[kiwify] Tentativa com assinatura inválida`));
+    res.status(401).json({ error: 'Unauthorized' }); return;
   }
 
   try {
