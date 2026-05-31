@@ -30,10 +30,7 @@ self.addEventListener('activate', (event) => {
         names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))
       ))
       .then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({ type: 'window' }))
-      .then((clients) => {
-        clients.forEach((client) => client.navigate(client.url));
-      })
+      // Não força navigate — o controllerchange no index.html já recarrega a página
   );
 });
 
