@@ -1516,7 +1516,10 @@
       navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
-          .then(() => registrarPush())
+          .then(reg => {
+            reg.update(); // força verificação de nova versão a cada carregamento
+            return registrarPush();
+          })
           .catch((err) => console.warn('SW registration failed:', err));
       });
     }
