@@ -1291,7 +1291,9 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
   let emailEnviado = false;
   let emailErro    = null;
   try {
-    const linkSenha = await admin.auth().generatePasswordResetLink(email);
+    const linkSenha = await admin.auth().generatePasswordResetLink(email, {
+      url: 'https://dashboard.flaviaschusciman.com/login.html',
+    });
     await sendEmail({
       to:      email,
       subject: 'Bem-vinda ao Trilogia Dashboard',
@@ -1494,7 +1496,9 @@ exports.reenviarAcesso = onCall({ secrets: ['GMAIL_APP_PASSWORD'] }, async (requ
   // Gera link de redefinição de senha
   let link;
   try {
-    link = await admin.auth().generatePasswordResetLink(userRecord.email);
+    link = await admin.auth().generatePasswordResetLink(userRecord.email, {
+      url: 'https://dashboard.flaviaschusciman.com/login.html',
+    });
   } catch (err) {
     throw new HttpsError('failed-precondition', `Erro ao gerar link: ${err.message}`);
   }
@@ -2470,7 +2474,9 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
 
       // 6. E-mail de boas-vindas (falha não bloqueia)
       try {
-        const link = await admin.auth().generatePasswordResetLink(email);
+        const link = await admin.auth().generatePasswordResetLink(email, {
+          url: 'https://dashboard.flaviaschusciman.com/login.html',
+        });
         await sendEmail({ to: email, subject: 'Bem-vinda ao Trilogia Dashboard', html: emailBoasVindas(nomeCliente, link) });
       } catch (err) {
         console.error(`[kiwify] Falha no e-mail de boas-vindas para ${email}:`, err.message);

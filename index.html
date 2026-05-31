@@ -1530,6 +1530,9 @@
     let deferredPrompt = null;
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
+      // Não exibe se já está rodando como app instalado (standalone)
+      const jaInstalado = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      if (jaInstalado) return;
       deferredPrompt = e;
       const banner = document.getElementById('pwaBanner');
       if (banner) banner.style.display = 'flex';
