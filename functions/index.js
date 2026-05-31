@@ -1026,6 +1026,19 @@ exports.saveDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   let corretora = patSnap.exists ? (patSnap.data().corretora || []) : [];
   let dividas   = patSnap.exists ? (patSnap.data().dividas   || []) : [];
 
+  // Fallback Sheets: garante que ir/corretora não ficam vazios se ainda não migrou
+  if (!patSnap.exists) {
+    try {
+      const sheetId = await getSheetId(db, uid);
+      if (sheetId) {
+        const sheets = new SheetsClient(sheetId);
+        [ir, corretora, dividas] = await Promise.all([
+          sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas(),
+        ]);
+      }
+    } catch (e) { console.warn('[saveDivida] Fallback Sheets falhou:', e.message); }
+  }
+
   // Upsert da dívida
   const idx = dividas.findIndex(d => d.id === divida.id);
   if (idx !== -1) dividas[idx] = divida;
@@ -1666,18 +1679,34 @@ exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) 
     atualizadoEm: d.data().atualizadoEm?.toDate?.()?.toISOString() || null,
   }));
 
-  // Dados das Sheets (patrimônio, reservas, dívidas, perfil)
+  // Patrimônio, dívidas: Firestore first → fallback Sheets
   let patrimonio = [], investimentos = [], dividas = [], reservas = [], perfil = null;
-  const sheetId = conta.sheetId;
-  if (sheetId) {
-    const sheets = new SheetsClient(sheetId);
-    [patrimonio, investimentos, dividas, reservas, perfil] = await Promise.allSettled([
-      sheets.getPatrimonio(),
-      sheets.getInvestimentos(),
-      sheets.getDividas(),
-      sheets.getReservas(),
-      sheets.getPerfil(),
-    ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : null));
+  const patSnap = await db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados').get();
+  if (patSnap.exists) {
+    patrimonio    = patSnap.data().ir        || [];
+    investimentos = patSnap.data().corretora || [];
+    dividas       = patSnap.data().dividas   || [];
+  } else if (conta.sheetId) {
+    const sheets = new SheetsClient(conta.sheetId);
+    [patrimonio, investimentos, dividas] = await Promise.allSettled([
+      sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas(),
+    ]).then(r => r.map(x => x.status === 'fulfilled' ? x.value : []));
+  }
+
+  // Reservas: Firestore first → fallback Sheets
+  const resSnap = await db.collection('mentoradas').doc(uid).collection('reservas').get();
+  if (!resSnap.empty) {
+    reservas = resSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+  } else if (conta.sheetId) {
+    reservas = await new SheetsClient(conta.sheetId).getReservas().catch(() => []);
+  }
+
+  // Perfil: Firestore first → fallback Sheets
+  const perfilSnap = await db.collection('mentoradas').doc(uid).collection('perfil').doc('dados').get();
+  if (perfilSnap.exists) {
+    perfil = perfilSnap.data();
+  } else if (conta.sheetId) {
+    perfil = await new SheetsClient(conta.sheetId).getPerfil().catch(() => null);
   }
 
   return {
