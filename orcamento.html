@@ -1477,7 +1477,8 @@
 
       <div class="field-group" id="fgCategoria">
         <label for="mCategoria">Categoria</label>
-        <input type="text" id="mCategoria" placeholder="ex: Salário, Moradia, Alimentação…" />
+        <input type="text" id="mCategoria" placeholder="ex: Salário, Moradia, Alimentação…" list="categoriasSugeridas" autocomplete="off" />
+        <datalist id="categoriasSugeridas"></datalist>
       </div>
       <div class="field-group" id="fgTipo">
         <label for="mTipo">Tipo</label>
@@ -1740,12 +1741,29 @@
     let editandoIdx = null;  // { tipo: 'receita'|'despesa', idx: number } ou null
     let _catLocked  = null;  // categoria pré-definida (ao clicar em "+ Adicionar em X")
 
+    function atualizarCategoriasSugeridas() {
+      const dl = document.getElementById('categoriasSugeridas');
+      if (!dl || !currentData) return;
+      // Categorias já usadas no mês atual (receitas + despesas) + categorias das fixas
+      const usadas = new Set([
+        ...currentData.receitas.map(r => r.categoria),
+        ...currentData.despesas.map(d => d.categoria),
+        ..._recorrentes.map(r => r.categoria),
+      ]);
+      // Padrões sugeridos sempre disponíveis
+      const padrao = ['Moradia','Alimentação','Transporte','Saúde','Educação','Lazer',
+                      'Assinaturas','Pessoal','Vestuário','Salário','Freelance','Outros'];
+      const todas = [...new Set([...padrao, ...usadas])].sort();
+      dl.innerHTML = todas.map(c => `<option value="${escapeHtml(c)}">`).join('');
+    }
+
     function abrirModal(tipo, idx = null, catLocked = null) {
       _catLocked  = catLocked || null;
       editandoIdx = idx !== null ? { tipo, idx } : null;
 
       document.getElementById('modalItemTitle').textContent = idx !== null ? 'Editar lançamento' : 'Novo lançamento';
       document.getElementById('modalItemSub').textContent   = _catLocked ? `Categoria: ${_catLocked}` : '';
+      atualizarCategoriasSugeridas();
 
       // Categoria e tipo: ocultar quando a categoria já está definida pelo grupo
       const fgCat  = document.getElementById('fgCategoria');

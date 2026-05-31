@@ -2762,7 +2762,7 @@ exports.anunciarNovidades = onCall({ secrets: SECRETS_EMAIL }, async (request) =
 
 exports.notifDia28 = onSchedule(
   { schedule: '0 8 28 * *', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, ...SECRETS_PUSH] },
-  async () => {
+  comMonitoramento('notifDia28', async () => {
     const agora    = new Date();
     const mes      = agora.getMonth() + 1;
     const ano      = agora.getFullYear();
@@ -2798,8 +2798,7 @@ exports.notifDia28 = onSchedule(
       url:    '/orcamento.html',
       tag:    'lembrete-aporte',
     }).catch(e => console.warn('[notifDia28] Push falhou:', e.message));
-  },
-);
+  }));
 
 /**
  * notifRetencao — diariamente às 10h (Sao_Paulo)
