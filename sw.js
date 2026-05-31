@@ -1,10 +1,10 @@
-// Trilogia Dashboard — Service Worker v12
+// Trilogia Dashboard — Service Worker v13
 // HTML:          sempre rede (no-store)
 // JS/CSS locais: Network First → garante versão atual; fallback cache se offline
 // Fontes/CDN:    Cache First (raramente mudam)
 // Push:          exibe notificação + abre dashboard ao clicar
 
-const CACHE_NAME = 'trilogia-v12';
+const CACHE_NAME = 'trilogia-v13';
 
 const ASSETS_TO_CACHE = [
   '/manifest.json',
