@@ -824,11 +824,21 @@
         }
 
         propagarViewAs();                          // 1ª passagem: links estáticos
-        await loadDashboard(user, VIEW_AS_UID);
+        try {
+          await loadDashboard(user, VIEW_AS_UID);
+        } catch (e) {
+          console.error('[init/viewAs] Erro inesperado no loadDashboard:', e);
+          const banner = document.getElementById('erroBanner');
+          if (banner) {
+            banner.innerHTML = `Erro inesperado ao carregar (${e?.message || e}). &nbsp;·&nbsp; <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">tentar novamente</a>`;
+            banner.style.display = 'block';
+          }
+        } finally {
+          document.getElementById('loadingOverlay').style.display = 'none';
+        }
         propagarViewAs();                          // 2ª passagem: links renderizados dinamicamente
 
         // Interceptor de cliques: garante ?viewAs mesmo em links criados após propagação
-        // (cobre race conditions, innerHTML dinâmico e links fora do escopo do propagarViewAs)
         document.addEventListener('click', e => {
           const a = e.target.closest('a[href]');
           if (!a) return;
@@ -841,11 +851,22 @@
           window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;
         }, true); // capture: true — antes de qualquer handler interno
 
-        document.getElementById('loadingOverlay').style.display = 'none';
         return;
       }
 
-      const ok = await loadDashboard(user);
+      let ok = false;
+      try {
+        ok = await loadDashboard(user);
+      } catch (e) {
+        console.error('[init] Erro inesperado no loadDashboard:', e);
+        const banner = document.getElementById('erroBanner');
+        if (banner) {
+          banner.innerHTML = `Erro inesperado ao carregar (${e?.message || e}). &nbsp;·&nbsp; <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">tentar novamente</a>`;
+          banner.style.display = 'block';
+        }
+      } finally {
+        document.getElementById('loadingOverlay').style.display = 'none';
+      }
 
       // getDashboard falhou → verifica se é a conta master sem claim ainda
       if (!ok && user.email === ADMIN_MASTER_EMAIL && !admin) {
@@ -863,8 +884,6 @@
         window.location.href = 'admin.html';
         return;
       }
-
-      document.getElementById('loadingOverlay').style.display = 'none';
       // Visibilidade de mainContent / welcomeScreen é gerenciada por checkOnboarding()
     }
 
