@@ -1366,7 +1366,12 @@ exports.bloquearMentorada = onCall({}, async (request) => {
   const { uid } = request.data;
   if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
 
-  await admin.auth().updateUser(uid, { disabled: true });
+  // Desabilita a conta E revoga todos os refresh tokens ativos
+  // (elimina sessões abertas imediatamente, sem esperar o JWT de 1h expirar)
+  await Promise.all([
+    admin.auth().updateUser(uid, { disabled: true }),
+    admin.auth().revokeRefreshTokens(uid),
+  ]);
   await db.collection('mentoradas').doc(uid).update({ status: 'inativa' });
   return { ok: true };
 });
@@ -2205,7 +2210,10 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         // (mentorada pode ter encerrado a mentoria mas continuar no produto dashboard)
         const mantemAcesso = temDashboardAtivo && !ehDashboard && !ehCombo;
         if (!mantemAcesso) {
-          await admin.auth().updateUser(mUid, { disabled: true });
+          await Promise.all([
+            admin.auth().updateUser(mUid, { disabled: true }),
+            admin.auth().revokeRefreshTokens(mUid),
+          ]);
           flagsRevogados.status = 'inativa';
         }
 
@@ -3007,7 +3015,10 @@ exports.verificarExpiracoes = onSchedule(
         continue;
       }
 
-      await admin.auth().updateUser(doc.id, { disabled: true }).catch(() => {});
+      await Promise.allSettled([
+        admin.auth().updateUser(doc.id, { disabled: true }),
+        admin.auth().revokeRefreshTokens(doc.id),
+      ]);
       await doc.ref.update({ status: 'inativa' });
       console.log(`Conta expirada e inativada: ${doc.id} (${dataExpiracao})`);
     }
