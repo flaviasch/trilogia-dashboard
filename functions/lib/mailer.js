@@ -371,34 +371,31 @@ function emailNovidades(nome) {
     </td></tr>`;
 
   return layout(`
-    <h2 style="${S.h2}">Seu dashboard acaba de ganhar superpoderes 🎉</h2>
+    <h2 style="${S.h2}">Seu dashboard ficou ainda mais poderoso 🎉</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
-      Tenho uma novidade pra você: o seu Dashboard Trilogia acabou de receber uma
-      atualização que transforma o controle de orçamento em algo bem mais poderoso.
+      Nos últimos meses o seu Dashboard Trilogia recebeu uma série de atualizações.
+      É muita coisa nova — tudo pensado para tornar sua vida financeira ainda mais organizada e automática.
     </p>
     <p style="margin:0 0 16px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-      O que mudou na página de Orçamento:
+      Veja o que chegou:
     </p>
     <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
-      ${featureItem('🎯','Planejamento','Defina quanto você pretende gastar em cada categoria e receba um alerta automático quando estiver se aproximando do limite. Nunca mais ser pega de surpresa no fim do mês.')}
-      ${featureItem('📊','Gráficos','Veja um gráfico de pizza com seus gastos por categoria e acompanhe a tendência dos últimos 3 meses. Padrões financeiros ficam visíveis de um jeito que a planilha nunca mostrou.')}
-      ${featureItem('🔍','Detalhe','Registre cada lançamento com data e descrição. Aquela dúvida "onde foi esse dinheiro?" não existe mais.')}
+      ${featureItem('🔄','Despesas fixas recorrentes','Aluguel, streaming, academia, parcelas — cadastre uma vez e o dashboard lança sozinho todo mês. Ficou pendente? Um clique e tudo está registrado. Quer alterar só este mês? Pode. Quer mudar daqui pra frente? Também.')}
+      ${featureItem('💳','Cartão de crédito com fatura inteligente','Informe a data de corte do seu cartão e o dashboard já sabe em qual mês registrar cada compra — automaticamente. Chega de confusão com fatura do mês errado.')}
+      ${featureItem('🔔','Lembretes no seu celular','Ative as notificações push direto no navegador do celular. No dia 1, lembrete de orçamento. No dia 28, lembrete de aporte. Tudo no momento certo, sem depender de abrir o app.')}
+      ${featureItem('📬','Relatório mensal automático','Todo dia 1 você recebe no e-mail um resumo completo do mês anterior: quanto entrou, quanto saiu, sua sobra e o saldo das reservas. Um retrato fiel da sua evolução — sem precisar fazer nada.')}
+      ${featureItem('✍️','Lançamentos com autocomplete','Na hora de registrar uma despesa manualmente, o dashboard sugere a categoria automaticamente conforme você digita. Mais rápido, menos erro.')}
     </table>
     <p style="${S.p}">
-      E o melhor: <strong style="color:#0D2B45;">você escolhe como usar.</strong>
-      Quer continuar usando a planilha do Raio-X e importar o CSV todo mês?
-      O dashboard processa e organiza tudo automaticamente.
-      Prefere lançar direto no app, sem planilha? Também funciona — é só adicionar manualmente.
+      Além de tudo isso, o dashboard está <strong style="color:#0D2B45;">mais seguro e mais estável do que nunca.</strong>
+      Atualizamos toda a infraestrutura de segurança, implementamos monitoramento em tempo real
+      e garantimos que seus dados estejam sempre protegidos e com backup automático diário.
     </p>
-    <p style="margin:0 0 28px;font-size:14px;color:#4b5563;line-height:1.7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-      <strong style="color:#0D2B45;">Dois jeitos de usar. Um resultado só:</strong>
-      controle financeiro real, sem esforço dobrado.
-    </p>
-    <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
       Acessar agora →
     </a>
-    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia</strong></p>
+    <p style="${S.pSmall}">Com muito carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
   `);
 }
 

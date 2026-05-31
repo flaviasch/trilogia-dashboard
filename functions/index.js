@@ -1111,11 +1111,13 @@ exports.saveReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 
   await checkRateLimit(uid, 'saveReserva', 10, 60_000);
 
-  // Firestore primary
-  await db.collection('mentoradas').doc(uid).collection('reservas').doc(String(reserva.id)).set({
+  // Firestore primary — criadoEm só é definido na criação (não sobrescreve em updates)
+  const reservaRef = db.collection('mentoradas').doc(uid).collection('reservas').doc(String(reserva.id));
+  const reservaSnap = await reservaRef.get();
+  await reservaRef.set({
     ...reserva,
     atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-    criadoEm:     admin.firestore.FieldValue.serverTimestamp(),
+    ...(reservaSnap.exists ? {} : { criadoEm: admin.firestore.FieldValue.serverTimestamp() }),
   }, { merge: true });
 
   // Atualiza cache totalReservas
@@ -2808,7 +2810,7 @@ exports.anunciarNovidades = onCall({ secrets: SECRETS_EMAIL }, async (request) =
     try {
       await sendEmail({
         to:      m.email,
-        subject: 'Seu dashboard acaba de ganhar superpoderes 🎉',
+        subject: 'Seu dashboard ficou ainda mais poderoso 🎉',
         html:    emailNovidades(m.nome || 'mentorada'),
       });
       enviados++;
