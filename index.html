@@ -1529,9 +1529,11 @@
     let deferredPrompt = null;
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
-      // Não exibe se já está rodando como app instalado (standalone)
+      // Não exibe se já está em modo standalone (app aberto pelo ícone)
       const jaInstalado = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
       if (jaInstalado) return;
+      // Não exibe se o usuário já instalou ou dispensou antes
+      if (localStorage.getItem('pwa_installed') === '1') return;
       deferredPrompt = e;
       const banner = document.getElementById('pwaBanner');
       if (banner) banner.style.display = 'flex';
@@ -1542,14 +1544,17 @@
       const { outcome } = await deferredPrompt.userChoice;
       deferredPrompt = null;
       document.getElementById('pwaBanner').style.display = 'none';
+      if (outcome === 'accepted') localStorage.setItem('pwa_installed', '1');
     });
     document.getElementById('pwaBannerDismiss')?.addEventListener('click', () => {
       document.getElementById('pwaBanner').style.display = 'none';
       deferredPrompt = null;
+      localStorage.setItem('pwa_installed', '1'); // não mostra de novo
     });
     window.addEventListener('appinstalled', () => {
       document.getElementById('pwaBanner').style.display = 'none';
       deferredPrompt = null;
+      localStorage.setItem('pwa_installed', '1');
     });
 
     // Listeners do banner de push
