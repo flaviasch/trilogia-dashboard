@@ -4160,6 +4160,10 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       renderTabelaPipeline();
     });
 
+    // Expõe funções chamadas via onclick= em HTML dinâmico (módulos não são globais)
+    window.abrirDetalhe       = abrirDetalhe;
+    window.gerarComprovanteLGPD = gerarComprovanteLGPD;
+
   </script>
   <script>
     if ('serviceWorker' in navigator) {
