@@ -1149,10 +1149,21 @@
       </div>
     </div>
 
-    <!-- Disclaimer inserção manual + botão SMS -->
-    <p style="font-size:12px; color:var(--text-muted); margin-top:-20px; margin-bottom:16px; padding: 0 4px;">
-      💡 Prefere inserir manualmente? Use os botões <strong style="color:rgba(255,255,255,0.5)">+ Adicionar</strong> em cada seção abaixo — ou <button id="btnImportarSMS" style="background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;">📱 cole uma notificação do cartão</button> para lançar uma despesa automaticamente.
-    </p>
+    <!-- Ações rápidas de lançamento -->
+    <div style="display:flex;gap:8px;margin-top:-16px;margin-bottom:20px;flex-wrap:wrap;">
+      <button id="btnImportarSMS"
+        style="display:flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;"
+        onmouseover="this.style.borderColor='rgba(207,174,101,0.4)';this.style.color='var(--gold)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color=''">
+        📱 Importar notificação do banco
+      </button>
+      <button id="btnAddDespesaRapida"
+        style="display:flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;"
+        onmouseover="this.style.borderColor='rgba(207,174,101,0.4)';this.style.color='var(--gold)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color=''">
+        + Lançar manualmente
+      </button>
+    </div>
 
     <!-- Resumo -->
     <div class="resumo-section">
@@ -3672,6 +3683,20 @@
     function sugerirCategoria(texto) {
       if (!texto) return null;
       const t = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+      // ① Aprende com o histórico do mês: se a descrição já foi usada antes com uma categoria
+      if (currentData?.despesas?.length) {
+        const historicoCats = {};
+        currentData.despesas.forEach(d => {
+          if (d.descricao && d.categoria) {
+            const key = d.descricao.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').slice(0, 25);
+            historicoCats[key] = d.categoria;
+          }
+        });
+        for (const [key, cat] of Object.entries(historicoCats)) {
+          if (key.length >= 4 && t.includes(key)) return cat;
+        }
+      }
       for (const { cat, words } of SMS_CATEGORIAS) {
         if (words.some(w => t.includes(w.normalize('NFD').replace(/[̀-ͯ]/g, '')))) {
           return cat;
@@ -3773,10 +3798,7 @@
         document.getElementById('mValor').value     = _smsDetectado.valor.toFixed(2).replace('.', ',');
         document.getElementById('mData').value      = _smsDetectado.data;
         document.getElementById('mDescricao').value = _smsDetectado.descricao;
-        document.getElementById('mCartao').checked  = true;
-        document.getElementById('fgCartaoOpcoes').style.display = '';
-        preencherSeletorCartoes(null);
-        calcularFaturaAutomatica();
+        // Não assume cartão — mentorada decide se é débito ou crédito
       }, 50);
     });
 
@@ -4210,6 +4232,9 @@
       document.getElementById('modalEditRecorrente').classList.add('hidden');
       mostrarToast(escopo === 'proximos' ? 'Alterado neste e nos próximos meses.' : 'Alterado só neste mês.');
     }
+
+    // ─── Botão lançar manualmente ─────────────────────────────────────────────
+    document.getElementById('btnAddDespesaRapida')?.addEventListener('click', () => abrirModal('despesa'));
 
     // ─── Exportar PDF ────────────────────────────────────────────────────────
     document.getElementById('btnExportarPDF')?.addEventListener('click', () => {
