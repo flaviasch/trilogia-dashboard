@@ -1645,7 +1645,23 @@
       document.getElementById('tabBtn' + id.charAt(0).toUpperCase() + id.slice(1))?.classList.add('active');
       if (id === 'planejamento') renderPlanejamento(currentData, categoriasMes);
       if (id === 'graficos')    renderGraficos(currentData);
-      if (id === 'detalhe')     renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
+      if (id === 'detalhe') {
+        const { mes, ano } = currentData.periodo;
+        const mesPrev = mes > 1 ? mes - 1 : 12;
+        const anoPrev = mes > 1 ? ano : ano - 1;
+        getOrcamento(mesPrev, anoPrev)
+          .then(itens => {
+            dadosMesAnterior = {};
+            itens.filter(i => i.tipo === 'despesa').forEach(d => {
+              dadosMesAnterior[d.categoria] = (dadosMesAnterior[d.categoria] || 0) + d.valor;
+            });
+            renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
+          })
+          .catch(() => {
+            dadosMesAnterior = {};
+            renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
+          });
+      }
       if (id === 'anual')       renderAnual();
     }
 
@@ -1699,6 +1715,7 @@
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
     let _tabAtiva = 'resumo';
     let _pizzaInstance = null;
+    let dadosMesAnterior = {}; // { categoria: total } — carregado ao abrir aba Detalhe
 
     // ─── Helpers de texto ────────────────────────────────────────────────────
     function escapeHtml(str) {
@@ -2660,11 +2677,23 @@
         const btnLimClass = limite > 0 ? 'btn-set-limite tem-limite' : 'btn-set-limite';
         const btnLimText  = limite > 0 ? `${brl(limite)}/mês` : '+ limite';
 
+        // Delta vs mês anterior
+        let deltaHTML = '';
+        const totalAnterior = dadosMesAnterior[catNome] || 0;
+        if (totalAnterior > 0) {
+          const delta    = grupo.total - totalAnterior;
+          const cor      = delta > 0 ? 'var(--negative)' : 'var(--positive)';
+          const sinal    = delta > 0 ? '+' : '';
+          const pctDelta = Math.round(Math.abs(delta) / totalAnterior * 100);
+          deltaHTML = `<span style="font-size:11px;color:${cor};font-weight:600;white-space:nowrap;">${sinal}${brl(delta)} (${pctDelta}%)</span>`;
+        }
+
         return `
           <div class="cat-group">
             <div class="cat-group-header">
               <span class="cat-group-nome">${escapeHtml(catNome)}</span>
               ${limiteHTML}
+              ${deltaHTML}
               <span class="cat-group-total">${brl(grupo.total)}</span>
               <button class="${btnLimClass}" data-cat="${escapeHtml(catNome)}">${btnLimText}</button>
             </div>
