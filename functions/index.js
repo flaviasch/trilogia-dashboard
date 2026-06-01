@@ -41,6 +41,7 @@ const {
   emailRetencaoDia3,
   emailRetencaoDia7,
   emailRelatorioMensal,
+  emailComunicadoTecnico,
 } = require('./lib/mailer');
 
 admin.initializeApp();
@@ -2851,6 +2852,31 @@ exports.anunciarNovidades = onCall({ secrets: SECRETS_EMAIL }, async (request) =
       enviados++;
     } catch (err) {
       console.error(`[anunciarNovidades] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  return { ok: true, enviados, erros };
+});
+
+/**
+ * Envia comunicado técnico para todas as mentoradas ativas.
+ * Usado quando há instabilidade no app — orienta a reinstalar o PWA.
+ */
+exports.comunicadoTecnico = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Aviso sobre o Trilogia Dashboard',
+        html:    emailComunicadoTecnico(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[comunicadoTecnico] Erro ao enviar para ${m.email}:`, err.message);
       erros++;
     }
   }

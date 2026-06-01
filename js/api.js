@@ -706,6 +706,11 @@ export async function anunciarNovidades() {
   return call('anunciarNovidades')({});
 }
 
+/** Envia comunicado técnico (instabilidade/reinstalação do app) para todas as ativas. Admin only. */
+export async function comunicadoTecnico() {
+  return call('comunicadoTecnico')({});
+}
+
 /** Migra dados de orçamento do Sheets para Firestore. Admin only. */
 export async function migrarOrcamento() {
   return call('migrarOrcamento')({});

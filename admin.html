@@ -518,12 +518,14 @@
         <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🎉 Novidades — Mai/2026</div>
           <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Recorrentes, cartão inteligente, push, relatório mensal e autocomplete.</div>
-          <button id="btnDispararNovidades" style="
-            background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;
-            padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;
-            font-family:'Inter',sans-serif;
-          ">Disparar agora →</button>
+          <button id="btnDispararNovidades" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
           <span id="statusNovidades" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+        </div>
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,160,0,0.2);border-radius:10px;padding:16px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">⚠️ Comunicado técnico</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Avisa mentoradas sobre instabilidade e orienta a reinstalar o app.</div>
+          <button id="btnDispararTecnico" style="background:rgba(255,160,0,0.2);color:#fbbf24;border:1px solid rgba(255,160,0,0.3);border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusTecnico" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
         </div>
       </div>
 
@@ -1530,7 +1532,7 @@
              criarPlanilha, getNotionCRM,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico, anunciarNovidades, migrarOrcamento, getAnalytics,
+             syncDiagnostico, anunciarNovidades, comunicadoTecnico, migrarOrcamento, getAnalytics,
              getAdmins, addAdmin, removeAdmin, getBackupStatus } from './js/api.js?v=12';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
@@ -1593,6 +1595,28 @@
         const res = await anunciarNovidades();
         btn.textContent = '✓ Enviado!';
         btn.style.background = '#4ade80';
+        status.textContent = `${res.enviados} e-mails enviados${res.erros > 0 ? `, ${res.erros} erros` : ''}`;
+        status.style.color = res.erros > 0 ? '#f87171' : '#4ade80';
+      } catch (err) {
+        btn.textContent = 'Disparar agora →';
+        btn.disabled = false;
+        status.textContent = 'Erro: ' + (err.message || 'tente novamente');
+        status.style.color = '#f87171';
+      }
+    });
+
+    document.getElementById('btnDispararTecnico')?.addEventListener('click', async () => {
+      if (!confirm('Disparar comunicado técnico para TODAS as mentoradas ativas?')) return;
+      const btn    = document.getElementById('btnDispararTecnico');
+      const status = document.getElementById('statusTecnico');
+      btn.disabled = true;
+      btn.textContent = '⏳ Enviando...';
+      status.textContent = '';
+      try {
+        const res = await comunicadoTecnico();
+        btn.textContent = '✓ Enviado!';
+        btn.style.background = '#4ade80';
+        btn.style.color = '#0D2B45';
         status.textContent = `${res.enviados} e-mails enviados${res.erros > 0 ? `, ${res.erros} erros` : ''}`;
         status.style.color = res.erros > 0 ? '#f87171' : '#4ade80';
       } catch (err) {

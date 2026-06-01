@@ -399,6 +399,45 @@ function emailNovidades(nome) {
   `);
 }
 
+// ─── Comunicado Técnico ───────────────────────────────────────────────────────
+
+function emailComunicadoTecnico(nome) {
+  return layout(`
+    <h2 style="${S.h2}">Aviso sobre o Trilogia Dashboard</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Identificamos uma instabilidade temporária no acesso ao Trilogia Dashboard pelo celular.
+      O problema já foi corrigido — mas se o app estiver travando na tela de carregamento
+      ou não abrindo corretamente, siga os passos abaixo para resolver em menos de 1 minuto.
+    </p>
+    <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      Como resolver no Android:
+    </p>
+    <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.8;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      1. Desinstale o app da tela inicial (segure o ícone → Desinstalar)<br>
+      2. Abra o Chrome e acesse <strong style="color:#0D2B45;">dashboard.flaviaschusciman.com</strong><br>
+      3. Faça login normalmente<br>
+      4. Toque em <strong style="color:#0D2B45;">"Instalar"</strong> no banner que aparece na parte de baixo<br>
+      5. Pronto — app reinstalado e funcionando
+    </p>
+    <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      Como resolver no iPhone:
+    </p>
+    <p style="margin:0 0 28px;font-size:14px;color:#4b5563;line-height:1.8;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      1. Exclua o app da tela inicial (segure o ícone → Excluir)<br>
+      2. Abra o Safari e acesse <strong style="color:#0D2B45;">dashboard.flaviaschusciman.com</strong><br>
+      3. Toque no ícone de compartilhar → <strong style="color:#0D2B45;">"Adicionar à Tela de Início"</strong>
+    </p>
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Acessar o dashboard →
+    </a>
+    <p style="${S.pSmall}">
+      Qualquer dúvida, responda este e-mail.<br>
+      <strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong>
+    </p>
+  `);
+}
+
 // ─── Relatório Mensal ─────────────────────────────────────────────────────────
 
 /**
@@ -560,6 +599,7 @@ module.exports = {
   emailLembreteAporte,
   emailLembretePlanejamento,
   emailNovidades,
+  emailComunicadoTecnico,
   emailIR,
   emailReenvioAcesso,
   emailBoasVindas,

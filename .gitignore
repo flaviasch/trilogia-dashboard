@@ -20,3 +20,10 @@ desktop.ini
 # Editor
 .vscode/
 *.swp
+functions/test-sa.js
+functions/test-token.js
+functions/get-refresh-token.js
+functions/tmp_*.txt
+.claude/
+.firebase/
+*.md
