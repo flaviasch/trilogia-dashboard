@@ -1129,6 +1129,9 @@
     <!-- ═══ ABA RESUMO ════════════════════════════════════════════════ -->
     <div class="tab-pane active" id="tab-resumo">
 
+      <!-- Banner alertas de limite de categoria -->
+      <div id="bannerAlertasLimite" style="display:none;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25);border-radius:12px;padding:16px 20px;margin-bottom:16px;"></div>
+
       <!-- Banner despesas fixas pendentes -->
       <div id="bannerFixas" style="display:none;background:rgba(207,174,101,0.1);border:1px solid rgba(207,174,101,0.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
@@ -2475,6 +2478,47 @@
           </div>`;
       } else {
         ritmoBoxEl.innerHTML = '';
+      }
+
+      // ── Banner de alertas de limite — aba Resumo ──────────────────────────
+      const bannerAlertaEl = document.getElementById('bannerAlertasLimite');
+      if (bannerAlertaEl) {
+        const alertasResumo = categoriasMes
+          .map(cat => {
+            const real = data.despesas.filter(d => d.categoria === cat.nome).reduce((s, d) => s + d.valor, 0);
+            if (!cat.limite || real === 0) return null;
+            const p = real / cat.limite * 100;
+            if (p < 80) return null;
+            return { nome: cat.nome, real, limite: cat.limite, pct: Math.round(p) };
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.pct - a.pct);
+
+        if (alertasResumo.length > 0) {
+          const itens = alertasResumo.map(a => {
+            const cor = a.pct >= 100 ? 'var(--negative)' : '#f59e0b';
+            const bg  = a.pct >= 100 ? 'rgba(248,113,113,0.15)' : 'rgba(245,158,11,0.15)';
+            const msg = a.pct >= 100
+              ? `${brl(a.real - a.limite)} acima do limite`
+              : `restam ${brl(a.limite - a.real)}`;
+            return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:rgba(255,255,255,0.8);">
+              <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;background:${bg};color:${cor};flex-shrink:0;">${a.pct}%</span>
+              <span><strong style="color:var(--white)">${escapeHtml(a.nome)}</strong> — ${brl(a.real)} de ${brl(a.limite)} — <em style="color:var(--text-muted)">${msg}</em></span>
+            </div>`;
+          }).join('');
+          bannerAlertaEl.innerHTML = `
+            <div style="display:flex;align-items:flex-start;gap:14px;">
+              <span style="font-size:20px;flex-shrink:0;margin-top:1px;">⚠️</span>
+              <div style="flex:1">
+                <div style="font-size:14px;font-weight:600;color:var(--negative);margin-bottom:8px;">${alertasResumo.length} categoria${alertasResumo.length > 1 ? 's precisam' : ' precisa'} de atenção</div>
+                ${itens}
+                <button onclick="ativarTab('planejamento')" style="margin-top:10px;background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;">Ver planejamento completo →</button>
+              </div>
+            </div>`;
+          bannerAlertaEl.style.display = '';
+        } else {
+          bannerAlertaEl.style.display = 'none';
+        }
       }
     }
 
