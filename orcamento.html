@@ -1123,6 +1123,7 @@
       <button class="tab-btn"        id="tabBtnPlanejamento">🎯 Planejamento</button>
       <button class="tab-btn"        id="tabBtnGraficos">📊 Gráficos</button>
       <button class="tab-btn"        id="tabBtnDetalhe">🔍 Detalhe</button>
+      <button class="tab-btn"        id="tabBtnAnual">📅 Anual</button>
     </div>
 
     <!-- ═══ ABA RESUMO ════════════════════════════════════════════════ -->
@@ -1319,6 +1320,11 @@
         </button>
       </div>
       <div id="detalheContent"></div>
+    </div>
+
+    <!-- ═══ ABA ANUAL ══════════════════════════════════════════════════ -->
+    <div class="tab-pane" id="tab-anual">
+      <div id="anualContent"></div>
     </div>
 
   </main>
@@ -1630,6 +1636,7 @@
       if (id === 'planejamento') renderPlanejamento(currentData, categoriasMes);
       if (id === 'graficos')    renderGraficos(currentData);
       if (id === 'detalhe')     renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
+      if (id === 'anual')       renderAnual();
     }
 
     // ─── Listeners das abas e colapsáveis (via JS, não onclick no HTML) ───────
@@ -1637,6 +1644,7 @@
     document.getElementById('tabBtnPlanejamento')?.addEventListener('click', () => ativarTab('planejamento'));
     document.getElementById('tabBtnGraficos')   ?.addEventListener('click', () => ativarTab('graficos'));
     document.getElementById('tabBtnDetalhe')    ?.addEventListener('click', () => ativarTab('detalhe'));
+    document.getElementById('tabBtnAnual')      ?.addEventListener('click', () => ativarTab('anual'));
     document.getElementById('headerReceitas')   ?.addEventListener('click', toggleReceitas);
     document.getElementById('headerDespesas')   ?.addEventListener('click', toggleDespesas);
 
@@ -2925,6 +2933,170 @@
           </table>`;
       } catch (err) {
         if (tabelaEl) tabelaEl.innerHTML = `<p style="color:var(--text-muted);font-size:13px;padding:16px 0">Erro ao carregar tendência.</p>`;
+      }
+    }
+
+    // ─── Aba Anual ───────────────────────────────────────────────────────────
+    let _graficoAnualInstance = null;
+
+    async function renderAnual() {
+      const el = document.getElementById('anualContent');
+      if (!el) return;
+      el.innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:40px 0;text-align:center"><div class="spinner" style="margin:0 auto 12px"></div>Carregando ano...</div>`;
+
+      const ano      = new Date().getFullYear();
+      const mesAtual = new Date().getMonth() + 1;
+
+      const resultados = await Promise.all(
+        Array.from({ length: mesAtual }, (_, i) => i + 1).map(m =>
+          getOrcamento(m, ano)
+            .then(itens => ({
+              mes:      m,
+              receita:  itens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0),
+              despesa:  itens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0),
+              aporte:   itens.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0),
+              temDados: itens.length > 0,
+            }))
+            .catch(() => ({ mes: m, receita: 0, despesa: 0, aporte: 0, temDados: false }))
+        )
+      );
+
+      const comDados = resultados.filter(r => r.temDados);
+      if (comDados.length === 0) {
+        el.innerHTML = `<p style="color:var(--text-muted);font-size:13px;padding:40px 0;text-align:center">Nenhum dado encontrado para ${ano}.</p>`;
+        return;
+      }
+
+      const totReceita = comDados.reduce((s, r) => s + r.receita, 0);
+      const totDespesa = comDados.reduce((s, r) => s + r.despesa, 0);
+      const totSobra   = totReceita - totDespesa;
+      const totAporte  = comDados.reduce((s, r) => s + r.aporte, 0);
+      const sobraPctAno = totReceita > 0 ? (totSobra / totReceita * 100).toFixed(1) : '0';
+
+      const linhas = resultados.map(r => {
+        const sobra    = r.receita - r.despesa;
+        const sobraPct = r.receita > 0 ? (sobra / r.receita * 100).toFixed(1) : '0';
+        const corSobra = sobra >= 0 ? 'var(--positive)' : 'var(--negative)';
+        const dim      = r.temDados ? '' : 'opacity:0.25;';
+        return `<tr style="${dim}border-top:1px solid var(--border)">
+          <td style="padding:11px 16px;font-weight:500;color:var(--white)">${MESES[r.mes - 1]}</td>
+          <td style="padding:11px 16px;text-align:right;color:var(--positive)">${r.temDados ? brl(r.receita) : '—'}</td>
+          <td style="padding:11px 16px;text-align:right;color:var(--negative)">${r.temDados ? brl(r.despesa) : '—'}</td>
+          <td style="padding:11px 16px;text-align:right;color:${corSobra};font-weight:600">${r.temDados ? brl(sobra) : '—'}</td>
+          <td style="padding:11px 16px;text-align:right;color:${corSobra}">${r.temDados ? sobraPct + '%' : '—'}</td>
+          <td style="padding:11px 16px;text-align:right;color:var(--gold)">${r.aporte > 0 ? brl(r.aporte) : '—'}</td>
+        </tr>`;
+      }).join('');
+
+      el.innerHTML = `
+        <!-- KPIs do ano -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;">
+          <div class="resumo-card">
+            <div class="resumo-label">Receita ${ano}</div>
+            <div class="resumo-value positive">${brl(totReceita)}</div>
+            <div class="resumo-sub">${comDados.length} mes${comDados.length !== 1 ? 'es' : ''} com dados</div>
+          </div>
+          <div class="resumo-card">
+            <div class="resumo-label">Despesa ${ano}</div>
+            <div class="resumo-value negative">${brl(totDespesa)}</div>
+            <div class="resumo-sub">${totReceita > 0 ? pct(totDespesa, totReceita) + ' da receita' : '—'}</div>
+          </div>
+          <div class="resumo-card destaque">
+            <div class="resumo-label">Sobra ${ano}</div>
+            <div class="resumo-value ${totSobra >= 0 ? 'gold' : 'negative'}">${brl(totSobra)}</div>
+            <div class="resumo-sub">${sobraPctAno}% da receita</div>
+          </div>
+          <div class="resumo-card" style="border-color:rgba(207,174,101,0.3)">
+            <div class="resumo-label">Investido ${ano}</div>
+            <div class="resumo-value gold">${brl(totAporte)}</div>
+            <div class="resumo-sub">${totReceita > 0 ? pct(totAporte, totReceita) + ' da receita' : '—'}</div>
+          </div>
+        </div>
+
+        <!-- Gráfico -->
+        <div class="grafico-card" style="margin-bottom:24px;">
+          <div class="grafico-header">
+            <h2 class="grafico-title">Receita × Despesa × Sobra — ${ano}</h2>
+          </div>
+          <div class="grafico-canvas-wrap"><canvas id="graficoAnualCanvas"></canvas></div>
+          <div class="grafico-legenda">
+            <div class="grafico-leg-item"><div class="grafico-leg-dot" style="background:rgba(74,222,128,0.7)"></div>Receita</div>
+            <div class="grafico-leg-item"><div class="grafico-leg-dot" style="background:rgba(248,113,113,0.7)"></div>Despesa</div>
+            <div class="grafico-leg-item"><div class="grafico-leg-dot linha" style="background:#CFAE65"></div>Sobra (linha)</div>
+          </div>
+        </div>
+
+        <!-- Tabela mensal -->
+        <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:rgba(255,255,255,0.03);">
+                <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Mês</th>
+                <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Receita</th>
+                <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Despesa</th>
+                <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Sobra</th>
+                <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">%</th>
+                <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Investido</th>
+              </tr>
+            </thead>
+            <tbody>${linhas}</tbody>
+            <tfoot>
+              <tr style="border-top:2px solid var(--border);background:rgba(255,255,255,0.02);">
+                <td style="padding:13px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Total ${ano}</td>
+                <td style="padding:13px 16px;text-align:right;font-weight:700;color:var(--positive)">${brl(totReceita)}</td>
+                <td style="padding:13px 16px;text-align:right;font-weight:700;color:var(--negative)">${brl(totDespesa)}</td>
+                <td style="padding:13px 16px;text-align:right;font-weight:700;color:${totSobra >= 0 ? 'var(--gold)' : 'var(--negative)'}">${brl(totSobra)}</td>
+                <td style="padding:13px 16px;text-align:right;font-weight:700;color:${totSobra >= 0 ? 'var(--gold)' : 'var(--negative)'}">${sobraPctAno}%</td>
+                <td style="padding:13px 16px;text-align:right;font-weight:700;color:var(--gold)">${brl(totAporte)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>`;
+
+      // Gráfico
+      const ctx = document.getElementById('graficoAnualCanvas')?.getContext('2d');
+      if (ctx) {
+        if (_graficoAnualInstance) { _graficoAnualInstance.destroy(); _graficoAnualInstance = null; }
+        _graficoAnualInstance = new Chart(ctx, {
+          data: {
+            labels: comDados.map(r => MESES[r.mes - 1].slice(0, 3)),
+            datasets: [
+              {
+                type: 'bar', label: 'Receita',
+                data: comDados.map(r => r.receita),
+                backgroundColor: 'rgba(74,222,128,0.5)', borderColor: '#4ade80', borderWidth: 1, borderRadius: 4, order: 2,
+              },
+              {
+                type: 'bar', label: 'Despesa',
+                data: comDados.map(r => r.despesa),
+                backgroundColor: 'rgba(248,113,113,0.5)', borderColor: '#f87171', borderWidth: 1, borderRadius: 4, order: 2,
+              },
+              {
+                type: 'line', label: 'Sobra',
+                data: comDados.map(r => r.receita - r.despesa),
+                borderColor: '#CFAE65', backgroundColor: 'rgba(207,174,101,0.06)',
+                borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#CFAE65',
+                tension: 0.3, fill: false, order: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#0D2B45', borderColor: 'rgba(207,174,101,0.25)', borderWidth: 1,
+                titleColor: '#fff', bodyColor: 'rgba(255,255,255,0.65)', padding: 12,
+                callbacks: { label: ctx => `  ${ctx.dataset.label}: ${brl(ctx.parsed.y)}` },
+              },
+            },
+            scales: {
+              x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 11 } }, border: { color: 'rgba(255,255,255,0.06)' } },
+              y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 11 }, callback: v => brl(v), maxTicksLimit: 6 }, border: { color: 'rgba(255,255,255,0.06)' }, beginAtZero: true },
+            },
+          },
+        });
       }
     }
 
