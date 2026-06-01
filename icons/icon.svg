@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Fundo navy -->
+  <rect width="512" height="512" rx="80" fill="#0D2B45"/>
+  <!-- Triquetra: três círculos entrelaçados dourados -->
+  <g transform="translate(256,272)" fill="none" stroke="#CFAE65" stroke-width="28" stroke-linecap="round">
+    <!-- Círculo superior -->
+    <circle cx="0" cy="-75" r="130"/>
+    <!-- Círculo inferior direito -->
+    <circle cx="65" cy="37" r="130"/>
+    <!-- Círculo inferior esquerdo -->
+    <circle cx="-65" cy="37" r="130"/>
+  </g>
+  <!-- Ponto central decorativo -->
+  <circle cx="256" cy="272" r="14" fill="#CFAE65"/>
+</svg>
