@@ -1215,7 +1215,8 @@ exports.savePerfil = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 
   // Espelha no doc principal (para getDashboard e alertas de renovação)
   await db.collection('mentoradas').doc(uid).update({
-    perfil: { perfil, dataAtualizacao },
+    perfil,
+    perfilData: dataAtualizacao,
   });
 
   // Backup Sheets

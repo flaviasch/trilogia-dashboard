@@ -1916,6 +1916,7 @@
       const statusLabel = { ativa: 'Ativa', alerta: 'Alerta', inativa: 'Inativa' };
       const statusClass = { ativa: 'status-ativa', alerta: 'status-alerta', inativa: 'status-inativa' };
       const perfilLabel = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' };
+      const perfilStr = m => typeof m.perfil === 'object' && m.perfil !== null ? m.perfil.perfil : m.perfil;
 
       document.getElementById('tabelaMentoradas').innerHTML = lista.map(m => {
         const exp     = formatarExpiracao(m.dataExpiracao);
@@ -1946,7 +1947,7 @@
           <td>${m.produto ? `<span class="produto-tag">${PRODUTO_LABEL[m.produto] || m.produto}</span>` : '<span style="color:var(--text-muted);font-size:12px">—</span>'}</td>
           <td>${m.dataExpiracao ? `<span class="${exp.cls}">${exp.texto}</span>` : '<span style="color:var(--text-muted);font-size:12px">—</span>'}</td>
           <td>
-            ${m.perfil ? `<span class="perfil-tag">${perfilLabel[m.perfil]}</span>` : '<span style="color:var(--text-muted);font-size:12px">A definir</span>'}
+            ${perfilStr(m) ? `<span class="perfil-tag">${perfilLabel[perfilStr(m)]}</span>` : '<span style="color:var(--text-muted);font-size:12px">A definir</span>'}
             ${m.assinaturaClube ? '<span class="perfil-tag" style="margin-left:4px;background:rgba(207,174,101,0.08);border-color:rgba(207,174,101,0.25);" title="Assinante do Clube">Clube</span>' : ''}
           </td>
           <td class="td-num gold">${brl(num(m.pl))}</td>
