@@ -1022,6 +1022,56 @@
       .suporte-btn { bottom: 76px; right: 16px; }
       .suporte-popover { bottom: 130px; right: 16px; }
     }
+
+    /* ─── Impressão / Exportar PDF ─────────────────────────────────── */
+    .print-header { display: none; }
+    @media print {
+      .navbar, .bottom-nav, .tabs-bar, .upload-banner, .breadcrumb,
+      .aporte-strip, .btn-add-item, .item-actions, .btn-upload,
+      .suporte-btn, .suporte-popover, #bannerFixas, #bannerAlertasLimite,
+      .period-selector, #btnExportarPDF, #ritmoBox, .grafico-section,
+      #buscaDetalhe, #btnLimparBusca, #btnGerenciarFixas { display: none !important; }
+
+      body { background: white !important; color: #1F2937 !important; }
+      .main { padding: 16px !important; max-width: 100% !important; }
+      .print-header { display: block !important; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #0D2B45; }
+      .print-header h1 { font-family: 'Playfair Display', serif; font-size: 20px; color: #0D2B45; margin-bottom: 3px; }
+      .print-header p  { font-size: 12px; color: #6b7280; }
+
+      .resumo-grid { grid-template-columns: repeat(4, 1fr) !important; }
+      .resumo-card { background: #f9fafb !important; border: 1px solid #e5e7eb !important; color: #1F2937 !important; break-inside: avoid; }
+      .resumo-label { color: #6b7280 !important; }
+      .resumo-value.positive { color: #16a34a !important; }
+      .resumo-value.negative { color: #dc2626 !important; }
+      .resumo-value.gold     { color: #a88a3f !important; }
+
+      .tab-pane { display: none !important; }
+      #tab-resumo { display: block !important; }
+      #bodyReceitas, #bodyDespesas { max-height: none !important; display: block !important; padding-bottom: 4px !important; }
+
+      .item-row { background: white !important; border-color: #e5e7eb !important; break-inside: avoid; }
+      .item-categoria { color: #1F2937 !important; }
+      .item-fonte, .total-label { color: #6b7280 !important; }
+      .item-value.receita { color: #16a34a !important; }
+      .item-value.despesa { color: #1F2937 !important; }
+      .section-title { color: #1F2937 !important; }
+      .section-header.expansivel { background: #f3f4f6 !important; border-color: #e5e7eb !important; }
+      .section-body-col { border-color: #e5e7eb !important; }
+      .total-value.receita { color: #16a34a !important; }
+      .total-value.despesa { color: #dc2626 !important; }
+
+      .sobra-box { background: #f0fdf4 !important; border-color: #86efac !important; }
+      .sobra-box.negativo { background: #fef2f2 !important; border-color: #fca5a5 !important; }
+      .sobra-box-value, .sobra-box-pct { color: #16a34a !important; }
+      .sobra-box.negativo .sobra-box-value,
+      .sobra-box.negativo .sobra-box-pct { color: #dc2626 !important; }
+      .sobra-box-label { color: #374151 !important; }
+      .sobra-box-pct-label { color: #6b7280 !important; }
+
+      .page-header { margin-bottom: 16px !important; }
+      .page-title { color: #0D2B45 !important; font-size: 20px !important; }
+      .item-bar-col { display: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -1051,6 +1101,12 @@
   <!-- Conteúdo -->
   <main class="main" id="mainContent" style="display:none">
 
+    <!-- Cabeçalho de impressão (visível só no PDF) -->
+    <div class="print-header">
+      <h1>Orçamento Trilogia — <span id="printPeriodo"></span></h1>
+      <p>Gerado em <span id="printData"></span> · <span id="printNome"></span></p>
+    </div>
+
     <!-- Breadcrumb -->
     <nav class="breadcrumb">
       <a href="index.html">Dashboard</a>
@@ -1061,10 +1117,18 @@
     <!-- Header + período -->
     <div class="page-header">
       <h1 class="page-title">Orçamento</h1>
-      <div class="period-selector">
-        <button class="period-btn" id="btnPrev">‹</button>
-        <span class="period-label" id="periodoLabel">—</span>
-        <button class="period-btn" id="btnNext">›</button>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button id="btnExportarPDF"
+          style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:13px;color:var(--text-muted);cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;"
+          onmouseover="this.style.borderColor='rgba(207,174,101,0.4)';this.style.color='var(--gold)'"
+          onmouseout="this.style.borderColor='';this.style.color=''">
+          ↓ PDF
+        </button>
+        <div class="period-selector">
+          <button class="period-btn" id="btnPrev">‹</button>
+          <span class="period-label" id="periodoLabel">—</span>
+          <button class="period-btn" id="btnNext">›</button>
+        </div>
       </div>
     </div>
 
@@ -4146,6 +4210,20 @@
       document.getElementById('modalEditRecorrente').classList.add('hidden');
       mostrarToast(escopo === 'proximos' ? 'Alterado neste e nos próximos meses.' : 'Alterado só neste mês.');
     }
+
+    // ─── Exportar PDF ────────────────────────────────────────────────────────
+    document.getElementById('btnExportarPDF')?.addEventListener('click', () => {
+      const { mes, ano } = currentData.periodo;
+      document.getElementById('printPeriodo').textContent = `${MESES[mes - 1]} de ${ano}`;
+      document.getElementById('printData').textContent    = new Date().toLocaleDateString('pt-BR');
+      document.getElementById('printNome').textContent    = document.getElementById('userDisplayName')?.textContent || '';
+      // Expande as seções colapsáveis antes de imprimir
+      document.getElementById('bodyReceitas').classList.add('aberta');
+      document.getElementById('headerReceitas').classList.add('aberta');
+      document.getElementById('bodyDespesas').classList.add('aberta');
+      document.getElementById('headerDespesas').classList.add('aberta');
+      window.print();
+    });
 
     // ─── Busca na aba Detalhe ────────────────────────────────────────────────
     document.getElementById('buscaDetalhe')?.addEventListener('input', () => {
