@@ -38,15 +38,20 @@ jobs:
           cp *.html _site/ 2>/dev/null || true
 
           # Assets
-          cp -r css  _site/ 2>/dev/null || true
-          cp -r js   _site/ 2>/dev/null || true
+          cp -r css   _site/ 2>/dev/null || true
+          cp -r js    _site/ 2>/dev/null || true
+          cp -r icons _site/ 2>/dev/null || true
+
+          # PWA
+          cp manifest.json _site/ 2>/dev/null || true
+          cp sw.js         _site/ 2>/dev/null || true
 
           # Imagens na raiz (foto da Flávia, etc.)
           find . -maxdepth 1 -name "*.jpg" -o -name "*.png" -o -name "*.svg" -o -name "*.webp" \
             | xargs -I{} cp {} _site/ 2>/dev/null || true
 
           # Arquivos especiais do GitHub Pages
-          cp CNAME    _site/ 2>/dev/null || true
+          cp CNAME     _site/ 2>/dev/null || true
           cp .nojekyll _site/ 2>/dev/null || true
 
           echo "── Conteúdo do _site ──"
