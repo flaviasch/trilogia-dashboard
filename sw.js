@@ -1,4 +1,4 @@
-// Trilogia Dashboard — Service Worker v14
+// Trilogia Dashboard — Service Worker v15
 // HTML:          sempre rede (no-store)
 // JS/CSS locais: Network First → garante versão atual; fallback cache se offline
 // Fontes/CDN:    Cache First (raramente mudam)
@@ -8,7 +8,7 @@ const CACHE_NAME = 'trilogia-v14';
 
 const ASSETS_TO_CACHE = [
   '/manifest.json',
-  '/icons/icon-192.png',
+  '/icons/icon-192-v2.png',
   '/icons/icon-512.png',
 ];
 
@@ -47,8 +47,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.titulo, {
       body:    data.corpo,
-      icon:    '/icons/icon-192.png',
-      badge:   '/icons/icon-192.png',
+      icon:    '/icons/icon-192-v2.png',
+      badge:   '/icons/icon-192-v2.png',
       tag:     data.tag,
       data:    { url: data.url },
       vibrate: [200, 100, 200],
