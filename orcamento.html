@@ -1023,6 +1023,20 @@
       .suporte-popover { bottom: 130px; right: 16px; }
     }
 
+    /* ─── Score de saúde financeira ─────────────────────────────────── */
+    .score-widget { background:var(--navy); border:1px solid var(--border); border-radius:14px; padding:20px 24px; margin-bottom:28px; }
+    .score-widget.nivel-excelente  { border-color:rgba(207,174,101,0.4); background:rgba(207,174,101,0.04); }
+    .score-widget.nivel-saudavel   { border-color:rgba(74,222,128,0.25); background:rgba(74,222,128,0.03); }
+    .score-widget.nivel-construcao { border-color:rgba(251,191,36,0.25); }
+    .score-widget.nivel-atencao    { border-color:rgba(248,113,113,0.25); }
+    .score-top { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
+    .score-barra-track { height:6px; background:rgba(255,255,255,0.07); border-radius:6px; overflow:hidden; margin-bottom:14px; }
+    .score-barra-fill  { height:100%; border-radius:6px; transition:width .6s ease; }
+    .score-componentes { display:flex; gap:10px; flex-wrap:wrap; }
+    .score-comp { display:flex; flex-direction:column; gap:2px; background:rgba(255,255,255,0.04); border-radius:8px; padding:8px 12px; min-width:72px; }
+    .score-comp-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); }
+    .score-comp-val   { font-size:15px; font-weight:700; }
+
     /* ─── Impressão / Exportar PDF ─────────────────────────────────── */
     .print-header { display: none; }
     @media print {
@@ -1164,6 +1178,9 @@
         + Lançar manualmente
       </button>
     </div>
+
+    <!-- Score de saúde financeira -->
+    <div id="scoreWidget" style="display:none"></div>
 
     <!-- Resumo -->
     <div class="resumo-section">
@@ -1646,7 +1663,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento } from './js/api.js?v=12';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico } from './js/api.js?v=13';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -2369,6 +2386,101 @@
         .catch(err => console.error('Erro ao carregar histórico do gráfico:', err));
     }
 
+    // ─── Score de saúde financeira ───────────────────────────────────────────
+    function calcularScore(data, reservasAtivas, cats) {
+      const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
+      const totalDespesa = data.despesas.reduce((s, d) => s + d.valor, 0);
+      const sobra        = totalReceita - totalDespesa;
+      const totalAporte  = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
+      const totalPlan    = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
+
+      // ① Sobra
+      const sobraPct = totalReceita > 0 ? sobra / totalReceita * 100 : 0;
+      let ptsSobra = 0;
+      if (sobraPct >= 30)      ptsSobra = 100;
+      else if (sobraPct >= 20) ptsSobra = 80;
+      else if (sobraPct >= 10) ptsSobra = 50;
+      else if (sobraPct > 0)   ptsSobra = 20;
+
+      // ② Aporte
+      let ptsAporte = 0;
+      if (totalPlan > 0) {
+        const execPct = totalAporte / totalPlan * 100;
+        if (execPct >= 100)     ptsAporte = 100;
+        else if (execPct >= 80) ptsAporte = 80;
+        else if (execPct >= 50) ptsAporte = 50;
+        else if (execPct > 0)   ptsAporte = 20;
+      }
+
+      // ③ Orçamento
+      const catsComLimite = cats.filter(c => c.limite > 0);
+      let ptsOrcamento = 75; // neutro se sem limites
+      if (catsComLimite.length > 0) {
+        const estouradas = catsComLimite.filter(c => {
+          const gasto = data.despesas.filter(d => d.categoria === c.nome).reduce((s, d) => s + d.valor, 0);
+          return gasto > c.limite;
+        }).length;
+        if (estouradas === 0)      ptsOrcamento = 100;
+        else if (estouradas === 1) ptsOrcamento = 70;
+        else if (estouradas === 2) ptsOrcamento = 40;
+        else                       ptsOrcamento = 0;
+      }
+
+      // ④ Regularidade
+      const ptsRegularidade = (data.receitas.length > 0 || data.despesas.length > 0) ? 100 : 0;
+
+      const score = Math.round(ptsSobra * 0.30 + ptsAporte * 0.35 + ptsOrcamento * 0.25 + ptsRegularidade * 0.10);
+
+      let nivel, cor, emoji;
+      if (score >= 80)      { nivel = 'Excelente';         cor = '#CFAE65'; emoji = '⭐'; }
+      else if (score >= 60) { nivel = 'Saudável';           cor = '#4ade80'; emoji = '🟢'; }
+      else if (score >= 40) { nivel = 'Em construção';      cor = '#f59e0b'; emoji = '🟡'; }
+      else                  { nivel = 'Atenção necessária'; cor = '#f87171'; emoji = '🔴'; }
+
+      return { score, nivel, cor, emoji, componentes: { sobra: ptsSobra, aporte: ptsAporte, orcamento: ptsOrcamento, regularidade: ptsRegularidade } };
+    }
+
+    function renderScore(data) {
+      const { mes, ano } = data.periodo;
+      const hoje = new Date();
+      if (mes !== hoje.getMonth() + 1 || ano !== hoje.getFullYear()) {
+        document.getElementById('scoreWidget').style.display = 'none';
+        return;
+      }
+      const reservasAtivas = reservas.filter(r => r.acumulado < r.meta && r.aporte > 0);
+      const { score, nivel, cor, emoji, componentes } = calcularScore(data, reservasAtivas, categoriasMes);
+      const nivelClass = { 'Excelente':'nivel-excelente','Saudável':'nivel-saudavel','Em construção':'nivel-construcao','Atenção necessária':'nivel-atencao' }[nivel] || '';
+      const corComp = v => v >= 80 ? '#4ade80' : v >= 50 ? '#f59e0b' : '#f87171';
+
+      const widget = document.getElementById('scoreWidget');
+      widget.style.display = '';
+      widget.innerHTML = `
+        <div class="score-widget ${nivelClass}">
+          <div class="score-top">
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <span style="font-family:'Playfair Display',serif;font-size:40px;font-weight:700;line-height:1;color:${cor}">${score}</span>
+              <span style="font-size:18px;color:rgba(255,255,255,0.3);font-family:'Playfair Display',serif;">/100</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;">
+              <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted)">Saúde financeira · ${MESES[mes-1]}</span>
+              <span style="font-size:14px;font-weight:600;color:${cor}">${emoji} ${nivel}</span>
+            </div>
+          </div>
+          <div class="score-barra-track">
+            <div class="score-barra-fill" style="width:${score}%;background:${cor};opacity:.85"></div>
+          </div>
+          <div class="score-componentes">
+            <div class="score-comp"><span class="score-comp-label">Sobra</span><span class="score-comp-val" style="color:${corComp(componentes.sobra)}">${componentes.sobra}</span></div>
+            <div class="score-comp"><span class="score-comp-label">Aporte</span><span class="score-comp-val" style="color:${corComp(componentes.aporte)}">${componentes.aporte}</span></div>
+            <div class="score-comp"><span class="score-comp-label">Orçamento</span><span class="score-comp-val" style="color:${corComp(componentes.orcamento)}">${componentes.orcamento}</span></div>
+            <div class="score-comp"><span class="score-comp-label">Uso</span><span class="score-comp-val" style="color:${componentes.regularidade===100?'#4ade80':'#f87171'}">${componentes.regularidade}</span></div>
+          </div>
+        </div>`;
+
+      // Salva no Firestore (fire-and-forget)
+      salvarScoreMes({ mes, ano, score, componentes }).catch(e => console.warn('[score] Falha ao salvar:', e.message));
+    }
+
     function render(data) {
       // Período
       document.getElementById('periodoLabel').textContent =
@@ -2578,6 +2690,9 @@
       } else {
         ritmoBoxEl.innerHTML = '';
       }
+
+      // ── Score de saúde financeira ─────────────────────────────────────────
+      renderScore(data);
 
       // ── Banner de alertas de limite — aba Resumo ──────────────────────────
       const bannerAlertaEl = document.getElementById('bannerAlertasLimite');
@@ -3113,19 +3228,22 @@
       const ano      = new Date().getFullYear();
       const mesAtual = new Date().getMonth() + 1;
 
-      const resultados = await Promise.all(
-        Array.from({ length: mesAtual }, (_, i) => i + 1).map(m =>
-          getOrcamento(m, ano)
-            .then(itens => ({
-              mes:      m,
-              receita:  itens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0),
-              despesa:  itens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0),
-              aporte:   itens.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0),
-              temDados: itens.length > 0,
-            }))
-            .catch(() => ({ mes: m, receita: 0, despesa: 0, aporte: 0, temDados: false }))
-        )
-      );
+      const [resultados, scoresHistorico] = await Promise.all([
+        Promise.all(
+          Array.from({ length: mesAtual }, (_, i) => i + 1).map(m =>
+            getOrcamento(m, ano)
+              .then(itens => ({
+                mes:      m,
+                receita:  itens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0),
+                despesa:  itens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0),
+                aporte:   itens.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0),
+                temDados: itens.length > 0,
+              }))
+              .catch(() => ({ mes: m, receita: 0, despesa: 0, aporte: 0, temDados: false }))
+          )
+        ),
+        getScoreHistorico({}).catch(() => []),
+      ]);
 
       const comDados = resultados.filter(r => r.temDados);
       if (comDados.length === 0) {
@@ -3144,6 +3262,16 @@
         const sobraPct = r.receita > 0 ? (sobra / r.receita * 100).toFixed(1) : '0';
         const corSobra = sobra >= 0 ? 'var(--positive)' : 'var(--negative)';
         const dim      = r.temDados ? '' : 'opacity:0.25;';
+        const chave    = `${ano}-${String(r.mes).padStart(2,'0')}`;
+        const scoreObj = scoresHistorico.find(s => s.id === chave);
+        const scoreVal = scoreObj?.score ?? null;
+        let scoreCor   = 'var(--text-muted)';
+        if (scoreVal != null) {
+          if (scoreVal >= 80)      scoreCor = '#CFAE65';
+          else if (scoreVal >= 60) scoreCor = '#4ade80';
+          else if (scoreVal >= 40) scoreCor = '#f59e0b';
+          else                     scoreCor = '#f87171';
+        }
         return `<tr style="${dim}border-top:1px solid var(--border)">
           <td style="padding:11px 16px;font-weight:500;color:var(--white)">${MESES[r.mes - 1]}</td>
           <td style="padding:11px 16px;text-align:right;color:var(--positive)">${r.temDados ? brl(r.receita) : '—'}</td>
@@ -3151,6 +3279,7 @@
           <td style="padding:11px 16px;text-align:right;color:${corSobra};font-weight:600">${r.temDados ? brl(sobra) : '—'}</td>
           <td style="padding:11px 16px;text-align:right;color:${corSobra}">${r.temDados ? sobraPct + '%' : '—'}</td>
           <td style="padding:11px 16px;text-align:right;color:var(--gold)">${r.aporte > 0 ? brl(r.aporte) : '—'}</td>
+          <td style="padding:11px 16px;text-align:right;font-weight:600;color:${scoreCor}">${scoreVal != null ? scoreVal : '—'}</td>
         </tr>`;
       }).join('');
 
@@ -3203,6 +3332,7 @@
                 <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Sobra</th>
                 <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">%</th>
                 <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Investido</th>
+                <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Score</th>
               </tr>
             </thead>
             <tbody>${linhas}</tbody>
@@ -3214,6 +3344,7 @@
                 <td style="padding:13px 16px;text-align:right;font-weight:700;color:${totSobra >= 0 ? 'var(--gold)' : 'var(--negative)'}">${brl(totSobra)}</td>
                 <td style="padding:13px 16px;text-align:right;font-weight:700;color:${totSobra >= 0 ? 'var(--gold)' : 'var(--negative)'}">${sobraPctAno}%</td>
                 <td style="padding:13px 16px;text-align:right;font-weight:700;color:var(--gold)">${brl(totAporte)}</td>
+                <td style="padding:13px 16px;text-align:right;color:var(--text-muted);font-size:11px;">—</td>
               </tr>
             </tfoot>
           </table>

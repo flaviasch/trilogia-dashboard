@@ -726,6 +726,26 @@
       </div>
     </div>
 
+    <!-- Card Score de saúde financeira -->
+    <div id="cardScore" style="display:none;background:var(--navy);border:1px solid var(--border);border-radius:16px;padding:20px 24px;margin-bottom:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px;">Saúde Financeira · <span id="scoreMesLabel">—</span></div>
+          <div style="display:flex;align-items:baseline;gap:6px;">
+            <span id="scoreValorHome" style="font-family:'Playfair Display',serif;font-size:36px;font-weight:700;line-height:1;">—</span>
+            <span style="font-size:15px;color:rgba(255,255,255,0.3);font-family:'Playfair Display',serif;">/100</span>
+          </div>
+          <div id="scoreNivelHome" style="font-size:13px;font-weight:600;margin-top:6px;">—</div>
+        </div>
+        <div style="flex:1;min-width:120px;max-width:220px;">
+          <div style="height:6px;background:rgba(255,255,255,0.07);border-radius:6px;overflow:hidden;margin-bottom:10px;">
+            <div id="scoreBarraFill" style="height:100%;border-radius:6px;transition:width .6s ease;width:0%"></div>
+          </div>
+          <a href="orcamento.html" style="font-size:12px;color:var(--gold);text-decoration:none;opacity:.8;">Ver detalhes →</a>
+        </div>
+      </div>
+    </div>
+
     <!-- Reservas -->
     <div class="reservas-section">
       <div class="section-header">
@@ -1034,6 +1054,28 @@
       const perfilStr = data.perfil?.perfil;
       document.getElementById('perfilBadge').textContent = perfilStr
         ? perfilStr.charAt(0).toUpperCase() + perfilStr.slice(1) : '—';
+
+      // Score de saúde financeira
+      if (data.scoreMes != null && data.scoreChave) {
+        const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        const [, sMes] = data.scoreChave.split('-');
+        let scoreCor, scoreNivel, scoreEmoji;
+        if (data.scoreMes >= 80)      { scoreCor = '#CFAE65'; scoreNivel = 'Excelente';         scoreEmoji = '⭐'; }
+        else if (data.scoreMes >= 60) { scoreCor = '#4ade80'; scoreNivel = 'Saudável';           scoreEmoji = '🟢'; }
+        else if (data.scoreMes >= 40) { scoreCor = '#f59e0b'; scoreNivel = 'Em construção';      scoreEmoji = '🟡'; }
+        else                          { scoreCor = '#f87171'; scoreNivel = 'Atenção necessária'; scoreEmoji = '🔴'; }
+
+        document.getElementById('scoreMesLabel').textContent   = MESES_ABREV[parseInt(sMes) - 1];
+        document.getElementById('scoreValorHome').textContent  = data.scoreMes;
+        document.getElementById('scoreValorHome').style.color  = scoreCor;
+        document.getElementById('scoreNivelHome').textContent  = `${scoreEmoji} ${scoreNivel}`;
+        document.getElementById('scoreNivelHome').style.color  = scoreCor;
+        document.getElementById('scoreBarraFill').style.width  = `${data.scoreMes}%`;
+        document.getElementById('scoreBarraFill').style.background = scoreCor;
+        const cardScore = document.getElementById('cardScore');
+        cardScore.style.borderColor = scoreCor + '40';
+        cardScore.style.display = '';
+      }
 
       // Orçamento
       const { receita, despesa, sobra, mes, ano } = data.orcamento;
