@@ -1317,8 +1317,15 @@
 
     <!-- ═══ ABA DETALHE ══════════════════════════════════════════════ -->
     <div class="tab-pane" id="tab-detalhe">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-        <button id="btnGerenciarFixas" style="background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;opacity:0.8;padding:4px 0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap;">
+        <div style="position:relative;flex:1;min-width:180px;max-width:320px;">
+          <input type="text" id="buscaDetalhe" placeholder="Buscar lançamento..."
+            style="width:100%;padding:9px 12px 9px 34px;background:var(--navy);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;font-family:'Inter',sans-serif;box-sizing:border-box;transition:border-color .2s;outline:none;"
+            onfocus="this.style.borderColor='rgba(207,174,101,0.5)'" onblur="this.style.borderColor='var(--border)'" />
+          <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;pointer-events:none;">🔍</span>
+          <button id="btnLimparBusca" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;line-height:1;padding:0;">×</button>
+        </div>
+        <button id="btnGerenciarFixas" style="background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;opacity:0.8;padding:4px 0;white-space:nowrap;">
           ⚙️ Gerenciar despesas fixas
         </button>
       </div>
@@ -2567,6 +2574,7 @@
     // ─── Despesas agrupadas por categoria com limite ──────────────────────────
     function renderDespesasGrupos(data, totalDespesa) {
       const despList = document.getElementById('detalheContent');
+      const termoBusca = (document.getElementById('buscaDetalhe')?.value || '').toLowerCase().trim();
 
       // Agrupa mantendo ordem de inserção; depois ordena por total desc
       const ordem  = [];
@@ -2584,6 +2592,16 @@
 
       const gruposHTML = ordem.map(catNome => {
         const grupo  = grupos[catNome];
+
+        // Filtra itens pelo termo de busca (categoria ou descrição)
+        const itemsFiltrados = termoBusca
+          ? grupo.items.filter(item => {
+              const texto = [item.categoria, item.descricao || ''].join(' ').toLowerCase();
+              return texto.includes(termoBusca);
+            })
+          : grupo.items;
+        if (itemsFiltrados.length === 0) return ''; // oculta grupo vazio na busca
+
         const catObj = categoriasMes.find(c => c.nome === catNome);
         const limite = catObj?.limite || 0;
 
@@ -2601,7 +2619,7 @@
             </div>`;
         }
 
-        const itemsHTML = grupo.items.map(item => {
+        const itemsHTML = itemsFiltrados.map(item => {
           const primary = item.descricao
             ? escapeHtml(item.descricao)
             : escapeHtml(item.categoria);
@@ -4099,6 +4117,22 @@
       document.getElementById('modalEditRecorrente').classList.add('hidden');
       mostrarToast(escopo === 'proximos' ? 'Alterado neste e nos próximos meses.' : 'Alterado só neste mês.');
     }
+
+    // ─── Busca na aba Detalhe ────────────────────────────────────────────────
+    document.getElementById('buscaDetalhe')?.addEventListener('input', () => {
+      const termo = document.getElementById('buscaDetalhe').value;
+      document.getElementById('btnLimparBusca').style.display = termo ? '' : 'none';
+      if (_tabAtiva === 'detalhe') {
+        renderDespesasGrupos(currentData, currentData.despesas.reduce((s, d) => s + d.valor, 0));
+      }
+    });
+    document.getElementById('btnLimparBusca')?.addEventListener('click', () => {
+      document.getElementById('buscaDetalhe').value = '';
+      document.getElementById('btnLimparBusca').style.display = 'none';
+      if (_tabAtiva === 'detalhe') {
+        renderDespesasGrupos(currentData, currentData.despesas.reduce((s, d) => s + d.valor, 0));
+      }
+    });
 
     // Listeners dos modais de recorrentes
     document.getElementById('btnGerenciarFixas')?.addEventListener('click', abrirModalFixas);
