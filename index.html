@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trilogia Dashboard</title>
+  <!-- Captura beforeinstallprompt antes de qualquer script carregar -->
+  <script>window.__pwaPrompt=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__pwaPrompt=e;});</script>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0D2B45" />
@@ -1423,17 +1425,37 @@
   <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
 
   <!-- Banner de instalação PWA -->
-  <div id="pwaBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#0D2B45;border-top:1px solid rgba(207,174,101,0.3);padding:16px 20px;box-shadow:0 -4px 16px rgba(0,0,0,0.3);">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-      <img src="/icons/icon-192.png" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;" alt="">
-      <div style="flex:1;">
-        <div style="font-size:14px;font-weight:700;color:#fff;">Instalar Trilogia Dashboard</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.55);">Adicione à tela inicial para acesso rápido</div>
-      </div>
-      <button id="pwaBannerDismiss" style="background:transparent;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:22px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
+  <div id="pwaBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#0D2B45;border-top:1px solid rgba(207,174,101,0.3);padding:14px 20px;align-items:center;gap:12px;box-shadow:0 -4px 16px rgba(0,0,0,0.3);">
+    <img src="/icons/icon-192.png" style="width:40px;height:40px;border-radius:10px;flex-shrink:0;" alt="">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.3;">Instalar Trilogia Dashboard</div>
+      <div id="pwaBannerSub" style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.3;">Salve como app na tela inicial</div>
     </div>
-    <div style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.7;">
-      <span id="pwaInstrucoes">Toque nos <strong style="color:#CFAE65;">⋮ 3 pontos</strong> do Chrome → <strong style="color:#CFAE65;">"Adicionar à tela inicial"</strong></span>
+    <button id="pwaBannerInstall" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Instalar</button>
+    <button id="pwaBannerDismiss" style="background:transparent;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
+  </div>
+
+  <!-- Modal instruções Android -->
+  <div id="pwaAndroidModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);align-items:flex-end;">
+    <div style="background:#0D2B45;border-radius:16px 16px 0 0;padding:28px 24px 36px;width:100%;border-top:1px solid rgba(207,174,101,0.3);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <span style="font-size:16px;font-weight:700;color:#fff;">Instalar no Android</span>
+        <button id="pwaAndroidClose" style="background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="font-size:28px;flex-shrink:0;">1️⃣</span>
+          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Toque nos <strong style="color:#CFAE65;">⋮ três pontos</strong> no canto superior direito do Chrome</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="font-size:28px;flex-shrink:0;">2️⃣</span>
+          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Toque em <strong style="color:#CFAE65;">"Adicionar à tela inicial"</strong></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="font-size:28px;flex-shrink:0;">3️⃣</span>
+          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong></span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1534,35 +1556,51 @@
       });
     }
 
-    // Banner de instalação PWA — mostra instrução nativa (sempre funciona)
+    // Banner de instalação PWA
     (function() {
       if (localStorage.getItem('pwa_dismissed') === '1') return;
       if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) return;
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent);
+      if (!isMobile) return;
 
       const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
       const banner = document.getElementById('pwaBanner');
-      const instrucoes = document.getElementById('pwaInstrucoes');
+      let deferredPrompt = null;
 
       const mostrar = () => {
         if (!banner) return;
         if (isIOS) {
-          instrucoes.innerHTML = 'Toque em <strong style="color:#CFAE65;">compartilhar ↑</strong> no Safari → <strong style="color:#CFAE65;">"Adicionar à Tela de Início"</strong>';
+          document.getElementById('pwaBannerSub').textContent = 'Toque em Compartilhar ⬆️ → Adicionar à Tela';
+          document.getElementById('pwaBannerInstall').style.display = 'none';
         }
-        banner.style.display = 'block';
+        banner.style.display = 'flex';
       };
 
-      // Android: tenta usar API nativa primeiro, senão mostra instrução
-      window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        mostrar();
-        // Tenta chamar o prompt nativo ao clicar — se não funcionar, o banner já tem a instrução
-        banner.addEventListener('click', (ev) => {
-          if (ev.target.id === 'pwaBannerDismiss') return;
-          e.prompt();
-        }, { once: true });
+      // Usa o prompt capturado no <head> (já disponível) ou aguarda ele chegar
+      if (window.__pwaPrompt) mostrar();
+      window.addEventListener('beforeinstallprompt', () => mostrar());
+
+      document.getElementById('pwaBannerInstall')?.addEventListener('click', async () => {
+        const prompt = window.__pwaPrompt;
+        if (prompt) {
+          // Android: abre o prompt nativo de instalação
+          prompt.prompt();
+          const { outcome } = await prompt.userChoice;
+          window.__pwaPrompt = null;
+          if (outcome === 'accepted') {
+            banner.style.display = 'none';
+            localStorage.setItem('pwa_dismissed', '1');
+          }
+        } else {
+          // Fallback Android sem prompt: abre modal com instruções
+          document.getElementById('pwaAndroidModal').style.display = 'flex';
+        }
       });
 
-      // iOS: mostra banner sem esperar beforeinstallprompt (que nunca dispara no Safari)
+      document.getElementById('pwaAndroidClose')?.addEventListener('click', () => {
+        document.getElementById('pwaAndroidModal').style.display = 'none';
+      });
+
       if (isIOS) setTimeout(mostrar, 3000);
 
       document.getElementById('pwaBannerDismiss')?.addEventListener('click', () => {
