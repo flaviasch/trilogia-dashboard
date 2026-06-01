@@ -1,0 +1,42 @@
+{
+  "name": "Trilogia Dashboard",
+  "short_name": "Trilogia",
+  "description": "Painel financeiro da Mentoria Trilogia — acompanhe orçamento, patrimônio e reservas.",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0D2B45",
+  "theme_color": "#0D2B45",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Orçamento",
+      "url": "/orcamento.html",
+      "description": "Ver orçamento do mês"
+    },
+    {
+      "name": "Reservas",
+      "url": "/reservas.html",
+      "description": "Acompanhar reservas"
+    },
+    {
+      "name": "Patrimônio",
+      "url": "/patrimonio.html",
+      "description": "Ver patrimônio líquido"
+    }
+  ]
+}
