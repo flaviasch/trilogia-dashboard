@@ -33,25 +33,16 @@ export function msgErro(err) {
   return _MSGS_ERRO[code] || err?.message || 'Erro inesperado. Tente novamente.';
 }
 
-const _RETRY_CODES = new Set(['unavailable', 'internal', 'deadline-exceeded', 'resource-exhausted']);
-
 // ─── Helper central ────────────────────────────────────────────────────────────
 
 function call(nome) {
   const fn = httpsCallable(functions, nome);
   return async (dados) => {
-    for (let tentativa = 0; tentativa < 2; tentativa++) {
-      try {
-        const result = await fn(dados);
-        return result.data;
-      } catch (err) {
-        const code = err.code || 'unknown';
-        if (_RETRY_CODES.has(code) && tentativa === 0) {
-          await new Promise(r => setTimeout(r, 2000));
-          continue;
-        }
-        throw { code, message: _MSGS_ERRO[code] || err.message || 'Erro inesperado. Tente novamente.' };
-      }
+    try {
+      const result = await fn(dados);
+      return result.data;
+    } catch (err) {
+      throw { code: err.code || 'unknown', message: msgErro(err) };
     }
   };
 }
