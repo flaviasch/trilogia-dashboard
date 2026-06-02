@@ -801,7 +801,15 @@
       if (localStorage.getItem('clubeAccess') === '1') {
         document.querySelectorAll('.link-clube').forEach(el => el.style.display = '');
       }
-      init(user);
+      init(user).catch(err => {
+        console.error('[init] erro não capturado:', err);
+        document.getElementById('loadingOverlay').style.display = 'none';
+        const banner = document.getElementById('erroBanner');
+        if (banner) {
+          banner.innerHTML = `Erro ao carregar. <a href="" style="color:#f87171;text-decoration:underline" onclick="location.reload();return false">Tentar novamente</a>`;
+          banner.style.display = 'block';
+        }
+      });
     });
 
     // ─── Logout ───────────────────────────────────
