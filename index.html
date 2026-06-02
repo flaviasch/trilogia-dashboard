@@ -823,11 +823,8 @@
     const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs');
 
     async function init(user) {
-      console.log('[DEBUG] init start', user.email);
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
-      console.log('[DEBUG] calling isAdmin...');
       let admin = await isAdmin();
-      console.log('[DEBUG] isAdmin result:', admin);
       if (admin) document.getElementById('linkAdmin').style.display = 'inline';
 
       // Limpa sessão de viewAs quando acessando sem ?viewAs (ex: usuária voltou ao próprio dashboard)
@@ -877,9 +874,7 @@
         return;
       }
 
-      console.log('[DEBUG] calling loadDashboard...');
       const ok = await loadDashboard(user);
-      console.log('[DEBUG] loadDashboard returned:', ok);
 
       // getDashboard falhou → verifica se é a conta master sem claim ainda
       if (!ok && user.email === ADMIN_MASTER_EMAIL && !admin) {
@@ -1012,9 +1007,7 @@
       let data;
       try {
         // Fase 1: carrega home com dados cacheados (rápido — apenas doc + reservas)
-        console.log('[DEBUG] calling getDashboardHome...');
         data = await getDashboardHome(viewAsUid ? { uid: viewAsUid } : undefined);
-        console.log('[DEBUG] getDashboardHome returned:', data);
 
         // Adapta formato do getDashboardHome para compatibilidade com o restante do código
         data.orcamento  = { receita: 0, despesa: 0, sobra: data.sobraCacheada ?? 0, aporte: 0, mes: data.mes, ano: data.ano };
@@ -1149,10 +1142,8 @@
       }
 
       // Fase 2: carrega orçamento e patrimônio em background e atualiza os cards
-      const agora = new Date();
-      const mes   = agora.getMonth() + 1;
-      const ano   = agora.getFullYear();
-      const uid   = viewAsUid || null;
+      // mes e ano já disponíveis da desestruturação de data.orcamento (linha acima)
+      const uid = viewAsUid || null;
 
       Promise.all([
         getOrcamento(mes, ano),
