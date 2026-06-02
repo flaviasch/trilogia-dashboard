@@ -57,7 +57,8 @@ export function uidAtual() {
  * Retorna orçamento do mês atual, patrimônio, reservas e perfil.
  * Usado por index.html.
  */
-export const getDashboard = call('getDashboard');
+export const getDashboard     = call('getDashboard');
+export const getDashboardHome = call('getDashboardHome');
 
 // ─── Orçamento ────────────────────────────────────────────────────────────────
 
@@ -320,7 +321,7 @@ export const aceitarLGPD = call('aceitarLGPD');
 // ─── Score de Saúde Financeira ───────────────────────────────────────────────
 
 /** Salva o score do mês no Firestore (chamado pelo orcamento.html após o cálculo). */
-export const salvarScoreMes = call('salvarScoreMes');
+export const salvarScoreMes   = call('salvarScoreMes');
 
 /** Retorna os últimos 12 scores mensais da mentorada. */
 export const getScoreHistorico = call('getScoreHistorico');

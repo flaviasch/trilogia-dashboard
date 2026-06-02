@@ -783,7 +783,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, bootstrapAdmin, aceitarLGPD, savePushSubscription } from './js/api.js?v=12';
+    import { getDashboard, getDashboardHome, getOrcamento, getPatrimonio, bootstrapAdmin, aceitarLGPD, savePushSubscription } from './js/api.js?v=14';
     import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
@@ -998,7 +998,13 @@
     async function loadDashboard(user, viewAsUid = null) {
       let data;
       try {
-        data = await getDashboard(viewAsUid ? { uid: viewAsUid } : undefined);
+        // Fase 1: carrega home com dados cacheados (rápido — apenas doc + reservas)
+        data = await getDashboardHome(viewAsUid ? { uid: viewAsUid } : undefined);
+
+        // Adapta formato do getDashboardHome para compatibilidade com o restante do código
+        data.orcamento  = { receita: 0, despesa: 0, sobra: data.sobraCacheada ?? 0, aporte: 0, mes: data.mes, ano: data.ano };
+        data.patrimonio = { ativos: data.plCacheado ?? 0, dividas: 0, pl: data.plCacheado ?? 0 };
+        data.sheetError = false;
       } catch (err) {
         console.error('Erro ao carregar dashboard:', err);
         const banner = document.getElementById('erroBanner');
@@ -1126,6 +1132,56 @@
       } else {
         localStorage.removeItem('clubeAccess');
       }
+
+      // Fase 2: carrega orçamento e patrimônio em background e atualiza os cards
+      const agora = new Date();
+      const mes   = agora.getMonth() + 1;
+      const ano   = agora.getFullYear();
+      const uid   = viewAsUid || null;
+
+      Promise.all([
+        getOrcamento(mes, ano),
+        getPatrimonio(),
+      ]).then(([orcData, patData]) => {
+        // Atualiza cards de orçamento
+        const receita = (orcData || []).filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
+        const despesa = (orcData || []).filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
+        const aporte  = (orcData || []).filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0);
+        const sobra   = receita - despesa;
+        const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
+
+        const NOMES_MESES_F2 = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+        const elReceita = document.getElementById('receita');
+        const elDespesa = document.getElementById('despesa');
+        const elSobra   = document.getElementById('sobra');
+        if (elReceita) elReceita.textContent = brl(receita);
+        if (elDespesa) elDespesa.textContent = brl(despesa);
+        if (elSobra)   { elSobra.textContent = brl(sobra); elSobra.className = sobra >= 0 ? 'positive' : 'negative'; }
+        const sub1 = document.getElementById('receitaSub'); if (sub1) sub1.textContent = `${NOMES_MESES_F2[mes-1]} de ${ano}`;
+        const sub2 = document.getElementById('despesaSub'); if (sub2) sub2.textContent = `${pct((despesa/receita)*100)} da receita`;
+        const sub3 = document.getElementById('sobraSub');   if (sub3) sub3.textContent = `${pct(sobraPct)} da receita`;
+
+        // Atualiza cards de patrimônio
+        if (patData) {
+          const { ativos: ativosList, dividas: divList } = patData;
+          const totalAtivos  = (ativosList || []).reduce((s, a) => s + a.valor, 0);
+          const totalDividas = (divList || []).reduce((s, d) => s + d.saldo, 0);
+          const pl2 = totalAtivos - totalDividas;
+          const elAtivos  = document.getElementById('ativos');
+          const elDividas = document.getElementById('dividas');
+          const elPL      = document.getElementById('pl');
+          if (elAtivos)  elAtivos.textContent  = brl(totalAtivos);
+          if (elDividas) elDividas.textContent = brl(totalDividas);
+          if (elPL)      elPL.textContent      = brl(pl2);
+        }
+
+        // Atualiza onboarding com dados completos
+        checkOnboarding({
+          ...data,
+          orcamento:  { receita, despesa, sobra, aporte, mes, ano },
+          patrimonio: { ativos: (patData?.ativos || []).reduce((s, a) => s + a.valor, 0), dividas: 0, pl: 0 },
+        });
+      }).catch(e => console.warn('[home] Fase 2 falhou (dados cacheados mantidos):', e.message));
 
       return true;   // sucesso
     }
