@@ -717,7 +717,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid, registrarEvento } from './js/api.js?v=12';
+    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid, registrarEvento, msgErro } from './js/api.js?v=14';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -980,7 +980,7 @@
           console.error('[reservas] Erro no render:', renderErr);
         }
       } catch (err) {
-        console.error('[reservas] Erro no init:', err);
+        toast(msgErro(err), 'error');
       } finally {
         // Sempre oculta o spinner — mesmo se algo acima falhar
         document.getElementById('loadingOverlay').style.display = 'none';
@@ -1560,7 +1560,7 @@
         } catch (err) {
           const ls = localStorage.getItem('viewAsUid');
           const dbg = `[va=${VIEW_AS_UID ?? 'null'} | ls=${ls ?? 'null'}]`;
-          toast(`Erro ao salvar: ${err.message || err} ${dbg}`, 'error');
+          toast(`Erro ao salvar: ${msgErro(err)} ${dbg}`, 'error');
         }
       }
       setLoading(btnSalvar, false);
@@ -1634,7 +1634,7 @@
         // O modal pós-retirada já orienta o usuário a fazer isso.
       } catch (err) {
         console.error('[retirada] CATCH - erro:', err);
-        toast(`Erro ao registrar retirada: ${err.message || err}`, 'error');
+        toast(`Erro ao registrar retirada: ${msgErro(err)}`, 'error');
       }
 
       setLoading(btn, false);
@@ -1733,7 +1733,7 @@
         toast(saldo > 0 ? `Reserva encerrada! ${brl(saldo)} adicionados ao longo prazo.` : `Reserva encerrada!`, 'success');
         posStep('posStep3');
       } catch (err) {
-        toast(`Erro: ${err.message || err}`, 'error');
+        toast(`Erro: ${msgErro(err)}`, 'error');
       }
       btn.disabled = false;
     });
@@ -1814,7 +1814,7 @@
           posStep('posStep3');
         }
       } catch (err) {
-        toast(`Erro: ${err.message || err}`, 'error');
+        toast(`Erro: ${msgErro(err)}`, 'error');
       }
       btn.disabled = false;
     });
@@ -1832,7 +1832,6 @@
       try {
         await deleteReserva(id);
       } catch (err) {
-        console.error('Erro ao excluir reserva:', err);
         toast('Erro ao excluir a reserva. Recarregue a página e tente novamente.', 'error');
         // Recarrega do servidor para restaurar estado correto
         reservas = await getReservas().catch(() => reservas);

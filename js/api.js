@@ -14,20 +14,44 @@ import {
   httpsCallable,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
 
+// ─── Mensagens de erro amigáveis ──────────────────────────────────────────────
+
+const _MSGS_ERRO = {
+  'unauthenticated':    'Sessão expirada. Recarregue a página.',
+  'permission-denied':  'Sem permissão para essa ação.',
+  'not-found':          'Dado não encontrado.',
+  'invalid-argument':   'Dados inválidos. Verifique e tente novamente.',
+  'resource-exhausted': 'Muitas requisições simultâneas. Aguarde um momento.',
+  'unavailable':        'Serviço indisponível. Tente novamente em segundos.',
+  'internal':           'Erro interno. Tente novamente.',
+  'deadline-exceeded':  'A operação demorou demais. Verifique sua conexão.',
+};
+
+/** Converte um erro de Cloud Function em mensagem legível para a usuária. */
+export function msgErro(err) {
+  const code = err?.code || '';
+  return _MSGS_ERRO[code] || err?.message || 'Erro inesperado. Tente novamente.';
+}
+
+const _RETRY_CODES = new Set(['unavailable', 'internal', 'deadline-exceeded', 'resource-exhausted']);
+
 // ─── Helper central ────────────────────────────────────────────────────────────
 
 function call(nome) {
   const fn = httpsCallable(functions, nome);
   return async (dados) => {
-    try {
-      const result = await fn(dados);
-      return result.data;
-    } catch (err) {
-      // Relança como objeto simples para o catch dos callers
-      throw {
-        code:    err.code    || 'unknown',
-        message: err.message || 'Erro inesperado. Tente novamente.',
-      };
+    for (let tentativa = 0; tentativa < 2; tentativa++) {
+      try {
+        const result = await fn(dados);
+        return result.data;
+      } catch (err) {
+        const code = err.code || 'unknown';
+        if (_RETRY_CODES.has(code) && tentativa === 0) {
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        throw { code, message: _MSGS_ERRO[code] || err.message || 'Erro inesperado. Tente novamente.' };
+      }
     }
   };
 }

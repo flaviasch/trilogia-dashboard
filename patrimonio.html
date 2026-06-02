@@ -659,8 +659,8 @@
       getPatrimonio, savePatrimonio,
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
-      getReservas, saveReserva, setViewAsUid, registrarEvento,
-    } from './js/api.js?v=12';
+      getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro,
+    } from './js/api.js?v=14';
 
     // Detecta se veio de uma retirada de reserva
     if (new URLSearchParams(window.location.search).get('from') === 'retirada') {
@@ -836,7 +836,7 @@
         }
         if (hist.status === 'fulfilled') historico = hist.value || [];
       } catch (err) {
-        console.error('Erro ao carregar patrimônio:', err);
+        toast(msgErro(err), 'error');
       }
       render(ativos, dividas);
       renderLastImport();
@@ -1305,7 +1305,7 @@
             if (tipo === 'corretora') localStorage.removeItem('patrimonio_extrato_pendente');
             conciliarReservas(ativos);
           } catch (err) {
-            toast(`Erro ao importar CSV: ${err.message || err}`, 'error');
+            toast(`Erro ao importar CSV: ${msgErro(err)}`, 'error');
           } finally {
             setLoading(btn, false);
           }
@@ -1348,8 +1348,7 @@
         if (ativosCorretora.length > 0) saves.push(savePatrimonio(ativosCorretora, 'corretora'));
         await Promise.all(saves);
       } catch (err) {
-        console.error('Erro ao salvar ativos:', err);
-        toast(`Erro ao salvar: ${err.message || err}`, 'error');
+        toast(msgErro(err), 'error');
       }
     }
 
@@ -1470,7 +1469,7 @@
         }
         toast('Dívida salva!', 'success');
       } catch (err) {
-        toast(`Erro ao salvar dívida: ${err.message || err}`, 'error');
+        toast(`Erro ao salvar dívida: ${msgErro(err)}`, 'error');
       } finally {
         setLoading(btnSaveDivida, false);
       }
@@ -1495,7 +1494,7 @@
       if (!(await confirmDelete(`Excluir "${d.nome}" (${brl(d.saldo)})?`))) return;
       dividas = dividas.filter(x => x.id !== id);
       try { await deleteDivida(id); }
-      catch (err) { console.error('Erro ao excluir dívida:', err); toast(`Erro: ${err.message || err}`, 'error'); }
+      catch (err) { console.error('Erro ao excluir dívida:', err); toast(`Erro: ${msgErro(err)}`, 'error'); }
       render(ativos, dividas);
       snapshotHistorico();
     }
@@ -1529,7 +1528,7 @@
           renderLastImport();
           toast('Dívidas importadas com sucesso!', 'success');
         } catch (err) {
-          toast(`Erro ao importar CSV de dívidas: ${err.message || err}`, 'error');
+          toast(`Erro ao importar CSV de dívidas: ${msgErro(err)}`, 'error');
         } finally {
           setLoading(btn, false);
         }

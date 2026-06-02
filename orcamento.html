@@ -1663,7 +1663,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico } from './js/api.js?v=13';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro } from './js/api.js?v=14';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -2053,7 +2053,7 @@
         await saveOrcamento(mes, ano, itens);
         _invalPeriodo(mes, ano);
       } catch (err) {
-        console.error('Erro ao salvar:', err);
+        toast(msgErro(err), 'error');
       }
       render(currentData);
       if (mes === mesAtual) refreshGrafico();
@@ -2365,7 +2365,7 @@
           })),
         };
       } else {
-        console.error('Erro ao carregar orçamento:', orcResult.reason);
+        toast(msgErro(orcResult.reason), 'error');
         currentData = { periodo: { mes, ano }, receitas: [], despesas: [], aportes: [] };
       }
 
@@ -3725,7 +3725,7 @@
         _periodoCache.set(key, { data, cats: categoriasMes });
         return data;
       } catch (err) {
-        console.error('Erro ao carregar período:', err);
+        toast(msgErro(err), 'error');
         return { periodo: { mes, ano }, receitas: [], despesas: [], aportes: [] };
       }
     }
@@ -3787,7 +3787,7 @@
           toast('Raio-X importado com sucesso!', 'success');
           registrarEvento('csv_importado');
         } catch (err) {
-          toast(`Erro ao importar CSV: ${err.message || err}`, 'error');
+          toast(msgErro(err), 'error');
         } finally {
           setLoading(btn, false);
         }
