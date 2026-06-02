@@ -18,7 +18,7 @@ Produto `dashboard` = assinatura recorrente autônoma que mantém acesso ao pain
 | O que muda | Comando correto | Destino |
 |---|---|---|
 | HTML, JS, CSS (qualquer frontend) | `git add . && git commit -m "..." && git push origin main` | `dashboard.flaviaschusciman.com` ✅ produção |
-| Cloud Functions | `firebase deploy --only functions:nomeDaFuncao` | us-central1 ✅ |
+| Cloud Functions | `firebase deploy --only functions:nomeDaFuncao` | southamerica-east1 ✅ |
 | `firebase deploy --only hosting` | ❌ **NÃO usar para produção** | só `trilogia-dashboard.web.app` |
 
 - **Repositório:** `https://github.com/flaviasch/trilogia-dashboard` (branch `main`)
@@ -144,7 +144,7 @@ dashboard/
 ### Kiwify (webhook público)
 
 **`kiwifyWebhook`** (`onRequest`, POST)
-- URL: `https://us-central1-trilogia-dashboard.cloudfunctions.net/kiwifyWebhook`
+- URL: `https://southamerica-east1-trilogia-dashboard.cloudfunctions.net/kiwifyWebhook`
 - Configurado no Kiwify: Compra aprovada + Assinatura cancelada + Assinatura em atraso
 - Campo do evento no payload: `body.webhook_event_type` (PascalCase Kiwify), fallback para `body.event` / `body.type`
 - E-mail do cliente: `body.Customer.email` → `body.Order.Customer.email` → `body.Subscription.Customer.email`
