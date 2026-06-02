@@ -1994,7 +1994,7 @@
       if (cartao && !fatura) { toast('Selecione o mês da fatura.', 'warning'); return; }
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
 
-      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, ...(cartaoId ? { cartaoId } : {}) };
+      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}) };
 
       if (cartao && fatura) {
         // Salva diretamente no mês da fatura (não no mês exibido)
@@ -2045,8 +2045,8 @@
       const { mes, ano } = currentData.periodo;
       const mesAtual = new Date().getMonth() + 1;
       const itens = [
-        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '' })),
-        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}) })),
+        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: r.origem || 'manual' })),
+        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}) })),
         ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
       ];
       try {
@@ -2356,8 +2356,8 @@
         const itens = orcResult.value;
         currentData = {
           periodo:  { mes, ano },
-          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}) })),
+          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}) })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
@@ -3714,8 +3714,8 @@
         categoriasMes = cats || [];
         const data = {
           periodo:  { mes, ano },
-          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}) })),
+          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}) })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
@@ -3769,13 +3769,16 @@
         try {
           const itensCsv = parsearCsvRaioX(ev.target.result);
           const { mes, ano } = currentData.periodo;
-          // Preserva fixas já lançadas neste mês (não sobrescreve com o CSV)
-          const fixasExist = currentData.despesas.filter(d => d.recorrenteId).map(d => ({
-            categoria: d.categoria, tipo: 'despesa', valor: d.valor,
-            data: d.data || '', descricao: d.descricao || '',
-            cartao: !!d.cartao, fatura: d.fatura || '', recorrenteId: d.recorrenteId,
-          }));
-          const itens = [...itensCsv, ...fixasExist];
+          // Preserva recorrentes e lançamentos manuais — CSV não sobrescreve
+          const preservar = [
+            ...currentData.receitas
+              .filter(r => r.origem === 'manual')
+              .map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: 'manual' })),
+            ...currentData.despesas
+              .filter(d => d.recorrenteId || d.origem === 'manual')
+              .map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}) })),
+          ];
+          const itens = [...itensCsv.map(i => ({ ...i, origem: 'csv' })), ...preservar];
           await saveOrcamento(mes, ano, itens);
           _invalPeriodo(mes, ano);
           currentData = await buscarPeriodo(mes, ano);
@@ -4203,6 +4206,7 @@
             data:         `${ano}-${String(mes).padStart(2,'0')}-${String(r.dia).padStart(2,'0')}`,
             cartao:       false,
             fatura:       '',
+            origem:       'recorrente',
             recorrenteId: r.id,
           }));
         currentData.despesas.push(...novos);
