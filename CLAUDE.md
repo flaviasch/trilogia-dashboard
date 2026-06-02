@@ -27,6 +27,87 @@ Produto `dashboard` = assinatura recorrente autônoma que mantém acesso ao pain
 
 ---
 
+## Rollback — como reverter um deploy problemático
+
+### Frontend (HTML/JS/CSS) — GitHub Pages
+
+```bash
+# Ver commits recentes
+git log --oneline -10
+
+# Reverter o último commit (cria commit de reversão, seguro)
+git revert HEAD --no-edit
+git push origin main
+
+# Reverter múltiplos commits (ex: últimos 3)
+git revert HEAD~3..HEAD --no-edit
+git push origin main
+
+# Voltar para um commit específico (substitua HASH pelo hash do git log)
+git revert HASH --no-edit
+git push origin main
+```
+
+> ⚠️ **Nunca usar `git reset --hard`** em `main` — apaga histórico e pode causar conflitos.
+
+---
+
+### Cloud Functions — Cloud Run (southamerica-east1)
+
+Cada deploy de função cria uma nova **revisão** no Cloud Run. Para ver e restaurar revisões anteriores:
+
+```bash
+# Listar revisões de uma função (ex: getDashboardHome)
+gcloud run revisions list \
+  --service=getdashboardhome \
+  --region=southamerica-east1 \
+  --project=trilogia-dashboard
+
+# Redirecionar 100% do tráfego para uma revisão anterior (ex: getdashboardhome-00002-abc)
+gcloud run services update-traffic getdashboardhome \
+  --to-revisions=getdashboardhome-00002-abc=100 \
+  --region=southamerica-east1 \
+  --project=trilogia-dashboard
+```
+
+> O nome do serviço Cloud Run é o nome da função em lowercase com hífens
+> (ex: `getDashboardHome` → `getdashboardhome`).
+
+**Alternativa mais simples:** reimplantar o código de um commit anterior:
+
+```bash
+# Voltar o functions/index.js para um commit específico
+git show HASH:functions/index.js > functions/index.js
+firebase deploy --only functions:nomeDaFuncao
+# Depois restaurar o arquivo atual
+git checkout functions/index.js
+```
+
+---
+
+### Firestore rules e indexes
+
+```bash
+# Reverter regras
+git show HASH:firestore.rules > firestore.rules
+firebase deploy --only firestore:rules
+git checkout firestore.rules
+
+# Reverter indexes (⚠️ índices só podem ser adicionados, não removidos em produção facilmente)
+firebase deploy --only firestore:indexes
+```
+
+---
+
+### Checklist pós-incidente
+
+Após qualquer rollback:
+1. **Confirmar** que o deploy anterior voltou: acessar `dashboard.flaviaschusciman.com` e testar a funcionalidade afetada
+2. **Documentar** o que quebrou e por quê (adicionar em "Lições operacionais" abaixo)
+3. **Abrir um fix** no código antes de tentar o deploy novamente
+
+---
+
 ## Estrutura de arquivos
 
 ```
