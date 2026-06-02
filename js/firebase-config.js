@@ -14,7 +14,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export const auth      = getAuth(app);
-export const functions = getFunctions(app, 'us-central1');
+export const functions = getFunctions(app, 'southamerica-east1');
 
 // Para desenvolvimento local com o emulador, descomente:
 // import { connectAuthEmulator }      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
