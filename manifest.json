@@ -1,6 +1,7 @@
 {
   "name": "Trilogia Dashboard",
   "short_name": "Trilogia",
+  "id": "/index.html",
   "description": "Painel financeiro da Mentoria Trilogia — acompanhe orçamento, patrimônio e reservas.",
   "start_url": "/index.html",
   "display": "standalone",
@@ -19,7 +20,13 @@
       "src": "/icons/icon-512-v2.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [

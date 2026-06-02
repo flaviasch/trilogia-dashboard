@@ -3,9 +3,13 @@
 const { ErrorReporting } = require('@google-cloud/error-reporting');
 const errors = new ErrorReporting({ projectId: 'trilogia-dashboard', reportUnhandledRejections: true });
 
+const { setGlobalOptions }   = require('firebase-functions/v2');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule }         = require('firebase-functions/v2/scheduler');
 const { defineSecret }       = require('firebase-functions/params');
+
+// Todas as funções deployam em São Paulo (menor latência para usuárias brasileiras)
+setGlobalOptions({ region: 'southamerica-east1' });
 const admin = require('firebase-admin');
 
 // Secrets via defineSecret — garante resolução para a versão mais recente a cada deploy.
@@ -105,6 +109,53 @@ function comMonitoramento(nomeFuncao, fn) {
       throw err; // propaga para o Cloud Functions registrar no log
     }
   };
+}
+
+/**
+ * Idempotência para funções agendadas.
+ * Usa transação atômica para garantir que mesmo com retry paralelo
+ * a função executa apenas uma vez por data.
+ *
+ * @returns {boolean} true se já executou hoje (deve abortar), false se pode prosseguir
+ */
+async function jaExecutouHoje(nomeFuncao) {
+  const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const ref  = db.collection('_notif_ctrl').doc(`${nomeFuncao}_${hoje}`);
+  try {
+    await db.runTransaction(async (t) => {
+      const snap = await t.get(ref);
+      if (snap.exists) {
+        // Já existe (executando ou enviado) — aborta via erro controlado
+        throw Object.assign(new Error('JA_EXECUTOU'), { jaExecutou: true });
+      }
+      // Marca como executando — qualquer retry paralelo vai cair no branch acima
+      t.set(ref, {
+        status:     'executando',
+        iniciadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    return false; // pode prosseguir
+  } catch (err) {
+    if (err.jaExecutou) {
+      console.log(`[${nomeFuncao}] Já executou hoje (${hoje}) — abortando retry.`);
+      return true;
+    }
+    // Erro real na transação — loga mas deixa a função continuar (melhor enviar do que não enviar)
+    console.warn(`[${nomeFuncao}] Falha ao verificar idempotência:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Marca a função agendada como concluída para a data de hoje.
+ */
+async function marcarEnviado(nomeFuncao) {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const ref  = db.collection('_notif_ctrl').doc(`${nomeFuncao}_${hoje}`);
+  await ref.update({
+    status:       'enviado',
+    concluidoEm:  admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(e => console.warn(`[${nomeFuncao}] Falha ao marcar enviado:`, e.message));
 }
 
 // ─── Push helper ─────────────────────────────────────────────────────────────
@@ -223,7 +274,8 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
   }
   const { sheetId, inicio, nome, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
-          assinaturaClube, assinaturaDashboard } = docSnap.data();
+          assinaturaClube, assinaturaDashboard,
+          scoreMes, scoreChave } = docSnap.data();
 
   // Verifica se tem acesso ao dashboard:
   // — admin nunca é bloqueado
@@ -266,33 +318,22 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   let perfil     = { perfil: perfilFirestore?.perfil || perfilFirestore || null, dataAtualizacao: null };
   let sheetError = false;
 
-  // ── Orçamento: Firestore ─────────────────────────────────────────────────
+  // ── Firestore: 4 leituras em paralelo ───────────────────────────────────
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
-  const orcSnap = await db.collection('mentoradas').doc(uid)
-    .collection('orcamento').doc(mesKey).get().catch(() => null);
-  if (orcSnap?.exists) {
-    orcamento = orcSnap.data().itens || [];
-  }
+  const [orcSnap, patSnap, resSnap, perfilSnap] = await Promise.all([
+    db.collection('mentoradas').doc(uid).collection('orcamento').doc(mesKey).get().catch(() => null),
+    db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados').get().catch(() => null),
+    db.collection('mentoradas').doc(uid).collection('reservas').get().catch(() => null),
+    db.collection('mentoradas').doc(uid).collection('perfil').doc('dados').get().catch(() => null),
+  ]);
 
-  // ── Patrimônio + dívidas: Firestore ─────────────────────────────────────
-  const patSnap = await db.collection('mentoradas').doc(uid)
-    .collection('patrimonio').doc('dados').get().catch(() => null);
+  if (orcSnap?.exists)   orcamento = orcSnap.data().itens || [];
   if (patSnap?.exists) {
     ir        = patSnap.data().ir        || [];
     corretora = patSnap.data().corretora || [];
     dividas   = patSnap.data().dividas   || [];
   }
-
-  // ── Reservas: Firestore ──────────────────────────────────────────────────
-  const resSnap = await db.collection('mentoradas').doc(uid)
-    .collection('reservas').get().catch(() => null);
-  if (resSnap && !resSnap.empty) {
-    reservas = resSnap.docs.map(d => ({ ...d.data(), id: d.id }));
-  }
-
-  // ── Perfil: Firestore ────────────────────────────────────────────────────
-  const perfilSnap = await db.collection('mentoradas').doc(uid)
-    .collection('perfil').doc('dados').get().catch(() => null);
+  if (resSnap && !resSnap.empty) reservas = resSnap.docs.map(d => ({ ...d.data(), id: d.id }));
   if (perfilSnap?.exists) perfil = perfilSnap.data();
 
   // ── Fallback Sheets: só usa se Firestore não tiver dados ─────────────────
@@ -367,6 +408,81 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     lgpdAceite:      lgpdAceite      || false,
     assinaturaClube: assinaturaClube || false,
     sheetError:      sheetError,
+    scoreMes:        scoreMes        ?? null,
+    scoreChave:      scoreChave      ?? null,
+  };
+});
+
+/**
+ * getDashboardHome — versão leve do getDashboard para carregar a home rapidamente.
+ * Lê APENAS o documento principal + subcoleção reservas (2 reads paralelos, sem Sheets).
+ * Usa valores cacheados (pl, sobra, scoreMes) para os cards que precisam de cálculo.
+ * O frontend chama getOrcamento e getPatrimonio em background para completar os dados.
+ */
+exports.getDashboardHome = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+
+  const agora    = new Date();
+  const mes      = agora.getMonth() + 1;
+  const ano      = agora.getFullYear();
+  const mesAtual = agora.toISOString().slice(0, 7);
+
+  // Lê doc principal + reservas em paralelo (sem Sheets, sem subcoleções pesadas)
+  const [docSnap, resSnap] = await Promise.all([
+    db.collection('mentoradas').doc(uid).get(),
+    db.collection('mentoradas').doc(uid).collection('reservas').get().catch(() => null),
+  ]);
+
+  if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
+
+  const { nome, inicio, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
+          assinaturaClube, assinaturaDashboard,
+          pl, sobra, totalReservas, scoreMes, scoreChave, sheetId } = docSnap.data();
+
+  // Controle de acesso
+  const isAdminUser = request.auth?.token?.admin === true;
+  const clubeOnly   = assinaturaClube === true && assinaturaDashboard !== true;
+  const temDashboard = isAdminUser || !clubeOnly;
+
+  if (!temDashboard && assinaturaClube) {
+    return { apenasClube: true, nome: nome || null, inicio: inicio || null, lgpdAceite: lgpdAceite || false, assinaturaClube: true };
+  }
+  if (!sheetId && !assinaturaClube) {
+    throw new HttpsError('failed-precondition', 'Planilha ainda não configurada para esta mentorada.');
+  }
+
+  const reservas = resSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [];
+
+  // Registra acesso em background (fire-and-forget)
+  if (uid === auth.uid) {
+    docSnap.ref.update({
+      ultimoAcesso:    admin.firestore.FieldValue.serverTimestamp(),
+      totalAcessos:    admin.firestore.FieldValue.increment(1),
+      acessosMes:      ultimoAcessoMes === mesAtual
+                         ? admin.firestore.FieldValue.increment(1)
+                         : 1,
+      ultimoAcessoMes: mesAtual,
+    }).catch(e => console.warn(`[getDashboardHome] Falha ao registrar acesso: ${e.message}`));
+  }
+
+  return {
+    nome:            nome            || null,
+    inicio:          inicio          || null,
+    lgpdAceite:      lgpdAceite      || false,
+    assinaturaClube: assinaturaClube || false,
+    perfil:          { perfil: perfilFirestore?.perfil || perfilFirestore || null, dataAtualizacao: null },
+    reservas,
+    // Valores cacheados (atualizados a cada save de orçamento/patrimônio)
+    plCacheado:          pl            ?? null,
+    sobraCacheada:       sobra         ?? null,
+    totalReservasCacheado: totalReservas ?? null,
+    scoreMes:        scoreMes        ?? null,
+    scoreChave:      scoreChave      ?? null,
+    mes,
+    ano,
+    sheetError:      false,
   };
 });
 
@@ -1616,6 +1732,55 @@ exports.aceitarLGPD = onCall({}, async (request) => {
   return { ok: true };
 });
 
+// ─── SCORE DE SAÚDE FINANCEIRA ───────────────────────────────────────────────
+
+/**
+ * Salva o score de saúde financeira do mês no Firestore.
+ * Atualiza o campo scoreMes no doc principal (usado pela home)
+ * e registra o histórico na subcoleção scores/{YYYY-MM}.
+ */
+exports.salvarScoreMes = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const uid = auth.uid;
+  const { mes, ano, score, componentes } = request.data;
+  if (!mes || !ano || score == null) throw new HttpsError('invalid-argument', 'mes, ano e score são obrigatórios.');
+
+  const chave = `${ano}-${String(mes).padStart(2, '0')}`;
+
+  await db.collection('mentoradas').doc(uid).update({
+    scoreMes:          score,
+    scoreChave:        chave,
+    scoreAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await db.collection('mentoradas').doc(uid)
+    .collection('scores').doc(chave).set({
+      score,
+      componentes: componentes || {},
+      mes, ano,
+      calculadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+  return { ok: true };
+});
+
+/**
+ * Retorna os últimos 12 scores mensais da mentorada (ou da mentorada em viewAs).
+ */
+exports.getScoreHistorico = onCall({}, async (request) => {
+  requireAuth(request);
+  const { viewAsUid } = request.data || {};
+  const targetUid = viewAsUid || request.auth.uid;
+
+  const snap = await db.collection('mentoradas').doc(targetUid)
+    .collection('scores')
+    .orderBy('calculadoEm', 'desc')
+    .limit(12)
+    .get();
+
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
 // ─── PUSH NOTIFICATIONS ──────────────────────────────────────────────────────
 
 /**
@@ -2402,9 +2567,9 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
     const RANGES_VALOR = {
       mentoria:  { min: 500,  max: 15000 },
       private:   { min: 2000, max: 30000 },
-      dashboard: { min: 50,   max: 500   },
-      clube:     { min: 50,   max: 300   },
-      combo:     { min: 100,  max: 1000  },
+      dashboard: { min: 100,  max: 300   },  // R$147/mês standalone
+      clube:     { min: 50,   max: 200   },  // legado — fundadoras R$67
+      combo:     { min: 50,   max: 300   },  // R$67 fundadoras a R$197 público
     };
     const rangeValor = produtoCodigo ? RANGES_VALOR[produtoCodigo] : null;
     if (rangeValor && (valorRecebido < rangeValor.min || valorRecebido > rangeValor.max)) {
@@ -2454,9 +2619,14 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       if (produtoCodigo === 'clube'     || produtoCodigo === 'combo') flagsNovaM.assinaturaClube     = true;
 
       // dataExpiracao para produtos recorrentes
+      // Detecta anual pelo valor: >= R$500 após conversão de centavos = plano anual
       if (['dashboard', 'clube', 'combo'].includes(produtoCodigo)) {
-        const exp = new Date(); exp.setMonth(exp.getMonth() + 1);
+        const ehAnual = valorRecebido >= 500;
+        const exp = new Date();
+        if (ehAnual) exp.setFullYear(exp.getFullYear() + 1);
+        else         exp.setMonth(exp.getMonth() + 1);
         flagsNovaM.dataExpiracao = exp.toISOString().slice(0, 10);
+        console.log(`[kiwify] dataExpiracao nova mentorada: ${ehAnual ? 'anual' : 'mensal'} → ${flagsNovaM.dataExpiracao} (R$${valorRecebido})`);
       }
 
       // 4. Documento Firestore
@@ -2661,6 +2831,7 @@ exports.getCobrancas = onCall({}, async (request) => {
 exports.notifCobrancasDia = onSchedule(
   { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: ['GMAIL_APP_PASSWORD'] },
   async () => {
+  if (await jaExecutouHoje('notifCobrancasDia')) return;
   const hoje = new Date().toISOString().slice(0, 10);
 
   const snap = await db.collection('cobrancas')
@@ -2681,6 +2852,7 @@ exports.notifCobrancasDia = onSchedule(
     subject: `Cobranças de hoje — ${hoje}`,
     html:    emailCobrancasDia(cobrancas),
   });
+  await marcarEnviado('notifCobrancasDia');
 });
 
 // ─── Helpers internos ─────────────────────────────────────────────────────────
@@ -2741,6 +2913,7 @@ async function getAtivas() {
 exports.notifDia1 = onSchedule(
   { schedule: '0 8 1 * *', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, ...SECRETS_PUSH] },
   comMonitoramento('notifDia1', async () => {
+    if (await jaExecutouHoje('notifDia1')) return;
     const agora   = new Date();
     const mes     = agora.getMonth() + 1;
     const ano     = agora.getFullYear();
@@ -2827,6 +3000,7 @@ exports.notifDia1 = onSchedule(
       url:    '/orcamento.html',
       tag:    'lembrete-orcamento',
     }).catch(e => console.warn('[notifDia1] Push falhou:', e.message));
+    await marcarEnviado('notifDia1');
   }));
 
 
@@ -2887,6 +3061,7 @@ exports.comunicadoTecnico = onCall({ secrets: SECRETS_EMAIL }, async (request) =
 exports.notifDia28 = onSchedule(
   { schedule: '0 8 28 * *', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, ...SECRETS_PUSH] },
   comMonitoramento('notifDia28', async () => {
+    if (await jaExecutouHoje('notifDia28')) return;
     const agora    = new Date();
     const mes      = agora.getMonth() + 1;
     const ano      = agora.getFullYear();
@@ -2922,6 +3097,7 @@ exports.notifDia28 = onSchedule(
       url:    '/orcamento.html',
       tag:    'lembrete-aporte',
     }).catch(e => console.warn('[notifDia28] Push falhou:', e.message));
+    await marcarEnviado('notifDia28');
   }));
 
 /**
@@ -2998,6 +3174,7 @@ exports.notifRetencao = onSchedule(
 exports.notifMaioIR = onSchedule(
   { schedule: '0 8 5 5 *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
   async () => {
+    if (await jaExecutouHoje('notifMaioIR')) return;
     const mentoradas = await getAtivas();
 
     for (const m of mentoradas) {
@@ -3007,6 +3184,7 @@ exports.notifMaioIR = onSchedule(
         html:    emailIR(m.nome || 'mentorada'),
       }).catch(err => console.error(`Erro ao enviar IR para ${m.email}:`, err));
     }
+    await marcarEnviado('notifMaioIR');
   },
 );
 
@@ -3148,6 +3326,7 @@ exports.verificarExpiracoes = onSchedule(
 exports.notifExpiracaoProxima = onSchedule(
   { schedule: '0 7 * * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
   async () => {
+    if (await jaExecutouHoje('notifExpiracaoProxima')) return;
     const em7Dias = new Date();
     em7Dias.setDate(em7Dias.getDate() + 7);
     const alvo = em7Dias.toISOString().slice(0, 10);
@@ -3168,6 +3347,7 @@ exports.notifExpiracaoProxima = onSchedule(
         html:    emailExpiracaoProxima(m.nome || 'mentorada'),
       }).catch(err => console.error(`Erro ao enviar expiração para ${m.email}:`, err));
     }
+    await marcarEnviado('notifExpiracaoProxima');
   },
 );
 
@@ -3649,7 +3829,9 @@ function mapProdutoDiagnostico(produtoIndicado) {
   const p = (produtoIndicado || '').toLowerCase();
   if (p.includes('mentoria')) return 'Mentoria Trilogia R$4.700';
   if (p.includes('jornada'))  return 'Jornada Domine R$197';
-  if (p.includes('clube'))    return 'Clube Trilogia R$97/mês';
+  if (p.includes('combo'))    return 'Combo Dashboard + Clube R$197/mês';
+  if (p.includes('clube'))    return 'Clube Trilogia (Fundadoras R$67/mês)';
+  if (p.includes('dashboard') && !p.includes('combo')) return 'Dashboard Trilogia R$147/mês';
   if (p.includes('reserva'))  return 'Reserva que Rende R$247';
   if (p.includes('mapa'))     return 'Mapa da Reserva R$67';
   if (p.includes('raio'))     return 'Raio-X Financeiro R$67';

@@ -9,7 +9,7 @@
 Dashboard financeiro pessoal para mentoradas da Mentoria Trilogia Financeira (Flávia Schuscimann, CFP®).
 Dois níveis de acesso: **mentorada** (seus próprios dados) e **admin** (Flávia, via `admin.html`).
 
-Produto `dashboard` = assinatura recorrente autônoma que mantém acesso ao painel após o término da mentoria (R$97/mês, cobrado pelo Kiwify).
+Produto `dashboard` = assinatura recorrente autônoma que mantém acesso ao painel após o término da mentoria (R$147/mês standalone ou R$197/mês no Combo com Clube, cobrado pelo Kiwify). Fundadoras têm preço travado de R$67/mês no Combo.
 
 ---
 

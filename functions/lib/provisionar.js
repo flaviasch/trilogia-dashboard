@@ -57,22 +57,22 @@ const COR_TEXTO  = { red: 1, green: 1, blue: 1 };
 const COR_ALT    = { red: 0.965, green: 0.961, blue: 0.957 };
 
 /**
- * Autentica via Service Account — não expira nunca.
- * A SA precisa ter acesso de Editor na pasta DRIVE_FOLDER_ID.
- * Para conceder: no Google Drive, clique com botão direito na pasta
- * → Compartilhar → adicionar firebase-adminsdk-fbsvc@trilogia-dashboard.iam.gserviceaccount.com como Editor.
+ * Autentica via OAuth2 com refresh token da Flávia.
+ * O arquivo é criado na conta dela (cota dela) e ela é a proprietária.
+ * Token não expira se o app OAuth estiver publicado (não em modo Teste).
  */
 function buildAuth() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurado.');
-  const credentials = JSON.parse(raw);
-  return new google.auth.GoogleAuth({
-    credentials,
-    scopes: [
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/drive.file',
-    ],
-  });
+  const clientId     = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error('Credenciais OAuth do Drive não configuradas.');
+  }
+
+  const oauth2Client = new google.auth.OAuth2(clientId.trim(), clientSecret.trim());
+  oauth2Client.setCredentials({ refresh_token: refreshToken.trim() });
+  return oauth2Client;
 }
 
 /**

@@ -635,15 +635,6 @@
         <button class="btn-cancel" id="btnFecharPosRetirada" style="width:100%;margin-top:4px">Decidir depois</button>
       </div>
 
-      <!-- Passo 2A: Confirmar encerramento -->
-      <div id="posStep2A" style="display:none">
-        <p id="step2AMsg" style="text-align:center;margin:16px 0 24px;color:var(--text-muted);font-size:14px;line-height:1.5"></p>
-        <div class="modal-actions">
-          <button class="btn-cancel" id="btnVoltarStep2A">← Voltar</button>
-          <button class="btn-save" id="btnConfirmarEncerrar">Confirmar encerramento</button>
-        </div>
-      </div>
-
       <!-- Passo 2B: Manter — editar objetivo -->
       <div id="posStep2B" style="display:none">
         <div class="field-group">
@@ -878,12 +869,17 @@
         { label: 'RF Inflação', pct: 25, cor: '#34d399' },
         { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
       ];
-      // Longo prazo (4-10 anos) e muito longo prazo (> 10 anos):
-      // usa perfil do investidor quando disponível
+      // Longo prazo (4-10 anos): moderado sem RV e Internacional (redistribuído para RF Pós)
+      if (meses <= 120) return [
+        { label: 'RF Pós',       pct: 62.5, cor: '#60a5fa' },
+        { label: 'RF Inflação',  pct: 25,   cor: '#34d399' },
+        { label: 'RF Pré',       pct:  5,   cor: '#a78bfa' },
+        { label: 'Multimercado', pct:  7.5, cor: '#fb7185' },
+      ];
+      // Muito longo prazo (> 10 anos): usa perfil do investidor
       if (perfilInvestidor && ALOCACAO_PERFIL[perfilInvestidor]) {
         return ALOCACAO_PERFIL[perfilInvestidor];
       }
-      if (meses <= 120) return [{ label: 'Conforme orientação da mentora', pct: 100, cor: '#CFAE65' }];
       return [{ label: 'Defina seu perfil de investidor', pct: 100, cor: '#c084fc' }];
     }
 
@@ -1655,7 +1651,7 @@
     bindMoneyInput(document.getElementById('posNovoAporte'));
 
     function posStep(step) {
-      ['posStep1', 'posStep2A', 'posStep2B', 'posStep3'].forEach(id => {
+      ['posStep1', 'posStep2B', 'posStep3'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = (id === step) ? '' : 'none';
       });
@@ -1724,19 +1720,9 @@
       if (e.target === modalPosRetirada) fecharPosRetirada();
     });
 
-    // ── Passo 1: "Não, encerrar" ──────────────────────────────────────────
-    document.getElementById('btnEncerrar').addEventListener('click', () => {
-      const msg = posRetiradaSaldo > 0
-        ? `O saldo restante de ${brl(posRetiradaSaldo)} será adicionado à sua reserva de longo prazo e a reserva atual será encerrada.`
-        : `A reserva será encerrada. Saldo zero — nada a transferir.`;
-      document.getElementById('step2AMsg').textContent = msg;
-      posStep('posStep2A');
-    });
-
-    document.getElementById('btnVoltarStep2A').addEventListener('click', () => posStep('posStep1'));
-
-    document.getElementById('btnConfirmarEncerrar').addEventListener('click', async () => {
-      const btn = document.getElementById('btnConfirmarEncerrar');
+    // ── Passo 1: "Não, encerrar" — executa direto, sem tela de confirmação ──
+    document.getElementById('btnEncerrar').addEventListener('click', async () => {
+      const btn = document.getElementById('btnEncerrar');
       btn.disabled = true;
       const id    = posRetiradaId;
       const saldo = posRetiradaSaldo;

@@ -1806,6 +1806,8 @@
     let perfilInvestidor = null;
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
     let _tabAtiva = 'resumo';
+    const _periodoCache = new Map(); // { '2026-5': { data, cats } }
+    const _invalPeriodo = (m, a) => _periodoCache.delete(`${a}-${m}`);
     let _pizzaInstance = null;
     let dadosMesAnterior = {}; // { categoria: total } — carregado ao abrir aba Detalhe
 
@@ -2003,6 +2005,7 @@
           const itensFatura = await getOrcamento(fatMes, fatAno);
           itensFatura.push(novoItem);
           await saveOrcamento(fatMes, fatAno, itensFatura);
+          _invalPeriodo(fatMes, fatAno);
           toast(`💳 Salvo na fatura de ${MESES[fatMes - 1]} — visualize navegando para aquele mês.`, 'success', 5000);
         } catch (err) {
           toast('Erro ao salvar na fatura.', 'error');
@@ -2048,6 +2051,7 @@
       ];
       try {
         await saveOrcamento(mes, ano, itens);
+        _invalPeriodo(mes, ano);
       } catch (err) {
         console.error('Erro ao salvar:', err);
       }
@@ -3079,6 +3083,7 @@
           return;
         }
         await saveCategoriasMes(mes, ano, cats);
+        _invalPeriodo(mes, ano);
         categoriasMes = cats;
         renderPlanejamento(currentData, categoriasMes);
         toast(`Planejamento de ${nomeMesCurto(mesPrev, anoPrev)} copiado!`, 'success');
@@ -3456,6 +3461,7 @@
       setLoading(btn, true);
       try {
         await saveCategoriasMes(mes, ano, categoriasMes);
+        _invalPeriodo(mes, ano);
         // Re-renderiza as abas que dependem de limites
         render(currentData);
         if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
@@ -3694,13 +3700,19 @@
 
     // ─── Navegação de período ─────────────────
     async function buscarPeriodo(mes, ano) {
+      const key = `${ano}-${mes}`;
+      const cached = _periodoCache.get(key);
+      if (cached) {
+        categoriasMes = cached.cats;
+        return cached.data;
+      }
       try {
         const [itens, cats] = await Promise.all([
           getOrcamento(mes, ano),
           getCategoriasMes(mes, ano),
         ]);
         categoriasMes = cats || [];
-        return {
+        const data = {
           periodo:  { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '' })),
           despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}) })),
@@ -3710,6 +3722,8 @@
             nota: a.categoria !== 'Aporte efetivado' ? a.categoria : '',
           })),
         };
+        _periodoCache.set(key, { data, cats: categoriasMes });
+        return data;
       } catch (err) {
         console.error('Erro ao carregar período:', err);
         return { periodo: { mes, ano }, receitas: [], despesas: [], aportes: [] };
@@ -3763,6 +3777,7 @@
           }));
           const itens = [...itensCsv, ...fixasExist];
           await saveOrcamento(mes, ano, itens);
+          _invalPeriodo(mes, ano);
           currentData = await buscarPeriodo(mes, ano);
           render(currentData);
           verificarBannerFixas(currentData);

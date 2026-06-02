@@ -33,6 +33,21 @@
       ]
     },
     {
+      "collectionGroup": "mentoradas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dataExpiracao",       "order": "ASCENDING" },
+        { "fieldPath": "assinaturaDashboard", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "scores",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "calculadoEm", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "pushSubscriptions",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

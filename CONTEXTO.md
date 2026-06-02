@@ -5,8 +5,9 @@ Dashboard financeiro pessoal para mentoradas da Mentoria Trilogia Financeira (Fl
 
 **Precificação:**
 - Dashboard standalone: R$147/mês
-- Clube Trilogia standalone: R$97/mês
-- Combo Dashboard + Clube: R$197/mês
+- Combo Dashboard + Clube: R$197/mês (público geral)
+- Combo Fundadoras: R$67/mês (preço travado — só para fundadoras)
+- Clube standalone: extinto
 
 ## Stack
 - **Frontend:** HTML/CSS/JavaScript puro
@@ -91,7 +92,7 @@ const firebaseConfig = {
 ### Alocação sugerida automática por prazo
 - Até 1 ano → 100% RF Pós (liquidez diária)
 - 1 a 4 anos → 70% RF Pós / 25% RF Inflação / 5% RF Pré
-- 4 a 10 anos → configável (mesma lógica moderado sem RV)
+- 4 a 10 anos → 62.5% RF Pós / 25% RF Inflação / 5% RF Pré / 7.5% Multimercado (moderado sem RV e Internacional, redistribuídos para RF Pós)
 - Acima de 10 anos → usa perfil de investidor da mentorada
 
 ### Comparativo CARTEIRA: SUGERIDA × ATUAL
@@ -213,6 +214,48 @@ Parseia CSV com colunas `classe,valor`. Resolve nomes via PATRIMONIO_COR.
 - 30 dias de acesso somente leitura após cancelamento
 - Bloqueio de acesso manual pela Flávia (via Firebase Console)
 - Cobrança via Kiwify (recorrência)
+
+---
+
+## Protocolo de Revisão e Rebalanceamento
+
+### Rebalanceamento da carteira individual (por mentorada)
+
+**Gatilho:** desvio de ±3pp em qualquer classe em relação à alocação sugerida do perfil.
+**Verificação:** a mentorada acompanha pelo comparativo "Sugerida × Atual" em `reservas.html`.
+**Ação:** realocar para restabelecer os percentuais-alvo — sem prazo fixo, puramente por desvio.
+
+### Revisão da política de alocação (afeta todos os perfis)
+
+A política é revisada quando um ou mais gatilhos macroeconômicos se confirmar **em tendência** (não pontual):
+
+| Gatilho | Condição |
+|---|---|
+| Selic | Abaixo de 10% ao ano |
+| Inflação (IPCA) | Acima de 5% em tendência de alta |
+| Taxa de juros americana (Fed Funds) | Acima de 5% ou abaixo de 3% |
+
+**O que a revisão envolve:**
+1. Avaliar se os percentuais por classe e por perfil ainda fazem sentido no novo cenário
+2. Atualizar `ALOCACAO_PERFIL` em `reservas.html` e `perfil.html` se houver mudança
+3. Fazer deploy — a mudança reflete automaticamente para todas as mentoradas com perfil definido
+4. Atualizar este arquivo com os novos valores e a data da revisão
+5. Comunicar às mentoradas ativas sobre o impacto nas suas carteiras
+
+**Nota técnica:** os percentuais são hardcoded no frontend. Não há alocação salva por mentorada — ao fazer deploy, todas veem os valores atualizados imediatamente.
+
+**Dados puxados automaticamente antes das perguntas de ajuste:**
+- Selic atual + projeção Focus 12 meses
+- IPCA acumulado 12 meses + expectativa Focus
+- Fed Funds rate atual + dot plot do Fed
+- DI futuro curto (jan+1), médio (jan+3) e longo (jan+5 ou jan+10) — taxas da B3
+- Inflação implícita curta, média e longa — spread entre curva nominal (DI) e real (NTN-B), via ANBIMA ETTJ
+- Spread NTN-B (IPCA+) nas mesmas janelas
+
+**O que a revisão NÃO envolve:** mudança de perfil das mentoradas — isso só ocorre via novo questionário suitability (validade 2 anos).
+
+### Previdência (PGBL/VGBL)
+Não é classe de ativo separada. O produto de previdência é classificado pela classe do fundo subjacente: RF Pós, RF Inflação, RF Pré etc.
 
 ---
 
