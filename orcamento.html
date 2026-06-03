@@ -2456,6 +2456,38 @@
       const nivelClass = { 'Excelente':'nivel-excelente','Saudável':'nivel-saudavel','Em construção':'nivel-construcao','Atenção necessária':'nivel-atencao' }[nivel] || '';
       const corComp = v => v >= 80 ? '#4ade80' : v >= 50 ? '#f59e0b' : '#f87171';
 
+      // ── Sugestão baseada na dimensão mais fraca ───────────────────────────
+      let sugestao = null;
+      if (score < 80) {
+        const totalAporte = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
+        const totalPlan   = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
+        const catsComLimite = (categoriasMes || []).filter(c => c.limite > 0);
+        const nEstouradas = catsComLimite.filter(c => {
+          const gasto = data.despesas.filter(d => d.categoria === c.nome).reduce((s, d) => s + d.valor, 0);
+          return gasto > c.limite;
+        }).length;
+        const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
+        const totalDespesa = data.despesas.reduce((s, d) => s + d.valor, 0);
+        const sobraPct = totalReceita > 0 ? ((totalReceita - totalDespesa) / totalReceita * 100).toFixed(0) : 0;
+
+        if (componentes.regularidade === 0) {
+          sugestao = { texto: 'Nenhum lançamento registrado este mês.', acao: 'Importar CSV do Raio-X', fn: () => document.getElementById('btnUpload')?.click() };
+        } else if (componentes.aporte < 50 && totalPlan > 0) {
+          const execPct = totalPlan > 0 ? Math.round(totalAporte / totalPlan * 100) : 0;
+          sugestao = { texto: `Aporte executado: ${execPct}% do planejado (${brl(totalAporte)} de ${brl(totalPlan)}).`, acao: 'Registrar aporte', fn: () => document.getElementById('aporteEfetivadoInput')?.focus() };
+        } else if (nEstouradas > 0) {
+          sugestao = { texto: `${nEstouradas} categori${nEstouradas > 1 ? 'as estouraram' : 'a estourou'} o limite.`, acao: 'Ver planejamento', fn: () => ativarTab('planejamento') };
+        } else if (componentes.sobra < 50) {
+          sugestao = { texto: `Sobra de ${sobraPct}% da receita — objetivo: manter acima de 20%.`, acao: null, fn: null };
+        }
+      }
+
+      const htmlSugestao = sugestao ? `
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <span style="font-size:12px;color:var(--text-muted);line-height:1.4">💡 ${sugestao.texto}</span>
+          ${sugestao.acao ? `<button onclick="(${sugestao.fn.toString()})()" style="background:none;border:1px solid rgba(207,174,101,0.35);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--gold);cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif">${sugestao.acao} →</button>` : ''}
+        </div>` : '';
+
       const widget = document.getElementById('scoreWidget');
       widget.style.display = '';
       widget.innerHTML = `
@@ -2479,6 +2511,7 @@
             <div class="score-comp"><span class="score-comp-label">Orçamento</span><span class="score-comp-val" style="color:${corComp(componentes.orcamento)}">${componentes.orcamento}</span></div>
             <div class="score-comp"><span class="score-comp-label">Uso</span><span class="score-comp-val" style="color:${componentes.regularidade===100?'#4ade80':'#f87171'}">${componentes.regularidade}</span></div>
           </div>
+          ${htmlSugestao}
         </div>`;
 
       // Salva no Firestore (fire-and-forget)
