@@ -653,9 +653,22 @@
     <div class="view" id="view-detalhe">
       <div class="detalhe-header">
         <button class="btn-voltar-lista" id="btnVoltarLista">← Mentoradas</button>
-        <div>
-          <div class="detalhe-nome" id="detNome">—</div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="detalhe-nome" id="detNome">—</div>
+            <button class="btn-edit-inline" id="btnEditIdentidade" style="font-size:11px;padding:3px 10px">Editar</button>
+          </div>
           <div class="detalhe-meta" id="detMeta">—</div>
+          <div id="identEdit" style="display:none;margin-top:10px">
+            <div class="inline-edit-fields">
+              <input type="text"  id="editNome"  placeholder="Nome completo" style="min-width:220px" />
+              <input type="email" id="editEmail" placeholder="E-mail" style="min-width:220px" />
+            </div>
+            <div class="inline-edit-actions">
+              <button class="btn-cancel-small" id="btnCancelIdentidade">Cancelar</button>
+              <button class="btn-save-small"   id="btnSalvarIdentidade">Salvar</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2307,6 +2320,11 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         if (btnComp) btnComp.style.display = 'none';
       }
 
+      // Identidade — pré-preenche e fecha form
+      document.getElementById('editNome').value  = m.nome  || '';
+      document.getElementById('editEmail').value = m.email || '';
+      document.getElementById('identEdit').style.display = 'none';
+
       // Produto & Pagamento — exibição
       setText('detProduto',     PRODUTO_LABEL[m.produto]          || m.produto          || '—');
       setText('detPagamento',   PAGAMENTO_LABEL[m.formaPagamento] || m.formaPagamento   || '—');
@@ -2420,6 +2438,39 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       document.getElementById('view-detalhe').classList.remove('ativo');
       document.getElementById('view-mentoradas').classList.add('ativo');
       document.querySelector('[data-tab="mentoradas"]').classList.add('ativo');
+    });
+
+    // ─── Edição inline: Nome & E-mail ────────────────────────────────────────────
+    document.getElementById('btnEditIdentidade').addEventListener('click', () => {
+      document.getElementById('identEdit').style.display = '';
+    });
+    document.getElementById('btnCancelIdentidade').addEventListener('click', () => {
+      document.getElementById('identEdit').style.display = 'none';
+    });
+    document.getElementById('btnSalvarIdentidade').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid   = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const btn   = document.getElementById('btnSalvarIdentidade');
+      const nome  = document.getElementById('editNome').value.trim();
+      const email = document.getElementById('editEmail').value.trim();
+      if (!nome && !email) { alert('Preencha ao menos nome ou e-mail.'); return; }
+      const campos = {};
+      if (nome)  campos.nome  = nome;
+      if (email) campos.email = email;
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await updateMentorada(uid, campos);
+        Object.assign(mentoradaEmDetalhe, campos);
+        const idx = mentoradas.findIndex(m => (m.uid || m.id) === uid);
+        if (idx >= 0) Object.assign(mentoradas[idx], campos);
+        if (campos.nome)  setText('detNome', campos.nome);
+        if (campos.email) setText('detMeta', `${campos.email} · desde ${formatMesAno(mentoradaEmDetalhe.inicio)}`);
+        document.getElementById('identEdit').style.display = 'none';
+      } catch (err) {
+        alert(`Erro ao salvar: ${err.message}`);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
     });
 
     // ─── Edição inline: Produto & Pagamento ──────────────────────────────────────
