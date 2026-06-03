@@ -1087,6 +1087,8 @@
       .item-bar-col { display: none !important; }
     }
   </style>
+  <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous"></script>
+  <script>Sentry.onLoad(function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0});});</script>
 </head>
 <body>
 
@@ -1709,6 +1711,7 @@
     // ─── Auth guard ───────────────────────────
     onAuthStateChanged(auth, (user) => {
       if (!user) { window.location.href = 'login.html'; return; }
+      window.Sentry?.setUser({ id: user.uid, email: user.email });
       // LGPD: redireciona para index.html até que aceite (exceto admin em modo ViewAs)
       const _isViewAs = new URLSearchParams(window.location.search).has('viewAs') || !!localStorage.getItem('viewAsUid');
       if (!_isViewAs && localStorage.getItem('lgpd_aceite') !== '1') { window.location.href = 'index.html'; return; }

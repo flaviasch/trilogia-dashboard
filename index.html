@@ -595,6 +595,8 @@
       .suporte-popover { bottom: 130px; right: 16px; }
     }
   </style>
+  <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous"></script>
+  <script>Sentry.onLoad(function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0});});</script>
 </head>
 <body>
 
@@ -797,6 +799,7 @@
         window.location.href = 'login.html';
         return;
       }
+      window.Sentry?.setUser({ id: user.uid, email: user.email });
       // Mostra ícone imediatamente se localStorage já tiver o valor (evita piscar)
       if (localStorage.getItem('clubeAccess') === '1') {
         document.querySelectorAll('.link-clube').forEach(el => el.style.display = '');

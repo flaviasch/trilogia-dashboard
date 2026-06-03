@@ -483,6 +483,8 @@
       .kpi-row { grid-template-columns: 1fr; }
     }
   </style>
+  <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous"></script>
+  <script>Sentry.onLoad(function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0});});</script>
 </head>
 <body>
 
@@ -1560,6 +1562,7 @@
         '<button onclick="location.reload()" style="margin-top:16px;background:transparent;border:1px solid rgba(207,174,101,0.3);border-radius:6px;padding:8px 20px;font-size:13px;color:rgba(207,174,101,0.8);cursor:pointer;">Tentar novamente</button>'
       );
     } else {
+      window.Sentry?.setUser({ id: user.uid, email: user.email, username: 'admin' });
       init(user);
     }
 

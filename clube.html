@@ -184,6 +184,8 @@
       .gravacoes-grid { grid-template-columns: 1fr; }
     }
   </style>
+  <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous"></script>
+  <script>Sentry.onLoad(function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0});});</script>
 </head>
 <body>
 
@@ -262,6 +264,7 @@
 
     onAuthStateChanged(auth, (user) => {
       if (!user) { window.location.href = 'login.html'; return; }
+      window.Sentry?.setUser({ id: user.uid, email: user.email });
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
       init();
     });
