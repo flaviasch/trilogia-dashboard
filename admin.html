@@ -483,8 +483,8 @@
       .kpi-row { grid-template-columns: 1fr; }
     }
   </style>
-  <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous"></script>
-  <script>Sentry.onLoad(function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0,allowUrls:['dashboard.flaviaschusciman.com','localhost']});});</script>
+  <script>window.sentryOnLoad=function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0,allowUrls:['dashboard.flaviaschusciman.com','localhost']});};</script>
+  <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
 </head>
 <body>
 
