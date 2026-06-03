@@ -34,6 +34,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Log de exclusão LGPD — somente Cloud Functions (admin SDK); TTL 5 anos via campo expireAt.
+    match /_lgpd_log/{docId} {
+      allow read, write: if false;
+    }
+
     // Nenhuma outra coleção é acessível pelo cliente.
     match /{document=**} {
       allow read, write: if false;

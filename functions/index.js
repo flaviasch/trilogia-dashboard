@@ -3264,17 +3264,54 @@ exports.limparDadosExpirados = onSchedule(
     auth.setCredentials({ refresh_token: sRefresh.value() });
     const drive = google.drive({ version: 'v3', auth });
 
+    const agora = new Date();
+    const expireAt = new Date(agora);
+    expireAt.setFullYear(expireAt.getFullYear() + 5); // TTL LGPD: 5 anos
+
     for (const doc of snap.docs) {
-      const { sheetId, nome } = doc.data();
+      const { sheetId, nome, email, deletadoEm } = doc.data();
+
       if (!sheetId) {
-        await doc.ref.update({ planilhaApagada: true, planilhaApagadaEm: new Date() });
+        await doc.ref.update({ planilhaApagada: true, planilhaApagadaEm: agora });
+        await db.collection('_lgpd_log').add({
+          uid:              doc.id,
+          nome:             nome || null,
+          email:            email || null,
+          sheetId:          null,
+          acao:             'sem_planilha_registrada',
+          deletadoEm:       deletadoEm || null,
+          planilhaApagadaEm: agora,
+          expireAt,
+        });
         continue;
       }
+
       try {
         await drive.files.delete({ fileId: sheetId });
-        await doc.ref.update({ planilhaApagada: true, planilhaApagadaEm: new Date() });
+        await doc.ref.update({ planilhaApagada: true, planilhaApagadaEm: agora });
+        await db.collection('_lgpd_log').add({
+          uid:               doc.id,
+          nome:              nome  || null,
+          email:             email || null,
+          sheetId,
+          acao:              'planilha_apagada',
+          deletadoEm:        deletadoEm || null,
+          planilhaApagadaEm: agora,
+          expireAt,
+        });
         console.log(`[limparDadosExpirados] Planilha apagada: ${nome} (${sheetId})`);
       } catch (err) {
+        await db.collection('_lgpd_log').add({
+          uid:        doc.id,
+          nome:       nome  || null,
+          email:      email || null,
+          sheetId,
+          acao:       'falha_apagar_planilha',
+          erro:       err.message,
+          deletadoEm: deletadoEm || null,
+          tentativaEm: agora,
+          expireAt,
+        });
         console.error(`[limparDadosExpirados] Falha ao apagar ${sheetId} (${nome}):`, err.message);
       }
     }
