@@ -3183,13 +3183,15 @@
         }
 
         const resultados = await Promise.all(
-          meses3.map(({ mes: m, ano: a }) => getOrcamento(m, a).catch(() => []))
+          meses3.map(({ mes: m, ano: a }) =>
+            buscarPeriodo(m, a).catch(() => ({ receitas: [], despesas: [], aportes: [], periodo: { mes: m, ano: a } }))
+          )
         );
 
         // Agrega por categoria para cada mês
-        const dadosPorMes = resultados.map(itens => {
+        const dadosPorMes = resultados.map(data => {
           const r = {};
-          itens.filter(i => i.tipo === 'despesa').forEach(d => {
+          data.despesas.forEach(d => {
             r[d.categoria] = (r[d.categoria] || 0) + d.valor;
           });
           return r;
@@ -3236,13 +3238,13 @@
       const [resultados, scoresHistorico] = await Promise.all([
         Promise.all(
           Array.from({ length: mesAtual }, (_, i) => i + 1).map(m =>
-            getOrcamento(m, ano)
-              .then(itens => ({
+            buscarPeriodo(m, ano)
+              .then(data => ({
                 mes:      m,
-                receita:  itens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0),
-                despesa:  itens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0),
-                aporte:   itens.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0),
-                temDados: itens.length > 0,
+                receita:  data.receitas.reduce((s, r) => s + r.valor, 0),
+                despesa:  data.despesas.reduce((s, d) => s + d.valor, 0),
+                aporte:   data.aportes.reduce((s, a) => s + a.valor, 0),
+                temDados: data.receitas.length > 0 || data.despesas.length > 0 || data.aportes.length > 0,
               }))
               .catch(() => ({ mes: m, receita: 0, despesa: 0, aporte: 0, temDados: false }))
           )
@@ -3551,10 +3553,10 @@
       const promises = [];
       for (let m = 1; m <= mesAtual; m++) {
         promises.push(
-          getOrcamento(m, ano)
-            .then(itens => {
-              const totalAp = itens.filter(i => i.tipo === 'aporte').reduce((s, a) => s + a.valor, 0);
-              const temDados = itens.some(i => i.tipo === 'receita' || i.tipo === 'despesa') || totalAp > 0;
+          buscarPeriodo(m, ano)
+            .then(data => {
+              const totalAp = data.aportes.reduce((s, a) => s + a.valor, 0);
+              const temDados = data.receitas.length > 0 || data.despesas.length > 0 || totalAp > 0;
               return { mes: m, valor: totalAp, temDados };
             })
             .catch(() => ({ mes: m, valor: 0, temDados: false }))
