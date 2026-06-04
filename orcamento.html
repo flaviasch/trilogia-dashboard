@@ -1086,6 +1086,27 @@
       .page-title { color: #0D2B45 !important; font-size: 20px !important; }
       .item-bar-col { display: none !important; }
     }
+
+    /* ─── Exportação anual (modo print-anual) ─── */
+    .print-header-anual { display: none; }
+    .print-header-anual h1 { font-family: 'Playfair Display', serif; font-size: 20px; color: #0D2B45; margin-bottom: 3px; }
+    .print-header-anual p  { font-size: 12px; color: #6b7280; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #0D2B45; }
+    @media print {
+      body.print-anual {
+        background: white !important;
+        --navy: #f9fafb; --border: #e5e7eb; --text-muted: #6b7280;
+        --white: #1f2937; --positive: #16a34a; --negative: #dc2626; --gold: #a88a3f;
+      }
+      body.print-anual .navbar, body.print-anual .bottom-nav, body.print-anual .tabs-bar,
+      body.print-anual .breadcrumb, body.print-anual .page-header, body.print-anual .print-header,
+      body.print-anual .suporte-btn, body.print-anual .suporte-popover,
+      body.print-anual #btnExportarAnualPDF { display: none !important; }
+      body.print-anual .print-header-anual { display: block !important; }
+      body.print-anual .tab-pane { display: none !important; }
+      body.print-anual #tab-anual { display: block !important; }
+      body.print-anual .main { padding: 16px !important; max-width: 100% !important; }
+      body.print-anual .resumo-card { break-inside: avoid; }
+    }
   </style>
   <script>window.sentryOnLoad=function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0,allowUrls:['dashboard.flaviaschusciman.com','localhost']});};</script>
   <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
@@ -1117,10 +1138,16 @@
   <!-- Conteúdo -->
   <main class="main" id="mainContent" style="display:none">
 
-    <!-- Cabeçalho de impressão (visível só no PDF) -->
+    <!-- Cabeçalho de impressão mensal (visível só no PDF mensal) -->
     <div class="print-header">
       <h1>Orçamento Trilogia — <span id="printPeriodo"></span></h1>
       <p>Gerado em <span id="printData"></span> · <span id="printNome"></span></p>
+    </div>
+
+    <!-- Cabeçalho de impressão anual (visível só no PDF anual) -->
+    <div class="print-header-anual">
+      <h1 id="printAnualTitulo">Relatório Anual Trilogia</h1>
+      <p>Gerado em <span id="printAnualData"></span> · <span id="printAnualNome"></span></p>
     </div>
 
     <!-- Breadcrumb -->
@@ -3330,6 +3357,15 @@
       }).join('');
 
       el.innerHTML = `
+        <!-- Botão exportar -->
+        <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
+          <button id="btnExportarAnualPDF"
+            style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:13px;color:var(--text-muted);cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;"
+            onmouseover="this.style.borderColor='rgba(207,174,101,0.4)';this.style.color='var(--gold)'"
+            onmouseout="this.style.borderColor='';this.style.color=''"
+            onclick="exportarAnual()">↓ PDF anual</button>
+        </div>
+
         <!-- KPIs do ano -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;">
           <div class="resumo-card">
@@ -4426,6 +4462,20 @@
 
     // ─── Botão lançar manualmente ─────────────────────────────────────────────
     document.getElementById('btnAddDespesaRapida')?.addEventListener('click', () => abrirModal('despesa'));
+
+    // ─── Exportar PDF anual ──────────────────────────────────────────────────
+    window.exportarAnual = function() {
+      const ano = new Date().getFullYear();
+      document.getElementById('printAnualTitulo').textContent = `Relatório Anual Trilogia — ${ano}`;
+      document.getElementById('printAnualData').textContent   = new Date().toLocaleDateString('pt-BR');
+      document.getElementById('printAnualNome').textContent   = document.getElementById('userDisplayName')?.textContent || '';
+      document.body.classList.add('print-anual');
+      window.addEventListener('afterprint', function handler() {
+        document.body.classList.remove('print-anual');
+        window.removeEventListener('afterprint', handler);
+      });
+      window.print();
+    };
 
     // ─── Exportar PDF ────────────────────────────────────────────────────────
     document.getElementById('btnExportarPDF')?.addEventListener('click', () => {
