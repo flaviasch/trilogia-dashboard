@@ -190,7 +190,10 @@
 <body>
 
   <nav class="navbar">
-    <span class="logo">Trilogia <span>Dashboard</span></span>
+    <div style="display:flex;align-items:center;gap:20px">
+      <span class="logo">Trilogia <span>Dashboard</span></span>
+      <a href="index.html" style="font-size:13px;color:var(--text-muted);text-decoration:none;transition:color .2s" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">← Dashboard</a>
+    </div>
     <div class="navbar-right">
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
@@ -302,6 +305,12 @@
       renderAgenda(agenda);
     }
 
+    function isNovo(dataStr) {
+      if (!dataStr) return false;
+      const diff = (Date.now() - new Date(dataStr).getTime()) / 86400000;
+      return diff >= 0 && diff <= 7;
+    }
+
     function ytVideoId(url) {
       try {
         const u = new URL(url);
@@ -318,23 +327,22 @@
     }
 
     function renderGravacoes(lista) {
-      const el = document.getElementById('listaGravacoes');
       const secao = document.getElementById('secaoGravacoes');
-      if (!lista.length) {
-        el.innerHTML = '<p class="secao-vazia">Nenhuma gravação publicada ainda.</p>';
-        return;
-      }
-      el.innerHTML = lista.map(item => {
-        const vid = ytVideoId(item.url);
+      if (!lista.length) { secao.style.display = 'none'; return; }
+      secao.style.display = '';
+      document.getElementById('listaGravacoes').innerHTML = lista.map(item => {
+        const vid   = ytVideoId(item.url);
         const thumb = vid
           ? `<div class="card-thumb"><img src="https://img.youtube.com/vi/${vid}/hqdefault.jpg" alt="${item.titulo}" loading="lazy" /></div>`
           : `<div class="card-thumb-placeholder">▶</div>`;
+        const badge = isNovo(item.data) ? `<span style="background:var(--gold);color:var(--navy);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:8px;vertical-align:middle">NOVO</span>` : '';
         return `
           <div class="card-gravacao">
             ${thumb}
             <div class="card-body">
-              <div class="card-data">${fmtData(item.data)}</div>
+              <div class="card-data">${fmtData(item.data)}${badge}</div>
               <div class="card-titulo">${item.titulo}</div>
+              ${item.descricao ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.5">${item.descricao}</div>` : ''}
               <a href="${item.url}" target="_blank" rel="noopener" class="btn-assistir">Assistir</a>
             </div>
           </div>`;
@@ -342,28 +350,28 @@
     }
 
     function renderDocumentos(lista) {
-      const el = document.getElementById('listaDocumentos');
-      if (!lista.length) {
-        el.innerHTML = '<p class="secao-vazia">Nenhum documento publicado ainda.</p>';
-        return;
-      }
-      el.innerHTML = lista.map(item => `
-        <div class="doc-item">
-          <div class="doc-icon">📄</div>
-          <div class="doc-info">
-            <div class="doc-titulo">${item.titulo}</div>
-            ${item.descricao ? `<div class="doc-desc">${item.descricao}</div>` : ''}
-          </div>
-          <a href="${item.url}" target="_blank" rel="noopener" class="btn-acessar">Acessar</a>
-        </div>`).join('');
+      const secao = document.getElementById('secaoDocumentos');
+      if (!lista.length) { secao.style.display = 'none'; return; }
+      secao.style.display = '';
+      document.getElementById('listaDocumentos').innerHTML = lista.map(item => {
+        const badge = isNovo(item.data) ? `<span style="background:var(--gold);color:var(--navy);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:8px;vertical-align:middle">NOVO</span>` : '';
+        return `
+          <div class="doc-item">
+            <div class="doc-icon">📄</div>
+            <div class="doc-info">
+              <div class="doc-titulo">${item.titulo}${badge}</div>
+              ${item.descricao ? `<div class="doc-desc">${item.descricao}</div>` : ''}
+            </div>
+            <a href="${item.url}" target="_blank" rel="noopener" class="btn-acessar">Acessar</a>
+          </div>`;
+      }).join('');
     }
 
     function renderAgenda(lista) {
+      const secao = document.getElementById('secaoAgenda');
+      if (!lista.length) { secao.style.display = 'none'; return; }
+      secao.style.display = '';
       const el = document.getElementById('listaAgenda');
-      if (!lista.length) {
-        el.innerHTML = '<p class="secao-vazia">Nenhum evento na agenda ainda.</p>';
-        return;
-      }
 
       const hoje = new Date().toISOString().slice(0, 10);
       const futuros  = lista.filter(i => i.data >= hoje).sort((a,b) => a.data.localeCompare(b.data));
@@ -373,6 +381,7 @@
         const [ano, mes, dia] = (item.data || '').split('-');
         const diaNum = parseInt(dia, 10);
         const mesStr = MESES_CURTOS[parseInt(mes, 10) - 1] || '';
+        const badge  = isNovo(item.data) ? `<span style="background:var(--gold);color:var(--navy);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:8px;vertical-align:middle">NOVO</span>` : '';
         const linkHtml = item.url
           ? `<a href="${item.url}" target="_blank" rel="noopener" class="btn-acessar" style="margin-top:8px;display:inline-block;font-size:12px;padding:5px 12px">Ver link</a>`
           : '';
@@ -383,7 +392,7 @@
               <div class="agenda-mes">${mesStr}</div>
             </div>
             <div class="agenda-info">
-              <div class="agenda-titulo">${item.titulo}</div>
+              <div class="agenda-titulo">${item.titulo}${badge}</div>
               ${ehPassado ? '<div class="agenda-passado-label">Já realizado</div>' : ''}
               ${linkHtml}
             </div>
@@ -395,7 +404,7 @@
         html += `<div class="separador-passado">encontros anteriores</div>`;
         html += passados.map(i => renderItem(i, true)).join('');
       }
-      el.innerHTML = html || '<p class="secao-vazia">Nenhum evento na agenda ainda.</p>';
+      el.innerHTML = html;
     }
   </script>
 
