@@ -473,8 +473,16 @@
     .btn-pagar:hover { background: rgba(207,174,101,.08); }
 
     @media (max-width: 768px) {
-      .navbar { padding: 0 16px; }
-      .navbar-center { display: none; }
+      .navbar { padding: 0 16px; flex-wrap: wrap; height: auto; gap: 0; }
+      .logo { padding: 14px 0; }
+      .navbar-right { padding: 14px 0; }
+      .navbar-center {
+        order: 3; width: 100%; gap: 0;
+        overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+        border-top: 1px solid var(--border); padding: 0;
+      }
+      .navbar-center::-webkit-scrollbar { display: none; }
+      .nav-tab { font-size: 12px; padding: 10px 12px; white-space: nowrap; border-radius: 0; }
       .main { padding: 24px 16px 60px; }
       .kpi-row { grid-template-columns: 1fr 1fr; }
       .detalhe-grid { grid-template-columns: 1fr; }
