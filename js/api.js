@@ -833,6 +833,10 @@ export async function deletePushSubscription(endpoint) {
   return call('deletePushSubscription')({ endpoint });
 }
 
+export async function enviarPushManual({ titulo, corpo, url }) {
+  return call('enviarPushManual')({ titulo, corpo, url });
+}
+
 // ─── ANALYTICS ───────────────────────────────────────────────────────────────
 
 export function registrarEvento(evento) {
