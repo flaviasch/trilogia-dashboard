@@ -1,7 +1,7 @@
 # Dashboard Trilogia Financeira — Estado de produção
 
 > Produção: `dashboard.flaviaschusciman.com` (GitHub Pages → CNAME)
-> Última atualização: 03/06/2026
+> Última atualização: 05/06/2026
 
 ---
 
@@ -141,7 +141,7 @@ Níveis: 🔴 0-39 / 🟡 40-59 / 🟢 60-79 / ⭐ 80-100
 - ViewAs (admin visualizando mentorada)
 - **Cache de navegação de mês** (`_periodoCache` Map): navegar para mês já visitado não dispara nova requisição; invalidado automaticamente após qualquer save
 - **Abas Anual/Gráficos usam cache**: `renderAnual`, `carregarHistoricoAnual` e `carregarTendencia` chamam `buscarPeriodo()` em vez de `getOrcamento()` direto
-- **Campo `origem` nos lançamentos**: `'manual'` | `'csv'` | `'recorrente'`; CSV preserva entradas manuais e recorrentes
+- **Campo `origem` nos lançamentos**: `'manual'` | `'csv'` | `'recorrente'` | `'parcelamento'`; CSV preserva entradas manuais, recorrentes e parcelamentos
 - **Tratamento de erro padronizado**: `msgErro(err)` em `api.js` v14; erros em português; falhas silenciosas → toast
 
 ---
