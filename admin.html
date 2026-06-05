@@ -841,6 +841,7 @@
         <button class="btn-acao reativar" id="btnReativar" style="display:none">Reativar acesso</button>
         <button class="btn-acao" id="btnFecharMentoria" style="border-color:rgba(207,174,101,0.4);color:var(--gold);display:none">Fechar mentoria</button>
         <button class="btn-acao" id="btnMarcarEncerrada" style="border-color:rgba(207,174,101,0.2);color:var(--text-muted);font-size:12px;display:none">Já encerrada</button>
+        <button class="btn-acao" id="btnReabrirMentoria" style="border-color:rgba(74,222,128,0.3);color:#4ade80;font-size:12px;display:none">↩ Reabrir mentoria</button>
         <button class="btn-acao danger" id="btnBloquear">Bloquear acesso</button>
         <button class="btn-acao danger" id="btnDeletar" style="margin-left:auto">Apagar mentorada</button>
       </div>
@@ -3018,9 +3019,9 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         const temMentoriaAtiva = acessoVigente && temContratoMentoria;
         const mentoriaEncerrada = !!mentoradaEmDetalhe.mentoriaEncerrada;
         // Fechar mentoria: só se acesso ainda vigente e há contrato de mentoria
-        document.getElementById('btnFecharMentoria').style.display = (temMentoriaAtiva && !mentoriaEncerrada) ? '' : 'none';
-        // Já encerrada: aparece para todas enquanto não encerrada explicitamente
-        document.getElementById('btnMarcarEncerrada').style.display = !mentoriaEncerrada ? '' : 'none';
+        document.getElementById('btnFecharMentoria').style.display    = (temMentoriaAtiva && !mentoriaEncerrada) ? '' : 'none';
+        document.getElementById('btnMarcarEncerrada').style.display   = !mentoriaEncerrada ? '' : 'none';
+        document.getElementById('btnReabrirMentoria').style.display   = mentoriaEncerrada  ? '' : 'none';
         // Acompanhamento — oculta apenas se encerrada (já foi exibido na abertura do detalhe)
         if (mentoriaEncerrada) {
           const notionSection = document.getElementById('detNotionCRM');
@@ -3239,11 +3240,29 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         mentoradaEmDetalhe.mentoriaEncerrada = true;
         const idx = mentoradas.findIndex(m => (m.uid || m.id) === uid);
         if (idx >= 0) mentoradas[idx].mentoriaEncerrada = true;
-        document.getElementById('detNotionCRM').style.display = 'none';
-        document.getElementById('btnFecharMentoria').style.display = 'none';
-        document.getElementById('btnMarcarEncerrada').style.display = 'none';
+        document.getElementById('detNotionCRM').style.display    = 'none';
+        document.getElementById('btnFecharMentoria').style.display  = 'none';
+        document.getElementById('btnMarcarEncerrada').style.display  = 'none';
+        document.getElementById('btnReabrirMentoria').style.display  = '';
       } catch (e) {
         alert('Erro ao marcar como encerrada: ' + e.message);
+      }
+    });
+
+    document.getElementById('btnReabrirMentoria').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      if (!confirm('Reabrir esta mentoria? O Acompanhamento voltará a aparecer.')) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      try {
+        await updateMentorada(uid, { mentoriaEncerrada: false });
+        mentoradaEmDetalhe.mentoriaEncerrada = false;
+        const idx = mentoradas.findIndex(m => (m.uid || m.id) === uid);
+        if (idx >= 0) mentoradas[idx].mentoriaEncerrada = false;
+        document.getElementById('detNotionCRM').style.display    = '';
+        document.getElementById('btnMarcarEncerrada').style.display  = '';
+        document.getElementById('btnReabrirMentoria').style.display  = 'none';
+      } catch (e) {
+        alert('Erro ao reabrir mentoria: ' + e.message);
       }
     });
 
