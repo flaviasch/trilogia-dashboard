@@ -770,6 +770,7 @@
             <span style="font-size:15px;color:rgba(255,255,255,0.3);font-family:'Playfair Display',serif;">/100</span>
           </div>
           <div id="scoreNivelHome" style="font-size:13px;font-weight:600;margin-top:6px;">—</div>
+          <div id="scoreAcao" style="display:none;font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.4;"></div>
         </div>
         <div style="flex:1;min-width:120px;max-width:220px;">
           <div style="height:6px;background:rgba(255,255,255,0.07);border-radius:6px;overflow:hidden;margin-bottom:10px;">
@@ -1129,6 +1130,18 @@
         const cardScore = document.getElementById('cardScore');
         cardScore.style.borderColor = scoreCor + '40';
         cardScore.style.display = '';
+
+        // Ação vinculada ao score
+        const acaoEl = document.getElementById('scoreAcao');
+        let acaoHtml = '';
+        if (data.scoreMes < 40) {
+          acaoHtml = '→ Registre um aporte e revise os limites de gastos para subir o score. <a href="orcamento.html" style="color:var(--gold);text-decoration:none;">Ir ao orçamento</a>';
+        } else if (data.scoreMes < 60) {
+          acaoHtml = '→ Um aporte registrado este mês pode elevar bastante seu score. <a href="orcamento.html" style="color:var(--gold);text-decoration:none;">Registrar aporte</a>';
+        } else if (data.scoreMes < 80) {
+          acaoHtml = '→ Verifique se alguma categoria ultrapassou o limite planejado. <a href="orcamento.html" style="color:var(--gold);text-decoration:none;">Ver planejamento</a>';
+        }
+        if (acaoHtml) { acaoEl.innerHTML = acaoHtml; acaoEl.style.display = ''; }
       }
 
       // Orçamento
