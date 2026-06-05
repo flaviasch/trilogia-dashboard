@@ -68,3 +68,36 @@ jobs:
       - name: Deploy
         id: deploy
         uses: actions/deploy-pages@v4
+
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Aguardar propagação (60s)
+        run: sleep 60
+
+      - name: Dashboard carrega (HTTP 200)
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://dashboard.flaviaschusciman.com)
+          echo "Status HTTP: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Dashboard retornou $STATUS"
+            exit 1
+          fi
+          echo "✅ Dashboard OK"
+
+      - name: Cloud Functions respondendo
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" https://southamerica-east1-trilogia-dashboard.cloudfunctions.net/healthCheck)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "Status: $HTTP_CODE | Body: $BODY"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ healthCheck retornou $HTTP_CODE"
+            exit 1
+          fi
+          if ! echo "$BODY" | grep -q '"ok":true'; then
+            echo "❌ healthCheck retornou ok:false — $BODY"
+            exit 1
+          fi
+          echo "✅ Cloud Functions OK"
