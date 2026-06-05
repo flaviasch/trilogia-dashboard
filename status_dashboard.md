@@ -132,6 +132,7 @@ Níveis: 🔴 0-39 / 🟡 40-59 / 🟢 60-79 / ⭐ 80-100
 - Botão "+ Lançar manualmente"
 - Despesas fixas (recorrentes): cadastro, lançamento automático, editar só este mês vs próximos
 - Cartões de crédito: dia de corte, cálculo automático de fatura
+- Parcelamento simples: valor total + nº parcelas → cria N lançamentos mensais automáticos com badge X/N; cancela parcelas futuras por parcelamentoId
 
 ### Outras funcionalidades
 - Exportação PDF do mês (`window.print()` com CSS dedicado)
@@ -148,7 +149,7 @@ Níveis: 🔴 0-39 / 🟡 40-59 / 🟢 60-79 / ⭐ 80-100
 ## Cloud Functions — lista completa (Jun/2026)
 
 ### Dashboard mentorada
-`getDashboard`, `getDashboardHome`, `getOrcamento`, `saveOrcamento`, `getPatrimonio`, `savePatrimonio`, `aportePatrimonio`, `getHistoricoPatrimonio`, `upsertHistoricoPatrimonio`, `saveDivida`, `deleteDivida`, `getReservas`, `saveReserva`, `deleteReserva`, `getPerfil`, `savePerfil`, `registrarAcesso`, `aceitarLGPD`
+`getDashboard`, `getDashboardHome`, `getOrcamento`, `saveOrcamento`, `saveParcelamento`, `cancelarParcelamento`, `getPatrimonio`, `savePatrimonio`, `aportePatrimonio`, `getHistoricoPatrimonio`, `upsertHistoricoPatrimonio`, `saveDivida`, `deleteDivida`, `getReservas`, `saveReserva`, `deleteReserva`, `getPerfil`, `savePerfil`, `registrarAcesso`, `aceitarLGPD`
 
 ### Score
 `salvarScoreMes`, `getScoreHistorico`
@@ -221,7 +222,8 @@ Todos deployados em `firestore.indexes.json`:
 ## Pendências técnicas (ação manual da Flávia)
 
 1. **Token Kiwify**: verificar em Configurações → Webhooks se existe campo "Token" e rodar `firebase functions:secrets:set KIWIFY_WEBHOOK_SECRET`
-2. **CONTEXTO.md linha 4**: ainda diz "encontro 7" — deveria ser "encontro 3"
+
+> ~~CONTEXTO.md linha 4~~ — corrigido em commit 8b2d40a (03/06/2026)
 
 ---
 

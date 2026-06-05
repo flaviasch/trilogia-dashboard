@@ -809,6 +809,18 @@ export async function deleteRecorrente(id) {
   return call('deleteRecorrente')({ uid: uidAtual(), id });
 }
 
+// ─── Parcelamento ─────────────────────────────────────────────────────────────
+
+/** Cria N lançamentos parcelados a partir de uma compra. */
+export async function saveParcelamento(dados) {
+  return call('saveParcelamento')(dados);
+}
+
+/** Remove parcelas futuras de um parcelamentoId. */
+export async function cancelarParcelamento(uid, parcelamentoId) {
+  return call('cancelarParcelamento')({ uid, parcelamentoId });
+}
+
 // ─── CARTÕES ──────────────────────────────────────────────────────────────────
 
 export async function getCartoes() {

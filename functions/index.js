@@ -46,6 +46,7 @@ const {
   emailRetencaoDia7,
   emailRelatorioMensal,
   emailComunicadoTecnico,
+  emailUpgradeDashboard,
 } = require('./lib/mailer');
 
 admin.initializeApp();
@@ -429,16 +430,17 @@ exports.getDashboardHome = onCall({}, async (request) => {
   const ano      = agora.getFullYear();
   const mesAtual = agora.toISOString().slice(0, 7);
 
-  // Lê doc principal + reservas em paralelo (sem Sheets, sem subcoleções pesadas)
-  const [docSnap, resSnap] = await Promise.all([
+  // Lê doc principal + reservas + missão do mês em paralelo
+  const [docSnap, resSnap, missaoSnap] = await Promise.all([
     db.collection('mentoradas').doc(uid).get(),
     db.collection('mentoradas').doc(uid).collection('reservas').get().catch(() => null),
+    db.collection('config').doc('missaoMes').get().catch(() => null),
   ]);
 
   if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
 
   const { nome, inicio, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
-          assinaturaClube, assinaturaDashboard,
+          assinaturaClube, assinaturaDashboard, mentoriaEncerrada,
           pl, sobra, totalReservas, scoreMes, scoreChave, sheetId } = docSnap.data();
 
   // Controle de acesso
@@ -478,11 +480,18 @@ exports.getDashboardHome = onCall({}, async (request) => {
     plCacheado:          pl            ?? null,
     sobraCacheada:       sobra         ?? null,
     totalReservasCacheado: totalReservas ?? null,
-    scoreMes:        scoreMes        ?? null,
-    scoreChave:      scoreChave      ?? null,
+    scoreMes:           scoreMes          ?? null,
+    scoreChave:         scoreChave        ?? null,
+    mentoriaEncerrada:  mentoriaEncerrada || false,
+    assinaturaDashboard: assinaturaDashboard || false,
     mes,
     ano,
     sheetError:      false,
+    missaoMes: (() => {
+      const d = missaoSnap?.data();
+      if (!d || d.mes !== mesAtual) return null;
+      return { titulo: d.titulo || null, descricao: d.descricao || null };
+    })(),
   };
 });
 
@@ -502,14 +511,8 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     return docSnap.data().itens || [];
   }
 
-  // ── Fallback: Sheets (dados antes da migração) ────────────────────────────
-  try {
-    const sheetId = await getSheetId(db, uid);
-    if (!sheetId) return [];
-    return await new SheetsClient(sheetId).getOrcamento(mes, ano);
-  } catch {
-    return [];
-  }
+  // Migração concluída em 05/06/2026 — Firestore é fonte de verdade.
+  return [];
 });
 
 /**
@@ -565,6 +568,115 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   }).catch(e => console.warn('[saveOrcamento] Falha ao atualizar cache:', e.message));
 
   return { ok: true };
+});
+
+// ─── PARCELAMENTO ─────────────────────────────────────────────────────────────
+
+/**
+ * Cria N lançamentos parcelados a partir de uma compra.
+ * Cada parcela é salva como item individual no documento do mês correto no Firestore.
+ */
+exports.saveParcelamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const { uid, categoria, descricao, valorTotal, nParcelas, mesInicio, anoInicio } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!categoria || !valorTotal || !nParcelas || !mesInicio || !anoInicio) {
+    throw new HttpsError('invalid-argument', 'categoria, valorTotal, nParcelas, mesInicio e anoInicio são obrigatórios.');
+  }
+  if (nParcelas < 2 || nParcelas > 60) {
+    throw new HttpsError('invalid-argument', 'nParcelas deve ser entre 2 e 60.');
+  }
+  if (typeof valorTotal !== 'number' || valorTotal <= 0) {
+    throw new HttpsError('invalid-argument', 'valorTotal deve ser número positivo.');
+  }
+
+  const parcelamentoId = require('crypto').randomUUID();
+  const valorParcela   = Math.round((valorTotal / nParcelas) * 100) / 100;
+
+  for (let i = 0; i < nParcelas; i++) {
+    const d   = new Date(anoInicio, mesInicio - 1 + i, 1);
+    const mes = d.getMonth() + 1;
+    const ano = d.getFullYear();
+    const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+    const data   = `${mesKey}-01`;
+
+    const novaParcela = {
+      categoria,
+      tipo:           'despesa',
+      valor:          valorParcela,
+      data,
+      descricao:      `${descricao || categoria} — Parcela ${i + 1}/${nParcelas}`,
+      origem:         'parcelamento',
+      parcelamentoId,
+      parcelaAtual:   i + 1,
+      parcelasTotal:  nParcelas,
+    };
+
+    const ref     = db.collection('mentoradas').doc(uid).collection('orcamento').doc(mesKey);
+    const docSnap = await ref.get();
+    const itens   = docSnap.exists ? (docSnap.data().itens || []) : [];
+    itens.push(novaParcela);
+    await ref.set({ uid, mes, ano, itens, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+  }
+
+  // Atualiza cache de sobra do mês inicial
+  try {
+    const mesKey0 = `${anoInicio}-${String(mesInicio).padStart(2, '0')}`;
+    const snap0   = await db.collection('mentoradas').doc(uid).collection('orcamento').doc(mesKey0).get();
+    const itens0  = snap0.exists ? (snap0.data().itens || []) : [];
+    const receita = itens0.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
+    const despesa = itens0.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
+    db.collection('mentoradas').doc(uid).update({
+      sobra: receita - despesa,
+      dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch(e => console.warn('[saveParcelamento] Falha ao atualizar cache:', e.message));
+  } catch (e) {
+    console.warn('[saveParcelamento] Falha ao recalcular sobra:', e.message);
+  }
+
+  return { ok: true, parcelamentoId, parcelas: nParcelas };
+});
+
+/**
+ * Remove todas as parcelas futuras (a partir do mês atual) de um parcelamentoId.
+ * Parcelas de meses já passados são mantidas para preservar o histórico.
+ */
+exports.cancelarParcelamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const { uid, parcelamentoId } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!parcelamentoId) throw new HttpsError('invalid-argument', 'parcelamentoId é obrigatório.');
+
+  const agora    = new Date();
+  const mesAtual = agora.getMonth() + 1;
+  const anoAtual = agora.getFullYear();
+
+  let removidas = 0;
+  for (let i = 0; i < 60; i++) {
+    const d   = new Date(anoAtual, mesAtual - 1 + i, 1);
+    const mes = d.getMonth() + 1;
+    const ano = d.getFullYear();
+    const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+
+    const ref     = db.collection('mentoradas').doc(uid).collection('orcamento').doc(mesKey);
+    const docSnap = await ref.get();
+    if (!docSnap.exists) {
+      if (i > 2 && removidas === 0) break;
+      continue;
+    }
+
+    const itens     = docSnap.data().itens || [];
+    const filtrados = itens.filter(it => it.parcelamentoId !== parcelamentoId);
+    if (filtrados.length < itens.length) {
+      await ref.set({ uid, mes, ano, itens: filtrados, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+      removidas += itens.length - filtrados.length;
+    }
+    if (i > 2 && removidas === 0) break;
+  }
+
+  return { ok: true, removidas };
 });
 
 // ─── RECORRENTES (despesas fixas mensais) ─────────────────────────────────────
@@ -1471,7 +1583,7 @@ exports.criarPlanilha = onCall({ secrets: SECRETS_ALL }, async (request) => {
  * Atualiza campos editáveis de uma mentorada (status, nota, perfil).
  * Exclusivo para admin.
  */
-exports.updateMentorada = onCall({}, async (request) => {
+exports.updateMentorada = onCall({ secrets: [sGmail] }, async (request) => {
   requireAdmin(request);
 
   const { uid, campos } = request.data;
@@ -1481,7 +1593,7 @@ exports.updateMentorada = onCall({}, async (request) => {
     'status', 'nota', 'perfil', 'inicio',
     'produto', 'valorMensal', 'formaPagamento', 'dataExpiracao',
     'mentoriaEncerrada', 'assinaturaDashboard', 'assinaturaClube',
-    'notionLicoesPendentes',
+    'notionLicoesPendentes', 'nome', 'email',
   ];
   const atualizacao = {};
   for (const [k, v] of Object.entries(campos || {})) {
@@ -1494,6 +1606,28 @@ exports.updateMentorada = onCall({}, async (request) => {
   }
 
   await db.collection('mentoradas').doc(uid).update(atualizacao);
+
+  // Espelha nome e e-mail no Firebase Auth
+  const authUpdate = {};
+  if (atualizacao.nome)  authUpdate.displayName = atualizacao.nome;
+  if (atualizacao.email) authUpdate.email        = atualizacao.email;
+  if (Object.keys(authUpdate).length > 0) {
+    await admin.auth().updateUser(uid, authUpdate);
+  }
+
+  // Upgrade self-service: envia e-mail quando mentoria é encerrada
+  if (atualizacao.mentoriaEncerrada === true) {
+    const snap = await db.collection('mentoradas').doc(uid).get();
+    const { nome, email } = snap.data() || {};
+    if (email) {
+      sendEmail({
+        to:      email,
+        subject: 'Sua mentoria chegou ao fim — e sua jornada continua',
+        html:    emailUpgradeDashboard(nome || 'mentorada'),
+      }).catch(e => console.warn('[updateMentorada] Falha ao enviar e-mail de upgrade:', e.message));
+    }
+  }
+
   return { ok: true };
 });
 
@@ -1690,6 +1824,9 @@ const EVENTOS_VALIDOS = new Set([
   'csv_importado', 'aporte_registrado', 'patrimonio_atualizado',
   'reserva_salva', 'perfil_atualizado', 'planejamento_configurado',
   'fixa_cadastrada', 'cartao_cadastrado',
+  // Eventos de abandono (5.3/5.4)
+  'ir_importado', 'corretora_importada', 'divida_cadastrada',
+  'reserva_retirada', 'aba_anual_aberta',
 ]);
 
 exports.registrarEvento = onCall({}, async (request) => {
@@ -3021,7 +3158,7 @@ exports.anunciarNovidades = onCall({ secrets: SECRETS_EMAIL }, async (request) =
     try {
       await sendEmail({
         to:      m.email,
-        subject: 'Seu dashboard ficou ainda mais poderoso 🎉',
+        subject: 'Novidades no seu Dashboard — Junho 2026',
         html:    emailNovidades(m.nome || 'mentorada'),
       });
       enviados++;
@@ -3030,6 +3167,10 @@ exports.anunciarNovidades = onCall({ secrets: SECRETS_EMAIL }, async (request) =
       erros++;
     }
   }
+  await db.collection('config').doc('comunicados').set(
+    { novidades: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
   return { ok: true, enviados, erros };
 });
 
@@ -3055,7 +3196,50 @@ exports.comunicadoTecnico = onCall({ secrets: SECRETS_EMAIL }, async (request) =
       erros++;
     }
   }
+  await db.collection('config').doc('comunicados').set(
+    { tecnico: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
   return { ok: true, enviados, erros };
+});
+
+/**
+ * Retorna o histórico de envio dos comunicados.
+ */
+exports.getComunicadosStatus = onCall({}, async (request) => {
+  requireAdmin(request);
+  const snap = await db.collection('config').doc('comunicados').get();
+  return snap.exists ? snap.data() : {};
+});
+
+/**
+ * Define a missão do mês (exibida no dashboard das mentoradas após onboarding).
+ * Somente admin. Espera: { titulo, descricao }
+ */
+exports.saveMissaoMes = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { titulo, descricao } = request.data;
+  if (!titulo) throw new HttpsError('invalid-argument', 'titulo é obrigatório.');
+  const mes = new Date().toISOString().slice(0, 7); // YYYY-MM
+  await db.collection('config').doc('missaoMes').set({ titulo, descricao: descricao || '', mes });
+  return { ok: true, mes };
+});
+
+/**
+ * Envia push manual para todas as mentoradas com subscription ativa.
+ * Somente admin. Espera: { titulo, corpo, url? }
+ */
+exports.enviarPushManual = onCall({ secrets: SECRETS_PUSH }, async (request) => {
+  requireAdmin(request);
+  const { titulo, corpo, url } = request.data;
+  if (!titulo || !corpo) throw new HttpsError('invalid-argument', 'titulo e corpo são obrigatórios.');
+  const enviados = await sendPushToAtivas({
+    titulo,
+    corpo,
+    url: url || '/index.html',
+    tag: 'push-manual',
+  });
+  return { ok: true };
 });
 
 exports.notifDia28 = onSchedule(
@@ -3327,14 +3511,16 @@ exports.verificarExpiracoes = onSchedule(
   { schedule: '0 9 * * *', timeZone: 'America/Sao_Paulo', secrets: [sGmail] },
   comMonitoramento('verificarExpiracoes', async () => {
     const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    // Query simples por status (sem compound index) + filtro em memória.
+    // Cron diário com poucas dezenas de docs — não justifica índice composto.
     const snap = await db.collection('mentoradas')
       .where('status', '==', 'ativa')
-      .where('dataExpiracao', '<=', hoje)
       .get();
 
     for (const doc of snap.docs) {
       const { dataExpiracao, assinaturaDashboard, assinaturaClube } = doc.data();
-      if (!dataExpiracao) continue; // sem expiração definida: ignora
+      if (!dataExpiracao) continue;
+      if (dataExpiracao > hoje) continue; // ainda não expirou
 
       // Mantém acesso se tem assinatura ativa de dashboard ou clube
       if (assinaturaDashboard === true) {
@@ -3509,29 +3695,55 @@ exports.getNotionCRM = onCall({ secrets: [sNotion] }, async (request) => {
   let pageUrl = pageId ? `https://notion.so/${pageId.replace(/-/g, '')}` : null;
 
   if (!pageId) {
-    const searchRes = await fetch('https://api.notion.com/v1/search', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        query: nome,
-        filter: { value: 'page', property: 'object' },
-        page_size: 15,
-      }),
-    });
+    // Constrói queries em ordem decrescente de especificidade.
+    // Se o nome tem nome do meio (≥3 palavras), adiciona variantes com primeiro+último
+    // para cobrir páginas Notion com nome abreviado (ex: "Marcia Ribeiro" vs "Marcia Camila Ribeiro").
+    const nomePartes = nome.trim().split(/\s+/);
+    const nomeAbrev  = nomePartes.length >= 3
+      ? `${nomePartes[0]} ${nomePartes[nomePartes.length - 1]}`
+      : null;
+    const queries = [
+      `Mentoria Trilogia ${nome}`,
+      nome,
+      ...(nomeAbrev ? [`Mentoria Trilogia ${nomeAbrev}`, nomeAbrev] : []),
+    ];
 
-    if (!searchRes.ok) {
-      const err = await searchRes.json();
-      throw new HttpsError('internal', `Notion search falhou: ${err.message || searchRes.status}`);
+    let page = null;
+    for (const query of queries) {
+      const searchRes = await fetch('https://api.notion.com/v1/search', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query,
+          filter: { value: 'page', property: 'object' },
+          page_size: 100,
+        }),
+      });
+
+      if (!searchRes.ok) {
+        const err = await searchRes.json().catch(() => ({}));
+        throw new HttpsError('internal', `Notion search falhou: ${err.message || searchRes.status}`);
+      }
+
+      const searchData = await searchRes.json();
+      const nomeNorm  = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const nomeWords = nomeNorm.split(/\s+/).filter(Boolean);
+      page = (searchData.results || []).find(p => {
+        const raw = getRichText(p.properties?.title?.title) ||
+                    getRichText(p.properties?.Name?.title)  || '';
+        const titleNorm  = raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const titleWords = titleNorm.split(/\s+/).filter(Boolean);
+        // Corresponde se todas as palavras do título estiverem no nome do admin,
+        // ou se todas as palavras do nome estiverem no título (lida com nome do meio ausente em ambos os lados)
+        return titleWords.every(w => nomeWords.includes(w)) ||
+               nomeWords.every(w => titleWords.includes(w));
+      });
+
+      if (page) break;
     }
 
-    const searchData = await searchRes.json();
-    const page = (searchData.results || []).find(p => {
-      const title = getRichText(p.properties?.title?.title) ||
-                    getRichText(p.properties?.Name?.title)  || '';
-      return title.toLowerCase().includes(nome.toLowerCase());
-    });
-
     if (!page) {
+      console.warn(`[getNotionCRM] Página não encontrada para: "${nome}" (uid=${uid})`);
       return { notionPageUrl: null, ultimoEncontro: null, licoesPendentes: [] };
     }
     pageId  = page.id;
@@ -3966,5 +4178,62 @@ exports.syncDiagnosticoWebhook = onRequest({ secrets: [sDiagSecret] }, async (re
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * backupFirestore — exporta o Firestore para o Cloud Storage semanalmente.
+ * Roda todo domingo às 02h (Sao_Paulo).
+ * Pré-requisito (1x manual via gcloud):
+ *   gcloud projects add-iam-policy-binding trilogia-dashboard \
+ *     --member="serviceAccount:$(gcloud projects describe trilogia-dashboard --format='value(projectNumber)')-compute@developer.gserviceaccount.com" \
+ *     --role="roles/datastore.importExportAdmin"
+ */
+exports.backupFirestore = onSchedule(
+  { schedule: '0 2 * * 0', timeZone: 'America/Sao_Paulo' },
+  comMonitoramento('backupFirestore', async () => {
+    const { GoogleAuth } = require('google-auth-library');
+    const auth   = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+    const client = await auth.getClient();
+    const token  = await client.getAccessToken();
+
+    const date   = new Date().toISOString().slice(0, 10);
+    const bucket = `gs://trilogia-dashboard.appspot.com/firestore-backups/${date}`;
+
+    const res = await fetch(
+      'https://firestore.googleapis.com/v1/projects/trilogia-dashboard/databases/(default):exportDocuments',
+      {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token.token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ outputUriPrefix: bucket }),
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Firestore export falhou: ${JSON.stringify(err)}`);
+    }
+
+    const result = await res.json();
+    console.log(`[backupFirestore] Export iniciado para ${bucket}:`, result.name);
+  })
+);
+
+/**
+ * healthCheck — endpoint público para smoke tests pós-deploy.
+ * Verifica conectividade com Firestore e retorna status geral.
+ * Chamado pelo GitHub Actions após cada push na main.
+ */
+exports.healthCheck = onRequest({ cors: false }, async (req, res) => {
+  const checks = { firestore: false, ts: new Date().toISOString() };
+  try {
+    await db.collection('config').doc('healthCheck').set(
+      { lastCheck: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+    checks.firestore = true;
+    res.json({ ok: true, ...checks });
+  } catch (err) {
+    res.status(500).json({ ok: false, ...checks, error: err.message });
   }
 });

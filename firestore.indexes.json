@@ -36,6 +36,14 @@
       "collectionGroup": "mentoradas",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "status",         "order": "ASCENDING" },
+        { "fieldPath": "dataExpiracao",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mentoradas",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "dataExpiracao",       "order": "ASCENDING" },
         { "fieldPath": "assinaturaDashboard", "order": "ASCENDING" }
       ]
