@@ -1251,6 +1251,31 @@
         <div id="backupStatus" style="font-size:13px;color:var(--text-secondary);">Carregando…</div>
       </div>
 
+      <!-- Missão do mês -->
+      <div class="detalhe-card" style="margin-top:24px;">
+        <div class="card-header-row" style="margin-bottom:16px;">
+          <div class="detalhe-card-label">✦ Missão do mês</div>
+        </div>
+        <p style="font-size:13px;color:var(--text-secondary);margin:0 0 16px;">
+          Aparece no dashboard das mentoradas que concluíram o onboarding. Válida apenas para o mês atual.
+          Se não definida, o sistema exibe uma missão automática com base no score.
+        </p>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px;">Título *</label>
+          <input type="text" id="missaoTituloInput" placeholder="Ex: Revise suas reservas este mês" maxlength="80"
+            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;box-sizing:border-box;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px;">Descrição (opcional)</label>
+          <textarea id="missaoDescricaoInput" rows="2" placeholder="Ex: Verifique se os aportes programados estão sendo feitos." maxlength="200"
+            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;resize:vertical;box-sizing:border-box;"></textarea>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button id="btnSalvarMissao" class="btn-salvar-nota" style="padding:10px 24px;">Salvar missão</button>
+          <span id="missaoFeedback" style="font-size:13px;color:var(--text-muted);display:none;"></span>
+        </div>
+      </div>
+
       <!-- Push manual -->
       <div class="detalhe-card" style="margin-top:24px;">
         <div class="card-header-row" style="margin-bottom:16px;">
@@ -1582,7 +1607,7 @@
              getLeads, saveLead, updateLead, deleteLead,
              syncDiagnostico, anunciarNovidades, comunicadoTecnico, migrarOrcamento, getAnalytics,
              getAdmins, addAdmin, removeAdmin, getBackupStatus,
-             enviarPushManual } from './js/api.js?v=14';
+             enviarPushManual, saveMissaoMes } from './js/api.js?v=14';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -2197,6 +2222,28 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
     }
 
     function escHtml(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    document.getElementById('btnSalvarMissao')?.addEventListener('click', async () => {
+      const titulo    = document.getElementById('missaoTituloInput').value.trim();
+      const descricao = document.getElementById('missaoDescricaoInput').value.trim();
+      const feedback  = document.getElementById('missaoFeedback');
+      if (!titulo) { feedback.textContent = 'Preencha o título.'; feedback.style.color = 'var(--negative)'; feedback.style.display = ''; return; }
+      const btn = document.getElementById('btnSalvarMissao');
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      feedback.style.display = 'none';
+      try {
+        await saveMissaoMes({ titulo, descricao });
+        feedback.textContent = '✅ Missão do mês salva!';
+        feedback.style.color = 'var(--positive)';
+        feedback.style.display = '';
+      } catch (e) {
+        feedback.textContent = 'Erro: ' + e.message;
+        feedback.style.color = 'var(--negative)';
+        feedback.style.display = '';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar missão';
+      }
+    });
 
     document.getElementById('btnEnviarPush')?.addEventListener('click', async () => {
       const titulo   = document.getElementById('pushTitulo').value.trim();

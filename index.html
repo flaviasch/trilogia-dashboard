@@ -666,6 +666,18 @@
   <!-- Conteúdo principal (oculto até carregar) -->
   <main class="main" id="mainContent" style="display:none">
 
+    <!-- Missão do mês (aparece após onboarding completo) -->
+    <div id="missaoCard" style="display:none;background:linear-gradient(135deg,rgba(207,174,101,0.12),rgba(207,174,101,0.04));border:1px solid var(--border-gold);border-radius:14px;padding:20px 24px;margin-bottom:24px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);margin-bottom:6px;">✦ Missão de <span id="missaoMesNome"></span></div>
+          <div id="missaoTitulo" style="font-family:'Playfair Display',serif;font-size:16px;font-weight:600;margin-bottom:4px;"></div>
+          <div id="missaoDescricao" style="font-size:13px;color:var(--text-secondary);line-height:1.5;"></div>
+        </div>
+        <div id="missaoScore" style="text-align:center;flex-shrink:0;min-width:64px;"></div>
+      </div>
+    </div>
+
     <!-- Setup progress (1–3 etapas concluídas) -->
     <div id="setupProgress" style="display:none">
       <div class="setup-progress">
@@ -1271,6 +1283,8 @@
         if (totalDone < steps.length) {
           renderSetupProgress(steps, totalDone);
           document.getElementById('setupProgress').style.display = 'block';
+        } else {
+          renderMissaoMes(data);
         }
         // Só mostra modal LGPD para quem já passou do onboarding
         verificarLGPD(data.lgpdAceite);
@@ -1307,6 +1321,47 @@
       if (localStorage.getItem(LGPD_KEY) === '1') return;
       localStorage.setItem(LGPD_KEY, '1');
       aceitarLGPD().catch(() => {});
+    }
+
+    function renderMissaoMes(data) {
+      const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      const mesNome = MESES[(data.mes || new Date().getMonth() + 1) - 1];
+      const score   = data.scoreMes ?? null;
+      const missao  = data.missaoMes;
+
+      // Título e descrição: admin > auto
+      let titulo, descricao;
+      if (missao?.titulo) {
+        titulo    = missao.titulo;
+        descricao = missao.descricao || '';
+      } else if (score === null) {
+        titulo    = `Registre o orçamento de ${mesNome}`;
+        descricao = 'Importe o CSV do Raio-X ou lance seus gastos manualmente para acompanhar seu progresso.';
+      } else if (score < 60) {
+        titulo    = 'Revise seu planejamento este mês';
+        descricao = 'Seu score indica que há espaço para melhorar. Confira os limites por categoria no orçamento.';
+      } else if (score < 80) {
+        titulo    = 'Registre seu aporte do mês';
+        descricao = 'Você está no caminho certo! Garanta o aporte para subir ainda mais seu score financeiro.';
+      } else {
+        titulo    = `Missão cumprida em ${mesNome}! 🌟`;
+        descricao = 'Score excelente. Continue mantendo o hábito de registrar e acompanhar suas finanças.';
+      }
+
+      document.getElementById('missaoMesNome').textContent = mesNome;
+      document.getElementById('missaoTitulo').textContent  = titulo;
+      document.getElementById('missaoDescricao').textContent = descricao;
+
+      // Score badge
+      const scoreEl = document.getElementById('missaoScore');
+      if (score !== null) {
+        const cor = score >= 80 ? '#CFAE65' : score >= 60 ? '#4ade80' : score >= 40 ? '#f59e0b' : '#f87171';
+        scoreEl.innerHTML = `<div style="font-size:28px;font-weight:700;color:${cor};line-height:1">${score}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">score</div>`;
+      } else {
+        scoreEl.innerHTML = '';
+      }
+
+      document.getElementById('missaoCard').style.display = '';
     }
 
     function renderSetupProgress(steps, totalDone) {

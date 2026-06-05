@@ -837,6 +837,10 @@ export async function enviarPushManual({ titulo, corpo, url }) {
   return call('enviarPushManual')({ titulo, corpo, url });
 }
 
+export async function saveMissaoMes({ titulo, descricao }) {
+  return call('saveMissaoMes')({ titulo, descricao });
+}
+
 // ─── ANALYTICS ───────────────────────────────────────────────────────────────
 
 export function registrarEvento(evento) {
