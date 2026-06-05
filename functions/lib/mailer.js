@@ -382,7 +382,7 @@ function emailNovidades(nome) {
     <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
       ${featureItem('✦','Missão do mês','Ao concluir a configuração do seu dashboard, uma missão personalizada aparece na tela inicial a cada mês. Ela combina uma meta definida especialmente para você com o seu score financeiro atual — para você saber exatamente onde focar.')}
       ${featureItem('📊','Exportação anual em PDF','Na aba Anual do Orçamento, agora existe um botão para exportar o resumo completo do ano em PDF — receita, despesa, sobra e score mês a mês, tudo em uma página organizada para guardar ou compartilhar.')}
-      ${featureItem('★','Clube Trilogia renovado','Gravações e materiais adicionados nos últimos 7 dias ganham o selo Novo para você não perder nada. As seções aparecem apenas quando há conteúdo publicado, e cada vídeo agora exibe uma descrição do que você vai encontrar.')}
+      ${featureItem('★','Clube Trilogia renovado <span style="font-size:11px;font-weight:400;color:#9ca3af;">(para quem tem acesso ao Clube)</span>','Gravações e materiais adicionados nos últimos 7 dias ganham o selo Novo para você não perder nada. As seções aparecem apenas quando há conteúdo publicado, e cada vídeo agora exibe uma descrição do que você vai encontrar.')}
     </table>
     <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
       Acessar agora →
