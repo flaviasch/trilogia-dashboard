@@ -841,6 +841,10 @@ export async function saveMissaoMes({ titulo, descricao }) {
   return call('saveMissaoMes')({ titulo, descricao });
 }
 
+export async function getComunicadosStatus() {
+  return call('getComunicadosStatus')({});
+}
+
 // ─── ANALYTICS ───────────────────────────────────────────────────────────────
 
 export function registrarEvento(evento) {

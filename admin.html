@@ -1607,7 +1607,7 @@
              getLeads, saveLead, updateLead, deleteLead,
              syncDiagnostico, anunciarNovidades, comunicadoTecnico, migrarOrcamento, getAnalytics,
              getAdmins, addAdmin, removeAdmin, getBackupStatus,
-             enviarPushManual, saveMissaoMes } from './js/api.js?v=14';
+             enviarPushManual, saveMissaoMes, getComunicadosStatus } from './js/api.js?v=14';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -1629,8 +1629,32 @@
 
     // ─── Modal Comunicados ───────────────────────────────────────────────────
     const modalCom = document.getElementById('modalComunicados');
-    document.getElementById('btnComunicados').addEventListener('click', () => {
+    document.getElementById('btnComunicados').addEventListener('click', async () => {
       modalCom.style.display = 'flex';
+      // Carrega status de envios anteriores
+      try {
+        const status = await getComunicadosStatus();
+        const fmt = (ts) => {
+          if (!ts) return null;
+          const d = ts.toDate ? ts.toDate() : new Date(ts._seconds * 1000);
+          return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        };
+        if (status.novidades?.enviadoEm) {
+          const el = document.getElementById('statusNovidades');
+          el.textContent = `✅ Enviado em ${fmt(status.novidades.enviadoEm)} · ${status.novidades.enviados} destinatários`;
+          el.style.color = '#4ade80';
+          const btn = document.getElementById('btnDispararNovidades');
+          btn.textContent = 'Reenviar →';
+          btn.style.background = 'rgba(207,174,101,0.15)';
+        }
+        if (status.tecnico?.enviadoEm) {
+          const el = document.getElementById('statusTecnico');
+          el.textContent = `✅ Enviado em ${fmt(status.tecnico.enviadoEm)} · ${status.tecnico.enviados} destinatários`;
+          el.style.color = '#4ade80';
+          const btn = document.getElementById('btnDispararTecnico');
+          btn.textContent = 'Reenviar →';
+        }
+      } catch { /* silencioso */ }
     });
     document.getElementById('btnFecharComunicados').addEventListener('click', () => {
       modalCom.style.display = 'none';
