@@ -371,31 +371,23 @@ function emailNovidades(nome) {
     </td></tr>`;
 
   return layout(`
-    <h2 style="${S.h2}">Seu dashboard ficou ainda mais poderoso 🎉</h2>
+    <h2 style="${S.h2}">Novidades no seu Dashboard — Junho 2026</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
-      Nos últimos meses o seu Dashboard Trilogia recebeu uma série de atualizações.
-      É muita coisa nova — tudo pensado para tornar sua vida financeira ainda mais organizada e automática.
+      O Trilogia Dashboard ganhou três novidades este mês — todas pensadas para deixar seu acompanhamento financeiro mais claro, mais visual e mais fácil de usar.
     </p>
     <p style="margin:0 0 16px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-      Veja o que chegou:
+      O que chegou:
     </p>
     <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
-      ${featureItem('🔄','Despesas fixas recorrentes','Aluguel, streaming, academia, parcelas — cadastre uma vez e o dashboard lança sozinho todo mês. Ficou pendente? Um clique e tudo está registrado. Quer alterar só este mês? Pode. Quer mudar daqui pra frente? Também.')}
-      ${featureItem('💳','Cartão de crédito com fatura inteligente','Informe a data de corte do seu cartão e o dashboard já sabe em qual mês registrar cada compra — automaticamente. Chega de confusão com fatura do mês errado.')}
-      ${featureItem('🔔','Lembretes no seu celular','Ative as notificações push direto no navegador do celular. No dia 1, lembrete de orçamento. No dia 28, lembrete de aporte. Tudo no momento certo, sem depender de abrir o app.')}
-      ${featureItem('📬','Relatório mensal automático','Todo dia 1 você recebe no e-mail um resumo completo do mês anterior: quanto entrou, quanto saiu, sua sobra e o saldo das reservas. Um retrato fiel da sua evolução — sem precisar fazer nada.')}
-      ${featureItem('✍️','Lançamentos com autocomplete','Na hora de registrar uma despesa manualmente, o dashboard sugere a categoria automaticamente conforme você digita. Mais rápido, menos erro.')}
+      ${featureItem('✦','Missão do mês','Ao concluir a configuração do seu dashboard, uma missão personalizada aparece na tela inicial a cada mês. Ela combina uma meta definida especialmente para você com o seu score financeiro atual — para você saber exatamente onde focar.')}
+      ${featureItem('📊','Exportação anual em PDF','Na aba Anual do Orçamento, agora existe um botão para exportar o resumo completo do ano em PDF — receita, despesa, sobra e score mês a mês, tudo em uma página organizada para guardar ou compartilhar.')}
+      ${featureItem('★','Clube Trilogia renovado','Gravações e materiais adicionados nos últimos 7 dias ganham o selo Novo para você não perder nada. As seções aparecem apenas quando há conteúdo publicado, e cada vídeo agora exibe uma descrição do que você vai encontrar.')}
     </table>
-    <p style="${S.p}">
-      Além de tudo isso, o dashboard está <strong style="color:#0D2B45;">mais seguro e mais estável do que nunca.</strong>
-      Atualizamos toda a infraestrutura de segurança, implementamos monitoramento em tempo real
-      e garantimos que seus dados estejam sempre protegidos e com backup automático diário.
-    </p>
     <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
       Acessar agora →
     </a>
-    <p style="${S.pSmall}">Com muito carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
   `);
 }
 
@@ -591,6 +583,44 @@ function emailRetencaoDia7(nome) {
   `);
 }
 
+/**
+ * E-mail de upgrade: enviado à mentorada quando a mentoria é encerrada.
+ * Oferece assinatura standalone do Dashboard (mensal ou anual).
+ */
+function emailUpgradeDashboard(nome) {
+  return layout(`
+    <h2 style="${S.h2}">Sua mentoria chegou ao fim — e sua jornada continua</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Sua Mentoria Trilogia Financeira foi encerrada. Foi uma trajetória de muito aprendizado
+      e avanço na sua vida financeira — e tudo que você construiu fica guardado no seu Dashboard.
+    </p>
+    <p style="${S.p}">
+      Para continuar acompanhando seu patrimônio, reservas, orçamento e score financeiro,
+      você pode manter o acesso com a assinatura do Trilogia Dashboard:
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+      <tr>
+        <td align="center" style="padding:0 8px 12px;">
+          <a href="https://pay.kiwify.com.br/ntySa9B" style="${S.btn}">
+            Mensal — R$&nbsp;147/mês
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:0 8px;">
+          <a href="https://pay.kiwify.com.br/KIhxony" style="display:inline-block;background:#f3f4f6;color:#0D2B45;padding:14px 28px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;">
+            Anual — R$&nbsp;1.470/ano <span style="font-size:12px;font-weight:400;color:#6b7280;">(economize 2 meses)</span>
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="${S.pSmall}">
+      Em caso de dúvidas, fale diretamente com a Flávia pelo WhatsApp ou e-mail.
+    </p>
+  `);
+}
+
 module.exports = {
   sendEmail,
   emailRenovacaoPerfil,
@@ -609,4 +639,5 @@ module.exports = {
   emailRetencaoDia3,
   emailRetencaoDia7,
   emailRelatorioMensal,
+  emailUpgradeDashboard,
 };
