@@ -1306,6 +1306,7 @@
               'success'
             );
             registrarEvento('patrimonio_atualizado');
+            registrarEvento(tipo === 'ir' ? 'ir_importado' : 'corretora_importada');
             // Se havia retirada pendente de atualização, sinaliza como resolvido
             if (tipo === 'corretora') localStorage.removeItem('patrimonio_extrato_pendente');
             conciliarReservas(ativos);
@@ -1473,6 +1474,7 @@
           await saveDivida(nova);
         }
         toast('Dívida salva!', 'success');
+        if (!editandoDividaId) registrarEvento('divida_cadastrada');
       } catch (err) {
         toast(`Erro ao salvar dívida: ${msgErro(err)}`, 'error');
       } finally {

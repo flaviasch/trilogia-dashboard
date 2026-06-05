@@ -1787,7 +1787,7 @@
             renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
           });
       }
-      if (id === 'anual')       renderAnual();
+      if (id === 'anual')       { renderAnual(); registrarEvento('aba_anual_aberta'); }
     }
 
     // ─── Listeners das abas e colapsáveis (via JS, não onclick no HTML) ───────
