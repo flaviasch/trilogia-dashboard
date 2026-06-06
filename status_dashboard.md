@@ -219,10 +219,11 @@ Todos deployados em `firestore.indexes.json`:
 
 ---
 
-## Pendências técnicas (ação manual da Flávia)
+## Pendências técnicas
 
-1. **Backup Firestore IAM**: rodar 1x no terminal → `gcloud projects add-iam-policy-binding trilogia-dashboard --member="serviceAccount:$(gcloud projects describe trilogia-dashboard --format='value(projectNumber)')-compute@developer.gserviceaccount.com" --role="roles/datastore.importExportAdmin"`
+> Nenhuma pendência técnica aberta.
 
+> ~~Backup Firestore IAM~~ — ✅ concluído (05/06/2026)
 > ~~Token Kiwify~~ — ✅ concluído
 > ~~CONTEXTO.md linha 4~~ — ✅ corrigido (commit 8b2d40a)
 
