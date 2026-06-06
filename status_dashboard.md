@@ -240,8 +240,10 @@ Todos deployados em `firestore.indexes.json`:
 
 ## Plano de ação — estado final (Jun/2026)
 
-**13 de 13 itens concluídos.**
-Próxima ação relevante: quando pronto para WhatsApp → registrar número dedicado + conta Meta Business verificada.
+**Tudo concluído.**
+- ~~Fase 4 — Data de corte automática de cartão~~ — ✅ concluído
+- **Analytics 5.4** — agendado para setembro/2026 (aguarda volume de dados)
+- **WhatsApp** — bloqueado por infra externa (número dedicado + Meta Business verificada)
 
 ---
 
