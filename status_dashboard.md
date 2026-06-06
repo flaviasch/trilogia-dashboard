@@ -233,7 +233,8 @@ Todos deployados em `firestore.indexes.json`:
 - Hub `index.html`: esteira com Dashboard (substituiu Clube), card Acompanhamento atualizado
 - `pagina-vendas/dashboard/`: página de vendas completa (4 planos, seção app, posicionamento visual+comportamental)
 - `pagina-vendas/clube/`: redirect automático → `/dashboard/`
-- Pendente: página do Raio-X Financeiro, reposicionar Mapa da Reserva
+- ~~Pendente: página do Raio-X Financeiro~~ — ✅ concluído
+- ~~Pendente: reposicionar Mapa da Reserva~~ — ✅ concluído
 
 ---
 
