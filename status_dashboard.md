@@ -219,12 +219,13 @@ Todos deployados em `firestore.indexes.json`:
 
 ---
 
-## Pendências técnicas (ação manual da Flávia)
+## Pendências técnicas
 
-> Nenhuma pendência técnica aberta no momento.
+> Nenhuma pendência técnica aberta.
 
-> ~~Token Kiwify~~ — concluído (05/06/2026)
-> ~~CONTEXTO.md linha 4~~ — corrigido em commit 8b2d40a (03/06/2026)
+> ~~Backup Firestore IAM~~ — ✅ concluído
+> ~~Token Kiwify~~ — ✅ concluído
+> ~~CONTEXTO.md linha 4~~ — ✅ corrigido (commit 8b2d40a)
 
 ---
 
