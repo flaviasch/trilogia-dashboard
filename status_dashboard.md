@@ -206,7 +206,7 @@ Todos deployados em `firestore.indexes.json`:
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Leitura de planilhas |
 | `NOTION_TOKEN` | getNotionCRM |
 | `DIAGNOSTICO_WEBHOOK_SECRET` | syncDiagnosticoWebhook — Apps Script já atualizado (02/06/2026) |
-| `KIWIFY_WEBHOOK_SECRET` | kiwifyWebhook (verificar se Kiwify envia token — pendente) |
+| `KIWIFY_WEBHOOK_SECRET` | kiwifyWebhook ✅ configurado |
 
 ---
 
@@ -221,8 +221,9 @@ Todos deployados em `firestore.indexes.json`:
 
 ## Pendências técnicas (ação manual da Flávia)
 
-1. **Token Kiwify**: verificar em Configurações → Webhooks se existe campo "Token" e rodar `firebase functions:secrets:set KIWIFY_WEBHOOK_SECRET`
+> Nenhuma pendência técnica aberta no momento.
 
+> ~~Token Kiwify~~ — concluído (05/06/2026)
 > ~~CONTEXTO.md linha 4~~ — corrigido em commit 8b2d40a (03/06/2026)
 
 ---
