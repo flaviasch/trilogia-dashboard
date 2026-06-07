@@ -923,15 +923,12 @@
         }
       }
 
-      // Admin (por claim ou recém-configurada) sem documento de mentorada
+      // Admin sem documento de mentorada → painel admin
       if (!ok && admin) {
-        // Se entrou em modo usuária mas ainda não tem perfil de mentorada → vai pro admin
         localStorage.removeItem('modoAcesso');
         window.location.href = 'admin.html';
         return;
       }
-      // Admin em modo usuária com perfil de mentorada: limpa flag, continua normalmente
-      localStorage.removeItem('modoAcesso');
 
       document.getElementById('loadingOverlay').style.display = 'none';
       // Visibilidade de mainContent / welcomeScreen é gerenciada por checkOnboarding()
