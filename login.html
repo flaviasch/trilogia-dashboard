@@ -271,12 +271,12 @@
 
     // Botões do modal de escolha de modo
     document.getElementById('btnModoDashboard').addEventListener('click', () => {
-      sessionStorage.setItem('modoAcesso', 'usuario');
+      localStorage.setItem('modoAcesso', 'usuario');
       window.location.href = 'index.html';
     });
 
     document.getElementById('btnModoAdmin').addEventListener('click', () => {
-      sessionStorage.removeItem('modoAcesso');
+      localStorage.removeItem('modoAcesso');
       window.location.href = 'admin.html';
     });
   </script>

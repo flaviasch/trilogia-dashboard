@@ -2429,7 +2429,7 @@
     });
 
     async function init(user) {
-      if (!VIEW_AS_UID && await isAdmin()) { window.location.href = 'admin.html'; return; }
+      if (!VIEW_AS_UID && await isAdmin() && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
 
       const agora = new Date();
       const mes = agora.getMonth() + 1;
