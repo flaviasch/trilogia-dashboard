@@ -950,7 +950,7 @@
     async function init(user) {
       // Guard: admin sem contexto viewAs não deve salvar dados de nenhuma mentorada.
       // Redireciona para admin.html onde pode escolher a mentorada correta.
-      if (!VIEW_AS_UID && await isAdmin()) {
+      if (!VIEW_AS_UID && await isAdmin() && localStorage.getItem('modoAcesso') !== 'usuario') {
         window.location.href = 'admin.html';
         return;
       }
