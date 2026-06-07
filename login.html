@@ -129,6 +129,41 @@
       background: var(--border);
       margin: 24px 0;
     }
+
+    /* ── Modal: escolha de modo de acesso (admin) ── */
+    #modalModo {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75); z-index: 999;
+      align-items: center; justify-content: center;
+    }
+    #modalModo.visible { display: flex; }
+    .modo-card {
+      background: var(--navy);
+      border: 1px solid rgba(207,174,101,0.3);
+      border-radius: 16px; padding: 36px 32px;
+      max-width: 340px; width: 90%; text-align: center;
+    }
+    .modo-card h3 {
+      font-family: 'Playfair Display', serif;
+      color: var(--gold); font-size: 1.25rem; margin-bottom: 6px;
+    }
+    .modo-card p {
+      color: rgba(255,255,255,0.45); font-size: 13px; margin-bottom: 28px;
+    }
+    .btn-modo {
+      display: block; width: 100%;
+      padding: 14px; border-radius: 10px;
+      border: none; font-size: 15px; font-weight: 600;
+      cursor: pointer; margin-bottom: 12px;
+      font-family: 'Inter', sans-serif; transition: opacity .15s;
+    }
+    .btn-modo:last-child { margin-bottom: 0; }
+    .btn-modo:hover { opacity: .85; }
+    .btn-modo-dashboard { background: var(--gold); color: var(--navy); }
+    .btn-modo-admin {
+      background: transparent; color: var(--gold);
+      border: 1px solid rgba(207,174,101,0.35);
+    }
   </style>
 </head>
 <body>
@@ -165,8 +200,11 @@
       onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+    // Evita redirect automático quando estamos mostrando o modal de escolha de modo
+    let skipRedirect = false;
+
     onAuthStateChanged(auth, (user) => {
-      if (user) window.location.href = 'index.html';
+      if (user && !skipRedirect) window.location.href = 'index.html';
     });
 
     const btnLogin = document.getElementById('btnLogin');
@@ -195,8 +233,24 @@
       btnLogin.textContent = 'Entrando...';
 
       try {
+        skipRedirect = true;
         await signInWithEmailAndPassword(auth, email, password);
+
+        // Verifica se é admin pelo custom claim
+        const tokenResult = await auth.currentUser.getIdTokenResult();
+        const isAdm = tokenResult.claims?.admin === true;
+
+        if (isAdm) {
+          // Mostra modal de escolha de modo
+          btnLogin.disabled = false;
+          btnLogin.textContent = 'Entrar';
+          document.getElementById('modalModo').classList.add('visible');
+        } else {
+          skipRedirect = false;
+          window.location.href = 'index.html';
+        }
       } catch (err) {
+        skipRedirect = false;
         btnLogin.disabled = false;
         btnLogin.textContent = 'Entrar';
         if (err.code === 'auth/user-disabled') {
@@ -214,7 +268,28 @@
     document.getElementById('password').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') btnLogin.click();
     });
+
+    // Botões do modal de escolha de modo
+    document.getElementById('btnModoDashboard').addEventListener('click', () => {
+      sessionStorage.setItem('modoAcesso', 'usuario');
+      window.location.href = 'index.html';
+    });
+
+    document.getElementById('btnModoAdmin').addEventListener('click', () => {
+      sessionStorage.removeItem('modoAcesso');
+      window.location.href = 'admin.html';
+    });
   </script>
+
+  <!-- Modal: escolha de modo de acesso (exibido apenas para admin) -->
+  <div id="modalModo">
+    <div class="modo-card">
+      <h3>Como você quer entrar?</h3>
+      <p>Você tem acesso de admin e de usuária</p>
+      <button class="btn-modo btn-modo-dashboard" id="btnModoDashboard">📊 Meu Dashboard</button>
+      <button class="btn-modo btn-modo-admin" id="btnModoAdmin">⚙️ Painel Admin</button>
+    </div>
+  </div>
 
   <!-- Banner de instalação PWA (mobile only) — oculto por padrão, JS mostra se elegível -->
   <div id="pwaBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#0D2B45;border-top:1px solid rgba(207,174,101,0.3);padding:14px 20px;align-items:center;gap:12px;box-shadow:0 -4px 16px rgba(0,0,0,0.3);">
