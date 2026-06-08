@@ -81,6 +81,19 @@
     }
     .btn-logout:hover { border-color: var(--border-gold); color: var(--gold); }
 
+    /* ─── Botões de ação rápida ──────────────────── */
+    .btn-acao {
+      display: flex; align-items: center; gap: 7px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 14px;
+      font-size: 13px; color: var(--text-secondary);
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: border-color .2s, color .2s;
+      white-space: nowrap;
+    }
+    .btn-acao:hover { border-color: rgba(207,174,101,0.4) !important; color: var(--gold) !important; }
+
     /* ─── Layout ─────────────────────────────── */
     .main {
       max-width: 960px;
@@ -1200,30 +1213,10 @@
 
     <!-- Ações rápidas de lançamento -->
     <div style="display:flex;gap:8px;margin-top:-16px;margin-bottom:20px;flex-wrap:wrap;">
-      <button id="btnImportarSMS"
-        style="display:flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;"
-        onmouseover="this.style.borderColor='rgba(207,174,101,0.4)';this.style.color='var(--gold)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.color=''">
-        📱 Importar notificação do banco
-      </button>
-      <button id="btnAddDespesaRapida"
-        style="display:flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;"
-        onmouseover="this.style.borderColor='rgba(207,174,101,0.4)';this.style.color='var(--gold)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.color=''">
-        + Lançar manualmente
-      </button>
-      <button id="btnNovoParcelamento"
-        style="display:flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;"
-        onmouseover="this.style.borderColor='rgba(207,174,101,0.4)';this.style.color='var(--gold)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.color=''">
-        💳 Lançamento parcelado
-      </button>
-      <button id="btnGerenciarFixasTop"
-        style="display:flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;"
-        onmouseover="this.style.borderColor='rgba(207,174,101,0.4)';this.style.color='var(--gold)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.color=''">
-        ⚙️ Despesas fixas
-      </button>
+      <button id="btnImportarSMS" class="btn-acao">📱 Importar notificação do banco</button>
+      <button id="btnAddDespesaRapida" class="btn-acao">+ Lançar manualmente</button>
+      <button id="btnNovoParcelamento" class="btn-acao">💳 Lançamento parcelado</button>
+      <button id="btnGerenciarFixasTop" class="btn-acao">⚙️ Despesas fixas</button>
     </div>
 
     <!-- Score de saúde financeira -->
@@ -1241,7 +1234,7 @@
           <div class="resumo-label">Despesa Total</div>
           <div class="resumo-value negative" id="totalDespesa">—</div>
           <div class="resumo-sub" id="pctDespesa">—</div>
-          <div id="fixasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;cursor:pointer;" onclick="document.getElementById('bannerFixas').scrollIntoView({behavior:'smooth'})"></div>
+          <div id="fixasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;cursor:pointer;" onclick="abrirSelecaoFixas()"></div>
         </div>
         <div class="resumo-card destaque">
           <div class="resumo-label">Sobra do Mês</div>
@@ -1286,25 +1279,84 @@
 
       <!-- Modal importar notificação do cartão (SMS/push) -->
   <div id="modalSMS" class="modal-overlay hidden">
-    <div class="modal-card" style="max-width:460px;width:94%;">
-      <h3 style="font-family:'Playfair Display',serif;font-size:17px;margin:0 0 8px;">📱 Importar notificação do cartão</h3>
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">Cole o texto do SMS ou notificação push do banco — o sistema extrai o valor e o estabelecimento automaticamente.</p>
-      <textarea id="smsTexto" rows="4" placeholder='Ex: "Compra de R$89,90 no iFood em 30/05"&#10;ou "Nubank: R$ 45,00 em UBER *TRIP"'
-        style="width:100%;padding:10px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;resize:vertical;box-sizing:border-box;font-family:'Inter',sans-serif;"></textarea>
-      <div id="smsPreview" style="display:none;margin-top:12px;padding:12px 14px;background:rgba(207,174,101,0.08);border:1px solid rgba(207,174,101,0.25);border-radius:8px;">
-        <div style="font-size:12px;color:var(--gold);margin-bottom:8px;">Detectado:</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div><span style="font-size:11px;color:var(--text-secondary);">Valor</span><div id="smsValorDetect" style="font-size:15px;font-weight:700;color:var(--negative);"></div></div>
-          <div><span style="font-size:11px;color:var(--text-secondary);">Data</span><div id="smsDataDetect" style="font-size:14px;font-weight:600;"></div></div>
+    <div class="modal-card" style="max-width:480px;width:94%;max-height:88vh;overflow-y:auto;display:flex;flex-direction:column;">
+
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h3 style="font-family:'Playfair Display',serif;font-size:17px;margin:0;">📱 SMS do banco</h3>
+        <button id="btnFecharModalSMS" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;line-height:1;padding:2px 6px;">×</button>
+      </div>
+
+      <!-- Como usar -->
+      <details id="smsComoUsar" style="margin-bottom:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <summary style="padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;background:var(--navy-mid);">
+          <span>💡 Como usar</span>
+          <span style="font-size:11px;color:var(--text-muted);font-weight:400;">toque para ver</span>
+        </summary>
+        <div style="padding:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:12px;">
+
+          <!-- Opção 1: Colar -->
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="min-width:28px;height:28px;background:var(--gold);color:var(--navy);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">1</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:3px;">Copiar e colar</div>
+              <div style="font-size:12px;color:var(--text-secondary);">No app de mensagens, pressione o SMS do banco e toque em <strong style="color:var(--white);">Copiar</strong>. Depois cole aqui embaixo. O app detecta o valor automaticamente.</div>
+            </div>
+          </div>
+
+          <!-- Opção 2: Compartilhar (Android) -->
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="min-width:28px;height:28px;background:var(--gold);color:var(--navy);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">2</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:3px;">Compartilhar direto (Android)</div>
+              <div style="font-size:12px;color:var(--text-secondary);">Pressione o SMS → toque em <strong style="color:var(--white);">Compartilhar</strong> → escolha <strong style="color:var(--white);">Trilogia Dashboard</strong>. O valor cai direto na fila.</div>
+              <div style="margin-top:6px;padding:6px 10px;background:rgba(207,174,101,0.08);border-radius:6px;font-size:11px;color:var(--text-muted);">⚠️ Requer o app instalado na tela inicial. No Chrome, toque em ⋮ → <em>Adicionar à tela inicial</em>.</div>
+            </div>
+          </div>
+
+          <!-- O que acontece depois -->
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="min-width:28px;height:28px;background:rgba(207,174,101,0.15);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">✓</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:3px;">Revise e registre</div>
+              <div style="font-size:12px;color:var(--text-secondary);">O SMS vai para a fila de pendentes abaixo. Você revisa cada um e decide: <strong style="color:var(--white);">Registrar</strong> como despesa ou <strong style="color:var(--white);">✕ Descartar</strong>.</div>
+            </div>
+          </div>
+
         </div>
-        <div style="margin-top:8px;"><span style="font-size:11px;color:var(--text-secondary);">Estabelecimento (descrição)</span><div id="smsDescDetect" style="font-size:13px;margin-top:2px;"></div></div>
-        <div style="margin-top:8px;"><span style="font-size:11px;color:var(--text-secondary);">Categoria sugerida</span><div id="smsCatDetect" style="font-size:13px;margin-top:2px;font-weight:600;color:var(--gold);"></div></div>
+      </details>
+
+      <!-- Colar SMS -->
+      <p style="font-size:12px;color:var(--text-secondary);margin:0 0 10px;">Cole o SMS ou notificação do banco:</p>
+      <textarea id="smsTexto" rows="3" placeholder='Ex: "Compra de R$89,90 no iFood em 30/05"&#10;ou "Nubank: R$ 45,00 em UBER *TRIP"'
+        style="width:100%;padding:10px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;resize:vertical;box-sizing:border-box;font-family:'Inter',sans-serif;"></textarea>
+
+      <!-- Preview do parse -->
+      <div id="smsPreview" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(207,174,101,0.08);border:1px solid rgba(207,174,101,0.25);border-radius:8px;">
+        <div style="font-size:11px;color:var(--gold);margin-bottom:6px;">Detectado:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div><span style="font-size:11px;color:var(--text-secondary);">Valor</span><div id="smsValorDetect" style="font-size:15px;font-weight:700;color:var(--negative);"></div></div>
+          <div><span style="font-size:11px;color:var(--text-secondary);">Data</span><div id="smsDataDetect" style="font-size:13px;font-weight:600;"></div></div>
+        </div>
+        <div style="margin-top:6px;"><span style="font-size:11px;color:var(--text-secondary);">Descrição · </span><span id="smsDescDetect" style="font-size:12px;"></span>
+          <span id="smsCatDetect" style="font-size:11px;color:var(--gold);margin-left:4px;font-weight:600;"></span></div>
       </div>
-      <div id="smsErro" style="display:none;font-size:12px;color:var(--negative);margin-top:8px;"></div>
-      <div style="display:flex;gap:10px;margin-top:16px;">
-        <button id="btnSMSLancar" class="btn-primary" style="flex:1;font-size:14px;" disabled>Lançar como despesa</button>
-        <button id="btnSMSCancelar" class="btn-secondary" style="font-size:14px;padding:10px 16px;">Cancelar</button>
+      <div id="smsErro" style="display:none;font-size:12px;color:var(--negative);margin-top:6px;"></div>
+
+      <button id="btnSMSAdicionarFila" class="btn-primary" style="width:100%;font-size:14px;margin-top:12px;" disabled>+ Adicionar à fila</button>
+
+      <!-- Fila de pendentes -->
+      <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:600;">Pendentes</span>
+            <span id="smsBadgeModal" style="display:none;background:var(--gold);color:var(--navy);border-radius:10px;padding:0 7px;font-size:11px;font-weight:700;line-height:18px;"></span>
+          </div>
+          <button id="btnSMSLimparFila" style="display:none;background:none;border:none;font-size:11px;color:var(--text-muted);cursor:pointer;text-decoration:underline;">limpar tudo</button>
+        </div>
+        <div id="listaSmsPendentes"></div>
       </div>
+
     </div>
   </div>
 
@@ -1556,16 +1608,47 @@
               style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:14px;">
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px;">
           <div>
             <label style="font-size:12px;color:var(--text-secondary);">Descrição</label>
             <input type="text" id="fixaDescricao" maxlength="200" placeholder="Ex: Aluguel, Netflix…"
               style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
           </div>
           <div>
-            <label style="font-size:12px;color:var(--text-secondary);">Dia do mês *</label>
+            <label style="font-size:12px;color:var(--text-secondary);">Frequência *</label>
+            <select id="fixaFrequencia" style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;">
+              <option value="mensal">Mensal</option>
+              <option value="quinzenal">Quinzenal</option>
+              <option value="semanal">Semanal</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div>
+            <label id="fixaDiaLabel" style="font-size:12px;color:var(--text-secondary);">Dia do mês *</label>
             <input type="number" id="fixaDia" min="1" max="28" placeholder="1–28"
               style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+            <select id="fixaDiaSemana" style="display:none;width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;">
+              <option value="1">Segunda-feira</option>
+              <option value="2">Terça-feira</option>
+              <option value="3">Quarta-feira</option>
+              <option value="4">Quinta-feira</option>
+              <option value="5">Sexta-feira</option>
+              <option value="6">Sábado</option>
+              <option value="0">Domingo</option>
+            </select>
+            <div id="fixaDiaHint" style="display:none;font-size:10px;color:var(--text-muted);margin-top:3px;"></div>
+          </div>
+          <div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;margin-top:2px;user-select:none;">
+              <input type="checkbox" id="fixaLimitado" style="accent-color:var(--gold);width:14px;height:14px;" />
+              Por tempo determinado
+            </label>
+            <div id="fgFixaMeses" style="display:none;margin-top:8px;">
+              <label style="font-size:11px;color:var(--text-secondary);">Quantos meses?</label>
+              <input type="number" id="fixaMeses" min="1" max="60" placeholder="Ex: 6"
+                style="width:100%;margin-top:3px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+            </div>
           </div>
         </div>
         <!-- Cartão de crédito (opcional) -->
@@ -2531,6 +2614,19 @@
       carregarHistoricoAnual(new Date().getFullYear())
         .then(historico => { historicoAtual = historico; renderGrafico(historico); })
         .catch(err => console.error('Erro ao carregar histórico do gráfico:', err));
+
+      // Inicializa badge SMS com pendentes existentes
+      carregarSmsPendentes();
+      atualizarBadgeSMS();
+
+      // Web Share Target: captura SMS compartilhado de outro app
+      const _urlParams = new URLSearchParams(window.location.search);
+      const _smsShared = _urlParams.get('sms_text') || _urlParams.get('sms_title');
+      if (_smsShared) {
+        window.history.replaceState({}, '', '/orcamento.html');
+        const _ok = adicionarSmsFila(_smsShared);
+        if (_ok) setTimeout(() => { abrirModalSMS(); mostrarToast('SMS capturado! Revise e registre.'); }, 600);
+      }
     }
 
     // ─── Score de saúde financeira ───────────────────────────────────────────
@@ -4002,7 +4098,93 @@
 
     // ─── PARSE SMS / NOTIFICAÇÃO DE CARTÃO ───────────────────────────────────
 
-    let _smsDetectado = null;
+    let _smsDetectado  = null;
+    let _smsPendentes  = [];
+
+    function carregarSmsPendentes() {
+      try { _smsPendentes = JSON.parse(localStorage.getItem('sms_pendentes') || '[]'); }
+      catch { _smsPendentes = []; }
+    }
+    function salvarSmsPendentes() {
+      localStorage.setItem('sms_pendentes', JSON.stringify(_smsPendentes));
+    }
+    function atualizarBadgeSMS() {
+      const n   = _smsPendentes.length;
+      const btn = document.getElementById('btnImportarSMS');
+      if (!btn) return;
+      btn.innerHTML = n > 0
+        ? `📱 SMS pendentes <span style="background:var(--gold);color:var(--navy);border-radius:10px;padding:0 6px;font-size:11px;font-weight:700;line-height:16px;">${n}</span>`
+        : '📱 Importar SMS';
+    }
+    function renderSmsPendentes() {
+      const el    = document.getElementById('listaSmsPendentes');
+      const badge = document.getElementById('smsBadgeModal');
+      const btnL  = document.getElementById('btnSMSLimparFila');
+      if (!el) return;
+      if (!_smsPendentes.length) {
+        el.innerHTML = '<p style="font-size:13px;color:var(--text-secondary);text-align:center;padding:12px 0;">Nenhum SMS pendente.</p>';
+        if (badge) badge.style.display = 'none';
+        if (btnL)  btnL.style.display  = 'none';
+        return;
+      }
+      if (badge) { badge.textContent = _smsPendentes.length; badge.style.display = ''; }
+      if (btnL)  btnL.style.display  = '';
+      el.innerHTML = _smsPendentes.map(s => `
+        <div data-sms-id="${s.id}" style="background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+            <span style="font-size:17px;font-weight:700;color:var(--negative);">${brl(s.valor)}</span>
+            <button data-sms-dismiss="${s.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:0;line-height:1;" title="Descartar">✕</button>
+          </div>
+          <div style="font-size:13px;color:var(--white);margin-bottom:2px;">${escapeHtml(s.descricao || '(sem descrição)')}${s.categoria ? ` <span style="font-size:11px;color:var(--gold);font-weight:600;">${escapeHtml(s.categoria)}</span>` : ''}</div>
+          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">${formatData(s.data)}</div>
+          <button data-sms-registrar="${s.id}" class="btn-primary" style="width:100%;font-size:13px;padding:8px;">✓ Registrar como despesa</button>
+        </div>`).join('');
+      el.querySelectorAll('[data-sms-dismiss]').forEach(b =>
+        b.addEventListener('click', () => { removerSmsPendente(b.dataset.smsDismiss); })
+      );
+      el.querySelectorAll('[data-sms-registrar]').forEach(b =>
+        b.addEventListener('click', async () => {
+          const s = _smsPendentes.find(x => x.id === b.dataset.smsRegistrar);
+          if (!s) return;
+          document.getElementById('modalSMS').classList.add('hidden');
+          await abrirModal('despesa', null, s.categoria || null);
+          setTimeout(() => {
+            document.getElementById('mValor').value     = s.valor.toFixed(2).replace('.', ',');
+            document.getElementById('mData').value      = s.data;
+            document.getElementById('mDescricao').value = s.descricao;
+            removerSmsPendente(s.id);
+          }, 60);
+        })
+      );
+    }
+    function removerSmsPendente(id) {
+      _smsPendentes = _smsPendentes.filter(s => s.id !== id);
+      salvarSmsPendentes(); atualizarBadgeSMS(); renderSmsPendentes();
+    }
+    function adicionarSmsFila(texto) {
+      if (!texto?.trim()) return false;
+      const r = parsearSMS(texto.trim());
+      if (!r) return false;
+      _smsPendentes.unshift({ id: Date.now().toString(), texto: texto.trim(), valor: r.valor, descricao: r.descricao, categoria: r.categoria, data: r.data, criadoEm: new Date().toISOString() });
+      salvarSmsPendentes(); atualizarBadgeSMS(); return true;
+    }
+    function abrirModalSMS() {
+      carregarSmsPendentes();
+      document.getElementById('smsTexto').value        = '';
+      document.getElementById('smsPreview').style.display = 'none';
+      document.getElementById('smsErro').style.display    = 'none';
+      document.getElementById('btnSMSAdicionarFila').disabled = true;
+      _smsDetectado = null;
+      renderSmsPendentes();
+      // Abre "Como usar" automaticamente se nunca usou (sem pendentes e sem histórico)
+      const details = document.getElementById('smsComoUsar');
+      if (details && !localStorage.getItem('sms_tutorial_visto')) {
+        details.open = true;
+        localStorage.setItem('sms_tutorial_visto', '1');
+      }
+      document.getElementById('modalSMS').classList.remove('hidden');
+      setTimeout(() => document.getElementById('smsTexto')?.focus(), 80);
+    }
 
     // Mapa de palavras-chave → categoria (ordem importa: mais específico primeiro)
     const SMS_CATEGORIAS = [
@@ -4097,58 +4279,52 @@
       return { valor, data: dataISO, descricao: desc || '', categoria };
     }
 
-    document.getElementById('btnImportarSMS')?.addEventListener('click', () => {
-      document.getElementById('smsTexto').value = '';
-      document.getElementById('smsPreview').style.display = 'none';
-      document.getElementById('smsErro').style.display = 'none';
-      document.getElementById('btnSMSLancar').disabled = true;
-      _smsDetectado = null;
-      document.getElementById('modalSMS').classList.remove('hidden');
-      setTimeout(() => document.getElementById('smsTexto')?.focus(), 80);
-    });
+    document.getElementById('btnImportarSMS')?.addEventListener('click', abrirModalSMS);
 
     document.getElementById('smsTexto')?.addEventListener('input', () => {
-      const texto = document.getElementById('smsTexto').value;
-      const resultado = parsearSMS(texto);
-      const preview = document.getElementById('smsPreview');
-      const erroEl  = document.getElementById('smsErro');
-      const btnLancar = document.getElementById('btnSMSLancar');
-
+      const texto    = document.getElementById('smsTexto').value;
+      const preview  = document.getElementById('smsPreview');
+      const erroEl   = document.getElementById('smsErro');
+      const btnAdd   = document.getElementById('btnSMSAdicionarFila');
       if (!texto.trim()) {
         preview.style.display = 'none'; erroEl.style.display = 'none';
-        btnLancar.disabled = true; _smsDetectado = null; return;
+        btnAdd.disabled = true; _smsDetectado = null; return;
       }
+      const resultado = parsearSMS(texto);
       if (!resultado) {
         preview.style.display = 'none';
-        erroEl.textContent = 'Não foi possível identificar o valor. Verifique o texto ou insira manualmente.';
-        erroEl.style.display = ''; btnLancar.disabled = true; _smsDetectado = null; return;
+        erroEl.textContent = 'Não foi possível identificar o valor. Verifique o texto.';
+        erroEl.style.display = ''; btnAdd.disabled = true; _smsDetectado = null; return;
       }
       erroEl.style.display = 'none';
       document.getElementById('smsValorDetect').textContent = brl(resultado.valor);
       document.getElementById('smsDataDetect').textContent  = formatData(resultado.data);
-      document.getElementById('smsDescDetect').textContent  = resultado.descricao || '(sem descrição detectada)';
-      document.getElementById('smsCatDetect').textContent   = resultado.categoria || '(não identificada — você escolhe ao lançar)';
+      document.getElementById('smsDescDetect').textContent  = resultado.descricao || '';
+      document.getElementById('smsCatDetect').textContent   = resultado.categoria || '';
       preview.style.display = '';
-      btnLancar.disabled = false;
+      btnAdd.disabled = false;
       _smsDetectado = resultado;
     });
 
-    document.getElementById('btnSMSLancar')?.addEventListener('click', async () => {
-      if (!_smsDetectado) return;
-      const { mes, ano } = currentData.periodo;
-      // Pré-preenche o modal de despesa com os dados detectados
-      document.getElementById('modalSMS').classList.add('hidden');
-      // Abre modal de lançamento pré-preenchido
-      await abrirModal('despesa', null, _smsDetectado.categoria || null);
-      setTimeout(() => {
-        document.getElementById('mValor').value     = _smsDetectado.valor.toFixed(2).replace('.', ',');
-        document.getElementById('mData').value      = _smsDetectado.data;
-        document.getElementById('mDescricao').value = _smsDetectado.descricao;
-        // Não assume cartão — mentorada decide se é débito ou crédito
-      }, 50);
+    document.getElementById('btnSMSAdicionarFila')?.addEventListener('click', () => {
+      const texto = document.getElementById('smsTexto').value;
+      const ok = adicionarSmsFila(texto);
+      if (!ok) return;
+      document.getElementById('smsTexto').value            = '';
+      document.getElementById('smsPreview').style.display  = 'none';
+      document.getElementById('smsErro').style.display     = 'none';
+      document.getElementById('btnSMSAdicionarFila').disabled = true;
+      _smsDetectado = null;
+      renderSmsPendentes();
+      mostrarToast('Adicionado à fila!');
     });
 
-    document.getElementById('btnSMSCancelar')?.addEventListener('click', () =>
+    document.getElementById('btnSMSLimparFila')?.addEventListener('click', () => {
+      if (!confirm('Descartar todos os SMS pendentes?')) return;
+      _smsPendentes = []; salvarSmsPendentes(); atualizarBadgeSMS(); renderSmsPendentes();
+    });
+
+    document.getElementById('btnFecharModalSMS')?.addEventListener('click', () =>
       document.getElementById('modalSMS').classList.add('hidden'));
     document.getElementById('modalSMS')?.addEventListener('click', e => {
       if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
@@ -4344,15 +4520,48 @@
 
     let _recorrentes = [];
 
-    // IDs de fixas puladas nesta sessão (pular este mês não inativa a fixa)
-    const _fixasPuladas = new Set();
+    // IDs de fixas puladas — persiste em localStorage para sobreviver a reloads
+    const _fixasPuladas = (() => {
+      const s = new Set();
+      try {
+        JSON.parse(localStorage.getItem('fixas_puladas') || '[]').forEach(k => s.add(k));
+      } catch {}
+      return s;
+    })();
+
+    function salvarFixasPuladas() {
+      // Mantém apenas mês atual + anterior para não crescer indefinidamente
+      const agora   = new Date();
+      const mesAtual = agora.getMonth() + 1, anoAtual = agora.getFullYear();
+      const prevMes  = mesAtual === 1 ? 12 : mesAtual - 1;
+      const prevAno  = mesAtual === 1 ? anoAtual - 1 : anoAtual;
+      const toKeep = [..._fixasPuladas].filter(k => {
+        const p = k.split('_'); const mes = +p[p.length - 2], ano = +p[p.length - 1];
+        return (mes === mesAtual && ano === anoAtual) || (mes === prevMes && ano === prevAno);
+      });
+      localStorage.setItem('fixas_puladas', JSON.stringify(toKeep));
+    }
 
     // Verifica recorrentes não lançadas e não puladas — exibe/oculta banner e indicador
     function verificarBannerFixas(data) {
       const banner    = document.getElementById('bannerFixas');
       const indicador = document.getElementById('fixasPendentesIndicador');
+      // Detecção primária: por recorrenteId (lançadas via confirmarSelecaoFixas)
       const jainseridos = new Set(data.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
-      const pendentes = _recorrentes.filter(r => r.ativo && !jainseridos.has(r.id) && !_fixasPuladas.has(r.id + '_' + data.periodo.mes + '_' + data.periodo.ano));
+      // Detecção secundária: despesa com mesma categoria + valor no mês (lançada manualmente ou sem recorrenteId)
+      function jaLancadaNoMes(r) {
+        return data.despesas.some(d =>
+          !d.recorrenteId &&
+          d.categoria === r.categoria &&
+          d.valor === r.valor
+        );
+      }
+      const pendentes = _recorrentes.filter(r =>
+        r.ativo &&
+        !jainseridos.has(r.id) &&
+        !jaLancadaNoMes(r) &&
+        !_fixasPuladas.has(r.id + '_' + data.periodo.mes + '_' + data.periodo.ano)
+      );
 
       // Indicador no card de despesas
       if (indicador) {
@@ -4377,7 +4586,12 @@
     function abrirSelecaoFixas() {
       const { mes, ano } = currentData.periodo;
       const jainseridos = new Set(currentData.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
-      const pendentes = _recorrentes.filter(r => r.ativo && !jainseridos.has(r.id) && !_fixasPuladas.has(r.id + '_' + mes + '_' + ano));
+      const pendentes = _recorrentes.filter(r =>
+        r.ativo &&
+        !jainseridos.has(r.id) &&
+        !currentData.despesas.some(d => !d.recorrenteId && d.categoria === r.categoria && d.valor === r.valor) &&
+        !_fixasPuladas.has(r.id + '_' + mes + '_' + ano)
+      );
       if (!pendentes.length) return;
       const lista = document.getElementById('listaSelecaoFixas');
       lista.innerHTML = pendentes.map(r => `
@@ -4403,25 +4617,48 @@
       btn.disabled = true; btn.textContent = 'Lançando…';
       try {
         const faturaAtual = `${ano}-${String(mes).padStart(2,'0')}`;
-        const novos = _recorrentes
-          .filter(r => selecionadas.has(r.id))
-          .map(r => ({
-            categoria:    r.categoria,
-            tipo:         'despesa',
-            valor:        r.valor,
-            descricao:    r.descricao || '',
-            data:         `${ano}-${String(mes).padStart(2,'0')}-${String(r.dia).padStart(2,'0')}`,
-            cartao:       !!r.cartao,
-            fatura:       r.cartao ? faturaAtual : '',
-            cartaoId:     r.cartaoId || '',
-            origem:       'recorrente',
-            recorrenteId: r.id,
-          }));
+        const novos = [];
+
+        for (const r of _recorrentes.filter(r => selecionadas.has(r.id))) {
+          const freq = r.frequencia || 'mensal';
+          let diasDoMes = [];
+          if (freq === 'semanal') {
+            diasDoMes = diasSemanaNoMes(ano, mes, r.dia);
+          } else if (freq === 'quinzenal') {
+            diasDoMes = [r.dia, r.dia + 14].filter(d => d >= 1 && d <= 31);
+          } else {
+            diasDoMes = [r.dia];
+          }
+          for (const d of diasDoMes) {
+            novos.push({
+              categoria:    r.categoria,
+              tipo:         'despesa',
+              valor:        r.valor,
+              descricao:    r.descricao || '',
+              data:         `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`,
+              cartao:       !!r.cartao,
+              fatura:       r.cartao ? faturaAtual : '',
+              cartaoId:     r.cartaoId || '',
+              origem:       'recorrente',
+              recorrenteId: r.id,
+            });
+          }
+        }
+
         currentData.despesas.push(...novos);
         await salvarEAtualizar();
+
+        // Decrementa mesesRestantes nas despesas com prazo determinado
+        const limitadas = _recorrentes.filter(r => selecionadas.has(r.id) && r.mesesRestantes != null);
+        for (const r of limitadas) {
+          const novoMeses = r.mesesRestantes - 1;
+          await saveRecorrente({ ...r, mesesRestantes: novoMeses, ativo: novoMeses > 0 });
+        }
+        if (limitadas.length) await carregarRecorrentes();
+
         document.getElementById('modalSelecionarFixas').classList.add('hidden');
         verificarBannerFixas(currentData);
-        mostrarToast(`${novos.length} despesa${novos.length > 1 ? 's fixas lançadas' : ' fixa lançada'}!`);
+        mostrarToast(`${novos.length} lançamento${novos.length > 1 ? 's' : ''} criado${novos.length > 1 ? 's' : ''}!`);
       } finally {
         btn.disabled = false; btn.textContent = 'Lançar selecionadas';
       }
@@ -4432,6 +4669,7 @@
     document.getElementById('btnBannerPularMes')?.addEventListener('click', () => {
       const { mes, ano } = currentData.periodo;
       _recorrentes.filter(r => r.ativo).forEach(r => _fixasPuladas.add(r.id + '_' + mes + '_' + ano));
+      salvarFixasPuladas();
       verificarBannerFixas(currentData);
       mostrarToast('Fixas puladas este mês. Voltarão no próximo.');
     });
@@ -4456,11 +4694,22 @@
         el.innerHTML = `<p style="font-size:13px;color:var(--text-secondary);text-align:center;padding:16px 0;">Nenhuma despesa fixa cadastrada ainda.</p>`;
         return;
       }
+      const nomeSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+      function infoFreq(r) {
+        const freq = r.frequencia || 'mensal';
+        if (freq === 'semanal')   return `Semanal · ${nomeSemana[r.dia] || '?'}`;
+        if (freq === 'quinzenal') return `Quinzenal · dias ${r.dia} e ${r.dia + 14}`;
+        return `Mensal · dia ${r.dia}`;
+      }
+      function infoPrazo(r) {
+        if (r.mesesRestantes == null) return '';
+        return ` · <span style="color:var(--gold);">${r.mesesRestantes} ${r.mesesRestantes === 1 ? 'mês restante' : 'meses restantes'}</span>`;
+      }
       el.innerHTML = _recorrentes.map(r => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
           <div>
             <div style="font-size:14px;font-weight:600;">${escapeHtml(r.descricao || r.categoria)}</div>
-            <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(r.categoria)} · dia ${r.dia} · ${r.ativo ? '✅ Ativa' : '⏸ Pausada'}</div>
+            <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(r.categoria)} · ${infoFreq(r)} · ${r.ativo ? '✅ Ativa' : '⏸ Pausada'}${infoPrazo(r)}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-weight:700;color:var(--negative);">${brl(r.valor)}</span>
@@ -4489,6 +4738,59 @@
       document.getElementById('modalFixas').classList.add('hidden');
     }
 
+    // Retorna todos os dias do mês que caem no diaSemana (0=dom..6=sáb)
+    function diasSemanaNoMes(ano, mes, diaSemana) {
+      const dias = [];
+      const total = new Date(ano, mes, 0).getDate();
+      for (let d = 1; d <= total; d++) {
+        if (new Date(ano, mes - 1, d).getDay() === diaSemana) dias.push(d);
+      }
+      return dias;
+    }
+
+    function atualizarFixaDiaUI(freq) {
+      const inputDia  = document.getElementById('fixaDia');
+      const selSemana = document.getElementById('fixaDiaSemana');
+      const label     = document.getElementById('fixaDiaLabel');
+      const hint      = document.getElementById('fixaDiaHint');
+      if (freq === 'semanal') {
+        inputDia.style.display  = 'none';
+        selSemana.style.display = '';
+        label.textContent = 'Dia da semana *';
+        hint.style.display = 'none';
+      } else if (freq === 'quinzenal') {
+        inputDia.style.display  = '';
+        selSemana.style.display = 'none';
+        label.textContent = '1º dia do mês *';
+        inputDia.max = '14'; inputDia.placeholder = '1–14';
+        const d = parseInt(inputDia.value);
+        hint.textContent = (!isNaN(d) && d >= 1 && d <= 14) ? `2º lançamento: dia ${d + 14}` : '2º lançamento: +14 dias';
+        hint.style.display = '';
+      } else {
+        inputDia.style.display  = '';
+        selSemana.style.display = 'none';
+        label.textContent = 'Dia do mês *';
+        inputDia.max = '28'; inputDia.placeholder = '1–28';
+        hint.style.display = 'none';
+      }
+    }
+
+    function limparFormFixa() {
+      document.getElementById('fixaId').value               = '';
+      document.getElementById('fixaCategoria').selectedIndex = 0;
+      document.getElementById('fixaValor').value            = '';
+      document.getElementById('fixaDescricao').value        = '';
+      document.getElementById('fixaFrequencia').value       = 'mensal';
+      document.getElementById('fixaDia').value              = '';
+      document.getElementById('fixaDiaSemana').selectedIndex = 0;
+      document.getElementById('fixaLimitado').checked       = false;
+      document.getElementById('fixaMeses').value            = '';
+      document.getElementById('fgFixaMeses').style.display  = 'none';
+      document.getElementById('fixaCartao').checked         = false;
+      document.getElementById('fgFixaCartaoOpcoes').style.display = 'none';
+      atualizarFixaDiaUI('mensal');
+    }
+
     function abrirFormFixa(id) {
       const form = document.getElementById('formFixa');
       form.classList.remove('hidden');
@@ -4499,46 +4801,74 @@
           document.getElementById('fixaCategoria').value = r.categoria;
           document.getElementById('fixaValor').value     = r.valor;
           document.getElementById('fixaDescricao').value = r.descricao || '';
-          document.getElementById('fixaDia').value       = r.dia;
+          const freq = r.frequencia || 'mensal';
+          document.getElementById('fixaFrequencia').value = freq;
+          atualizarFixaDiaUI(freq);
+          if (freq === 'semanal') {
+            document.getElementById('fixaDiaSemana').value = String(r.dia ?? 1);
+          } else {
+            document.getElementById('fixaDia').value = r.dia;
+          }
+          const limitado = r.mesesRestantes != null;
+          document.getElementById('fixaLimitado').checked = limitado;
+          document.getElementById('fgFixaMeses').style.display = limitado ? '' : 'none';
+          if (limitado) document.getElementById('fixaMeses').value = r.mesesRestantes;
           const isCartao = !!r.cartao;
           document.getElementById('fixaCartao').checked = isCartao;
           document.getElementById('fgFixaCartaoOpcoes').style.display = isCartao ? '' : 'none';
           if (isCartao) preencherSeletorCartoesFixa(r.cartaoId || null);
         }
       } else {
-        document.getElementById('fixaCategoria').selectedIndex = 0;
-        document.getElementById('fixaValor').value     = '';
-        document.getElementById('fixaDescricao').value = '';
-        document.getElementById('fixaDia').value       = '';
-        document.getElementById('fixaCartao').checked  = false;
-        document.getElementById('fgFixaCartaoOpcoes').style.display = 'none';
+        limparFormFixa();
       }
       form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     async function salvarFixa() {
-      const id        = document.getElementById('fixaId').value || undefined;
-      const categoria = document.getElementById('fixaCategoria').value;
-      const valor     = parseFloat(document.getElementById('fixaValor').value);
-      const descricao = document.getElementById('fixaDescricao').value.trim();
-      const dia       = parseInt(document.getElementById('fixaDia').value, 10);
-      const cartao    = document.getElementById('fixaCartao').checked;
-      const cartaoId  = cartao ? (document.getElementById('fixaCartaoSelecionado')?.value || '') : '';
+      const id         = document.getElementById('fixaId').value || undefined;
+      const categoria  = document.getElementById('fixaCategoria').value;
+      const valor      = parseFloat(document.getElementById('fixaValor').value);
+      const descricao  = document.getElementById('fixaDescricao').value.trim();
+      const frequencia = document.getElementById('fixaFrequencia').value || 'mensal';
+      const cartao     = document.getElementById('fixaCartao').checked;
+      const cartaoId   = cartao ? (document.getElementById('fixaCartaoSelecionado')?.value || '') : '';
+      const limitado   = document.getElementById('fixaLimitado').checked;
+      const mesesRestantes = limitado ? parseInt(document.getElementById('fixaMeses').value, 10) : null;
+
+      let dia;
+      if (frequencia === 'semanal') {
+        dia = parseInt(document.getElementById('fixaDiaSemana').value, 10);
+      } else {
+        dia = parseInt(document.getElementById('fixaDia').value, 10);
+      }
 
       if (!categoria) return mostrarToast('Selecione uma categoria.');
       if (isNaN(valor) || valor < 0) return mostrarToast('Informe um valor válido.');
-      if (!dia || dia < 1 || dia > 28) return mostrarToast('O dia deve ser entre 1 e 28.');
+      if (frequencia === 'semanal') {
+        if (isNaN(dia) || dia < 0 || dia > 6) return mostrarToast('Selecione o dia da semana.');
+      } else if (frequencia === 'quinzenal') {
+        if (!dia || dia < 1 || dia > 14) return mostrarToast('Para quinzenal, o 1º dia deve ser entre 1 e 14.');
+      } else {
+        if (!dia || dia < 1 || dia > 28) return mostrarToast('O dia deve ser entre 1 e 28.');
+      }
+      if (limitado && (isNaN(mesesRestantes) || mesesRestantes < 1)) {
+        return mostrarToast('Informe quantos meses a despesa vai durar.');
+      }
 
       const btnSalvar = document.getElementById('btnSalvarFixa');
       btnSalvar.disabled = true;
       btnSalvar.textContent = 'Salvando…';
       try {
-        await saveRecorrente({ id, categoria, valor, descricao, dia, ativo: true, cartao, cartaoId });
+        await saveRecorrente({ id, categoria, valor, descricao, dia, frequencia, mesesRestantes, ativo: true, cartao, cartaoId });
         await carregarRecorrentes();
         renderListaFixas();
-        document.getElementById('formFixa').classList.add('hidden');
         mostrarToast('Despesa fixa salva!');
         registrarEvento('fixa_cadastrada');
+        if (id) {
+          document.getElementById('formFixa').classList.add('hidden');
+        } else {
+          limparFormFixa();
+        }
       } catch (e) {
         mostrarToast('Erro ao salvar: ' + e.message);
       } finally {
@@ -4785,11 +5115,39 @@
     document.getElementById('modalFixas')?.addEventListener('click', e => { if (e.target === e.currentTarget) fecharModalFixas(); });
     document.getElementById('btnAddFixa')?.addEventListener('click', () => abrirFormFixa(null));
     document.getElementById('btnSalvarFixa')?.addEventListener('click', salvarFixa);
-    document.getElementById('btnCancelarFixa')?.addEventListener('click', () => document.getElementById('formFixa').classList.add('hidden'));
+    document.getElementById('btnCancelarFixa')?.addEventListener('click', () => {
+      document.getElementById('formFixa').classList.add('hidden');
+      limparFormFixa();
+    });
+    document.getElementById('fixaFrequencia')?.addEventListener('change', function() {
+      atualizarFixaDiaUI(this.value);
+      document.getElementById('fixaDia').value = '';
+      document.getElementById('fixaDiaSemana').selectedIndex = 0;
+    });
+    document.getElementById('fixaLimitado')?.addEventListener('change', function() {
+      document.getElementById('fgFixaMeses').style.display = this.checked ? '' : 'none';
+    });
+    document.getElementById('fixaDia')?.addEventListener('input', function() {
+      if ((document.getElementById('fixaFrequencia')?.value || 'mensal') === 'quinzenal') {
+        const d = parseInt(this.value);
+        const hint = document.getElementById('fixaDiaHint');
+        hint.textContent = (!isNaN(d) && d >= 1 && d <= 14) ? `2º lançamento: dia ${d + 14}` : '2º lançamento: +14 dias';
+        hint.style.display = '';
+      }
+    });
     document.getElementById('btnEditRecSoMes')?.addEventListener('click', () => aplicarEditRecorrente('soeste'));
     document.getElementById('btnEditRecEProximos')?.addEventListener('click', () => aplicarEditRecorrente('proximos'));
     document.getElementById('btnEditRecCancelar')?.addEventListener('click', () => document.getElementById('modalEditRecorrente').classList.add('hidden'));
     document.getElementById('modalEditRecorrente')?.addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
+
+    // FAB — lançamento rápido
+    const fabEl = document.getElementById('fabLancar');
+    if (fabEl) {
+      fabEl.addEventListener('click', () => abrirModal('despesa'));
+      fabEl.addEventListener('mousedown', () => { fabEl.style.transform = 'scale(0.92)'; fabEl.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)'; });
+      fabEl.addEventListener('mouseup',   () => { fabEl.style.transform = ''; fabEl.style.boxShadow = ''; });
+      fabEl.addEventListener('mouseleave',() => { fabEl.style.transform = ''; fabEl.style.boxShadow = ''; });
+    }
   </script>
 
   <!-- Botão de suporte -->
@@ -4803,6 +5161,10 @@
       <div class="suporte-label">E-mail<em>flaviasch@gmail.com</em></div>
     </a>
   </div>
+  <!-- FAB: lançamento rápido de despesa -->
+  <button id="fabLancar" title="Lançar despesa"
+    style="position:fixed;bottom:84px;right:20px;z-index:900;width:52px;height:52px;border-radius:50%;background:var(--gold);color:var(--navy);border:none;font-size:26px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s;line-height:1;">+</button>
+
   <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
 
   <!-- Service Worker (PWA) -->

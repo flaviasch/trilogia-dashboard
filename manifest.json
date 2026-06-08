@@ -29,6 +29,16 @@
       "purpose": "maskable"
     }
   ],
+  "share_target": {
+    "action": "/orcamento.html",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "sms_title",
+      "text":  "sms_text",
+      "url":   "sms_url"
+    }
+  },
   "shortcuts": [
     {
       "name": "Orçamento",
