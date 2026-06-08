@@ -197,6 +197,7 @@
       padding: 24px;
       text-decoration: none;
       display: block;
+      cursor: pointer;
       transition: border-color 0.2s, transform 0.15s;
       cursor: pointer;
     }
@@ -246,6 +247,7 @@
       padding: 24px;
       text-decoration: none;
       display: block;
+      cursor: pointer;
       transition: border-color 0.2s, transform 0.15s;
     }
     .pat-item:hover {
@@ -289,6 +291,7 @@
       padding: 20px 24px;
       text-decoration: none;
       display: block;
+      cursor: pointer;
       transition: border-color 0.2s;
     }
     .reserva-card:hover {
@@ -739,21 +742,21 @@
         <a href="orcamento.html" class="section-link">Ver detalhes →</a>
       </div>
       <div class="cards-grid">
-        <a href="orcamento.html" class="budget-card">
+        <div class="budget-card" onclick="window.location.href='orcamento.html'" role="link" tabindex="0">
           <div class="card-label">Receita</div>
           <div class="card-value" id="receita">—</div>
           <div class="card-sub" id="receitaSub"></div>
-        </a>
-        <a href="orcamento.html" class="budget-card">
+        </div>
+        <div class="budget-card" onclick="window.location.href='orcamento.html'" role="link" tabindex="0">
           <div class="card-label">Despesa</div>
           <div class="card-value" id="despesa">—</div>
           <div class="card-sub" id="despesaSub"></div>
-        </a>
-        <a href="orcamento.html" class="budget-card">
+        </div>
+        <div class="budget-card" onclick="window.location.href='orcamento.html'" role="link" tabindex="0">
           <div class="card-label">Sobra do mês</div>
           <div class="card-value" id="sobra">—</div>
           <div class="card-sub" id="sobraSub"></div>
-        </a>
+        </div>
       </div>
     </div>
 
@@ -764,18 +767,18 @@
         <a href="patrimonio.html" class="section-link">Ver detalhes →</a>
       </div>
       <div class="patrimonio-row">
-        <a href="patrimonio.html" class="pat-item">
+        <div class="pat-item" onclick="window.location.href='patrimonio.html'" role="link" tabindex="0">
           <div class="pat-label">Ativos</div>
           <div class="pat-value" id="ativos">—</div>
-        </a>
-        <a href="patrimonio.html" class="pat-item">
+        </div>
+        <div class="pat-item" onclick="window.location.href='patrimonio.html'" role="link" tabindex="0">
           <div class="pat-label">Dívidas</div>
           <div class="pat-value negative" id="dividas">—</div>
-        </a>
-        <a href="patrimonio.html" class="pat-item">
+        </div>
+        <div class="pat-item" onclick="window.location.href='patrimonio.html'" role="link" tabindex="0">
           <div class="pat-label">Patrimônio Líquido</div>
           <div class="pat-value highlight" id="pl">—</div>
-        </a>
+        </div>
       </div>
     </div>
 
@@ -1579,7 +1582,7 @@
         const progresso = Math.min((r.acumulado / r.meta) * 100, 100);
         const completa = progresso >= 100;
         return `
-          <a href="reservas.html#${r.id}" class="reserva-card">
+          <div class="reserva-card" onclick="window.location.href='reservas.html#${r.id}'" role="link" tabindex="0">
             <div class="reserva-top">
               <span class="reserva-nome">${r.nome}</span>
               <span class="reserva-tag">${prazoLabel(r.mesesRestantes)}</span>
@@ -1596,7 +1599,7 @@
               <span class="reserva-alocacao">${alocacaoLabel(r.mesesRestantes)}</span>
               <span class="reserva-prazo">Meta: ${r.dataMeta}</span>
             </div>
-          </a>`;
+          </div>`;
       }).join('');
     }
     // ─── Suporte ─────────────────────────────
