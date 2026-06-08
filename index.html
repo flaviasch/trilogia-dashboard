@@ -930,6 +930,12 @@
         return;
       }
 
+      // Admin com dashboard próprio → garantir flag para sub-páginas
+      // (cobre caso de sessão Firebase já ativa que pulou o modal do login)
+      if (ok && admin && !localStorage.getItem('modoAcesso')) {
+        localStorage.setItem('modoAcesso', 'usuario');
+      }
+
       document.getElementById('loadingOverlay').style.display = 'none';
       // Visibilidade de mainContent / welcomeScreen é gerenciada por checkOnboarding()
     }
