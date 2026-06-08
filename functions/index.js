@@ -430,11 +430,12 @@ exports.getDashboardHome = onCall({}, async (request) => {
   const ano      = agora.getFullYear();
   const mesAtual = agora.toISOString().slice(0, 7);
 
-  // Lê doc principal + reservas + missão do mês em paralelo
-  const [docSnap, resSnap, missaoSnap] = await Promise.all([
+  // Lê doc principal + reservas + missão do mês + orçamento atual em paralelo
+  const [docSnap, resSnap, missaoSnap, orcSnap] = await Promise.all([
     db.collection('mentoradas').doc(uid).get(),
     db.collection('mentoradas').doc(uid).collection('reservas').get().catch(() => null),
     db.collection('config').doc('missaoMes').get().catch(() => null),
+    db.collection('mentoradas').doc(uid).collection('orcamento').doc(mesAtual).get().catch(() => null),
   ]);
 
   if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
@@ -451,11 +452,19 @@ exports.getDashboardHome = onCall({}, async (request) => {
   if (!temDashboard && assinaturaClube) {
     return { apenasClube: true, nome: nome || null, inicio: inicio || null, lgpdAceite: lgpdAceite || false, assinaturaClube: true };
   }
-  if (!sheetId && !assinaturaClube) {
+  // Admin ou assinante do dashboard sem Sheets ainda → home carrega com dados do Firestore
+  if (!sheetId && !assinaturaClube && !isAdminUser && !assinaturaDashboard) {
     throw new HttpsError('failed-precondition', 'Planilha ainda não configurada para esta mentorada.');
   }
 
   const reservas = resSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [];
+
+  // Orçamento do mês atual (para onboarding e cards iniciais)
+  const orcItens   = orcSnap?.exists ? (orcSnap.data().itens || []) : [];
+  const receitaMes = orcItens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
+  const despesaMes = orcItens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
+  const aporteMes  = orcItens.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0);
+  const sobraMes   = receitaMes - despesaMes;
 
   // Registra acesso em background (fire-and-forget)
   if (uid === auth.uid) {
@@ -486,6 +495,7 @@ exports.getDashboardHome = onCall({}, async (request) => {
     assinaturaDashboard: assinaturaDashboard || false,
     mes,
     ano,
+    orcamento:       { receita: receitaMes, despesa: despesaMes, sobra: sobraMes, aporte: aporteMes, mes, ano },
     sheetError:      false,
     missaoMes: (() => {
       const d = missaoSnap?.data();
@@ -691,8 +701,16 @@ exports.getRecorrentes = onCall(async (request) => {
   requireSelfOrAdmin(request, uid);
 
   const snap = await db.collection('mentoradas').doc(uid)
-    .collection('recorrentes').orderBy('criadoEm', 'asc').get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    .collection('recorrentes').get();
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => {
+      // Ordena por criadoEm se disponível; documentos sem o campo ficam no início
+      const ta = a.criadoEm?._seconds ?? a.criadoEm?.seconds ?? 0;
+      const tb = b.criadoEm?._seconds ?? b.criadoEm?.seconds ?? 0;
+      if (ta !== tb) return ta - tb;
+      return (a.descricao || '').localeCompare(b.descricao || '');
+    });
 });
 
 /**
@@ -4221,19 +4239,9 @@ exports.backupFirestore = onSchedule(
 
 /**
  * healthCheck — endpoint público para smoke tests pós-deploy.
- * Verifica conectividade com Firestore e retorna status geral.
  * Chamado pelo GitHub Actions após cada push na main.
+ * Retorna ok:true enquanto a Cloud Function estiver rodando.
  */
-exports.healthCheck = onRequest({ cors: false }, async (req, res) => {
-  const checks = { firestore: false, ts: new Date().toISOString() };
-  try {
-    await db.collection('config').doc('healthCheck').set(
-      { lastCheck: admin.firestore.FieldValue.serverTimestamp() },
-      { merge: true }
-    );
-    checks.firestore = true;
-    res.json({ ok: true, ...checks });
-  } catch (err) {
-    res.status(500).json({ ok: false, ...checks, error: err.message });
-  }
+exports.healthCheck = onRequest({ cors: false }, (req, res) => {
+  res.json({ ok: true, ts: new Date().toISOString() });
 });

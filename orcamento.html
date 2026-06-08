@@ -507,8 +507,8 @@
     .modal-overlay {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.75);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 200; padding: 24px;
+      display: flex; align-items: flex-start; justify-content: center;
+      z-index: 200; padding: 24px; overflow-y: auto;
     }
     .modal-overlay.hidden { display: none; }
     .modal-card {
@@ -517,6 +517,7 @@
       border-radius: 16px;
       padding: 32px;
       width: 100%; max-width: 440px;
+      margin: auto;
     }
     .modal-title {
       font-family: 'Playfair Display', serif;
