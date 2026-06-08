@@ -1326,9 +1326,8 @@
         if (totalDone < steps.length) {
           renderSetupProgress(steps, totalDone);
           document.getElementById('setupProgress').style.display = 'block';
-        } else {
-          renderMissaoMes(data);
         }
+        renderMissaoMes(data);
         // Só mostra modal LGPD para quem já passou do onboarding
         verificarLGPD(data.lgpdAceite);
       }
