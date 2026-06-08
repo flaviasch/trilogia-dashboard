@@ -2609,6 +2609,7 @@
     }
 
     function render(data) {
+      const { mes, ano } = data.periodo;
       // Período
       document.getElementById('periodoLabel').textContent =
         `${MESES[data.periodo.mes - 1]} de ${data.periodo.ano}`;
