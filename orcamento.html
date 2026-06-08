@@ -2069,6 +2069,7 @@
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.getElementById('tab-' + id)?.classList.add('active');
       document.getElementById('tabBtn' + id.charAt(0).toUpperCase() + id.slice(1))?.classList.add('active');
+      if (id === 'faturas')      renderFaturas(currentData);
       if (id === 'planejamento') renderPlanejamento(currentData, categoriasMes);
       if (id === 'graficos')    renderGraficos(currentData);
       if (id === 'detalhe') {
