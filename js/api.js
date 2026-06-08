@@ -735,6 +735,11 @@ export async function anunciarNovidades() {
   return call('anunciarNovidades')({});
 }
 
+/** Dispara e-mail de novidades Jun/2026 v2 (conteúdo correto das melhorias). Admin only. */
+export async function anunciarNovidadesJun2026() {
+  return call('anunciarNovidadesJun2026')({});
+}
+
 /** Envia comunicado técnico (instabilidade/reinstalação do app) para todas as ativas. Admin only. */
 export async function comunicadoTecnico() {
   return call('comunicadoTecnico')({});

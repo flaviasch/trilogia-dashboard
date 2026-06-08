@@ -390,6 +390,44 @@ function emailNovidades(nome) {
   `);
 }
 
+// ─── Novidades Jun/2026 (v2) ─────────────────────────────────────────────────
+
+/**
+ * E-mail: novidades de junho/2026 v2 — cartões, faturas, fixas, Raio-X, FAB.
+ * @param {string} nome — nome da mentorada
+ */
+function emailNovidadesJun2026(nome) {
+  const featureItem = (emoji, titulo, desc) =>
+    `<tr><td style="padding:12px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:32px;vertical-align:top;padding-top:2px;font-size:20px;">${emoji}</td>
+        <td style="padding-left:12px;">
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Novidades no seu Dashboard — Junho 2026</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Algumas atualizações chegaram no seu dashboard essa semana. Vou te contar o que mudou e como usar.
+    </p>
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
+      ${featureItem('💳','Lançamento no cartão ficou mais inteligente','Agora existe um modal dedicado para despesas no cartão. O sistema calcula automaticamente em qual fatura a compra vai cair, com base no dia de corte cadastrado. Se o banco adiantou o corte por feriado, tem um botão para ajustar manualmente. Compras parceladas também entraram nesse modal: você informa o valor total e o número de parcelas, e o sistema lança o valor correto em cada fatura automaticamente.')}
+      ${featureItem('📋','Nova aba: Faturas','As faturas dos seus cartões agora têm uma aba própria. Cada cartão aparece com as despesas do mês, total da fatura e barra de uso do limite — verde, amarelo ou vermelho conforme o percentual gasto.')}
+      ${featureItem('📌','Registrar fixas ficou mais fácil','Ao lançar uma despesa manualmente, dois novos atalhos aparecem: Despesa fixa (lança no mês atual e já cadastra como recorrente para os próximos meses) e Recorrência com prazo (você define quantos meses e o sistema lança automaticamente nesse período).')}
+      ${featureItem('🤖','Raio-X + despesas fixas automáticas','Quando o Raio-X identifica uma despesa fixa, o CSV sai com essa marcação. Ao importar no dashboard, o sistema detecta e abre uma tela de confirmação: você escolhe quais quer cadastrar como fixas e elas entram direto no gerenciador de recorrentes, sem precisar cadastrar manualmente.')}
+      ${featureItem('✦','Atalho rápido para lançar','O botão + dourado na tela inicial agora expande com três opções: Receita, Despesa e Despesa no cartão. Menos cliques para registrar.')}
+    </table>
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Acessar agora →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 // ─── Comunicado Técnico ───────────────────────────────────────────────────────
 
 function emailComunicadoTecnico(nome) {
@@ -628,6 +666,7 @@ module.exports = {
   emailLembreteAporte,
   emailLembretePlanejamento,
   emailNovidades,
+  emailNovidadesJun2026,
   emailComunicadoTecnico,
   emailIR,
   emailReenvioAcesso,
