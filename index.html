@@ -269,6 +269,11 @@
     }
     .pat-value.negative { color: var(--negative); }
     .pat-value.highlight { color: var(--gold); }
+    /* :visited — previne roxo do browser */
+    .pat-item:visited .pat-label  { color: var(--text-muted); }
+    .pat-item:visited .pat-value  { color: var(--white); }
+    .pat-item:visited .pat-value.negative { color: var(--negative); }
+    .pat-item:visited .pat-value.highlight{ color: var(--gold); }
 
     /* ─── Reservas ────────────────────────────── */
     .reservas-section {}
@@ -289,6 +294,12 @@
     .reserva-card:hover {
       border-color: var(--border-gold);
     }
+    /* :visited — previne roxo do browser */
+    .reserva-card:visited .reserva-nome    { color: var(--white); }
+    .reserva-card:visited .reserva-tag     { color: var(--text-muted); }
+    .reserva-card:visited .reserva-acumulado{ color: var(--white); }
+    .reserva-card:visited .reserva-meta    { color: var(--text-muted); }
+    .reserva-card:visited .reserva-pct     { color: var(--gold); }
     .reserva-top {
       display: flex;
       align-items: center;
@@ -548,6 +559,8 @@
     }
     .bnav-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; }
     .bnav-item.active, .bnav-item:hover { color: var(--gold); }
+    .bnav-item:visited { color: var(--text-muted); }
+    .bnav-item.active:visited { color: var(--gold); }
 
     @media (max-width: 640px) {
       .bottom-nav { display: flex; }
