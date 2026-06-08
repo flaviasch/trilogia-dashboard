@@ -194,7 +194,7 @@
   <nav class="navbar">
     <div style="display:flex;align-items:center;gap:20px">
       <span class="logo">Trilogia <span>Dashboard</span></span>
-      <a href="index.html" style="font-size:13px;color:var(--text-muted);text-decoration:none;transition:color .2s" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">← Dashboard</a>
+      <a href="index.html" id="linkVoltarDash" style="font-size:13px;color:var(--text-muted);text-decoration:none;transition:color .2s;display:none;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">← Dashboard</a>
     </div>
     <div class="navbar-right">
       <span class="user-name" id="userDisplayName"></span>
@@ -280,6 +280,17 @@
     });
 
     async function init() {
+      // Mostra "← Dashboard" e bnav completo apenas para quem tem dashboard
+      // clube-only = veio redirecionado de index.html com localStorage 'clubeAccess'
+      const apenasClube = localStorage.getItem('clubeAccess') === '1';
+      if (!apenasClube) {
+        const linkVoltar = document.getElementById('linkVoltarDash');
+        if (linkVoltar) linkVoltar.style.display = '';
+      } else {
+        // clube-only: esconde itens de navegação que não têm acesso
+        document.querySelectorAll('.bnav-item:not([href="clube.html"])').forEach(el => el.style.display = 'none');
+      }
+
       let itens;
       try {
         itens = await getClubeContent();
