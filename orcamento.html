@@ -2001,6 +2001,9 @@
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+    // ─── Ação de lançamento rápido via URL param (?action=despesa|receita|cartao) ──
+    let _fabActionPending = new URLSearchParams(window.location.search).get('action');
+
     // ─── ViewAs (admin visualizando mentorada) ────────────────────────────────
     const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
                      || localStorage.getItem('viewAsUid');
@@ -3209,6 +3212,17 @@
         } else {
           bannerAlertaEl.style.display = 'none';
         }
+      }
+
+      // ── Ação vinda de URL param (ex: index.html FAB → ?action=despesa) ────────
+      if (_fabActionPending) {
+        const _act = _fabActionPending;
+        _fabActionPending = null; // dispara só na 1ª renderização
+        setTimeout(() => {
+          if (_act === 'receita')  abrirModal('receita');
+          else if (_act === 'despesa')  abrirModal('despesa');
+          else if (_act === 'cartao')   abrirModalCartaoDespesa();
+        }, 120);
       }
     }
 
@@ -5854,14 +5868,42 @@
     document.getElementById('btnEditRecCancelar')?.addEventListener('click', () => document.getElementById('modalEditRecorrente').classList.add('hidden'));
     document.getElementById('modalEditRecorrente')?.addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
 
-    // FAB — lançamento rápido
-    const fabEl = document.getElementById('fabLancar');
-    if (fabEl) {
-      fabEl.addEventListener('click', () => abrirModal('despesa'));
-      fabEl.addEventListener('mousedown', () => { fabEl.style.transform = 'scale(0.92)'; fabEl.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)'; });
-      fabEl.addEventListener('mouseup',   () => { fabEl.style.transform = ''; fabEl.style.boxShadow = ''; });
-      fabEl.addEventListener('mouseleave',() => { fabEl.style.transform = ''; fabEl.style.boxShadow = ''; });
-    }
+    // FAB — speed-dial
+    (function() {
+      const fabEl   = document.getElementById('fabLancar');
+      const fabOpts = document.getElementById('fabOptions');
+      const fabBack = document.getElementById('fabBackdrop');
+      if (!fabEl) return;
+      let fabOpen = false;
+
+      function abrirFab() {
+        fabOpen = true;
+        fabOpts.style.opacity = '1';
+        fabOpts.style.pointerEvents = 'auto';
+        fabOpts.style.transform = 'translateY(0)';
+        fabEl.style.transform = 'rotate(45deg)';
+        fabBack.style.display = 'block';
+        // Mostrar/ocultar opção de cartão conforme cartões ativos
+        const cartaoRow = document.getElementById('fabCartaoRow');
+        if (cartaoRow) cartaoRow.style.display = _cartoes.some(c => c.ativo) ? 'flex' : 'none';
+      }
+
+      function fecharFab() {
+        fabOpen = false;
+        fabOpts.style.opacity = '0';
+        fabOpts.style.pointerEvents = 'none';
+        fabOpts.style.transform = 'translateY(10px)';
+        fabEl.style.transform = '';
+        fabBack.style.display = 'none';
+      }
+
+      fabEl.addEventListener('click', () => fabOpen ? fecharFab() : abrirFab());
+      fabBack.addEventListener('click', fecharFab);
+
+      document.getElementById('fabReceita')?.addEventListener('click', () => { fecharFab(); abrirModal('receita'); });
+      document.getElementById('fabDespesa')?.addEventListener('click', () => { fecharFab(); abrirModal('despesa'); });
+      document.getElementById('fabCartao')?.addEventListener('click',  () => { fecharFab(); abrirModalCartaoDespesa(); });
+    })();
   </script>
 
   <!-- Botão de suporte -->
@@ -5875,9 +5917,27 @@
       <div class="suporte-label">E-mail<em>flaviasch@gmail.com</em></div>
     </a>
   </div>
-  <!-- FAB: lançamento rápido de despesa -->
-  <button id="fabLancar" title="Lançar despesa"
-    style="position:fixed;bottom:84px;right:20px;z-index:900;width:52px;height:52px;border-radius:50%;background:var(--gold);color:var(--navy);border:none;font-size:26px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s;line-height:1;">+</button>
+  <!-- FAB speed-dial: lançamento rápido -->
+  <div id="fabBackdrop" style="display:none;position:fixed;inset:0;z-index:899;background:rgba(0,0,0,0.25);"></div>
+  <div id="fabSpeedDial" style="position:fixed;bottom:84px;right:20px;z-index:900;display:flex;flex-direction:column;align-items:flex-end;gap:12px;">
+    <!-- Opções (ocultas por padrão) -->
+    <div id="fabOptions" style="display:flex;flex-direction:column;align-items:flex-end;gap:10px;opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .18s ease,transform .18s ease;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="background:rgba(10,15,40,0.9);color:#fff;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;backdrop-filter:blur(4px);">Receita</span>
+        <button id="fabReceita" style="width:46px;height:46px;border-radius:50%;background:#22c55e;color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 3px 12px rgba(34,197,94,0.4);display:flex;align-items:center;justify-content:center;">↑</button>
+      </div>
+      <div id="fabCartaoRow" style="display:flex;align-items:center;gap:10px;">
+        <span style="background:rgba(10,15,40,0.9);color:#fff;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;backdrop-filter:blur(4px);">Despesa no cartão</span>
+        <button id="fabCartao" style="width:46px;height:46px;border-radius:50%;background:#3b82f6;color:#fff;border:none;font-size:18px;cursor:pointer;box-shadow:0 3px 12px rgba(59,130,246,0.4);display:flex;align-items:center;justify-content:center;">💳</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="background:rgba(10,15,40,0.9);color:#fff;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;backdrop-filter:blur(4px);">Despesa</span>
+        <button id="fabDespesa" style="width:46px;height:46px;border-radius:50%;background:#f87171;color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 3px 12px rgba(248,113,113,0.4);display:flex;align-items:center;justify-content:center;">↓</button>
+      </div>
+    </div>
+    <!-- Botão principal -->
+    <button id="fabLancar" title="Lançar" style="width:52px;height:52px;border-radius:50%;background:var(--gold);color:var(--navy);border:none;font-size:26px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .15s;line-height:1;">+</button>
+  </div>
 
   <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
 
