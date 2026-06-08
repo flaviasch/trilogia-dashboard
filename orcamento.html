@@ -1220,6 +1220,7 @@
       <button id="btnAddDespesaRapida" class="btn-acao">+ Lançar manualmente</button>
       <button id="btnNovoParcelamento" class="btn-acao">💳 Lançamento parcelado</button>
       <button id="btnGerenciarFixasTop" class="btn-acao">⚙️ Despesas fixas</button>
+      <button id="btnGerenciarCartoesTop" class="btn-acao">💳 Cartões</button>
     </div>
 
     <!-- Score de saúde financeira -->
@@ -1505,6 +1506,9 @@
         </div>
       </div>
 
+      <!-- Faturas por cartão -->
+      <div id="secaoFaturas" style="margin-top:12px"></div>
+
       <!-- Sobra destacada -->
       <div id="sobraBox" style="margin-top:24px"></div>
 
@@ -1583,6 +1587,21 @@
     </div>
 
   </main>
+
+  <!-- Modal: fixas detectadas no CSV -->
+  <div id="modalFixasCsv" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width:480px;width:94%;">
+      <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0 0 6px;">Despesas fixas detectadas</h3>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        O CSV contém despesas marcadas como fixas. Deseja cadastrá-las para lançamento automático nos próximos meses?
+      </p>
+      <div id="listaFixasCsv" style="margin-bottom:16px;max-height:280px;overflow-y:auto;"></div>
+      <div style="display:flex;gap:10px;">
+        <button id="btnConfirmarFixasCsv" class="btn-save" style="flex:2;font-size:14px;">Cadastrar selecionadas</button>
+        <button id="btnPularFixasCsv" class="btn-cancel" style="flex:1;font-size:14px;">Pular</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal Despesas Fixas -->
   <div id="modalFixas" class="modal-overlay hidden">
@@ -2203,6 +2222,7 @@
     });
 
     document.getElementById('btnGerenciarCartoes')?.addEventListener('click', () => abrirModalCartoes());
+    document.getElementById('btnGerenciarCartoesTop')?.addEventListener('click', () => abrirModalCartoes());
 
     document.getElementById('btnSalvarItem').addEventListener('click', async () => {
       const btnSalvarItem = document.getElementById('btnSalvarItem');
@@ -2904,6 +2924,8 @@
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
       document.getElementById('btnAddDespesa').addEventListener('click', () => abrirModal('despesa'));
 
+      renderFaturas(data);
+
       // Re-renderiza abas abertas
       if (_tabAtiva === 'planejamento') renderPlanejamento(data, categoriasMes);
       if (_tabAtiva === 'graficos')     renderGraficos(data);
@@ -3056,6 +3078,108 @@
         btn.addEventListener('click', () => editarAporte(+btn.dataset.editAporte)));
       container.querySelectorAll('[data-del-aporte]').forEach(btn =>
         btn.addEventListener('click', () => deletarAporte(+btn.dataset.delAporte)));
+    }
+
+    // ─── Faturas por cartão (aba Resumo) ─────────────────────────────────────
+    function renderFaturas(data) {
+      const el = document.getElementById('secaoFaturas');
+      if (!el) return;
+
+      // Apenas despesas vinculadas a um cartão neste mês
+      const comCartao = data.despesas.filter(d => d.cartao && d.cartaoId);
+      if (!comCartao.length) { el.innerHTML = ''; return; }
+
+      // Agrupa por cartaoId
+      const grupos = {};
+      comCartao.forEach(d => {
+        if (!grupos[d.cartaoId]) grupos[d.cartaoId] = [];
+        grupos[d.cartaoId].push(d);
+      });
+
+      const IC_E = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
+      const IC_D = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
+
+      const secoes = Object.entries(grupos).map(([cartaoId, itens]) => {
+        const cartaoObj = _cartoes.find(c => c.id === cartaoId);
+        const nomeCartao = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
+        const totalFatura = itens.reduce((s, d) => s + d.valor, 0);
+        const limite = cartaoObj?.limite || 0;
+
+        let barraLimite = '';
+        if (limite > 0) {
+          const p = Math.min(totalFatura / limite * 100, 200);
+          const cor = p > 100 ? 'var(--negative)' : p > 80 ? '#f59e0b' : 'var(--positive)';
+          barraLimite = `
+            <div style="display:flex;align-items:center;gap:8px;margin-top:10px;margin-bottom:2px;">
+              <div style="flex:1;height:5px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;">
+                <div style="height:100%;border-radius:4px;width:${Math.min(p,100).toFixed(1)}%;background:${cor};"></div>
+              </div>
+              <span style="font-size:11px;font-weight:700;color:${cor};white-space:nowrap;">${p.toFixed(0)}% do limite (${brl(limite)})</span>
+            </div>`;
+        }
+
+        const linhasItens = itens.map(d => {
+          const idxOriginal = data.despesas.indexOf(d);
+          const nomeMesFat = d.fatura ? MESES[parseInt(d.fatura.split('-')[1]) - 1] : '';
+          const vcto = cartaoObj?.diaVencimento && d.fatura
+            ? ` · vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${d.fatura.split('-')[1]}`
+            : '';
+          const desc = d.descricao || d.categoria;
+          return `
+            <div class="item-row" style="border-radius:0;border:none;border-top:1px solid var(--border);">
+              <div>
+                <div class="item-categoria">${escapeHtml(desc)}</div>
+                ${d.data || nomeMesFat ? `<div class="item-fonte">${d.data ? escapeHtml(formatData(d.data)) + ' · ' : ''}${nomeMesFat ? 'Fatura ' + nomeMesFat + vcto : ''}</div>` : ''}
+              </div>
+              <div></div>
+              <div class="item-value despesa">${brl(d.valor)}</div>
+              <div class="item-actions">
+                <button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_E}</button>
+                <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_D}</button>
+              </div>
+            </div>`;
+        }).join('');
+
+        return `
+          <div class="section" style="margin-bottom:10px;">
+            <div class="section-header expansivel aberta" style="background:var(--navy);border:1px solid var(--border);border-radius:12px 12px 0 0;padding:14px 20px;cursor:default;user-select:none;">
+              <div class="section-title-row">
+                <span style="font-size:15px;">💳</span>
+                <h2 class="section-title" style="font-size:15px;">Fatura ${nomeCartao}</h2>
+              </div>
+              <span class="section-total" style="color:var(--negative);font-weight:700;">${brl(totalFatura)}</span>
+            </div>
+            <div style="background:var(--navy);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding-bottom:4px;">
+              ${barraLimite ? `<div style="padding:0 20px;">${barraLimite}</div>` : ''}
+              <div class="items-list" style="padding:0;">${linhasItens}</div>
+              <div class="total-row" style="padding:12px 20px 4px;"><span class="total-label">Total fatura</span><span class="total-value despesa">${brl(totalFatura)}</span></div>
+              <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:4px 16px 10px;width:calc(100% - 32px);">+ Adicionar a esta fatura</button>
+            </div>
+          </div>`;
+      }).join('');
+
+      el.innerHTML = secoes;
+
+      // Wires
+      el.querySelectorAll('[data-edit-desp]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
+      el.querySelectorAll('[data-del-desp]').forEach(btn =>
+        btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
+      el.querySelectorAll('[data-add-cartao]').forEach(btn =>
+        btn.addEventListener('click', () => {
+          abrirModal('despesa');
+          // Pré-seleciona o cartão no modal após abrir
+          setTimeout(() => {
+            const cbCartao = document.getElementById('mCartao');
+            if (cbCartao && !cbCartao.checked) {
+              cbCartao.checked = true;
+              cbCartao.dispatchEvent(new Event('change'));
+              const sel = document.getElementById('mCartaoSelecionado');
+              if (sel) sel.value = btn.dataset.addCartao;
+              calcularFaturaAutomatica();
+            }
+          }, 100);
+        }));
     }
 
     // ─── Despesas agrupadas por categoria com limite ──────────────────────────
@@ -3298,6 +3422,84 @@
       const totalPctGlobal = totalPlan > 0 ? Math.round(totalReal / totalPlan * 100) : 0;
       const totalCorGlobal = totalPctGlobal > 100 ? 'var(--negative)' : totalPctGlobal > 80 ? '#f59e0b' : 'var(--positive)';
 
+      // ── Seção de cartões com limite ─────────────────────────────────────────
+      const gastosPorCartao = {};
+      data.despesas.filter(d => d.cartao && d.cartaoId).forEach(d => {
+        gastosPorCartao[d.cartaoId] = (gastosPorCartao[d.cartaoId] || 0) + d.valor;
+      });
+
+      const cartoesComLimite = _cartoes.filter(c => c.ativo && c.limite > 0);
+      const alertasCartao = cartoesComLimite
+        .filter(c => (gastosPorCartao[c.id] || 0) / c.limite * 100 >= 80)
+        .map(c => {
+          const real = gastosPorCartao[c.id] || 0;
+          const p = Math.round(real / c.limite * 100);
+          return { nome: c.nome, real, limite: c.limite, pct: p };
+        });
+
+      // Reconstrói banner unificado quando há alertas de cartão
+      if (alertasCartao.length > 0) {
+        const totalAlertas = alertas.length + alertasCartao.length;
+        const renderAlertaItem = (pct, label, real, limite) => {
+          const cls = pct >= 100 ? 'vermelho' : 'amarelo';
+          const msg = pct >= 100
+            ? `${brl(real - limite)} acima do limite`
+            : `restam ${brl(limite - real)}`;
+          return `<div class="alertas-item">
+            <span class="alertas-pct ${cls}">${pct}%</span>
+            <span><strong>${label}</strong> — ${brl(real)} de ${brl(limite)} — <em>${msg}</em></span>
+          </div>`;
+        };
+        const itensCat     = alertas.map(a => renderAlertaItem(a.pct, escapeHtml(a.cat), a.real, a.limite)).join('');
+        const itensCartao  = alertasCartao.map(a => renderAlertaItem(a.pct, `💳 ${escapeHtml(a.nome)}`, a.real, a.limite)).join('');
+        alertasHTML = `
+          <div class="alertas-banner">
+            <div class="alertas-banner-icon">⚠️</div>
+            <div>
+              <div class="alertas-banner-title">${totalAlertas} item${totalAlertas > 1 ? 'ns precisam' : ' precisa'} de atenção</div>
+              <div class="alertas-lista">${itensCat}${itensCartao}</div>
+            </div>
+          </div>`;
+      }
+
+      let cartoesHTML = '';
+      if (cartoesComLimite.length > 0) {
+        const linhasCartao = cartoesComLimite.map(c => {
+          const real = gastosPorCartao[c.id] || 0;
+          const p = Math.min(real / c.limite * 100, 200);
+          const cor = p > 100 ? 'var(--negative)' : p > 80 ? '#f59e0b' : 'var(--positive)';
+          const emoji = p > 100 ? '🔴' : p > 80 ? '🟡' : '🟢';
+          return `<tr class="plan-row">
+            <td class="plan-cat" style="padding-left:20px">💳 ${escapeHtml(c.nome)}</td>
+            <td><div class="plan-plan-wrap"><span class="plan-valor-plan">${brl(c.limite)}</span></div></td>
+            <td><span style="font-weight:600;color:${p > 100 ? 'var(--negative)' : p > 0 ? 'var(--positive)' : ''}">${real > 0 ? brl(real) : '—'}</span></td>
+            <td style="min-width:140px">
+              <div class="plan-bar-wrap">
+                <div class="plan-bar-track"><div class="plan-bar-fill" style="width:${Math.min(p,100).toFixed(1)}%;background:${cor}"></div></div>
+                <span class="plan-pct-text" style="color:${cor}">${real > 0 ? p.toFixed(0) + '%' : '—'}</span>
+              </div>
+            </td>
+            <td style="padding-right:20px;text-align:center"><span class="plan-status">${real > 0 ? emoji : '⚪'}</span></td>
+          </tr>`;
+        }).join('');
+        cartoesHTML = `
+          <div class="plan-table-wrap" style="margin-top:16px;">
+            <div style="padding:12px 20px 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Cartões de crédito — limite mensal</div>
+            <table class="plan-table">
+              <thead class="plan-thead">
+                <tr>
+                  <th style="padding-left:20px">Cartão</th>
+                  <th>Limite</th>
+                  <th>Fatura</th>
+                  <th>Progresso</th>
+                  <th style="padding-right:20px;text-align:center">Status</th>
+                </tr>
+              </thead>
+              <tbody>${linhasCartao}</tbody>
+            </table>
+          </div>`;
+      }
+
       el.innerHTML = `
         <div class="plan-acoes">
           <span class="plan-desc">Defina quanto planeja gastar em cada categoria este mês.</span>
@@ -3330,12 +3532,13 @@
             </tfoot>
           </table>
         </div>
-        <div class="notif-info-box">
+        ${cartoesHTML}
+        <div class="notif-info-box" style="margin-top:16px;">
           <div class="notif-info-box-icon">🔔</div>
           <div>
             <div class="notif-info-box-title">Notificações automáticas</div>
             <div class="notif-info-box-text">
-              Ao atingir <strong style="color:var(--white)">80%</strong> do limite de uma categoria, um alerta aparece aqui no painel.<br>
+              Ao atingir <strong style="color:var(--white)">80%</strong> do limite de uma categoria ou cartão, um alerta aparece aqui no painel.<br>
               Todo dia <strong style="color:var(--white)">28</strong> você também recebe um e-mail lembrando de configurar o planejamento do próximo mês.
             </div>
           </div>
@@ -3525,13 +3728,15 @@
           Array.from({ length: mesAtual }, (_, i) => i + 1).map(m =>
             buscarPeriodo(m, ano)
               .then(data => ({
-                mes:      m,
-                receita:  data.receitas.reduce((s, r) => s + r.valor, 0),
-                despesa:  data.despesas.reduce((s, d) => s + d.valor, 0),
-                aporte:   data.aportes.reduce((s, a) => s + a.valor, 0),
-                temDados: data.receitas.length > 0 || data.despesas.length > 0 || data.aportes.length > 0,
+                mes:       m,
+                receita:   data.receitas.reduce((s, r) => s + r.valor, 0),
+                despesa:   data.despesas.reduce((s, d) => s + d.valor, 0),
+                aporte:    data.aportes.reduce((s, a) => s + a.valor, 0),
+                temDados:  data.receitas.length > 0 || data.despesas.length > 0 || data.aportes.length > 0,
+                porCartao: data.despesas.filter(d => d.cartao && d.cartaoId)
+                  .reduce((acc, d) => { acc[d.cartaoId] = (acc[d.cartaoId] || 0) + d.valor; return acc; }, {}),
               }))
-              .catch(() => ({ mes: m, receita: 0, despesa: 0, aporte: 0, temDados: false }))
+              .catch(() => ({ mes: m, receita: 0, despesa: 0, aporte: 0, temDados: false, porCartao: {} }))
           )
         ),
         getScoreHistorico({}).catch(() => []),
@@ -3574,6 +3779,39 @@
           <td style="padding:11px 16px;text-align:right;font-weight:600;color:${scoreCor}">${scoreVal != null ? scoreVal : '—'}</td>
         </tr>`;
       }).join('');
+
+      // ── Agrega totais por cartão no ano ────────────────────────────────────
+      const totalPorCartao = {};
+      resultados.forEach(r => Object.entries(r.porCartao || {}).forEach(([cid, val]) => {
+        totalPorCartao[cid] = (totalPorCartao[cid] || 0) + val;
+      }));
+      let cartoesAnualHTML = '';
+      if (Object.keys(totalPorCartao).length > 0) {
+        const linhasCartao = Object.entries(totalPorCartao)
+          .sort(([, a], [, b]) => b - a)
+          .map(([cid, total]) => {
+            const cartaoObj  = _cartoes.find(c => c.id === cid);
+            const nome       = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
+            const pctDesp    = totDespesa > 0 ? (total / totDespesa * 100).toFixed(1) : '0';
+            return `<tr style="border-top:1px solid var(--border)">
+              <td style="padding:11px 16px;font-weight:500">💳 ${nome}</td>
+              <td style="padding:11px 16px;text-align:right;color:var(--negative);font-weight:600">${brl(total)}</td>
+              <td style="padding:11px 16px;text-align:right;color:var(--text-muted)">${pctDesp}% das despesas</td>
+            </tr>`;
+          }).join('');
+        cartoesAnualHTML = `
+          <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:24px;">
+            <div style="padding:14px 20px 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">💳 Gastos por cartão — ${ano}</div>
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="background:rgba(255,255,255,.03);">
+                <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Cartão</th>
+                <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Total anual</th>
+                <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">% das despesas</th>
+              </tr></thead>
+              <tbody>${linhasCartao}</tbody>
+            </table>
+          </div>`;
+      }
 
       el.innerHTML = `
         <!-- Botão exportar -->
@@ -3649,7 +3887,8 @@
               </tr>
             </tfoot>
           </table>
-        </div>`;
+        </div>
+        ${cartoesAnualHTML}`;
 
       // Gráfico
       const ctx = document.getElementById('graficoAnualCanvas')?.getContext('2d');
@@ -4065,6 +4304,8 @@
         try {
           const itensCsv = parsearCsvRaioX(ev.target.result);
           const { mes, ano } = currentData.periodo;
+          // Despesas marcadas como fixas no CSV — serão propostas como recorrentes
+          const fixasDetectadas = itensCsv.filter(i => i.fixa && i.tipo === 'despesa');
           // Preserva recorrentes, parcelamentos e lançamentos manuais — CSV não sobrescreve
           const preservar = [
             ...currentData.receitas
@@ -4074,7 +4315,8 @@
               .filter(d => d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento')
               .map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.parcelamentoId ? { parcelamentoId: d.parcelamentoId, parcelaAtual: d.parcelaAtual, parcelasTotal: d.parcelasTotal } : {}) })),
           ];
-          const itens = [...itensCsv.map(i => ({ ...i, origem: 'csv' })), ...preservar];
+          // Salva todos os itens do CSV normalmente (fixa entra como lançamento regular)
+          const itens = [...itensCsv.map(({ fixa: _f, ...i }) => ({ ...i, origem: 'csv' })), ...preservar];
           await saveOrcamento(mes, ano, itens);
           _invalPeriodo(mes, ano);
           currentData = await buscarPeriodo(mes, ano);
@@ -4082,6 +4324,8 @@
           verificarBannerFixas(currentData);
           toast('Raio-X importado com sucesso!', 'success');
           registrarEvento('csv_importado');
+          // Se houver fixas detectadas, exibe modal de confirmação
+          if (fixasDetectadas.length > 0) abrirModalFixasCsv(fixasDetectadas);
         } catch (err) {
           toast(msgErro(err), 'error');
         } finally {
@@ -4509,6 +4753,70 @@
 
     // Carrega cartões no load (junto com recorrentes)
     carregarCartoes();
+
+    // ─── Modal: fixas detectadas no CSV (11.2) ───────────────────────────────
+    let _fixasCsvPendentes = [];
+
+    function abrirModalFixasCsv(fixas) {
+      _fixasCsvPendentes = fixas;
+      const lista = document.getElementById('listaFixasCsv');
+      if (!lista) return;
+      lista.innerHTML = fixas.map((f, i) => `
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+          <input type="checkbox" checked value="${i}" style="width:16px;height:16px;accent-color:var(--gold);flex-shrink:0;">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:500;">${escapeHtml(f.descricao || f.categoria)}</div>
+            <div style="font-size:12px;color:var(--text-muted);">${escapeHtml(f.categoria)}</div>
+          </div>
+          <span style="font-weight:700;color:var(--negative);white-space:nowrap;">${brl(f.valor)}/mês</span>
+        </label>`).join('');
+      document.getElementById('modalFixasCsv')?.classList.remove('hidden');
+    }
+
+    async function confirmarFixasCsv() {
+      const checks = document.querySelectorAll('#listaFixasCsv input[type=checkbox]');
+      const selecionadas = [...checks].filter(c => c.checked).map(c => _fixasCsvPendentes[+c.value]);
+      if (!selecionadas.length) {
+        document.getElementById('modalFixasCsv')?.classList.add('hidden');
+        return;
+      }
+      const btn = document.getElementById('btnConfirmarFixasCsv');
+      btn.disabled = true; btn.textContent = 'Cadastrando…';
+      try {
+        for (const f of selecionadas) {
+          // Verifica se já existe recorrente com mesma categoria + valor para não duplicar
+          const jaExiste = _recorrentes.some(r => r.categoria === f.categoria && r.valor === f.valor && r.ativo);
+          if (!jaExiste) {
+            await saveRecorrente({
+              categoria: f.categoria,
+              valor: f.valor,
+              descricao: f.descricao || '',
+              dia: 1,
+              frequencia: 'mensal',
+              mesesRestantes: null,
+              ativo: true,
+              cartao: false,
+              cartaoId: '',
+            });
+          }
+        }
+        await carregarRecorrentes();
+        document.getElementById('modalFixasCsv')?.classList.add('hidden');
+        const n = selecionadas.length;
+        toast(`${n} despesa${n > 1 ? 's fixas cadastradas' : ' fixa cadastrada'} com sucesso!`, 'success');
+      } catch (e) {
+        toast('Erro ao cadastrar fixas: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Cadastrar selecionadas';
+      }
+    }
+
+    document.getElementById('btnConfirmarFixasCsv')?.addEventListener('click', confirmarFixasCsv);
+    document.getElementById('btnPularFixasCsv')?.addEventListener('click', () =>
+      document.getElementById('modalFixasCsv')?.classList.add('hidden'));
+    document.getElementById('modalFixasCsv')?.addEventListener('click', e => {
+      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
 
     // ─── Suporte ─────────────────────────────
     (function() {

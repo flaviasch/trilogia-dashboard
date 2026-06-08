@@ -490,10 +490,11 @@ export const PATRIMONIO_COR = {
  *
  * Formato mínimo (legado):   categoria,tipo,valor
  * Formato completo (v2):     data,descricao,categoria,tipo,valor
+ * Coluna opcional "Fixa":    S/N — quando S, o item recebe `fixa: true` (usado para cadastro automático de recorrentes)
  * Colunas opcionais aceitam qualquer ordem; separador auto-detectado (,;tab).
  *
  * @param {string} csvText
- * @returns {Array<{categoria, tipo, valor, data?, descricao?}>}
+ * @returns {Array<{categoria, tipo, valor, data?, descricao?, fixa?}>}
  */
 export function parsearCsvRaioX(csvText) {
   const linhas = csvText.trim().split('\n').map(l => l.trim()).filter(Boolean);
@@ -512,6 +513,8 @@ export function parsearCsvRaioX(csvText) {
   const idxData      = cabecalho.indexOf('data');
   const idxDescricao = ['descricao','descrição','descricão','description']
     .map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
+  const idxFixa      = ['fixa','fixed','is_fixed','isfixed']
+    .map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
 
   if (idxCategoria === -1 || idxTipo === -1 || idxValor === -1) {
     throw new Error('CSV inválido: colunas esperadas são "categoria", "tipo", "valor".');
@@ -519,6 +522,7 @@ export function parsearCsvRaioX(csvText) {
 
   // Padrões de linhas de totais/subtotais que devem ser ignorados
   const IGNORAR_CAT = /^(totais?|subtotais?|total\s*geral|grand\s*total|soma)$/i;
+  const FIXA_SIM    = /^(s|sim|yes|1|x)$/i;
 
   return linhas.slice(1).reduce((acc, linha, i) => {
     const cols = linha.split(sep).map(c => c.trim());
@@ -536,6 +540,7 @@ export function parsearCsvRaioX(csvText) {
     const item = { categoria: catBruta || 'Sem categoria', tipo, valor };
     if (idxData      !== -1 && cols[idxData])      item.data      = cols[idxData];
     if (idxDescricao !== -1 && cols[idxDescricao]) item.descricao = cols[idxDescricao];
+    if (idxFixa      !== -1 && FIXA_SIM.test(cols[idxFixa] || '')) item.fixa = true;
     acc.push(item);
     return acc;
   }, []);
