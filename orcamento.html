@@ -1218,6 +1218,7 @@
     <div style="display:flex;gap:8px;margin-top:-16px;margin-bottom:20px;flex-wrap:wrap;">
       <button id="btnImportarSMS" class="btn-acao">📱 Importar notificação do banco</button>
       <button id="btnAddDespesaRapida" class="btn-acao">+ Lançar manualmente</button>
+      <button id="btnLancarNoCartao" class="btn-acao" style="display:none;">💳 Lançar no cartão</button>
       <button id="btnNovoParcelamento" class="btn-acao">💳 Lançamento parcelado</button>
       <button id="btnGerenciarFixasTop" class="btn-acao">⚙️ Despesas fixas</button>
       <button id="btnGerenciarCartoesTop" class="btn-acao">💳 Cartões</button>
@@ -1412,6 +1413,67 @@
         <button id="btnSalvarParcelamento" class="btn-primary" style="flex:1;font-size:14px;">Salvar parcelamento</button>
         <button id="btnCancelarModalParcelamento" class="btn-secondary" style="font-size:14px;padding:10px 16px;">Cancelar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: Lançar despesa no cartão -->
+  <div id="modalCartaoDespesa" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width:480px;width:94%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h3 style="font-size:17px;font-weight:700;margin:0;color:var(--white);">💳 Despesa no cartão</h3>
+        <button id="btnFecharCartaoDespesa" style="background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;padding:0;line-height:1;">×</button>
+      </div>
+
+      <div class="field-group" style="margin-bottom:12px;">
+        <label for="cdCartao">Cartão</label>
+        <select id="cdCartao" style="width:100%;padding:9px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;"></select>
+      </div>
+
+      <div class="field-group">
+        <label for="cdDescricao">Descrição</label>
+        <input type="text" id="cdDescricao" placeholder="ex: Supermercado, Netflix, Farmácia…" />
+      </div>
+
+      <div class="field-group">
+        <label for="cdCategoria">Categoria</label>
+        <input type="text" id="cdCategoria" placeholder="ex: Alimentação, Saúde…" list="cdCategoriasSugeridas" autocomplete="off" />
+        <datalist id="cdCategoriasSugeridas"></datalist>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field-group">
+          <label for="cdData">Data da compra</label>
+          <input type="date" id="cdData" />
+        </div>
+        <div class="field-group">
+          <label for="cdValor">Valor (R$)</label>
+          <input type="text" inputmode="numeric" id="cdValor" placeholder="0" />
+        </div>
+      </div>
+
+      <!-- Fatura em destaque -->
+      <div style="margin-top:16px;background:rgba(207,174,101,0.07);border:1.5px solid rgba(207,174,101,0.25);border-radius:12px;padding:14px 16px;">
+        <div style="font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">Entra na fatura de</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div>
+            <div id="cdFaturaLabel" style="font-size:22px;font-weight:700;color:var(--white);">—</div>
+            <div id="cdFaturaHint" style="font-size:11px;color:var(--gold);margin-top:3px;min-height:16px;"></div>
+            <div id="cdVctoLabel" style="font-size:11px;color:var(--text-secondary);margin-top:1px;min-height:14px;"></div>
+          </div>
+          <button id="cdBtnAjustarFatura"
+            style="flex-shrink:0;background:none;border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text-secondary);font-size:12px;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:all .15s;"
+            onmouseover="this.style.borderColor='rgba(207,174,101,0.5)';this.style.color='var(--gold)'"
+            onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">✎ Ajustar</button>
+        </div>
+        <div id="cdFaturaAjuste" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid rgba(207,174,101,0.2);">
+          <label style="font-size:11px;color:var(--text-secondary);">Ajustar para:</label>
+          <input type="month" id="cdFaturaInput"
+            style="width:100%;margin-top:5px;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;font-family:'Inter',sans-serif;box-sizing:border-box;" />
+          <div style="font-size:11px;color:var(--text-muted);margin-top:5px;">Corte antecipado por feriado? Ajuste aqui qual fatura deve receber essa compra.</div>
+        </div>
+      </div>
+
+      <button id="btnSalvarCartaoDespesa" class="btn-save" style="width:100%;margin-top:16px;font-size:15px;">Salvar</button>
     </div>
   </div>
 
@@ -3166,20 +3228,7 @@
       el.querySelectorAll('[data-del-desp]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
       el.querySelectorAll('[data-add-cartao]').forEach(btn =>
-        btn.addEventListener('click', () => {
-          abrirModal('despesa');
-          // Pré-seleciona o cartão no modal após abrir
-          setTimeout(() => {
-            const cbCartao = document.getElementById('mCartao');
-            if (cbCartao && !cbCartao.checked) {
-              cbCartao.checked = true;
-              cbCartao.dispatchEvent(new Event('change'));
-              const sel = document.getElementById('mCartaoSelecionado');
-              if (sel) sel.value = btn.dataset.addCartao;
-              calcularFaturaAutomatica();
-            }
-          }, 100);
-        }));
+        btn.addEventListener('click', () => abrirModalCartaoDespesa(btn.dataset.addCartao)));
     }
 
     // ─── Despesas agrupadas por categoria com limite ──────────────────────────
@@ -4584,6 +4633,8 @@
     async function carregarCartoes() {
       try { _cartoes = await getCartoes(); }
       catch (e) { console.warn('[cartoes]', e.message); _cartoes = []; }
+      const btn = document.getElementById('btnLancarNoCartao');
+      if (btn) btn.style.display = _cartoes.some(c => c.ativo) ? '' : 'none';
     }
 
     // Calcula mês da fatura pela regra: compra após o corte → próximo mês
@@ -4615,6 +4666,151 @@
       hint.style.display = '';
       atualizarVctoCartao();
     }
+
+    // ─── Modal dedicado: lançar despesa no cartão ────────────────────────────
+
+    function abrirModalCartaoDespesa(cartaoIdPre) {
+      const ativos = _cartoes.filter(c => c.ativo);
+      if (!ativos.length) {
+        mostrarToast('Nenhum cartão cadastrado. Adicione primeiro.', 'warning');
+        abrirModalCartoes();
+        return;
+      }
+      const sel = document.getElementById('cdCartao');
+      sel.innerHTML = ativos.map(c =>
+        `<option value="${c.id}" ${c.id === cartaoIdPre ? 'selected' : ''}>${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`
+      ).join('');
+      // Datalist de categorias a partir dos dados do mês atual + recorrentes
+      const dl = document.getElementById('cdCategoriasSugeridas');
+      if (dl) {
+        const cats = new Set([
+          ...currentData.despesas.map(d => d.categoria),
+          ..._recorrentes.map(r => r.categoria),
+        ]);
+        dl.innerHTML = [...cats].filter(Boolean).map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
+      }
+      // Limpa campos
+      document.getElementById('cdDescricao').value  = '';
+      document.getElementById('cdCategoria').value  = '';
+      document.getElementById('cdData').value        = new Date().toISOString().slice(0, 10);
+      document.getElementById('cdValor').value       = '';
+      document.getElementById('cdFaturaLabel').textContent = '—';
+      document.getElementById('cdFaturaHint').textContent  = '';
+      document.getElementById('cdVctoLabel').textContent   = '';
+      document.getElementById('cdFaturaAjuste').style.display = 'none';
+      document.getElementById('cdFaturaInput').value = '';
+      // Calcula fatura para a data de hoje
+      _calcFaturaCartaoModal();
+      document.getElementById('modalCartaoDespesa').classList.remove('hidden');
+    }
+
+    function _calcFaturaCartaoModal() {
+      const cartaoId  = document.getElementById('cdCartao')?.value;
+      const cartaoObj = _cartoes.find(c => c.id === cartaoId);
+      const data      = document.getElementById('cdData')?.value;
+      if (!cartaoObj || !data) return;
+      const sugerido  = sugerirFatura(data, cartaoObj.diaCorte);
+      document.getElementById('cdFaturaInput').value = sugerido;
+      _atualizarLabelFaturaCartaoModal(sugerido, data, cartaoObj, false);
+    }
+
+    function _atualizarLabelFaturaCartaoModal(yyyyMM, dataCompra, cartaoObj, manual) {
+      if (!yyyyMM) return;
+      const [ano, mesStr] = yyyyMM.split('-');
+      const mes = parseInt(mesStr, 10);
+      document.getElementById('cdFaturaLabel').textContent = `${MESES[mes - 1]} / ${ano}`;
+
+      const hint = document.getElementById('cdFaturaHint');
+      if (manual) {
+        hint.textContent = '✎ Ajustado manualmente';
+        hint.style.color = 'var(--text-muted)';
+      } else if (dataCompra) {
+        const diaCompra  = parseInt(dataCompra.split('-')[2], 10);
+        hint.textContent = diaCompra > cartaoObj.diaCorte
+          ? `Compra após o corte (dia ${cartaoObj.diaCorte}) → fatura ${MESES[mes - 1]}`
+          : `Compra antes do corte (dia ${cartaoObj.diaCorte}) → fatura ${MESES[mes - 1]}`;
+        hint.style.color = 'var(--gold)';
+      }
+
+      const vctoEl = document.getElementById('cdVctoLabel');
+      if (cartaoObj.diaVencimento) {
+        const anoN   = parseInt(ano, 10);
+        const vctoMes = mes < 12 ? mes + 1 : 1;
+        const vctoAno = mes < 12 ? anoN : anoN + 1;
+        vctoEl.textContent = `Vencimento: ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vctoMes).padStart(2,'0')}/${vctoAno}`;
+      } else {
+        vctoEl.textContent = '';
+      }
+    }
+
+    async function _salvarCartaoDespesa() {
+      const cartaoId  = document.getElementById('cdCartao')?.value;
+      const cartaoObj = _cartoes.find(c => c.id === cartaoId);
+      const descricao = document.getElementById('cdDescricao').value.trim();
+      const categoria = document.getElementById('cdCategoria').value.trim();
+      const data      = document.getElementById('cdData').value;
+      const valor     = readMoney(document.getElementById('cdValor'));
+      const fatura    = document.getElementById('cdFaturaInput').value.trim();
+
+      if (!categoria)          return mostrarToast('Preencha a categoria.', 'warning');
+      if (!data)               return mostrarToast('Preencha a data da compra.', 'warning');
+      if (!valor || valor <= 0) return mostrarToast('Preencha o valor.', 'warning');
+      if (!fatura)             return mostrarToast('Defina o mês da fatura.', 'warning');
+
+      const [fatAno, fatMes] = fatura.split('-').map(Number);
+      const btn = document.getElementById('btnSalvarCartaoDespesa');
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        const novoItem = {
+          categoria, descricao, tipo: 'despesa', valor, data,
+          cartao: true, cartaoId, fatura, origem: 'manual',
+        };
+        const itensFatura = await getOrcamento(fatMes, fatAno);
+        itensFatura.push(novoItem);
+        await saveOrcamento(fatMes, fatAno, itensFatura);
+        _invalPeriodo(fatMes, fatAno);
+        document.getElementById('modalCartaoDespesa').classList.add('hidden');
+        registrarEvento('despesa_cartao_lancada');
+        const nomeMesFat = MESES[fatMes - 1];
+        const { mes: mesVis, ano: anoVis } = currentData.periodo;
+        if (fatMes === mesVis && fatAno === anoVis) {
+          currentData = await buscarPeriodo(fatMes, fatAno);
+          render(currentData);
+          mostrarToast(`💳 Salvo na fatura de ${nomeMesFat} ✓`, 'success');
+        } else {
+          mostrarToast(`💳 Salvo na fatura de ${nomeMesFat} — navegue para aquele mês para ver.`, 'success', 5000);
+        }
+      } catch (err) {
+        mostrarToast(msgErro(err), 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    }
+
+    // Event listeners do modal cartão despesa
+    document.getElementById('btnFecharCartaoDespesa')?.addEventListener('click', () =>
+      document.getElementById('modalCartaoDespesa').classList.add('hidden'));
+    document.getElementById('modalCartaoDespesa')?.addEventListener('click', e => {
+      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
+    document.getElementById('btnLancarNoCartao')?.addEventListener('click', () => abrirModalCartaoDespesa());
+    document.getElementById('btnSalvarCartaoDespesa')?.addEventListener('click', _salvarCartaoDespesa);
+    document.getElementById('cdCartao')?.addEventListener('change', _calcFaturaCartaoModal);
+    document.getElementById('cdData')?.addEventListener('change', _calcFaturaCartaoModal);
+    document.getElementById('cdBtnAjustarFatura')?.addEventListener('click', () => {
+      const el = document.getElementById('cdFaturaAjuste');
+      const open = el.style.display !== 'none';
+      el.style.display = open ? 'none' : '';
+      if (!open) document.getElementById('cdFaturaInput').focus();
+    });
+    document.getElementById('cdFaturaInput')?.addEventListener('change', () => {
+      const yyyyMM    = document.getElementById('cdFaturaInput').value;
+      const cartaoId  = document.getElementById('cdCartao')?.value;
+      const cartaoObj = _cartoes.find(c => c.id === cartaoId);
+      if (yyyyMM && cartaoObj) _atualizarLabelFaturaCartaoModal(yyyyMM, null, cartaoObj, true);
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     function atualizarVctoCartao() {
       const cartaoId  = document.getElementById('mCartaoSelecionado')?.value;
