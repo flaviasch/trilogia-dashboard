@@ -2458,9 +2458,10 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 
       // Muda de view PRIMEIRO — garante que a transição acontece mesmo se
       // houver erro no preenchimento de algum campo abaixo.
-      document.getElementById('view-mentoradas').classList.remove('ativo');
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('ativo'));
       document.getElementById('view-detalhe').classList.add('ativo');
-      document.querySelector('[data-tab="mentoradas"]').classList.remove('ativo');
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('ativo'));
+      document.querySelector('[data-tab="mentoradas"]').classList.add('ativo');
 
       // Cabeçalho
       setText('detNome', m.nome);
