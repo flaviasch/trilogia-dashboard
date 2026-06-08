@@ -1256,6 +1256,7 @@
     <!-- Abas -->
     <div class="tabs-bar">
       <button class="tab-btn active" id="tabBtnResumo">📋 Resumo</button>
+      <button class="tab-btn"        id="tabBtnFaturas" style="display:none;">💳 Faturas</button>
       <button class="tab-btn"        id="tabBtnPlanejamento">🎯 Planejamento</button>
       <button class="tab-btn"        id="tabBtnGraficos">📊 Gráficos</button>
       <button class="tab-btn"        id="tabBtnDetalhe">🔍 Detalhe</button>
@@ -1587,9 +1588,6 @@
         </div>
       </div>
 
-      <!-- Faturas por cartão -->
-      <div id="secaoFaturas" style="margin-top:12px"></div>
-
       <!-- Sobra destacada -->
       <div id="sobraBox" style="margin-top:24px"></div>
 
@@ -1634,6 +1632,11 @@
       </div>
 
     </div><!-- /tab-resumo -->
+
+    <!-- ═══ ABA FATURAS ══════════════════════════════════════════════ -->
+    <div class="tab-pane" id="tab-faturas">
+      <div id="secaoFaturas" style="margin-top:4px"></div>
+    </div>
 
     <!-- ═══ ABA PLANEJAMENTO ══════════════════════════════════════════ -->
     <div class="tab-pane" id="tab-planejamento">
@@ -1904,8 +1907,8 @@
         <input type="text" inputmode="numeric" id="mValor" placeholder="0" />
       </div>
 
-      <!-- Cartão de crédito (só visível para despesa) -->
-      <div id="fgCartaoSection" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
+      <!-- Cartão de crédito: oculto por padrão, reapare só ao editar item de cartão -->
+      <div id="fgCartaoSection" style="display:none;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-secondary);user-select:none">
           <input type="checkbox" id="mCartao" style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer" />
           💳 Despesa no cartão de crédito
@@ -1926,6 +1929,34 @@
             <span id="mFaturaVcto" style="font-size:12px;color:var(--text-secondary);white-space:nowrap;"></span>
           </div>
           <div id="mFaturaHint" style="font-size:11px;color:var(--gold);margin-top:4px;display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Toggles: recorrência / fixa (só para despesas novas) -->
+      <div id="fgRecorrenciaToggles" style="display:none;border-top:1px solid var(--border);margin-top:8px;padding-top:10px;display:flex;flex-direction:column;gap:0;">
+        <label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;cursor:pointer;user-select:none;gap:12px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span>📌</span>
+            <div>
+              <div style="font-size:13px;color:var(--white);">Despesa fixa</div>
+              <div style="font-size:11px;color:var(--text-muted);">Lançada todo mês automaticamente</div>
+            </div>
+          </div>
+          <input type="checkbox" id="mVirarFixa" style="width:17px;height:17px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;" />
+        </label>
+        <label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-top:1px solid rgba(255,255,255,0.06);cursor:pointer;user-select:none;gap:12px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span>🔄</span>
+            <div>
+              <div style="font-size:13px;color:var(--white);">Recorrência com prazo</div>
+              <div style="font-size:11px;color:var(--text-muted);">Repete por X meses e para</div>
+            </div>
+          </div>
+          <input type="checkbox" id="mRecorrenciaPrazo" style="width:17px;height:17px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;" />
+        </label>
+        <div id="fgRecorrenciaMeses" style="display:none;padding-bottom:4px;">
+          <input type="number" id="mRecorrenciaMeses" min="1" max="60" placeholder="Quantos meses?"
+            style="width:100%;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;font-family:'Inter',sans-serif;box-sizing:border-box;" />
         </div>
       </div>
 
@@ -2061,11 +2092,12 @@
     }
 
     // ─── Listeners das abas e colapsáveis (via JS, não onclick no HTML) ───────
-    document.getElementById('tabBtnResumo')     ?.addEventListener('click', () => ativarTab('resumo'));
+    document.getElementById('tabBtnResumo')      ?.addEventListener('click', () => ativarTab('resumo'));
+    document.getElementById('tabBtnFaturas')     ?.addEventListener('click', () => ativarTab('faturas'));
     document.getElementById('tabBtnPlanejamento')?.addEventListener('click', () => ativarTab('planejamento'));
-    document.getElementById('tabBtnGraficos')   ?.addEventListener('click', () => ativarTab('graficos'));
-    document.getElementById('tabBtnDetalhe')    ?.addEventListener('click', () => ativarTab('detalhe'));
-    document.getElementById('tabBtnAnual')      ?.addEventListener('click', () => ativarTab('anual'));
+    document.getElementById('tabBtnGraficos')    ?.addEventListener('click', () => ativarTab('graficos'));
+    document.getElementById('tabBtnDetalhe')     ?.addEventListener('click', () => ativarTab('detalhe'));
+    document.getElementById('tabBtnAnual')       ?.addEventListener('click', () => ativarTab('anual'));
 
     // Abreviar labels no mobile para caber em 1 linha
     if (window.innerWidth <= 640) {
@@ -2217,6 +2249,9 @@
         document.getElementById('mTipo').value = tipo;
       }
 
+      const fgCartao    = document.getElementById('fgCartaoSection');
+      const fgToggles   = document.getElementById('fgRecorrenciaToggles');
+
       if (idx !== null) {
         const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
         const item  = lista[idx];
@@ -2225,28 +2260,37 @@
         document.getElementById('mDescricao').value = item.descricao || '';
         setMoney(document.getElementById('mValor'), item.valor);
         if (!_catLocked) document.getElementById('mTipo').value = tipo;
-        // Cartão
+        // Cartão: só mostra se este item já é de cartão
         const isCartao = !!item.cartao;
         document.getElementById('mCartao').checked = isCartao;
+        if (fgCartao) fgCartao.style.display = isCartao ? 'flex' : 'none';
         document.getElementById('fgCartaoOpcoes').style.display = isCartao ? '' : 'none';
         document.getElementById('mFatura').value = item.fatura || '';
         if (isCartao) {
           preencherSeletorCartoes(item.cartaoId || null);
           atualizarVctoCartao();
         }
+        // Toggles recorrência: nunca mostrar ao editar
+        if (fgToggles) fgToggles.style.display = 'none';
       } else {
         if (!_catLocked) document.getElementById('mCategoria').value = '';
-        // Pré-preenche com hoje para novos lançamentos
         document.getElementById('mData').value      = new Date().toISOString().split('T')[0];
         document.getElementById('mDescricao').value = '';
         document.getElementById('mValor').value     = '';
-        // Cartão: limpa
+        // Cartão: sempre oculto em novos lançamentos (usar botão '💳 Lançar no cartão')
         document.getElementById('mCartao').checked = false;
+        if (fgCartao) fgCartao.style.display = 'none';
         document.getElementById('fgCartaoOpcoes').style.display = 'none';
         document.getElementById('mFatura').value = '';
+        // Toggles recorrência: visíveis só para despesa nova
+        if (fgToggles) fgToggles.style.display = tipo === 'despesa' ? '' : 'none';
+        document.getElementById('mVirarFixa').checked       = false;
+        document.getElementById('mRecorrenciaPrazo').checked = false;
+        document.getElementById('fgRecorrenciaMeses').style.display = 'none';
+        document.getElementById('mRecorrenciaMeses').value  = '';
       }
 
-      // Mostrar/ocultar opção de cartão conforme tipo
+      // Mostrar/ocultar opção de cartão conforme tipo (mobile)
       atualizarModalParaTipo(tipo);
 
       modal.classList.remove('hidden');
@@ -2260,13 +2304,22 @@
     }
 
     function atualizarModalParaTipo(tipo) {
-      if (window.innerWidth > 640) return; // desktop: mantém layout original
       const isReceita = tipo === 'receita';
-      const fgCartao = document.getElementById('fgCartaoSection');
-      if (fgCartao) fgCartao.style.display = isReceita ? 'none' : '';
+      // Cartão: nunca mostrar para receita; para despesa, mantém o estado atual
       if (isReceita) {
         document.getElementById('mCartao').checked = false;
         document.getElementById('fgCartaoOpcoes').style.display = 'none';
+        document.getElementById('fgCartaoSection').style.display = 'none';
+      }
+      // Toggles de recorrência: só para despesa nova (editandoIdx === null)
+      const fgToggles = document.getElementById('fgRecorrenciaToggles');
+      if (fgToggles && editandoIdx === null) {
+        fgToggles.style.display = isReceita ? 'none' : '';
+        if (isReceita) {
+          document.getElementById('mVirarFixa').checked        = false;
+          document.getElementById('mRecorrenciaPrazo').checked  = false;
+          document.getElementById('fgRecorrenciaMeses').style.display = 'none';
+        }
       }
     }
 
@@ -2279,9 +2332,25 @@
     document.getElementById('btnCancelarItem').addEventListener('click', fecharModal);
     modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
 
-    // Toggle cartão → mostra/oculta opções e auto-calcula fatura
+    // Toggle tipo → atualiza visibilidade de cartão e toggles
     document.getElementById('mTipo').addEventListener('change', function() {
       atualizarModalParaTipo(this.value);
+    });
+
+    // Toggle virar fixa / recorrência com prazo — mutuamente exclusivos
+    document.getElementById('mVirarFixa')?.addEventListener('change', () => {
+      if (document.getElementById('mVirarFixa').checked) {
+        document.getElementById('mRecorrenciaPrazo').checked = false;
+        document.getElementById('fgRecorrenciaMeses').style.display = 'none';
+      }
+    });
+    document.getElementById('mRecorrenciaPrazo')?.addEventListener('change', () => {
+      const on = document.getElementById('mRecorrenciaPrazo').checked;
+      document.getElementById('fgRecorrenciaMeses').style.display = on ? '' : 'none';
+      if (on) {
+        document.getElementById('mVirarFixa').checked = false;
+        document.getElementById('mRecorrenciaMeses').focus();
+      }
     });
 
     document.getElementById('mCartao').addEventListener('change', () => {
@@ -2352,11 +2421,34 @@
         lista.push(novoItem);
       }
 
+      // Toggles: virar fixa ou recorrência com prazo (só novos lançamentos)
+      const virarFixa       = editandoIdx === null && document.getElementById('mVirarFixa')?.checked;
+      const recorrPrazo     = editandoIdx === null && document.getElementById('mRecorrenciaPrazo')?.checked;
+      const mesesRecorr     = recorrPrazo ? parseInt(document.getElementById('mRecorrenciaMeses')?.value) : null;
+      if (recorrPrazo && (!mesesRecorr || mesesRecorr < 1)) {
+        toast('Informe quantos meses a recorrência deve durar.', 'warning');
+        return;
+      }
+
       fecharModal();
       setLoading(btnSalvarItem, true);
       try {
         await salvarEAtualizar();
-        toast(tipo === 'receita' ? 'Receita salva!' : 'Despesa salva!', 'success');
+        // Cadastra como recorrente se solicitado
+        if (virarFixa || recorrPrazo) {
+          await saveRecorrente({
+            categoria, valor, descricao, dia: 1, frequencia: 'mensal',
+            mesesRestantes: recorrPrazo ? mesesRecorr : null,
+            ativo: true, cartao: false, cartaoId: '',
+          });
+          await carregarRecorrentes();
+          toast(virarFixa
+            ? `📌 "${categoria}" agora é uma despesa fixa!`
+            : `🔄 Recorrência de ${mesesRecorr} ${mesesRecorr === 1 ? 'mês' : 'meses'} criada!`,
+            'success', 4000);
+        } else {
+          toast(tipo === 'receita' ? 'Receita salva!' : 'Despesa salva!', 'success');
+        }
       } finally {
         setLoading(btnSalvarItem, false);
       }
@@ -4652,8 +4744,11 @@
     async function carregarCartoes() {
       try { _cartoes = await getCartoes(); }
       catch (e) { console.warn('[cartoes]', e.message); _cartoes = []; }
+      const temCartao = _cartoes.some(c => c.ativo);
       const btn = document.getElementById('btnLancarNoCartao');
-      if (btn) btn.style.display = _cartoes.some(c => c.ativo) ? '' : 'none';
+      if (btn) btn.style.display = temCartao ? '' : 'none';
+      const tabFat = document.getElementById('tabBtnFaturas');
+      if (tabFat) tabFat.style.display = temCartao ? '' : 'none';
     }
 
     // Calcula mês da fatura pela regra: compra após o corte → próximo mês
