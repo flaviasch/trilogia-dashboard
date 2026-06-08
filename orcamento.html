@@ -3258,28 +3258,45 @@
       const el = document.getElementById('secaoFaturas');
       if (!el) return;
 
-      // Apenas despesas vinculadas a um cartão neste mês
-      const comCartao = data.despesas.filter(d => d.cartao && d.cartaoId);
-      if (!comCartao.length) { el.innerHTML = ''; return; }
+      const cartoesAtivos = _cartoes.filter(c => c.ativo);
 
-      // Agrupa por cartaoId
+      // Sem nenhum cartão cadastrado ainda
+      if (!cartoesAtivos.length) {
+        el.innerHTML = `
+          <div style="text-align:center;padding:48px 20px;color:var(--text-secondary);">
+            <div style="font-size:36px;margin-bottom:14px;">💳</div>
+            <p style="font-size:14px;margin-bottom:18px;">Nenhum cartão cadastrado.</p>
+            <button class="btn-primary" id="btnCadCartaoFat" style="font-size:13px;padding:8px 22px;">Cadastrar cartão</button>
+          </div>`;
+        el.querySelector('#btnCadCartaoFat')?.addEventListener('click', () => abrirModalCartoes());
+        return;
+      }
+
+      // Agrupa despesas por cartaoId
       const grupos = {};
-      comCartao.forEach(d => {
+      data.despesas.filter(d => d.cartao && d.cartaoId).forEach(d => {
         if (!grupos[d.cartaoId]) grupos[d.cartaoId] = [];
         grupos[d.cartaoId].push(d);
       });
 
+      // Lista de IDs: cartões ativos + eventuais cartões excluídos que ainda têm despesas
+      const todosIds = [...new Set([
+        ...cartoesAtivos.map(c => c.id),
+        ...Object.keys(grupos)
+      ])];
+
       const IC_E = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
       const IC_D = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
 
-      const secoes = Object.entries(grupos).map(([cartaoId, itens]) => {
+      const secoes = todosIds.map(cartaoId => {
         const cartaoObj = _cartoes.find(c => c.id === cartaoId);
+        const itens = grupos[cartaoId] || [];
         const nomeCartao = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
         const totalFatura = itens.reduce((s, d) => s + d.valor, 0);
         const limite = cartaoObj?.limite || 0;
 
         let barraLimite = '';
-        if (limite > 0) {
+        if (limite > 0 && totalFatura > 0) {
           const p = Math.min(totalFatura / limite * 100, 200);
           const cor = p > 100 ? 'var(--negative)' : p > 80 ? '#f59e0b' : 'var(--positive)';
           barraLimite = `
@@ -3291,27 +3308,38 @@
             </div>`;
         }
 
-        const linhasItens = itens.map(d => {
-          const idxOriginal = data.despesas.indexOf(d);
-          const nomeMesFat = d.fatura ? MESES[parseInt(d.fatura.split('-')[1]) - 1] : '';
-          const vcto = cartaoObj?.diaVencimento && d.fatura
-            ? ` · vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${d.fatura.split('-')[1]}`
-            : '';
-          const desc = d.descricao || d.categoria;
-          return `
-            <div class="item-row" style="border-radius:0;border:none;border-top:1px solid var(--border);">
-              <div>
-                <div class="item-categoria">${escapeHtml(desc)}</div>
-                ${d.data || nomeMesFat ? `<div class="item-fonte">${d.data ? escapeHtml(formatData(d.data)) + ' · ' : ''}${nomeMesFat ? 'Fatura ' + nomeMesFat + vcto : ''}</div>` : ''}
-              </div>
-              <div></div>
-              <div class="item-value despesa">${brl(d.valor)}</div>
-              <div class="item-actions">
-                <button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_E}</button>
-                <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_D}</button>
-              </div>
-            </div>`;
-        }).join('');
+        let linhasItens = '';
+        if (itens.length) {
+          linhasItens = itens.map(d => {
+            const idxOriginal = data.despesas.indexOf(d);
+            const nomeMesFat = d.fatura ? MESES[parseInt(d.fatura.split('-')[1]) - 1] : '';
+            const vcto = cartaoObj?.diaVencimento && d.fatura
+              ? ` · vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${d.fatura.split('-')[1]}`
+              : '';
+            const desc = d.descricao || d.categoria;
+            return `
+              <div class="item-row" style="border-radius:0;border:none;border-top:1px solid var(--border);">
+                <div>
+                  <div class="item-categoria">${escapeHtml(desc)}</div>
+                  ${d.data || nomeMesFat ? `<div class="item-fonte">${d.data ? escapeHtml(formatData(d.data)) + ' · ' : ''}${nomeMesFat ? 'Fatura ' + nomeMesFat + vcto : ''}</div>` : ''}
+                </div>
+                <div></div>
+                <div class="item-value despesa">${brl(d.valor)}</div>
+                <div class="item-actions">
+                  <button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_E}</button>
+                  <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_D}</button>
+                </div>
+              </div>`;
+          }).join('');
+        } else {
+          linhasItens = `<div style="padding:16px 20px;color:var(--text-secondary);font-size:13px;text-align:center;border-top:1px solid var(--border);">Nenhuma despesa nesta fatura</div>`;
+        }
+
+        const totalRow = itens.length
+          ? `<div class="total-row" style="padding:12px 20px 4px;"><span class="total-label">Total fatura</span><span class="total-value despesa">${brl(totalFatura)}</span></div>`
+          : '';
+
+        const totalColor = totalFatura > 0 ? 'var(--negative)' : 'var(--text-secondary)';
 
         return `
           <div class="section" style="margin-bottom:10px;">
@@ -3320,12 +3348,12 @@
                 <span style="font-size:15px;">💳</span>
                 <h2 class="section-title" style="font-size:15px;">Fatura ${nomeCartao}</h2>
               </div>
-              <span class="section-total" style="color:var(--negative);font-weight:700;">${brl(totalFatura)}</span>
+              <span class="section-total" style="color:${totalColor};font-weight:700;">${totalFatura > 0 ? brl(totalFatura) : 'R$ 0'}</span>
             </div>
             <div style="background:var(--navy);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding-bottom:4px;">
               ${barraLimite ? `<div style="padding:0 20px;">${barraLimite}</div>` : ''}
               <div class="items-list" style="padding:0;">${linhasItens}</div>
-              <div class="total-row" style="padding:12px 20px 4px;"><span class="total-label">Total fatura</span><span class="total-value despesa">${brl(totalFatura)}</span></div>
+              ${totalRow}
               <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:4px 16px 10px;width:calc(100% - 32px);">+ Adicionar a esta fatura</button>
             </div>
           </div>`;
