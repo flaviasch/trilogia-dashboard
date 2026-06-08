@@ -1239,7 +1239,7 @@
           <div class="resumo-label">Despesa Total</div>
           <div class="resumo-value negative" id="totalDespesa">—</div>
           <div class="resumo-sub" id="pctDespesa">—</div>
-          <div id="fixasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;cursor:pointer;" onclick="abrirSelecaoFixas()"></div>
+          <div id="fixasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;cursor:pointer;"></div>
         </div>
         <div class="resumo-card destaque">
           <div class="resumo-label">Sobra do Mês</div>
@@ -5247,6 +5247,7 @@
     }
 
     document.getElementById('btnBannerLancarFixas')?.addEventListener('click', abrirSelecaoFixas);
+    document.getElementById('fixasPendentesIndicador')?.addEventListener('click', () => abrirSelecaoFixas());
     document.getElementById('btnBannerGerenciarFixas')?.addEventListener('click', abrirModalFixas);
     document.getElementById('btnBannerPularMes')?.addEventListener('click', () => {
       const { mes, ano } = currentData.periodo;
