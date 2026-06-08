@@ -701,9 +701,8 @@
       .resumo-label { font-size: 8px; margin-bottom: 6px; }
       .resumo-value { font-size: 13px; margin-bottom: 4px; }
       .resumo-sub   { font-size: 8px; }
-      .tab-btn { flex: 0 0 auto; font-size: 11px; padding: 8px 10px; }
-      .tabs-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-      .tabs-bar::-webkit-scrollbar { display: none; }
+      .tab-btn { flex: 1; font-size: 10px; padding: 7px 4px; }
+      .tabs-bar { overflow-x: visible; }
       .item-bar-col { display: none; }
       .item-row { grid-template-columns: 1fr auto auto; }
       .item-actions { opacity: 1; }
@@ -1860,6 +1859,13 @@
     document.getElementById('tabBtnGraficos')   ?.addEventListener('click', () => ativarTab('graficos'));
     document.getElementById('tabBtnDetalhe')    ?.addEventListener('click', () => ativarTab('detalhe'));
     document.getElementById('tabBtnAnual')      ?.addEventListener('click', () => ativarTab('anual'));
+
+    // Abreviar labels no mobile para caber em 1 linha
+    if (window.innerWidth <= 640) {
+      document.getElementById('tabBtnPlanejamento').textContent = '🎯 Plano';
+      document.getElementById('tabBtnGraficos').textContent     = '📊 Graf.';
+    }
+
     document.getElementById('headerReceitas')   ?.addEventListener('click', toggleReceitas);
     document.getElementById('headerDespesas')   ?.addEventListener('click', toggleDespesas);
 
