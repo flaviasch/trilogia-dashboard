@@ -1568,6 +1568,18 @@
               style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
           </div>
         </div>
+        <!-- Cartão de crédito (opcional) -->
+        <div style="border-top:1px solid var(--border);margin:10px 0 8px;padding-top:10px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-secondary);user-select:none;">
+            <input type="checkbox" id="fixaCartao" style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer" />
+            💳 Lançar no cartão de crédito
+          </label>
+        </div>
+        <div id="fgFixaCartaoOpcoes" style="display:none;margin-bottom:12px;">
+          <label style="font-size:12px;color:var(--text-secondary);">Cartão</label>
+          <select id="fixaCartaoSelecionado" style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;"></select>
+        </div>
+
         <div style="display:flex;gap:10px;">
           <button id="btnSalvarFixa" class="btn-primary" style="flex:1;font-size:14px;">Salvar</button>
           <button id="btnCancelarFixa" class="btn-secondary" style="font-size:14px;padding:10px 18px;">Cancelar</button>
@@ -4191,6 +4203,15 @@
       }
     }
 
+    function preencherSeletorCartoesFixa(cartaoIdSelecionado) {
+      const sel = document.getElementById('fixaCartaoSelecionado');
+      if (!sel) return;
+      if (!_cartoes.length) { sel.innerHTML = '<option value="">Nenhum cartão cadastrado</option>'; return; }
+      sel.innerHTML = _cartoes.filter(c => c.ativo).map(c =>
+        `<option value="${c.id}" ${c.id === cartaoIdSelecionado ? 'selected' : ''}>${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`
+      ).join('');
+    }
+
     function preencherSeletorCartoes(cartaoIdSelecionado) {
       const sel = document.getElementById('mCartaoSelecionado');
       if (!sel) return;
@@ -4377,6 +4398,7 @@
       const btn = document.getElementById('btnConfirmarSelecaoFixas');
       btn.disabled = true; btn.textContent = 'Lançando…';
       try {
+        const faturaAtual = `${ano}-${String(mes).padStart(2,'0')}`;
         const novos = _recorrentes
           .filter(r => selecionadas.has(r.id))
           .map(r => ({
@@ -4385,8 +4407,9 @@
             valor:        r.valor,
             descricao:    r.descricao || '',
             data:         `${ano}-${String(mes).padStart(2,'0')}-${String(r.dia).padStart(2,'0')}`,
-            cartao:       false,
-            fatura:       '',
+            cartao:       !!r.cartao,
+            fatura:       r.cartao ? faturaAtual : '',
+            cartaoId:     r.cartaoId || '',
             origem:       'recorrente',
             recorrenteId: r.id,
           }));
@@ -4473,12 +4496,18 @@
           document.getElementById('fixaValor').value     = r.valor;
           document.getElementById('fixaDescricao').value = r.descricao || '';
           document.getElementById('fixaDia').value       = r.dia;
+          const isCartao = !!r.cartao;
+          document.getElementById('fixaCartao').checked = isCartao;
+          document.getElementById('fgFixaCartaoOpcoes').style.display = isCartao ? '' : 'none';
+          if (isCartao) preencherSeletorCartoesFixa(r.cartaoId || null);
         }
       } else {
         document.getElementById('fixaCategoria').selectedIndex = 0;
         document.getElementById('fixaValor').value     = '';
         document.getElementById('fixaDescricao').value = '';
         document.getElementById('fixaDia').value       = '';
+        document.getElementById('fixaCartao').checked  = false;
+        document.getElementById('fgFixaCartaoOpcoes').style.display = 'none';
       }
       form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
@@ -4489,6 +4518,8 @@
       const valor     = parseFloat(document.getElementById('fixaValor').value);
       const descricao = document.getElementById('fixaDescricao').value.trim();
       const dia       = parseInt(document.getElementById('fixaDia').value, 10);
+      const cartao    = document.getElementById('fixaCartao').checked;
+      const cartaoId  = cartao ? (document.getElementById('fixaCartaoSelecionado')?.value || '') : '';
 
       if (!categoria) return mostrarToast('Selecione uma categoria.');
       if (isNaN(valor) || valor < 0) return mostrarToast('Informe um valor válido.');
@@ -4498,7 +4529,7 @@
       btnSalvar.disabled = true;
       btnSalvar.textContent = 'Salvando…';
       try {
-        await saveRecorrente({ id, categoria, valor, descricao, dia, ativo: true });
+        await saveRecorrente({ id, categoria, valor, descricao, dia, ativo: true, cartao, cartaoId });
         await carregarRecorrentes();
         renderListaFixas();
         document.getElementById('formFixa').classList.add('hidden');
@@ -4742,6 +4773,10 @@
     // Listeners dos modais de recorrentes
     document.getElementById('btnGerenciarFixas')?.addEventListener('click', abrirModalFixas);
     document.getElementById('btnGerenciarFixasTop')?.addEventListener('click', abrirModalFixas);
+    document.getElementById('fixaCartao')?.addEventListener('change', function() {
+      document.getElementById('fgFixaCartaoOpcoes').style.display = this.checked ? '' : 'none';
+      if (this.checked) preencherSeletorCartoesFixa(null);
+    });
     document.getElementById('btnFecharModalFixas')?.addEventListener('click', fecharModalFixas);
     document.getElementById('modalFixas')?.addEventListener('click', e => { if (e.target === e.currentTarget) fecharModalFixas(); });
     document.getElementById('btnAddFixa')?.addEventListener('click', () => abrirFormFixa(null));
