@@ -1473,6 +1473,26 @@
         </div>
       </div>
 
+      <!-- Toggle: Parcelado -->
+      <div style="margin-top:12px;padding:12px 16px;background:var(--navy-mid);border:1px solid var(--border);border-radius:10px;">
+        <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:12px;user-select:none;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:15px;">🔄</span>
+            <div>
+              <div style="font-size:14px;color:var(--white);font-weight:500;">Parcelado</div>
+              <div style="font-size:11px;color:var(--text-muted);">Divide em múltiplas faturas</div>
+            </div>
+          </div>
+          <input type="checkbox" id="cdParcelado" style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;" />
+        </label>
+        <div id="cdParceladoOpcoes" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+          <label style="font-size:11px;color:var(--text-secondary);">Nº de parcelas</label>
+          <input type="number" id="cdNParcelas" min="2" max="60" placeholder="Ex: 12"
+            style="width:100%;margin-top:5px;padding:8px 10px;background:var(--navy);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;box-sizing:border-box;outline:none;" />
+          <div id="cdParceladoPreview" style="display:none;margin-top:8px;font-size:12px;color:var(--gold);line-height:1.5;"></div>
+        </div>
+      </div>
+
       <button id="btnSalvarCartaoDespesa" class="btn-save" style="width:100%;margin-top:16px;font-size:15px;">Salvar</button>
     </div>
   </div>
@@ -4699,6 +4719,10 @@
       document.getElementById('cdVctoLabel').textContent   = '';
       document.getElementById('cdFaturaAjuste').style.display = 'none';
       document.getElementById('cdFaturaInput').value = '';
+      document.getElementById('cdParcelado').checked = false;
+      document.getElementById('cdParceladoOpcoes').style.display = 'none';
+      document.getElementById('cdNParcelas').value = '';
+      document.getElementById('cdParceladoPreview').style.display = 'none';
       // Calcula fatura para a data de hoje
       _calcFaturaCartaoModal();
       document.getElementById('modalCartaoDespesa').classList.remove('hidden');
@@ -4744,41 +4768,66 @@
     }
 
     async function _salvarCartaoDespesa() {
-      const cartaoId  = document.getElementById('cdCartao')?.value;
-      const cartaoObj = _cartoes.find(c => c.id === cartaoId);
-      const descricao = document.getElementById('cdDescricao').value.trim();
-      const categoria = document.getElementById('cdCategoria').value.trim();
-      const data      = document.getElementById('cdData').value;
-      const valor     = readMoney(document.getElementById('cdValor'));
-      const fatura    = document.getElementById('cdFaturaInput').value.trim();
+      const cartaoId   = document.getElementById('cdCartao')?.value;
+      const descricao  = document.getElementById('cdDescricao').value.trim();
+      const categoria  = document.getElementById('cdCategoria').value.trim();
+      const data       = document.getElementById('cdData').value;
+      const valor      = readMoney(document.getElementById('cdValor'));
+      const fatura     = document.getElementById('cdFaturaInput').value.trim();
+      const parcelado  = document.getElementById('cdParcelado')?.checked;
+      const nParcelas  = parcelado ? parseInt(document.getElementById('cdNParcelas')?.value) : 1;
 
-      if (!categoria)          return mostrarToast('Preencha a categoria.', 'warning');
-      if (!data)               return mostrarToast('Preencha a data da compra.', 'warning');
+      if (!categoria)           return mostrarToast('Preencha a categoria.', 'warning');
+      if (!data)                return mostrarToast('Preencha a data da compra.', 'warning');
       if (!valor || valor <= 0) return mostrarToast('Preencha o valor.', 'warning');
-      if (!fatura)             return mostrarToast('Defina o mês da fatura.', 'warning');
+      if (!fatura)              return mostrarToast('Defina o mês da fatura.', 'warning');
+      if (parcelado && (!nParcelas || nParcelas < 2 || nParcelas > 60))
+        return mostrarToast('Número de parcelas deve ser entre 2 e 60.', 'warning');
 
       const [fatAno, fatMes] = fatura.split('-').map(Number);
       const btn = document.getElementById('btnSalvarCartaoDespesa');
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        const novoItem = {
-          categoria, descricao, tipo: 'despesa', valor, data,
-          cartao: true, cartaoId, fatura, origem: 'manual',
-        };
-        const itensFatura = await getOrcamento(fatMes, fatAno);
-        itensFatura.push(novoItem);
-        await saveOrcamento(fatMes, fatAno, itensFatura);
-        _invalPeriodo(fatMes, fatAno);
-        document.getElementById('modalCartaoDespesa').classList.add('hidden');
-        registrarEvento('despesa_cartao_lancada');
-        const nomeMesFat = MESES[fatMes - 1];
+        if (parcelado) {
+          // Salva cada parcela no mês correto da fatura
+          const parcelamentoId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+          const valorParcela   = Math.round(valor / nParcelas * 100) / 100;
+          // Salva sequencialmente para evitar conflito de leitura no mesmo mês
+          for (let i = 0; i < nParcelas; i++) {
+            const totalMeses  = fatMes - 1 + i;
+            const instMes     = (totalMeses % 12) + 1;
+            const instAno     = fatAno + Math.floor(totalMeses / 12);
+            const instFatura  = `${instAno}-${String(instMes).padStart(2, '0')}`;
+            const itensMes    = await getOrcamento(instMes, instAno);
+            itensMes.push({
+              categoria, descricao, tipo: 'despesa',
+              valor: valorParcela, data,
+              cartao: true, cartaoId, fatura: instFatura,
+              origem: 'parcelamento', parcelamentoId,
+              parcelaAtual: i + 1, parcelasTotal: nParcelas,
+            });
+            await saveOrcamento(instMes, instAno, itensMes);
+            _invalPeriodo(instMes, instAno);
+          }
+          document.getElementById('modalCartaoDespesa').classList.add('hidden');
+          registrarEvento('despesa_cartao_parcelada');
+          const ultimoMesIdx = ((fatMes - 1 + nParcelas - 1) % 12);
+          const ultimoAno    = fatAno + Math.floor((fatMes - 1 + nParcelas - 1) / 12);
+          mostrarToast(`💳 ${nParcelas}× ${brl(valorParcela)} — de ${MESES[fatMes-1]} até ${MESES[ultimoMesIdx]}/${ultimoAno}`, 'success', 6000);
+        } else {
+          // Parcela única
+          const itensFatura = await getOrcamento(fatMes, fatAno);
+          itensFatura.push({ categoria, descricao, tipo: 'despesa', valor, data, cartao: true, cartaoId, fatura, origem: 'manual' });
+          await saveOrcamento(fatMes, fatAno, itensFatura);
+          _invalPeriodo(fatMes, fatAno);
+          document.getElementById('modalCartaoDespesa').classList.add('hidden');
+          registrarEvento('despesa_cartao_lancada');
+          mostrarToast(`💳 Salvo na fatura de ${MESES[fatMes-1]} ✓`, 'success');
+        }
         const { mes: mesVis, ano: anoVis } = currentData.periodo;
         if (fatMes === mesVis && fatAno === anoVis) {
           currentData = await buscarPeriodo(fatMes, fatAno);
           render(currentData);
-          mostrarToast(`💳 Salvo na fatura de ${nomeMesFat} ✓`, 'success');
-        } else {
-          mostrarToast(`💳 Salvo na fatura de ${nomeMesFat} — navegue para aquele mês para ver.`, 'success', 5000);
         }
       } catch (err) {
         mostrarToast(msgErro(err), 'error');
@@ -4808,7 +4857,33 @@
       const cartaoId  = document.getElementById('cdCartao')?.value;
       const cartaoObj = _cartoes.find(c => c.id === cartaoId);
       if (yyyyMM && cartaoObj) _atualizarLabelFaturaCartaoModal(yyyyMM, null, cartaoObj, true);
+      _atualizarPreviewParcelado();
     });
+
+    document.getElementById('cdParcelado')?.addEventListener('change', () => {
+      const on = document.getElementById('cdParcelado').checked;
+      document.getElementById('cdParceladoOpcoes').style.display = on ? '' : 'none';
+      if (on) document.getElementById('cdNParcelas').focus();
+      _atualizarPreviewParcelado();
+    });
+    document.getElementById('cdNParcelas')?.addEventListener('input', _atualizarPreviewParcelado);
+    document.getElementById('cdValor')?.addEventListener('input', _atualizarPreviewParcelado);
+
+    function _atualizarPreviewParcelado() {
+      const el = document.getElementById('cdParceladoPreview');
+      if (!el) return;
+      if (!document.getElementById('cdParcelado')?.checked) { el.style.display = 'none'; return; }
+      const valor   = readMoney(document.getElementById('cdValor'));
+      const n       = parseInt(document.getElementById('cdNParcelas')?.value);
+      const fatura  = document.getElementById('cdFaturaInput')?.value;
+      if (!valor || !n || n < 2 || !fatura) { el.style.display = 'none'; return; }
+      const parcela       = Math.round(valor / n * 100) / 100;
+      const [fatAno, fatMes] = fatura.split('-').map(Number);
+      const ultimoIdx     = (fatMes - 1 + n - 1) % 12;
+      const ultimoAno     = fatAno + Math.floor((fatMes - 1 + n - 1) / 12);
+      el.textContent = `${brl(parcela)} × ${n} meses · de ${MESES[fatMes-1]} até ${MESES[ultimoIdx]}/${ultimoAno}`;
+      el.style.display = '';
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
 
