@@ -355,7 +355,7 @@ function emailLembretePlanejamento(nome, proximoMes) {
 }
 
 /**
- * E-mail: anúncio das novidades da Fase 2 do orçamento.
+ * E-mail: novidades de junho/2026 — cartões, faturas, fixas, Raio-X, FAB.
  * @param {string} nome — nome da mentorada
  */
 function emailNovidades(nome) {
@@ -374,15 +374,14 @@ function emailNovidades(nome) {
     <h2 style="${S.h2}">Novidades no seu Dashboard — Junho 2026</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
-      O Trilogia Dashboard ganhou três novidades este mês — todas pensadas para deixar seu acompanhamento financeiro mais claro, mais visual e mais fácil de usar.
-    </p>
-    <p style="margin:0 0 16px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-      O que chegou:
+      Algumas atualizações chegaram no seu dashboard essa semana. Vou te contar o que mudou e como usar.
     </p>
     <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
-      ${featureItem('✦','Missão do mês','Ao concluir a configuração do seu dashboard, uma missão personalizada aparece na tela inicial a cada mês. Ela combina uma meta definida especialmente para você com o seu score financeiro atual — para você saber exatamente onde focar.')}
-      ${featureItem('📊','Exportação anual em PDF','Na aba Anual do Orçamento, agora existe um botão para exportar o resumo completo do ano em PDF — receita, despesa, sobra e score mês a mês, tudo em uma página organizada para guardar ou compartilhar.')}
-      ${featureItem('★','Clube Trilogia renovado <span style="font-size:11px;font-weight:400;color:#9ca3af;">(para quem tem acesso ao Clube)</span>','Gravações e materiais adicionados nos últimos 7 dias ganham o selo Novo para você não perder nada. As seções aparecem apenas quando há conteúdo publicado, e cada vídeo agora exibe uma descrição do que você vai encontrar.')}
+      ${featureItem('💳','Lançamento no cartão ficou mais inteligente','Agora existe um modal dedicado para despesas no cartão. O sistema calcula automaticamente em qual fatura a compra vai cair, com base no dia de corte cadastrado. Se o banco adiantou o corte por feriado, tem um botão para ajustar manualmente. Compras parceladas também entraram nesse modal: você informa o valor total e o número de parcelas, e o sistema lança o valor correto em cada fatura automaticamente.')}
+      ${featureItem('📋','Nova aba: Faturas','As faturas dos seus cartões agora têm uma aba própria. Cada cartão aparece com as despesas do mês, total da fatura e barra de uso do limite — verde, amarelo ou vermelho conforme o percentual gasto.')}
+      ${featureItem('📌','Registrar fixas ficou mais fácil','Ao lançar uma despesa manualmente, dois novos atalhos aparecem: Despesa fixa (lança no mês atual e já cadastra como recorrente para os próximos meses) e Recorrência com prazo (você define quantos meses e o sistema lança automaticamente nesse período).')}
+      ${featureItem('🤖','Raio-X + despesas fixas automáticas','Quando o Raio-X identifica uma despesa fixa, o CSV sai com essa marcação. Ao importar no dashboard, o sistema detecta e abre uma tela de confirmação: você escolhe quais quer cadastrar como fixas e elas entram direto no gerenciador de recorrentes, sem precisar cadastrar manualmente.')}
+      ${featureItem('✦','Atalho rápido para lançar','O botão + dourado na tela inicial agora expande com três opções: Receita, Despesa e Despesa no cartão. Menos cliques para registrar.')}
     </table>
     <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
       Acessar agora →
