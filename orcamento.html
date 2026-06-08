@@ -1776,6 +1776,9 @@
     import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual } from './js/api.js?v=14';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
+
+    // Alias de compatibilidade — funções mais antigas usavam mostrarToast
+    const mostrarToast = (msg) => toast(msg, msg.toLowerCase().includes('erro') ? 'error' : 'success');
     import {
       onAuthStateChanged,
       signOut
