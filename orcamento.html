@@ -688,8 +688,7 @@
 
     /* ─── Responsive ─────────────────────────── */
     @media (max-width: 768px) {
-      .resumo-grid { grid-template-columns: repeat(4, 1fr); }
-      .resumo-card { padding: 14px 8px; }
+      .resumo-grid { grid-template-columns: repeat(2, 1fr); }
     }
     @media (max-width: 640px) {
       .bottom-nav { display: flex; }
@@ -700,6 +699,8 @@
       .resumo-grid { grid-template-columns: repeat(4, 1fr); }
       .resumo-card { padding: 10px 6px; }
       .tab-btn { flex: 0 0 auto; font-size: 11px; padding: 8px 10px; }
+      .tabs-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .tabs-bar::-webkit-scrollbar { display: none; }
       .item-bar-col { display: none; }
       .item-row { grid-template-columns: 1fr auto auto; }
       .item-actions { opacity: 1; }
@@ -770,10 +771,7 @@
       display: flex; gap: 4px; margin-bottom: 28px;
       background: var(--navy); border: 1px solid var(--border);
       border-radius: 10px; padding: 4px;
-      overflow-x: auto; -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
     }
-    .tabs-bar::-webkit-scrollbar { display: none; }
     .tab-btn {
       flex: 1; background: transparent; border: none; border-radius: 7px;
       padding: 9px 8px; font-size: 13px; font-weight: 500; color: var(--text-muted);
@@ -2046,6 +2044,7 @@
     }
 
     function atualizarModalParaTipo(tipo) {
+      if (window.innerWidth > 640) return; // desktop: mantém layout original
       const isReceita = tipo === 'receita';
       const fgCartao = document.getElementById('fgCartaoSection');
       if (fgCartao) fgCartao.style.display = isReceita ? 'none' : '';
