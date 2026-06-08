@@ -688,7 +688,8 @@
 
     /* ─── Responsive ─────────────────────────── */
     @media (max-width: 768px) {
-      .resumo-grid { grid-template-columns: repeat(2, 1fr); }
+      .resumo-grid { grid-template-columns: repeat(4, 1fr); }
+      .resumo-card { padding: 14px 8px; }
     }
     @media (max-width: 640px) {
       .bottom-nav { display: flex; }
@@ -696,7 +697,9 @@
       .navbar { padding: 0 16px; }
       .user-name { display: none; }
       .main { padding: 24px 16px 60px; }
-      .resumo-grid { grid-template-columns: 1fr; }
+      .resumo-grid { grid-template-columns: repeat(4, 1fr); }
+      .resumo-card { padding: 10px 6px; }
+      .tab-btn { flex: 0 0 auto; font-size: 11px; padding: 8px 10px; }
       .item-bar-col { display: none; }
       .item-row { grid-template-columns: 1fr auto auto; }
       .item-actions { opacity: 1; }
@@ -767,7 +770,10 @@
       display: flex; gap: 4px; margin-bottom: 28px;
       background: var(--navy); border: 1px solid var(--border);
       border-radius: 10px; padding: 4px;
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
     }
+    .tabs-bar::-webkit-scrollbar { display: none; }
     .tab-btn {
       flex: 1; background: transparent; border: none; border-radius: 7px;
       padding: 9px 8px; font-size: 13px; font-weight: 500; color: var(--text-muted);
@@ -1694,8 +1700,8 @@
         <input type="text" inputmode="numeric" id="mValor" placeholder="0" />
       </div>
 
-      <!-- Cartão de crédito -->
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
+      <!-- Cartão de crédito (só visível para despesa) -->
+      <div id="fgCartaoSection" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-secondary);user-select:none">
           <input type="checkbox" id="mCartao" style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer" />
           💳 Despesa no cartão de crédito
@@ -2026,6 +2032,9 @@
         document.getElementById('mFatura').value = '';
       }
 
+      // Mostrar/ocultar opção de cartão conforme tipo
+      atualizarModalParaTipo(tipo);
+
       modal.classList.remove('hidden');
       // Foco no campo mais relevante
       setTimeout(() => {
@@ -2034,6 +2043,16 @@
           : document.getElementById('mCategoria')
         ).focus();
       }, 80);
+    }
+
+    function atualizarModalParaTipo(tipo) {
+      const isReceita = tipo === 'receita';
+      const fgCartao = document.getElementById('fgCartaoSection');
+      if (fgCartao) fgCartao.style.display = isReceita ? 'none' : '';
+      if (isReceita) {
+        document.getElementById('mCartao').checked = false;
+        document.getElementById('fgCartaoOpcoes').style.display = 'none';
+      }
     }
 
     function fecharModal() {
@@ -2046,6 +2065,10 @@
     modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
 
     // Toggle cartão → mostra/oculta opções e auto-calcula fatura
+    document.getElementById('mTipo').addEventListener('change', function() {
+      atualizarModalParaTipo(this.value);
+    });
+
     document.getElementById('mCartao').addEventListener('change', () => {
       const checked = document.getElementById('mCartao').checked;
       document.getElementById('fgCartaoOpcoes').style.display = checked ? '' : 'none';
