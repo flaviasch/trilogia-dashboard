@@ -5883,9 +5883,6 @@
         fabOpts.style.transform = 'translateY(0)';
         fabEl.style.transform = 'rotate(45deg)';
         fabBack.style.display = 'block';
-        // Mostrar/ocultar opção de cartão conforme cartões ativos
-        const cartaoRow = document.getElementById('fabCartaoRow');
-        if (cartaoRow) cartaoRow.style.display = _cartoes.some(c => c.ativo) ? 'flex' : 'none';
       }
 
       function fecharFab() {
@@ -5919,7 +5916,7 @@
   </div>
   <!-- FAB speed-dial: lançamento rápido -->
   <div id="fabBackdrop" style="display:none;position:fixed;inset:0;z-index:899;background:rgba(0,0,0,0.25);"></div>
-  <div id="fabSpeedDial" style="position:fixed;bottom:84px;right:20px;z-index:900;display:flex;flex-direction:column;align-items:flex-end;gap:12px;">
+  <div id="fabSpeedDial" style="position:fixed;bottom:140px;right:20px;z-index:900;display:flex;flex-direction:column;align-items:flex-end;gap:12px;">
     <!-- Opções (ocultas por padrão) -->
     <div id="fabOptions" style="display:flex;flex-direction:column;align-items:flex-end;gap:10px;opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .18s ease,transform .18s ease;">
       <div style="display:flex;align-items:center;gap:10px;">
