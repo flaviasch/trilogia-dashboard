@@ -2446,9 +2446,11 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       // LGPD
       const btnComp = document.getElementById('btnComprovanteLGPD');
       if (m.lgpdAceite && m.lgpdAceiteData) {
-        const d = new Date(m.lgpdAceiteData);
-        setText('detLGPD', `✅ ${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`);
-        if (btnComp) { btnComp.style.display = ''; btnComp.dataset.lgpdData = m.lgpdAceiteData; btnComp.dataset.nome = m.nome; btnComp.dataset.email = m.email; }
+        const _lgpdTs = m.lgpdAceiteData;
+        const d = _lgpdTs?.toDate ? _lgpdTs.toDate() : (_lgpdTs?._seconds ? new Date(_lgpdTs._seconds * 1000) : new Date(_lgpdTs));
+        const lgpdIso = d instanceof Date && !isNaN(d) ? d.toISOString() : '';
+        setText('detLGPD', lgpdIso ? `✅ ${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '✅ Aceito (data inválida)');
+        if (btnComp) { btnComp.style.display = ''; btnComp.dataset.lgpdData = lgpdIso; btnComp.dataset.nome = m.nome; btnComp.dataset.email = m.email; }
       } else if (m.lgpdAceite) {
         setText('detLGPD', '✅ Aceito (data não registrada)');
         if (btnComp) { btnComp.style.display = ''; btnComp.dataset.lgpdData = ''; btnComp.dataset.nome = m.nome; btnComp.dataset.email = m.email; }
