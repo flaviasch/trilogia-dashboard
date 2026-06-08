@@ -220,6 +220,12 @@
     }
     .card-value.positive { color: var(--positive); }
     .card-value.negative { color: var(--negative); }
+    /* Previne cor padrão de link visitado (roxo do browser) nos cards */
+    .budget-card:visited .card-value         { color: var(--white); }
+    .budget-card:visited .card-value.positive{ color: var(--positive); }
+    .budget-card:visited .card-value.negative{ color: var(--negative); }
+    .budget-card:visited .card-label         { color: var(--text-muted); }
+    .budget-card:visited .card-sub           { color: var(--text-muted); }
     .card-sub {
       font-size: 11px;
       color: var(--text-muted);
