@@ -779,10 +779,10 @@ exports.saveCartao = onCall(async (request) => {
 
   if (!cartao?.nome || typeof cartao.nome !== 'string')
     throw new HttpsError('invalid-argument', 'nome é obrigatório.');
-  if (!Number.isInteger(cartao.diaCorte) || cartao.diaCorte < 1 || cartao.diaCorte > 28)
-    throw new HttpsError('invalid-argument', 'diaCorte deve ser entre 1 e 28.');
-  if (cartao.diaVencimento != null && (!Number.isInteger(cartao.diaVencimento) || cartao.diaVencimento < 1 || cartao.diaVencimento > 28))
-    throw new HttpsError('invalid-argument', 'diaVencimento deve ser entre 1 e 28.');
+  if (!Number.isInteger(cartao.diaCorte) || cartao.diaCorte < 1 || cartao.diaCorte > 31)
+    throw new HttpsError('invalid-argument', 'diaCorte deve ser entre 1 e 31.');
+  if (cartao.diaVencimento != null && (!Number.isInteger(cartao.diaVencimento) || cartao.diaVencimento < 1 || cartao.diaVencimento > 31))
+    throw new HttpsError('invalid-argument', 'diaVencimento deve ser entre 1 e 31.');
 
   const dados = {
     nome:           cartao.nome.trim().slice(0, 100),

@@ -1522,7 +1522,7 @@
           </div>
           <div>
             <label style="font-size:12px;color:var(--text-secondary);">Dia vencimento</label>
-            <input type="number" id="cartaoDiaVcto" min="1" max="28" placeholder="opcional"
+            <input type="number" id="cartaoDiaVcto" min="1" max="31" placeholder="opcional"
               style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
           </div>
         </div>
@@ -1933,7 +1933,7 @@
       </div>
 
       <!-- Toggles: recorrência / fixa (só para despesas novas) -->
-      <div id="fgRecorrenciaToggles" style="display:none;border-top:1px solid var(--border);margin-top:8px;padding-top:10px;display:flex;flex-direction:column;gap:0;">
+      <div id="fgRecorrenciaToggles" style="display:none;border-top:1px solid var(--border);margin-top:8px;padding-top:10px;flex-direction:column;gap:0;">
         <label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;cursor:pointer;user-select:none;gap:12px;">
           <div style="display:flex;align-items:center;gap:8px;">
             <span>📌</span>
@@ -5605,6 +5605,14 @@
       document.getElementById('modalEditRecorrente').classList.add('hidden');
       mostrarToast(escopo === 'proximos' ? 'Alterado neste e nos próximos meses.' : 'Alterado só neste mês.');
     }
+
+    // ─── Mover modais para fora das tab-panes ────────────────────────────────
+    // Modais têm position:fixed, mas um pai com display:none os oculta mesmo assim.
+    // Ao mover para body, ficam visíveis em qualquer aba ativa.
+    ['modalSMS','modalParcelamento','modalCartaoDespesa','modalCartoes','modalSelecionarFixas'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) document.body.appendChild(el);
+    });
 
     // ─── Botão lançar manualmente ─────────────────────────────────────────────
     document.getElementById('btnAddDespesaRapida')?.addEventListener('click', () => abrirModal('despesa'));
