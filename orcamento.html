@@ -1202,11 +1202,11 @@
       <!-- Versão completa (sem dados no mês) -->
       <div class="upload-banner-text upload-banner-full">
         <strong>Importar Raio-X</strong>
-        Gere o CSV no Agente Raio-X e importe no botão ao lado. <a id="linkAgenteRaioX" href="https://chatgpt.com/g/g-69ebbc598b988191a771ebef5b0b5d63-raio-x-financeiro" target="_blank" class="link-agente">Acessar agente →</a>
+        Gere o CSV no Agente Raio-X e importe no botão ao lado. <a id="linkAgenteRaioX" href="https://chatgpt.com/g/g-69ebbc598b988191a771ebef5b0b5d63-raio-x-financeiro" target="_blank" class="link-agente">Abrir agente →</a>
       </div>
       <!-- Versão compacta (mês já tem dados) -->
       <span class="upload-banner-compact">
-        Raio-X já carregado · <a id="linkAgenteRaioXCompact" href="https://chatgpt.com/g/g-69ebbc598b988191a771ebef5b0b5d63-raio-x-financeiro" target="_blank" class="link-agente">Acessar agente →</a>
+        Raio-X já carregado · <a id="linkAgenteRaioXCompact" href="https://chatgpt.com/g/g-69ebbc598b988191a771ebef5b0b5d63-raio-x-financeiro" target="_blank" class="link-agente">Abrir agente →</a>
       </span>
       <div>
         <input type="file" id="csvInput" class="upload-input" accept=".csv" />
@@ -2030,14 +2030,7 @@
     }
 
     // ─── URL do agente (preencher quando disponível) ──────────────────────────
-    const AGENTE_RAIOX_URL = '';
-    (function aplicarLinkAgente() {
-      ['linkAgenteRaioX', 'linkAgenteRaioXCompact'].forEach(id => {
-        const link = document.getElementById(id);
-        if (!link) return;
-        if (AGENTE_RAIOX_URL) { link.href = AGENTE_RAIOX_URL; } else { link.style.display = 'none'; }
-      });
-    })();
+    // URL do agente já definida diretamente nos atributos href dos links no HTML
 
     // ─── Auth guard ───────────────────────────
     onAuthStateChanged(auth, (user) => {
