@@ -267,8 +267,8 @@
     }
 
     /* ─── Link agente ───────────────────────── */
-    .link-agente { color: var(--gold); text-decoration: none; font-size: 11px; opacity: 0.8; transition: opacity 0.2s; }
-    .link-agente:hover { opacity: 1; }
+    .link-agente { color: var(--gold); text-decoration: underline; font-size: 13px; font-weight: 600; transition: opacity 0.2s; }
+    .link-agente:hover { opacity: 0.8; }
 
     /* ─── Dívidas ───────────────────────────── */
     .divida-row {
@@ -495,7 +495,7 @@
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar declaração IR</strong>
-          <span>CSV de ativos gerado pelo Agente de Patrimônio · <a id="linkAgenteIR" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <span>Cole sua declaração no Agente de Patrimônio — ele extrai seus ativos e gera o CSV para importar aqui. <a id="linkAgenteIR" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
           <div class="import-card-meta">
             <span class="cadencia-badge">Anual · maio</span>
             <span class="import-last" id="lastImportIR"></span>
@@ -509,7 +509,7 @@
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar posição da corretora</strong>
-          <span>CSV de investimentos gerado pelo Agente de Patrimônio · <a id="linkAgenteInv" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <span>Cole o extrato da corretora no Agente de Posição — ele organiza seus investimentos e gera o CSV para importar aqui. <a id="linkAgenteInv" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
           <div class="import-card-meta">
             <span class="cadencia-badge">Mensal</span>
             <span class="import-last" id="lastImportCorretora"></span>
@@ -523,7 +523,7 @@
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar dívidas</strong>
-          <span>CSV de dívidas gerado pelo Agente de Patrimônio · <a id="linkAgenteDividas" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <span>Cole suas dívidas no Agente de Patrimônio — ele estrutura os dados e gera o CSV para importar aqui. <a id="linkAgenteDividas" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
           <div class="import-card-meta">
             <span class="cadencia-badge">Quando necessário</span>
             <span class="import-last" id="lastImportDividas"></span>
