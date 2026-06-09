@@ -2932,9 +2932,9 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         limparModal();
         renderMentoradas();
         if (resultado?.emailEnviado) {
-          alert(`Conta criada! E-mail de boas-vindas enviado para ${email}.`);
+          alert(`Conta criada! E-mail de boas-vindas enviado para ${email}.\n\n⚠️ O link de acesso NÃO está no e-mail de boas-vindas.\nQuando a mentorada estiver pronta para acessar, abra o detalhe dela e clique em "Reenviar acesso" para enviar o link de criação de senha (válido por 1h).`);
         } else {
-          alert(`Conta criada, mas o e-mail de boas-vindas NÃO foi enviado.\n\nErro: ${resultado?.emailErro || 'desconhecido'}\n\nUse o botão "Reenviar acesso" no detalhe da mentorada para tentar novamente.`);
+          alert(`Conta criada, mas o e-mail de boas-vindas NÃO foi enviado.\n\nErro: ${resultado?.emailErro || 'desconhecido'}\n\nUse o botão "Reenviar acesso" no detalhe da mentorada para enviar o link de acesso.`);
         }
       } catch (err) {
         alert(`Erro ao criar conta: ${err.message}`);
