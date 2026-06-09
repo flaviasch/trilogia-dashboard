@@ -188,8 +188,8 @@
     }
 
     /* ─── Link agente ───────────────────────── */
-    .link-agente { color: var(--gold); text-decoration: none; font-size: 11px; opacity: 0.8; transition: opacity 0.2s; }
-    .link-agente:hover { opacity: 1; }
+    .link-agente { color: var(--gold); text-decoration: underline; font-size: 13px; font-weight: 600; transition: opacity 0.2s; }
+    .link-agente:hover { opacity: 0.8; }
 
     /* ─── Upload banner ──────────────────────── */
     .upload-banner {
@@ -1201,16 +1201,16 @@
     <div class="upload-banner" id="uploadBanner">
       <!-- Versão completa (sem dados no mês) -->
       <div class="upload-banner-text upload-banner-full">
-        <strong>Importar novo Raio-X</strong>
-        CSV gerado pelo Agente Raio-X Financeiro · <a id="linkAgenteRaioX" href="https://chatgpt.com/g/g-69ebbc598b988191a771ebef5b0b5d63-raio-x-financeiro" target="_blank" class="link-agente">Abrir agente →</a>
+        <strong>Importar Raio-X</strong>
+        Gere o CSV no Agente Raio-X e importe aqui. <a id="linkAgenteRaioX" href="https://chatgpt.com/g/g-69ebbc598b988191a771ebef5b0b5d63-raio-x-financeiro" target="_blank" class="link-agente">Acessar agente →</a>
       </div>
       <!-- Versão compacta (mês já tem dados) -->
       <span class="upload-banner-compact">
-        Raio-X já carregado · <a id="linkAgenteRaioXCompact" href="https://chatgpt.com/g/g-69ebbc598b988191a771ebef5b0b5d63-raio-x-financeiro" target="_blank" class="link-agente">Abrir agente →</a>
+        Raio-X já carregado · <a id="linkAgenteRaioXCompact" href="https://chatgpt.com/g/g-69ebbc598b988191a771ebef5b0b5d63-raio-x-financeiro" target="_blank" class="link-agente">Acessar agente →</a>
       </span>
       <div>
         <input type="file" id="csvInput" class="upload-input" accept=".csv" />
-        <button class="btn-upload" id="btnUpload">Reimportar CSV</button>
+        <button class="btn-upload" id="btnUpload">Importar CSV</button>
       </div>
     </div>
 
