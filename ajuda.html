@@ -318,6 +318,14 @@
     <div class="faq-section">
       <p class="section-label">instalar como app no celular</p>
 
+      <!-- Botão de instalação direta -->
+      <div style="margin-bottom:20px">
+        <button id="btnInstalarApp" style="width:100%;padding:14px;background:var(--gold);color:var(--navy);border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.02em;">
+          📲 Instalar app na tela inicial
+        </button>
+        <p id="pwaJaInstalado" style="display:none;text-align:center;margin-top:10px;font-size:13px;color:var(--text-muted);">✓ App já instalado neste dispositivo</p>
+      </div>
+
       <div class="faq-item">
         <p class="faq-q">Como instalo o Trilogia Dashboard no celular? (Android)</p>
         <p class="faq-a">
@@ -352,6 +360,88 @@
     </div>
 
   </div>
+
+  <!-- Modal iOS: instruções de instalação -->
+  <div id="pwaIosModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);align-items:flex-end;">
+    <div style="background:#1a3d5c;border-radius:18px 18px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;margin:0 auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <span style="font-size:16px;font-weight:700;color:#fff;">Instalar no iPhone</span>
+        <button id="pwaIosClose" style="background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;">✕</button>
+      </div>
+      <ol style="color:rgba(255,255,255,0.85);font-size:14px;line-height:1.8;padding-left:20px;">
+        <li>Toque no ícone de compartilhar <strong style="color:#CFAE65;">⬆️</strong> na barra do Safari</li>
+        <li>Role a lista para baixo</li>
+        <li>Toque em <strong style="color:#CFAE65;">"Adicionar à Tela de Início"</strong></li>
+        <li>Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Modal Android: instruções quando prompt nativo não está disponível -->
+  <div id="pwaAndroidModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);align-items:flex-end;">
+    <div style="background:#1a3d5c;border-radius:18px 18px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;margin:0 auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <span style="font-size:16px;font-weight:700;color:#fff;">Instalar no Android</span>
+        <button id="pwaAndroidClose" style="background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;">✕</button>
+      </div>
+      <ol style="color:rgba(255,255,255,0.85);font-size:14px;line-height:1.8;padding-left:20px;">
+        <li>Abra o menu do Chrome <strong style="color:#CFAE65;">⋮</strong> (canto superior direito)</li>
+        <li>Toque em <strong style="color:#CFAE65;">"Adicionar à tela inicial"</strong></li>
+        <li>Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong></li>
+      </ol>
+    </div>
+  </div>
+
+  <script>
+    // ─── PWA Install via página Ajuda ─────────────────────────────────────────
+    (function () {
+      const isIos        = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream;
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      const isMobile     = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent);
+
+      const btn        = document.getElementById('btnInstalarApp');
+      const jaInstalado = document.getElementById('pwaJaInstalado');
+
+      // Captura prompt de instalação (Android)
+      let pwaPrompt = window.__pwaPrompt || null;
+      window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pwaPrompt = e; });
+
+      // Se já está instalado, mostra mensagem e desabilita botão
+      if (isStandalone) {
+        btn.style.display = 'none';
+        jaInstalado.style.display = 'block';
+        return;
+      }
+
+      // Em desktop, esconde o botão (não faz sentido)
+      if (!isMobile) { btn.style.display = 'none'; return; }
+
+      btn.addEventListener('click', async () => {
+        // Limpa o flag de "dispensado" para o banner voltar no login também
+        localStorage.removeItem('pwa_dismissed');
+
+        if (pwaPrompt) {
+          // Android com prompt nativo disponível
+          pwaPrompt.prompt();
+          const { outcome } = await pwaPrompt.userChoice;
+          pwaPrompt = null;
+          if (outcome === 'accepted') {
+            btn.textContent = '✓ App instalado!';
+            btn.disabled = true;
+          }
+        } else if (isIos) {
+          // iOS: abre modal com instruções
+          document.getElementById('pwaIosModal').style.display = 'flex';
+        } else {
+          // Android sem prompt disponível: abre modal com instruções manuais
+          document.getElementById('pwaAndroidModal').style.display = 'flex';
+        }
+      });
+
+      document.getElementById('pwaIosClose').addEventListener('click',     () => { document.getElementById('pwaIosModal').style.display     = 'none'; });
+      document.getElementById('pwaAndroidClose').addEventListener('click', () => { document.getElementById('pwaAndroidModal').style.display = 'none'; });
+    })();
+  </script>
 
 </body>
 </html>
