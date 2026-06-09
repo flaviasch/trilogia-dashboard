@@ -129,6 +129,23 @@
       background: var(--border);
       margin: 24px 0;
     }
+    .btn-primeiro-acesso {
+      display: block;
+      width: 100%;
+      padding: 13px;
+      background: transparent;
+      border: 1px solid rgba(207,174,101,0.4);
+      border-radius: 10px;
+      color: var(--gold);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: background 0.2s, border-color 0.2s;
+      margin-bottom: 12px;
+    }
+    .btn-primeiro-acesso:hover { background: rgba(207,174,101,0.08); border-color: var(--gold); }
 
     /* ── Modal: escolha de modo de acesso (admin) ── */
     #modalModo {
@@ -187,6 +204,8 @@
     <button class="btn-login" id="btnLogin">Entrar</button>
 
     <div class="divider"></div>
+
+    <a href="recuperar-senha.html" class="btn-primeiro-acesso">Primeiro acesso — criar minha senha</a>
 
     <div class="forgot">
       <a href="recuperar-senha.html">Esqueci minha senha</a>
