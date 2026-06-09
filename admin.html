@@ -1990,7 +1990,7 @@
         html += vencemHoje.map(c =>
           `<div style="padding-left:12px;cursor:pointer;border-radius:4px;padding:3px 8px 3px 12px;transition:background .15s"
                 onmouseover="this.style.background='rgba(207,174,101,.08)'" onmouseout="this.style.background=''"
-                onclick="abrirDetalhe('${c.uidMentorada}')">
+                onclick="document.querySelector('[data-tab=\\'financeiro\\']').click()">
             · <strong style="color:var(--gold)">${c.nomeAluna}</strong> — ${brl(c.valor)} (${PRODUTO_LABEL[c.produto] || c.produto}) <span style="opacity:.5;font-size:11px">→ ver</span>
            </div>`
         ).join('');
@@ -2005,7 +2005,7 @@
         html += emAtraso.map(c =>
           `<div style="padding-left:12px;cursor:pointer;border-radius:4px;padding:3px 8px 3px 12px;transition:background .15s"
                 onmouseover="this.style.background='rgba(248,113,113,.08)'" onmouseout="this.style.background=''"
-                onclick="abrirDetalhe('${c.uidMentorada}')">
+                onclick="document.querySelector('[data-tab=\\'financeiro\\']').click()">
             · <strong style="color:var(--negative)">${c.nomeAluna}</strong> — ${brl(c.valor)} · venceu ${c.vencimento.split('-').reverse().join('/')} <span style="opacity:.5;font-size:11px">→ ver</span>
            </div>`
         ).join('');
