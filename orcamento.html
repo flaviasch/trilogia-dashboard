@@ -3214,7 +3214,7 @@
         setTimeout(() => {
           if (_act === 'receita')  abrirModal('receita');
           else if (_act === 'despesa')  abrirModal('despesa');
-          else if (_act === 'cartao')   abrirModalCartaoDespesa();
+          else if (_act === 'cartao')   _cartoesReady.then(() => abrirModalCartaoDespesa());
         }, 120);
       }
     }
@@ -5200,7 +5200,8 @@
       document.getElementById('formCartao').classList.add('hidden'));
 
     // Carrega cartões no load (junto com recorrentes)
-    carregarCartoes();
+    // Guardamos a promise para que action=cartao (vindo do FAB da home) espere o load
+    const _cartoesReady = carregarCartoes();
 
     // ─── Modal: fixas detectadas no CSV (11.2) ───────────────────────────────
     let _fixasCsvPendentes = [];
