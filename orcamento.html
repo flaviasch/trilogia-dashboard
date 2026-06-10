@@ -4498,6 +4498,38 @@
     });
 
     // ─── Upload CSV ───────────────────────────
+
+    // Detecta o mês/ano predominante nas datas do CSV.
+    // Aceita dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd e variantes de 2 dígitos no ano.
+    function detectarMesCsv(itens) {
+      const contagem = {};
+      for (const item of itens) {
+        if (!item.data) continue;
+        const d = String(item.data).trim();
+        let mes, ano;
+        if (d.includes('/')) {
+          const p = d.split('/');
+          if (p.length === 3) { mes = parseInt(p[1], 10); ano = parseInt(p[2], 10); }
+        } else if (d.includes('-')) {
+          const p = d.split('-');
+          if (p.length === 3) {
+            if (p[0].length === 4) { ano = parseInt(p[0], 10); mes = parseInt(p[1], 10); }
+            else                   { mes = parseInt(p[1], 10); ano = parseInt(p[2], 10); }
+          }
+        }
+        if (ano < 100) ano += 2000;
+        if (mes >= 1 && mes <= 12 && ano >= 2000 && ano <= 2100) {
+          const k = `${ano}-${mes}`;
+          contagem[k] = (contagem[k] || 0) + 1;
+        }
+      }
+      const entradas = Object.entries(contagem);
+      if (!entradas.length) return null;
+      const [k] = entradas.sort((a, b) => b[1] - a[1])[0];
+      const [anoStr, mesStr] = k.split('-');
+      return { mes: Number(mesStr), ano: Number(anoStr) };
+    }
+
     document.getElementById('btnUpload').addEventListener('click', () => {
       document.getElementById('csvInput').click();
     });
@@ -4513,26 +4545,44 @@
       reader.onload = async (ev) => {
         try {
           const itensCsv = parsearCsvRaioX(ev.target.result);
-          const { mes, ano } = currentData.periodo;
           // Despesas marcadas como fixas no CSV — serão propostas como recorrentes
           const fixasDetectadas = itensCsv.filter(i => i.fixa && i.tipo === 'despesa');
+
+          // Detecta mês alvo pelas datas do CSV; usa período atual se não encontrar
+          const detectado = detectarMesCsv(itensCsv);
+          const { mes: mesAtual, ano: anoAtual } = currentData.periodo;
+          const mesSalvar = detectado?.mes ?? mesAtual;
+          const anoSalvar = detectado?.ano ?? anoAtual;
+
+          // Carrega dados do período alvo para preservar manuais/recorrentes/parcelamentos
+          const dadosAlvo = (mesSalvar === mesAtual && anoSalvar === anoAtual)
+            ? currentData
+            : await buscarPeriodo(mesSalvar, anoSalvar);
+
           // Preserva recorrentes, parcelamentos e lançamentos manuais — CSV não sobrescreve
           const preservar = [
-            ...currentData.receitas
+            ...dadosAlvo.receitas
               .filter(r => r.origem === 'manual')
               .map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: 'manual' })),
-            ...currentData.despesas
+            ...dadosAlvo.despesas
               .filter(d => d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento')
               .map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.parcelamentoId ? { parcelamentoId: d.parcelamentoId, parcelaAtual: d.parcelaAtual, parcelasTotal: d.parcelasTotal } : {}) })),
           ];
+
           // Salva todos os itens do CSV normalmente (fixa entra como lançamento regular)
           const itens = [...itensCsv.map(({ fixa: _f, ...i }) => ({ ...i, origem: 'csv' })), ...preservar];
-          await saveOrcamento(mes, ano, itens);
-          _invalPeriodo(mes, ano);
-          currentData = await buscarPeriodo(mes, ano);
-          render(currentData);
-          verificarBannerFixas(currentData);
-          toast('Raio-X importado com sucesso!', 'success');
+          await saveOrcamento(mesSalvar, anoSalvar, itens);
+          _invalPeriodo(mesSalvar, anoSalvar);
+
+          if (mesSalvar === mesAtual && anoSalvar === anoAtual) {
+            currentData = await buscarPeriodo(mesAtual, anoAtual);
+            render(currentData);
+            verificarBannerFixas(currentData);
+            toast('Raio-X importado com sucesso!', 'success');
+          } else {
+            toast(`Raio-X importado para ${MESES[mesSalvar - 1]} de ${anoSalvar} ✓`, 'success');
+          }
+
           registrarEvento('csv_importado');
           // Se houver fixas detectadas, exibe modal de confirmação
           if (fixasDetectadas.length > 0) abrirModalFixasCsv(fixasDetectadas);
