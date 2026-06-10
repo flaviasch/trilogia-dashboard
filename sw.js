@@ -1,10 +1,11 @@
-// Trilogia Dashboard — Service Worker v19
-// HTML:          sempre rede (no-store)
-// JS/CSS locais: Network First → garante versão atual; fallback cache se offline
-// Fontes/CDN:    Cache First (raramente mudam)
-// Push:          exibe notificação + abre dashboard ao clicar
+// Trilogia Dashboard — Service Worker v20
+// HTML:           sempre rede (no-store)
+// JS/CSS com ?v=: Cache First — URL versionada, muda só no ?v=
+// JS/CSS locais:  Network First → garante versão atual; fallback cache se offline
+// Fontes/CDN:     Cache First (raramente mudam)
+// Push:           exibe notificação + abre dashboard ao clicar
 
-const CACHE_NAME = 'trilogia-v19';
+const CACHE_NAME = 'trilogia-v20';
 
 const ASSETS_TO_CACHE = [
   '/manifest.json',
@@ -132,7 +133,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ❹ JS e CSS locais: Network First
+  // ❹a JS/CSS locais com ?v= versionado: Cache First — URL imutável enquanto ?v= não muda
+  if (
+    url.hostname === self.location.hostname &&
+    (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) &&
+    url.search.includes('v=')
+  ) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((res) => {
+          if (res && res.status === 200) {
+            caches.open(CACHE_NAME).then((c) => c.put(event.request, res.clone()));
+          }
+          return res;
+        }).catch(() => new Response('', { status: 503 }));
+      })
+    );
+    return;
+  }
+
+  // ❹b JS e CSS locais sem versão: Network First
   if (
     url.hostname === self.location.hostname &&
     (url.pathname.endsWith('.js') || url.pathname.endsWith('.css'))

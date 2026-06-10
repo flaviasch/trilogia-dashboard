@@ -220,6 +220,57 @@ async function sendPushToAtivas(payload) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/**
+ * Calcula o score de saúde financeira (0–100) a partir dos itens do orçamento,
+ * das reservas e das categorias com limite planejado.
+ * Mesma fórmula do orcamento.html — mantê-las sincronizadas.
+ */
+function calcularScoreMes(orcItens, reservas, cats) {
+  const receita      = orcItens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
+  const despesa      = orcItens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
+  const totalAporte  = orcItens.filter(i => i.tipo === 'aporte' ).reduce((s, i) => s + i.valor, 0);
+  const sobra        = receita - despesa;
+  const totalPlan    = (reservas || []).reduce((s, r) => s + (r.aporte || 0), 0);
+
+  // ① Sobra
+  const sobraPct = receita > 0 ? sobra / receita * 100 : 0;
+  let ptsSobra = 0;
+  if      (sobraPct >= 30) ptsSobra = 100;
+  else if (sobraPct >= 20) ptsSobra = 80;
+  else if (sobraPct >= 10) ptsSobra = 50;
+  else if (sobraPct > 0)   ptsSobra = 20;
+
+  // ② Aporte
+  let ptsAporte = 0;
+  if (totalPlan > 0) {
+    const execPct = totalAporte / totalPlan * 100;
+    if      (execPct >= 100) ptsAporte = 100;
+    else if (execPct >= 80)  ptsAporte = 80;
+    else if (execPct >= 50)  ptsAporte = 50;
+    else if (execPct > 0)    ptsAporte = 20;
+  }
+
+  // ③ Orçamento (categorias com limite)
+  const catsComLimite = (cats || []).filter(c => c.limite > 0);
+  let ptsOrcamento = 75; // neutro quando sem limites definidos
+  if (catsComLimite.length > 0) {
+    const despesasArr = orcItens.filter(i => i.tipo === 'despesa');
+    const estouradas = catsComLimite.filter(c => {
+      const gasto = despesasArr.filter(d => d.categoria === c.nome).reduce((s, d) => s + d.valor, 0);
+      return gasto > c.limite;
+    }).length;
+    if      (estouradas === 0) ptsOrcamento = 100;
+    else if (estouradas === 1) ptsOrcamento = 70;
+    else if (estouradas === 2) ptsOrcamento = 40;
+    else                       ptsOrcamento = 0;
+  }
+
+  // ④ Regularidade
+  const ptsRegularidade = (receita > 0 || despesa > 0) ? 100 : 0;
+
+  return Math.round(ptsSobra * 0.30 + ptsAporte * 0.35 + ptsOrcamento * 0.25 + ptsRegularidade * 0.10);
+}
+
 function hoje() {
   return new Date().toISOString().split('T')[0];
 }
@@ -421,7 +472,7 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
  * Usa valores cacheados (pl, sobra, scoreMes) para os cards que precisam de cálculo.
  * O frontend chama getOrcamento e getPatrimonio em background para completar os dados.
  */
-exports.getDashboardHome = onCall({}, async (request) => {
+exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
   const auth = requireAuth(request);
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
@@ -431,12 +482,13 @@ exports.getDashboardHome = onCall({}, async (request) => {
   const ano      = agora.getFullYear();
   const mesAtual = agora.toISOString().slice(0, 7);
 
-  // Lê doc principal + reservas + missão do mês + orçamento atual em paralelo
-  const [docSnap, resSnap, missaoSnap, orcSnap] = await Promise.all([
+  // Lê doc principal + reservas + missão do mês + orçamento atual + planejamento em paralelo
+  const [docSnap, resSnap, missaoSnap, orcSnap, planSnap] = await Promise.all([
     db.collection('mentoradas').doc(uid).get(),
     db.collection('mentoradas').doc(uid).collection('reservas').get().catch(() => null),
     db.collection('config').doc('missaoMes').get().catch(() => null),
     db.collection('mentoradas').doc(uid).collection('orcamento').doc(mesAtual).get().catch(() => null),
+    db.collection('mentoradas').doc(uid).collection('planejamento').doc(mesAtual).get().catch(() => null),
   ]);
 
   if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
@@ -467,6 +519,17 @@ exports.getDashboardHome = onCall({}, async (request) => {
   const aporteMes  = orcItens.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0);
   const sobraMes   = receitaMes - despesaMes;
 
+  // Score calculado ao vivo — mesma fórmula do orcamento.html
+  const cats = planSnap?.exists ? (planSnap.data().categorias || []) : [];
+  const scoreCalculado    = orcItens.length > 0 ? calcularScoreMes(orcItens, reservas, cats) : null;
+  const scoreChaveCalculado = scoreCalculado != null ? mesAtual : null;
+
+  // Persiste score calculado no doc (fire-and-forget) para histórico
+  if (scoreCalculado != null) {
+    docSnap.ref.update({ scoreMes: scoreCalculado, scoreChave: scoreChaveCalculado })
+      .catch(e => console.warn(`[getDashboardHome] Falha ao salvar score: ${e.message}`));
+  }
+
   // Registra acesso em background (fire-and-forget)
   if (uid === auth.uid) {
     docSnap.ref.update({
@@ -490,8 +553,8 @@ exports.getDashboardHome = onCall({}, async (request) => {
     plCacheado:          pl            ?? null,
     sobraCacheada:       sobra         ?? null,
     totalReservasCacheado: totalReservas ?? null,
-    scoreMes:           scoreMes          ?? null,
-    scoreChave:         scoreChave        ?? null,
+    scoreMes:           scoreCalculado    ?? scoreMes  ?? null,
+    scoreChave:         scoreChaveCalculado ?? scoreChave ?? null,
     mentoriaEncerrada:  mentoriaEncerrada || false,
     assinaturaDashboard: assinaturaDashboard || false,
     mes,
@@ -1530,6 +1593,15 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
   }
 
   // 3. Salvar no Firestore
+  // Flags de assinatura derivadas do produto selecionado:
+  // dashboard → assinaturaDashboard: true
+  // clube     → assinaturaClube: true
+  // combo     → ambos true
+  const produtoNorm = (produto || '').toLowerCase();
+  const flagsAssinatura = {};
+  if (produtoNorm === 'dashboard' || produtoNorm === 'combo') flagsAssinatura.assinaturaDashboard = true;
+  if (produtoNorm === 'clube'     || produtoNorm === 'combo') flagsAssinatura.assinaturaClube     = true;
+
   await db.collection('mentoradas').doc(userRecord.uid).set({
     nome,
     email,
@@ -1547,25 +1619,24 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
     lgpdAceite:      false,
     lgpdAceiteData:  null,
     criadoEm:        admin.firestore.FieldValue.serverTimestamp(),
+    ...flagsAssinatura,
   });
 
-  // 4. Gerar link + enviar e-mail de boas-vindas (falha não bloqueia criação)
+  // 4. Enviar e-mail de boas-vindas SEM link de acesso.
+  //    O link é gerado separadamente via "Reenviar acesso" no painel admin,
+  //    garantindo que nunca chegue expirado à mentorada.
   let emailEnviado = false;
   let emailErro    = null;
   try {
-    const linkSenha = await admin.auth().generatePasswordResetLink(email, {
-      url: 'https://dashboard.flaviaschusciman.com/login.html',
-    });
     await sendEmail({
       to:      email,
       subject: 'Bem-vinda ao Trilogia Dashboard',
-      html:    emailBoasVindas(nome, linkSenha),
+      html:    emailBoasVindas(nome),
     });
     emailEnviado = true;
   } catch (err) {
     emailErro = err.message;
     console.error(`[createMentorada] Falha ao enviar e-mail de boas-vindas para ${email}:`, err.message);
-    // Conta criada com sucesso — admin pode reenviar o link manualmente pelo painel
   }
 
   return { uid: userRecord.uid, sheetId, emailEnviado, emailErro };
@@ -1622,6 +1693,14 @@ exports.updateMentorada = onCall({ secrets: [sGmail] }, async (request) => {
 
   if (Object.keys(atualizacao).length === 0) {
     throw new HttpsError('invalid-argument', 'Nenhum campo válido para atualizar.');
+  }
+
+  // Se produto foi alterado, sincroniza flags de assinatura automaticamente
+  // para evitar estado inconsistente (ex: assinaturaClube: true sem assinaturaDashboard)
+  if (atualizacao.produto) {
+    const p = atualizacao.produto.toLowerCase();
+    if (p === 'dashboard' || p === 'combo') atualizacao.assinaturaDashboard = true;
+    if (p === 'clube'     || p === 'combo') atualizacao.assinaturaClube     = true;
   }
 
   await db.collection('mentoradas').doc(uid).update(atualizacao);
