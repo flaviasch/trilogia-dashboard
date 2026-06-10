@@ -2012,6 +2012,7 @@
 
     // ─── Ação de lançamento rápido via URL param (?action=despesa|receita|cartao) ──
     let _fabActionPending = new URLSearchParams(window.location.search).get('action');
+    let _fabValorPre = parseFloat(new URLSearchParams(window.location.search).get('valor') || '') || null;
 
     // ─── ViewAs (admin visualizando mentorada) ────────────────────────────────
     const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
@@ -3228,7 +3229,7 @@
         setTimeout(() => {
           if (_act === 'receita')  abrirModal('receita');
           else if (_act === 'despesa')  abrirModal('despesa');
-          else if (_act === 'cartao')   _cartoesReady.then(() => abrirModalCartaoDespesa());
+          else if (_act === 'cartao')   _cartoesReady.then(() => abrirModalCartaoDespesa(null, _fabValorPre));
         }, 120);
       }
     }
@@ -4930,7 +4931,7 @@
 
     // ─── Modal dedicado: lançar despesa no cartão ────────────────────────────
 
-    function abrirModalCartaoDespesa(cartaoIdPre) {
+    function abrirModalCartaoDespesa(cartaoIdPre, valorPre) {
       const ativos = _cartoes.filter(c => c.ativo);
       if (!ativos.length) {
         mostrarToast('Nenhum cartão cadastrado. Adicione primeiro.', 'warning');
@@ -4954,7 +4955,7 @@
       document.getElementById('cdDescricao').value  = '';
       document.getElementById('cdCategoria').value  = '';
       document.getElementById('cdData').value        = new Date().toISOString().slice(0, 10);
-      document.getElementById('cdValor').value       = '';
+      document.getElementById('cdValor').value       = valorPre ? String(valorPre) : '';
       document.getElementById('cdFaturaLabel').textContent = '—';
       document.getElementById('cdFaturaHint').textContent  = '';
       document.getElementById('cdVctoLabel').textContent   = '';

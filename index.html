@@ -1885,13 +1885,15 @@
       if (!valor || valor <= 0) return null;
       const palavrasReceita = ['recebi','recebeu','entrou','receita','salario','ganhei','ganhou','rendimento','dividendo'];
       const tipo = palavrasReceita.some(p => t.includes(p)) ? 'receita' : 'despesa';
+      const palavrasCartao = ['cartao','credito','visa','mastercard','elo','nubank','itau','bradesco','santander','c6','inter','amex','hipercard'];
+      const isCartao = tipo === 'despesa' && palavrasCartao.some(p => t.includes(p));
       let categoria = 'Outros';
       for (const { cat, kw } of CATS_RAPIDO) {
         if (kw.some(k => t.includes(k))) { categoria = cat; break; }
       }
       const hoje = new Date();
       const data = `${String(hoje.getDate()).padStart(2,'0')}/${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`;
-      return { tipo, valor, categoria, data, descricao: texto.trim() };
+      return { tipo, valor, categoria, data, descricao: texto.trim(), isCartao };
     }
 
     async function salvarLancamentoRapido(parsed) {
@@ -1941,11 +1943,14 @@
       const btnOk   = document.getElementById('btnTextoLivreConfirmar');
       const parsed  = parsearEntradaLivre(texto);
       if (!parsed) { preview.style.display = 'none'; btnOk.disabled = true; btnOk.style.opacity = '0.5'; return; }
-      document.getElementById('prevTipoIcon').textContent = parsed.tipo === 'receita' ? '💰' : '💸';
+      document.getElementById('prevTipoIcon').textContent = parsed.isCartao ? '💳' : (parsed.tipo === 'receita' ? '💰' : '💸');
       document.getElementById('prevValor').textContent = parsed.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
-      document.getElementById('prevData').textContent = 'Hoje · ' + parsed.data;
+      document.getElementById('prevData').textContent = parsed.isCartao ? 'Abre o modal de cartão' : ('Hoje · ' + parsed.data);
       document.getElementById('prevTipo').value      = parsed.tipo;
       document.getElementById('prevCategoria').value = parsed.categoria;
+      document.getElementById('prevTipo').style.display      = parsed.isCartao ? 'none' : '';
+      document.getElementById('prevCategoria').style.display = parsed.isCartao ? 'none' : '';
+      btnOk.textContent = parsed.isCartao ? 'Abrir cartão →' : 'Registrar';
       preview.style.display = 'block';
       btnOk.disabled = false; btnOk.style.opacity = '1';
     }
@@ -1963,6 +1968,15 @@
       if (!parsed) return;
       parsed.tipo      = document.getElementById('prevTipo').value;
       parsed.categoria = document.getElementById('prevCategoria').value;
+      // Cartão: redireciona para o modal completo (já tem opção de parcelado)
+      if (parsed.isCartao) {
+        fecharModalTextoLivre();
+        const _va = new URLSearchParams(window.location.search).get('viewAs');
+        const p = new URLSearchParams({ action: 'cartao', valor: String(parsed.valor) });
+        if (_va) p.set('viewAs', _va);
+        window.location.href = 'orcamento.html?' + p.toString();
+        return;
+      }
       setLoading(btn, true, 'Salvando…');
       try {
         await salvarLancamentoRapido(parsed);
