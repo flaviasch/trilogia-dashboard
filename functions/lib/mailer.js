@@ -227,20 +227,24 @@ function emailReenvioAcesso(nome, linkSenha) {
  * @param {string} nome      — nome da mentorada
  * @param {string} linkSenha — link gerado pelo Firebase para definir senha
  */
-function emailBoasVindas(nome, linkSenha) {
+function emailBoasVindas(nome) {
   return layout(`
     <h2 style="${S.h2}">Bem-vinda ao Trilogia Dashboard</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
-      Seu acesso ao Trilogia Dashboard está pronto. Clique no botão abaixo
-      para criar sua senha e acessar a plataforma pela primeira vez.
+      Sua conta está criada e o Dashboard já está pronto para você.
+      Para definir sua senha e acessar pela primeira vez, clique no botão abaixo:
     </p>
-    <a href="${linkSenha}" style="${S.btn}">
-      Criar minha senha
+    <a href="https://dashboard.flaviaschusciman.com/login.html" style="${S.btn}">
+      Acessar o Dashboard
     </a>
+    <p style="${S.p}" style="margin-top:20px">
+      Na tela de login, clique em <strong>"Primeiro acesso — criar minha senha"</strong>
+      (ou "Esqueci minha senha"), informe este e-mail e você receberá um link
+      para criar sua senha na hora.
+    </p>
     <p style="${S.pSmall}">
-      Após definir sua senha, você terá acesso ao acompanhamento completo
-      do seu patrimônio, reservas e orçamento — tudo no mesmo lugar.
+      Qualquer dúvida, fale diretamente com a Flávia pelo WhatsApp.
     </p>
   `);
 }
@@ -420,6 +424,37 @@ function emailNovidadesJun2026(nome) {
       ${featureItem('📌','Registrar fixas ficou mais fácil','Ao lançar uma despesa manualmente, dois novos atalhos aparecem: Despesa fixa (lança no mês atual e já cadastra como recorrente para os próximos meses) e Recorrência com prazo (você define quantos meses e o sistema lança automaticamente nesse período).')}
       ${featureItem('🤖','Raio-X + despesas fixas automáticas','Quando o Raio-X identifica uma despesa fixa, o CSV sai com essa marcação. Ao importar no dashboard, o sistema detecta e abre uma tela de confirmação: você escolhe quais quer cadastrar como fixas e elas entram direto no gerenciador de recorrentes, sem precisar cadastrar manualmente.')}
       ${featureItem('✦','Atalho rápido para lançar','O botão + dourado na tela inicial agora expande com três opções: Receita, Despesa e Despesa no cartão. Menos cliques para registrar.')}
+    </table>
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Acessar agora →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
+// ─── Novidades Jun/2026 v3 ───────────────────────────────────────────────────
+
+function emailNovidadesJun2026v3(nome) {
+  const featureItem = (emoji, titulo, desc) =>
+    `<tr><td style="padding:12px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:32px;vertical-align:top;padding-top:2px;font-size:20px;">${emoji}</td>
+        <td style="padding-left:12px;">
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Novidade no seu Dashboard — Junho 2026</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Uma função nova está disponível no seu dashboard. Vai economizar tempo em registros do dia a dia.
+    </p>
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
+      ${featureItem('✨','Registre um gasto digitando uma frase','Toque em + na tela inicial, escolha Texto livre e digite algo como "gastei 45 no mercado" ou "recebi 3000 de salário". O dashboard identifica o valor, a categoria e o tipo automaticamente, mostra um preview para você confirmar e salva no orçamento do mês. Menos cliques, mesmo controle.')}
+      ${featureItem('📅','CSV importa no mês certo automaticamente','Ao importar um extrato do Raio-X, o sistema agora lê as datas das transações e salva no período correto, sem precisar navegar até o mês antes de importar.')}
     </table>
     <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
       Acessar agora →
@@ -667,6 +702,7 @@ module.exports = {
   emailLembretePlanejamento,
   emailNovidades,
   emailNovidadesJun2026,
+  emailNovidadesJun2026v3,
   emailComunicadoTecnico,
   emailIR,
   emailReenvioAcesso,
