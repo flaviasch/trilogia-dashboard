@@ -2760,6 +2760,9 @@
     async function init(user) {
       if (!VIEW_AS_UID && await isAdmin() && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
 
+      // Inicia carga dos cartões agora que auth.currentUser está disponível
+      _cartoesReady = carregarCartoes();
+
       const agora = new Date();
       const mes = agora.getMonth() + 1;
       const ano = agora.getFullYear();
@@ -5199,9 +5202,9 @@
     document.getElementById('btnCancelarCartao')?.addEventListener('click', () =>
       document.getElementById('formCartao').classList.add('hidden'));
 
-    // Carrega cartões no load (junto com recorrentes)
-    // Guardamos a promise para que action=cartao (vindo do FAB da home) espere o load
-    const _cartoesReady = carregarCartoes();
+    // _cartoesReady é preenchido dentro de init() (após auth estar pronto)
+    // para garantir que auth.currentUser != null quando getCartoes() é chamado
+    let _cartoesReady = Promise.resolve();
 
     // ─── Modal: fixas detectadas no CSV (11.2) ───────────────────────────────
     let _fixasCsvPendentes = [];
