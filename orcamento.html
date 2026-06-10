@@ -717,8 +717,14 @@
       .resumo-label { font-size: 8px; margin-bottom: 6px; }
       .resumo-value { font-size: 13px; margin-bottom: 4px; }
       .resumo-sub   { font-size: 8px; }
-      .tab-btn { flex: 1; font-size: 10px; padding: 7px 4px; }
-      .tabs-bar { overflow-x: visible; }
+      .tabs-bar {
+        overflow-x: auto; overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; scroll-behavior: smooth;
+        padding: 3px;
+      }
+      .tabs-bar::-webkit-scrollbar { display: none; }
+      .tab-btn { flex: 0 0 auto; font-size: 11px; padding: 7px 10px; white-space: nowrap; }
       .item-bar-col { display: none; }
       .item-row { grid-template-columns: 1fr auto auto; }
       .item-actions { opacity: 1; }
@@ -2064,7 +2070,9 @@
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.getElementById('tab-' + id)?.classList.add('active');
-      document.getElementById('tabBtn' + id.charAt(0).toUpperCase() + id.slice(1))?.classList.add('active');
+      const _activeBtn = document.getElementById('tabBtn' + id.charAt(0).toUpperCase() + id.slice(1));
+      _activeBtn?.classList.add('active');
+      _activeBtn?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       if (id === 'faturas')      renderFaturas(currentData);
       if (id === 'planejamento') renderPlanejamento(currentData, categoriasMes);
       if (id === 'graficos')    renderGraficos(currentData);
