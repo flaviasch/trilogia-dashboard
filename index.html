@@ -2022,6 +2022,12 @@
     })();
 
     window.abrirModalTextoLivre = abrirModalTextoLivre;
+
+    // Handler registrado no módulo — garante que abrirModalTextoLivre já existe
+    document.getElementById('fabHomTexto')?.addEventListener('click', () => {
+      window._fecharFabHome?.();
+      abrirModalTextoLivre();
+    });
   </script>
 
   <!-- Modal: lançamento rápido por texto ou voz -->
@@ -2113,11 +2119,8 @@
 
       fabEl.addEventListener('click', () => fabOpen ? fecharFab() : abrirFab());
       fabBack.addEventListener('click', fecharFab);
+      window._fecharFabHome = fecharFab;
 
-      document.getElementById('fabHomTexto')?.addEventListener('click', () => {
-        fecharFab();
-        window.abrirModalTextoLivre?.();
-      });
       document.getElementById('fabHomReceita')?.addEventListener('click', () => {
         window.location.href = base + (suffix ? suffix + '&' : '?') + 'action=receita';
       });
