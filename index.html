@@ -843,8 +843,9 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, getPatrimonio, bootstrapAdmin, aceitarLGPD, savePushSubscription } from './js/api.js?v=14';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=14';
     import { isAdmin } from './js/admin-guard.js';
+    import { toast, setLoading } from './js/ui.js';
     import {
       onAuthStateChanged,
       signOut,
@@ -1858,12 +1859,207 @@
       document.getElementById('pushBanner').style.display = 'none';
       localStorage.setItem('push_dismissed', '1');
     });
+
+    // ─── Lançamento rápido por texto / voz ────────────────────────────────────
+
+    const CATS_RAPIDO = [
+      { cat: 'Alimentação', kw: ['ifood','rappi','delivery','restaurante','mercado','supermercado','padaria','acougue','hortifruti','feira','lanche','comida','pizza','hamburguer','sushi','cafe','almoco','jantar','pao','leite'] },
+      { cat: 'Transporte',  kw: ['uber','99','taxi','gasolina','combustivel','onibus','metro','estacionamento','pedagio','carro','moto','posto','brt','trem'] },
+      { cat: 'Saúde',       kw: ['farmacia','remedio','medico','consulta','clinica','hospital','exame','dentista','fisio','psicologo','nutri','plano de saude','drogaria'] },
+      { cat: 'Educação',    kw: ['curso','livro','escola','faculdade','mensalidade','aula','alura','udemy','livraria','material escolar'] },
+      { cat: 'Assinaturas', kw: ['netflix','spotify','amazon','disney','hbo','apple','youtube','icloud','google one','notion','canva','microsoft','office','dropbox'] },
+      { cat: 'Lazer',       kw: ['cinema','teatro','show','ingresso','viagem','hotel','airbnb','bar','academia','smartfit','bodytech','clube','parque'] },
+      { cat: 'Moradia',     kw: ['aluguel','condominio','iptu','luz','energia','agua','gas','internet','reforma','construcao','leroy','telhanorte'] },
+      { cat: 'Vestuário',   kw: ['roupa','sapato','tenis','calcado','nike','adidas','shein','renner','riachuelo','zara','hm'] },
+      { cat: 'Pessoal',     kw: ['salao','cabeleireiro','barbearia','manicure','spa','estetica','perfume','boticario','natura','sephora'] },
+      { cat: 'Salário',     kw: ['salario','pro-labore','prolabore','holerite','pro labore'] },
+      { cat: 'Investimentos', kw: ['investimento','aporte','poupanca','tesouro','acao','fundo','corretora','xp','btg','rico'] },
+    ];
+
+    function parsearEntradaLivre(texto) {
+      if (!texto?.trim()) return null;
+      const t = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+      const valorMatch = t.match(/r?\$?\s*(\d{1,7}(?:[.,]\d{1,2})?)/);
+      if (!valorMatch) return null;
+      const valor = parseFloat(valorMatch[1].replace(',', '.'));
+      if (!valor || valor <= 0) return null;
+      const palavrasReceita = ['recebi','recebeu','entrou','receita','salario','ganhei','ganhou','rendimento','dividendo'];
+      const tipo = palavrasReceita.some(p => t.includes(p)) ? 'receita' : 'despesa';
+      let categoria = 'Outros';
+      for (const { cat, kw } of CATS_RAPIDO) {
+        if (kw.some(k => t.includes(k))) { categoria = cat; break; }
+      }
+      const hoje = new Date();
+      const data = `${String(hoje.getDate()).padStart(2,'0')}/${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`;
+      return { tipo, valor, categoria, data, descricao: texto.trim() };
+    }
+
+    async function salvarLancamentoRapido(parsed) {
+      const hoje = new Date();
+      const mes  = hoje.getMonth() + 1;
+      const ano  = hoje.getFullYear();
+      const dadosMes = await getOrcamento(mes, ano);
+      const itensAtuais = [
+        ...(dadosMes.receitas || []).map(r => ({ ...r, tipo: 'receita' })),
+        ...(dadosMes.despesas || []).map(d => ({ ...d, tipo: 'despesa' })),
+      ];
+      const novoItem = {
+        categoria: parsed.categoria,
+        tipo:      parsed.tipo,
+        valor:     parsed.valor,
+        data:      parsed.data,
+        descricao: parsed.descricao,
+        cartao:    false,
+        fatura:    '',
+        origem:    'manual',
+      };
+      await saveOrcamento(mes, ano, [...itensAtuais, novoItem]);
+      registrarEvento('lancamento_rapido');
+    }
+
+    let _recognition = null;
+
+    function abrirModalTextoLivre() {
+      const modal = document.getElementById('modalTextoLivre');
+      if (!modal) return;
+      modal.style.display = 'flex';
+      const input = document.getElementById('textoLivreInput');
+      input.value = '';
+      document.getElementById('textoLivrePreview').style.display = 'none';
+      document.getElementById('btnTextoLivreConfirmar').disabled = true;
+      setTimeout(() => input.focus(), 80);
+    }
+
+    function fecharModalTextoLivre() {
+      document.getElementById('modalTextoLivre').style.display = 'none';
+      if (_recognition) { try { _recognition.abort(); } catch(e) {} _recognition = null; }
+    }
+
+    function atualizarPreviewTextoLivre() {
+      const texto   = document.getElementById('textoLivreInput')?.value?.trim();
+      const preview = document.getElementById('textoLivrePreview');
+      const btnOk   = document.getElementById('btnTextoLivreConfirmar');
+      const parsed  = parsearEntradaLivre(texto);
+      if (!parsed) { preview.style.display = 'none'; btnOk.disabled = true; btnOk.style.opacity = '0.5'; return; }
+      document.getElementById('prevTipoIcon').textContent = parsed.tipo === 'receita' ? '💰' : '💸';
+      document.getElementById('prevValor').textContent = parsed.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
+      document.getElementById('prevData').textContent = 'Hoje · ' + parsed.data;
+      document.getElementById('prevTipo').value      = parsed.tipo;
+      document.getElementById('prevCategoria').value = parsed.categoria;
+      preview.style.display = 'block';
+      btnOk.disabled = false; btnOk.style.opacity = '1';
+    }
+
+    document.getElementById('textoLivreInput')?.addEventListener('input', atualizarPreviewTextoLivre);
+    document.getElementById('textoLivreInput')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btnTextoLivreConfirmar')?.click(); });
+    document.getElementById('btnTextoFechar')?.addEventListener('click', fecharModalTextoLivre);
+    document.getElementById('btnTextoLivreCancelar')?.addEventListener('click', fecharModalTextoLivre);
+    document.getElementById('modalTextoLivre')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) fecharModalTextoLivre(); });
+
+    document.getElementById('btnTextoLivreConfirmar')?.addEventListener('click', async () => {
+      const btn    = document.getElementById('btnTextoLivreConfirmar');
+      const texto  = document.getElementById('textoLivreInput')?.value?.trim();
+      const parsed = parsearEntradaLivre(texto);
+      if (!parsed) return;
+      parsed.tipo      = document.getElementById('prevTipo').value;
+      parsed.categoria = document.getElementById('prevCategoria').value;
+      setLoading(btn, true, 'Salvando…');
+      try {
+        await salvarLancamentoRapido(parsed);
+        fecharModalTextoLivre();
+        const icone = parsed.tipo === 'receita' ? '💰' : '💸';
+        const vlr   = parsed.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
+        toast(`${icone} ${vlr} · ${parsed.categoria}`, 'success');
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    // Microfone: Web Speech API (Chrome Android) — oculto em browsers sem suporte
+    (() => {
+      const SR     = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const btnMic = document.getElementById('btnMicrofone');
+      if (!SR || !btnMic) return;
+      btnMic.style.display = '';
+      btnMic.addEventListener('click', () => {
+        if (_recognition) { try { _recognition.abort(); } catch(e) {} return; }
+        _recognition = new SR();
+        _recognition.lang = 'pt-BR';
+        _recognition.interimResults = false;
+        _recognition.maxAlternatives = 1;
+        btnMic.style.background = 'rgba(248,113,113,0.15)';
+        btnMic.style.borderColor = '#f87171';
+        btnMic.textContent = '⏹';
+        _recognition.onresult = (e) => {
+          const transcript = e.results[0][0].transcript;
+          document.getElementById('textoLivreInput').value = transcript;
+          atualizarPreviewTextoLivre();
+        };
+        _recognition.onend = _recognition.onerror = () => {
+          _recognition = null;
+          btnMic.style.background = '';
+          btnMic.style.borderColor = '';
+          btnMic.textContent = '🎤';
+        };
+        _recognition.start();
+      });
+    })();
+
+    window.abrirModalTextoLivre = abrirModalTextoLivre;
   </script>
+
+  <!-- Modal: lançamento rápido por texto ou voz -->
+  <div id="modalTextoLivre" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:1100;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px);">
+    <div style="background:var(--navy-mid);border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;box-shadow:0 -4px 32px rgba(0,0,0,0.55);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <h3 style="font-size:18px;font-weight:700;color:var(--white);font-family:'Playfair Display',serif;">Lançar</h3>
+        <button id="btnTextoFechar" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:22px;line-height:1;padding:4px 6px;">✕</button>
+      </div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Ex: "gastei 45 no mercado" ou "recebi 3000 de salário"</p>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input type="text" id="textoLivreInput" placeholder="O que aconteceu?" autocomplete="off"
+          style="flex:1;padding:12px 14px;background:var(--navy);border:1.5px solid var(--border);border-radius:10px;color:var(--white);font-size:15px;font-family:'Inter',sans-serif;outline:none;" />
+        <button id="btnMicrofone" title="Falar" style="display:none;width:48px;height:48px;border-radius:10px;background:var(--navy);border:1.5px solid var(--border);color:var(--gold);font-size:20px;cursor:pointer;flex-shrink:0;transition:background .15s,border-color .15s;">🎤</button>
+      </div>
+      <!-- Preview -->
+      <div id="textoLivrePreview" style="display:none;background:rgba(207,174,101,0.08);border:1px solid rgba(207,174,101,0.25);border-radius:12px;padding:14px 16px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <span id="prevTipoIcon" style="font-size:24px;">💸</span>
+          <div>
+            <div id="prevValor" style="font-size:20px;font-weight:700;color:var(--white);font-family:'Playfair Display',serif;">—</div>
+            <div id="prevData" style="font-size:12px;color:var(--text-secondary);margin-top:2px;">—</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <select id="prevTipo" style="padding:6px 12px;background:var(--navy);border:1px solid var(--border);border-radius:20px;color:var(--white);font-size:12px;font-family:'Inter',sans-serif;cursor:pointer;">
+            <option value="despesa">💸 Despesa</option>
+            <option value="receita">💰 Receita</option>
+          </select>
+          <select id="prevCategoria" style="padding:6px 12px;background:var(--navy);border:1px solid var(--border);border-radius:20px;color:var(--white);font-size:12px;font-family:'Inter',sans-serif;cursor:pointer;">
+            <option>Alimentação</option><option>Transporte</option><option>Saúde</option>
+            <option>Educação</option><option>Assinaturas</option><option>Lazer</option>
+            <option>Moradia</option><option>Vestuário</option><option>Pessoal</option>
+            <option>Salário</option><option>Investimentos</option><option>Outros</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button id="btnTextoLivreCancelar" style="flex:1;padding:13px;background:transparent;border:1.5px solid var(--border);border-radius:10px;color:var(--text-secondary);font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Cancelar</button>
+        <button id="btnTextoLivreConfirmar" disabled style="flex:2;padding:13px;background:var(--gold);border:none;border-radius:10px;color:var(--navy);font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;opacity:0.5;transition:opacity .15s;">Registrar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- FAB speed-dial: lançamento rápido → orcamento.html -->
   <div id="fabBackdropHome" style="display:none;position:fixed;inset:0;z-index:899;background:rgba(0,0,0,0.25);"></div>
   <div id="fabSpeedDialHome" style="position:fixed;bottom:140px;right:20px;z-index:900;display:flex;flex-direction:column;align-items:flex-end;gap:12px;">
     <div id="fabOptionsHome" style="display:flex;flex-direction:column;align-items:flex-end;gap:10px;opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .18s ease,transform .18s ease;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="background:rgba(10,15,40,0.9);color:#fff;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;backdrop-filter:blur(4px);">Texto livre</span>
+        <button id="fabHomTexto" style="width:46px;height:46px;border-radius:50%;background:var(--gold);color:var(--navy);border:none;font-size:18px;cursor:pointer;box-shadow:0 3px 12px rgba(207,174,101,0.45);display:flex;align-items:center;justify-content:center;">✨</button>
+      </div>
       <div style="display:flex;align-items:center;gap:10px;">
         <span style="background:rgba(10,15,40,0.9);color:#fff;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;backdrop-filter:blur(4px);">Receita</span>
         <button id="fabHomReceita" style="width:46px;height:46px;border-radius:50%;background:#22c55e;color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 3px 12px rgba(34,197,94,0.4);display:flex;align-items:center;justify-content:center;">↑</button>
@@ -1904,6 +2100,10 @@
       fabEl.addEventListener('click', () => fabOpen ? fecharFab() : abrirFab());
       fabBack.addEventListener('click', fecharFab);
 
+      document.getElementById('fabHomTexto')?.addEventListener('click', () => {
+        fecharFab();
+        window.abrirModalTextoLivre?.();
+      });
       document.getElementById('fabHomReceita')?.addEventListener('click', () => {
         window.location.href = base + (suffix ? suffix + '&' : '?') + 'action=receita';
       });
