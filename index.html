@@ -1955,20 +1955,15 @@
       btnOk.disabled = false; btnOk.style.opacity = '1';
     }
 
-    document.getElementById('textoLivreInput')?.addEventListener('input', atualizarPreviewTextoLivre);
-    document.getElementById('textoLivreInput')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btnTextoLivreConfirmar')?.click(); });
-    document.getElementById('btnTextoFechar')?.addEventListener('click', fecharModalTextoLivre);
-    document.getElementById('btnTextoLivreCancelar')?.addEventListener('click', fecharModalTextoLivre);
-    document.getElementById('modalTextoLivre')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) fecharModalTextoLivre(); });
-
-    document.getElementById('btnTextoLivreConfirmar')?.addEventListener('click', async () => {
+    // Expõe funções do modal via window — listeners registrados no inline script
+    window.atualizarPreviewTextoLivre = atualizarPreviewTextoLivre;
+    window.confirmarTextoLivre = async () => {
       const btn    = document.getElementById('btnTextoLivreConfirmar');
       const texto  = document.getElementById('textoLivreInput')?.value?.trim();
       const parsed = parsearEntradaLivre(texto);
       if (!parsed) return;
       parsed.tipo      = document.getElementById('prevTipo').value;
       parsed.categoria = document.getElementById('prevCategoria').value;
-      // Cartão: redireciona para o modal completo (já tem opção de parcelado)
       if (parsed.isCartao) {
         fecharModalTextoLivre();
         const _va = new URLSearchParams(window.location.search).get('viewAs');
@@ -1989,7 +1984,7 @@
       } finally {
         setLoading(btn, false);
       }
-    });
+    };
 
     // Microfone: Web Speech API (Chrome Android) — oculto em browsers sem suporte
     (() => {
@@ -2137,6 +2132,22 @@
         if (b) { b.disabled = true; b.style.opacity = '0.5'; b.textContent = 'Registrar'; }
         setTimeout(function() { if (i) i.focus(); }, 80);
       });
+
+      // Modal de lançamento — fechar/cancelar/confirmar/preview (independente do módulo)
+      function fecharModalLancamento() {
+        var m = document.getElementById('modalTextoLivre');
+        if (m) m.style.display = 'none';
+      }
+      document.getElementById('btnTextoFechar')?.addEventListener('click', fecharModalLancamento);
+      document.getElementById('btnTextoLivreCancelar')?.addEventListener('click', fecharModalLancamento);
+      var _modalEl = document.getElementById('modalTextoLivre');
+      if (_modalEl) _modalEl.addEventListener('click', function(e) { if (e.target === e.currentTarget) fecharModalLancamento(); });
+      var _textoInput = document.getElementById('textoLivreInput');
+      if (_textoInput) {
+        _textoInput.addEventListener('input', function() { window.atualizarPreviewTextoLivre?.(); });
+        _textoInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') document.getElementById('btnTextoLivreConfirmar')?.click(); });
+      }
+      document.getElementById('btnTextoLivreConfirmar')?.addEventListener('click', function() { window.confirmarTextoLivre?.(); });
     })();
   </script>
 
