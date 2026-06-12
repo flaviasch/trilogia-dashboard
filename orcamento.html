@@ -3718,9 +3718,20 @@
           </div>`;
       }
 
+      const _agPlan = new Date();
+      const _limitePlan = (_agPlan.getFullYear() * 12 + _agPlan.getMonth() + 1) + 2;
+      const _periodoAtualPlan = ano * 12 + mes;
+      const _noLimitePlan = _periodoAtualPlan > _limitePlan;
+
       el.innerHTML = `
         <div class="plan-acoes">
-          <span class="plan-desc">Defina quanto planeja gastar em cada categoria este mês.</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button class="period-btn" style="border-radius:6px;width:32px;height:32px;font-size:18px;flex-shrink:0"
+              onclick="document.getElementById('btnPrev').click()">‹</button>
+            <span style="font-size:15px;font-weight:600;color:var(--white);min-width:120px;text-align:center">${MESES[mes-1]} de ${ano}</span>
+            <button class="period-btn" style="border-radius:6px;width:32px;height:32px;font-size:18px;flex-shrink:0${_noLimitePlan ? ';opacity:.25;cursor:not-allowed' : ''}"
+              onclick="document.getElementById('btnNext').click()" ${_noLimitePlan ? 'disabled' : ''}>›</button>
+          </div>
           <button class="btn-copiar-mes" id="btnCopiarMes" onclick="copiarMesAnterior()">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="9" height="9" rx="1"/><path d="M5 5V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-1"/></svg>
             Copiar de ${nomeMesCurto(mes > 1 ? mes - 1 : 12, mes > 1 ? ano : ano - 1)}
