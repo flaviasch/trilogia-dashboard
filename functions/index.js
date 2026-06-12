@@ -2881,8 +2881,8 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
     else if (hasClube)                                       produtoCodigo = 'clube';
     else if (hasDash)                                        produtoCodigo = 'dashboard';
     // Produtos de entrada — devem ser os últimos (palavras genéricas)
-    else if (/curso|course/i.test(nomeProduto))              produtoCodigo = 'curso';
-    else if (/ebook|e-book|livro digital/i.test(nomeProduto)) produtoCodigo = 'ebook';
+    else if (/curso|course|jornada domine|jdd|reserva que rende/i.test(nomeProduto)) produtoCodigo = 'curso';
+    else if (/ebook|e-book|livro digital|raio.?x|mapa da reserva|mapa reserva/i.test(nomeProduto)) produtoCodigo = 'ebook';
 
     // Extrai valor
     // Kiwify usa Order.amount (em reais), ou Subscription.charge_amount
