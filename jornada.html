@@ -200,7 +200,7 @@
       <a href="index.html" style="font-size:13px;color:var(--text-muted);text-decoration:none;transition:color .2s" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">← Dashboard</a>
     </div>
     <div class="navbar-right">
-      <a href="clube.html" class="link-clube" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
+      <a href="clube.html" class="link-clube link-jornada-nav" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
@@ -268,7 +268,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getMinhaJornada } from './js/api.js';
+    import { getMinhaJornada } from './js/api.js?v=16';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
     onAuthStateChanged(auth, (user) => {

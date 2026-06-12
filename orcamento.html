@@ -1150,7 +1150,7 @@
   <nav class="navbar">
     <a href="index.html" class="logo">Trilogia <span>Dashboard</span></a>
     <div class="navbar-right">
-      <a href="clube.html" class="link-clube" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
+      <a href="clube.html" class="link-clube link-jornada-nav" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
       <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
@@ -2006,7 +2006,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual } from './js/api.js?v=14';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual } from './js/api.js?v=16';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
 
@@ -3761,6 +3761,7 @@
             </tfoot>
           </table>
         </div>
+        <button class="btn-add-item" style="margin-top:10px;margin-bottom:4px" onclick="editarLimitePlan('')">+ Definir limite para nova categoria</button>
         ${cartoesHTML}
         <div class="notif-info-box" style="margin-top:16px;">
           <div class="notif-info-box-icon">🔔</div>
@@ -3771,8 +3772,7 @@
               Todo dia <strong style="color:var(--white)">28</strong> você também recebe um e-mail lembrando de configurar o planejamento do próximo mês.
             </div>
           </div>
-        </div>
-        <button class="btn-add-item" style="margin-top:14px" onclick="editarLimitePlan('')">+ Definir limite para nova categoria</button>`;
+        </div>`;
     }
 
     function nomeMesCurto(mes, ano) {

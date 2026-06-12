@@ -430,7 +430,7 @@
   <nav class="navbar">
     <a href="index.html" class="logo">Trilogia <span>Dashboard</span></a>
     <div class="navbar-right">
-      <a href="clube.html" class="link-clube" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
+      <a href="clube.html" class="link-clube link-jornada-nav" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
       <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
@@ -674,7 +674,7 @@
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro,
-    } from './js/api.js?v=14';
+    } from './js/api.js?v=16';
 
     // Detecta se veio de uma retirada de reserva
     if (new URLSearchParams(window.location.search).get('from') === 'retirada') {
