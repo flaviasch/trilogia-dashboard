@@ -327,6 +327,11 @@ export async function getNotionCRM(uid) {
   return call('getNotionCRM')({ uid });
 }
 
+/** Retorna todos os encontros da mentorada com lições pendentes e concluídas. */
+export async function getMinhaJornada(uid) {
+  return call('getMinhaJornada')(uid ? { uid } : {});
+}
+
 /** Registra acesso da aluna (chamar no load do dashboard). */
 export const registrarAcesso = call('registrarAcesso');
 

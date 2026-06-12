@@ -4300,6 +4300,120 @@ exports.getNotionCRM = onCall({ secrets: [sNotion] }, async (request) => {
   };
 });
 
+// ─── MINHA JORNADA (mentorada — jornada.html) ────────────────────────────────
+
+/**
+ * getMinhaJornada — retorna todos os encontros da mentorada com lições pendentes e concluídas.
+ * Acessível pela própria mentorada (ou admin visualizando como ela).
+ *
+ * Usa notionPageId cacheado no Firestore — a Flávia precisa ter chamado getNotionCRM
+ * pelo menos uma vez para o cache existir. Se não houver cache, retorna erro amigável.
+ *
+ * Retorno:
+ *   {
+ *     encontros: [{ numero, tema, data, licoesPendentes: string[], licoesFeitas: string[] }],
+ *     notionPageUrl: string | null,
+ *     syncedAt: string | null,
+ *   }
+ */
+exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+
+  const docSnap = await db.collection('mentoradas').doc(uid).get();
+  if (!docSnap.exists) throw new HttpsError('not-found', 'Mentorada não encontrada.');
+
+  const { notionPageId, notionSyncedAt } = docSnap.data();
+
+  if (!notionPageId) {
+    // Sem cache: retorna vazio com flag para o frontend exibir mensagem adequada
+    return { encontros: [], notionPageUrl: null, syncedAt: null, semDados: true };
+  }
+
+  const NOTION_TOKEN = process.env.NOTION_TOKEN;
+  const headers = {
+    'Authorization': `Bearer ${NOTION_TOKEN}`,
+    'Notion-Version': '2022-06-28',
+    'Content-Type': 'application/json',
+  };
+
+  // Lê blocos da página (com paginação)
+  const blocks = [];
+  let cursor   = undefined;
+  do {
+    const url = `https://api.notion.com/v1/blocks/${notionPageId}/children?page_size=100`
+      + (cursor ? `&start_cursor=${cursor}` : '');
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      // pageId stale — limpa cache
+      await db.collection('mentoradas').doc(uid).update({ notionPageId: null }).catch(() => {});
+      throw new HttpsError('internal', `Notion falhou: ${err.message || res.status}. Peça à Flávia para sincronizar.`);
+    }
+    const page = await res.json();
+    blocks.push(...(page.results || []));
+    cursor = page.has_more ? page.next_cursor : undefined;
+  } while (cursor);
+
+  // Parseia encontros — mesma lógica do getNotionCRM mas retorna TODOS e inclui lições feitas
+  const encontros       = [];
+  let encontroAtual     = null;
+  let licoesPendentes   = [];
+  let licoesFeitas      = [];
+  let emLicao           = false;
+
+  for (const block of blocks) {
+    const type = block.type;
+
+    if (type === 'heading_2') {
+      const text  = getRichText(block.heading_2?.rich_text);
+      const match = text.match(/Encontro\s+(\d+)\s*[|\\]\s*(.+?)\s*[|\\]\s*(.+)/i);
+      if (match) {
+        if (encontroAtual) {
+          encontros.push({ ...encontroAtual, licoesPendentes, licoesFeitas });
+        }
+        encontroAtual   = { numero: parseInt(match[1], 10), tema: match[2].trim(), data: match[3].trim() };
+        licoesPendentes = [];
+        licoesFeitas    = [];
+        emLicao         = false;
+      }
+      continue;
+    }
+
+    if (!encontroAtual) continue;
+
+    if (type === 'heading_3') {
+      const text = getRichText(block.heading_3?.rich_text);
+      emLicao = /li[çc][õaã]o?[eE]?[sS]?\s+de\s+casa|compromissos/i.test(text);
+      continue;
+    }
+
+    if (type === 'divider') { emLicao = false; continue; }
+
+    if (type === 'to_do' && emLicao) {
+      const texto    = getRichText(block.to_do?.rich_text).trim();
+      const checked  = block.to_do?.checked === true;
+      if (texto) {
+        if (checked) licoesFeitas.push(texto);
+        else         licoesPendentes.push(texto);
+      }
+    }
+  }
+
+  if (encontroAtual) {
+    encontros.push({ ...encontroAtual, licoesPendentes, licoesFeitas });
+  }
+
+  // Ordena do mais recente para o mais antigo
+  encontros.sort((a, b) => b.numero - a.numero);
+
+  const pageUrl = `https://notion.so/${notionPageId.replace(/-/g, '')}`;
+  const syncedAt = notionSyncedAt?.toDate?.()?.toISOString?.() || null;
+
+  return { encontros, notionPageUrl: pageUrl, syncedAt };
+});
+
 // ─── CLUBE TRILOGIA ───────────────────────────────────────────────────────────
 
 /**

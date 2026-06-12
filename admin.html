@@ -288,6 +288,59 @@
       color: #fbbf24; margin-left: 6px; vertical-align: middle;
     }
 
+    /* ─── Timeline de jornada (admin) ──────── */
+    .adm-timeline { position: relative; margin-top: 20px; }
+    .adm-timeline::before {
+      content: ''; position: absolute; left: 15px; top: 8px;
+      bottom: 0; width: 2px; background: var(--border);
+    }
+    .adm-enc-item { position: relative; margin-bottom: 12px; padding-left: 40px; }
+    .adm-enc-num {
+      position: absolute; left: 0; top: 0;
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--navy-mid); border: 2px solid var(--border-gold);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: var(--gold); z-index: 1;
+    }
+    .adm-enc-item.ativo .adm-enc-num { background: var(--gold-dim); border-color: var(--gold); }
+    .adm-enc-card {
+      background: var(--navy-mid); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden; transition: border-color .2s;
+    }
+    .adm-enc-item.ativo .adm-enc-card { border-color: var(--border-gold); }
+    .adm-enc-header {
+      padding: 10px 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .adm-enc-header:hover .adm-enc-tema { color: var(--gold-light); }
+    .adm-enc-tema { font-size: 13px; font-weight: 600; line-height: 1.3; }
+    .adm-enc-data { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .adm-enc-badges { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
+    .adm-badge {
+      font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+    }
+    .adm-badge-pend { background: rgba(248,113,113,0.15); color: #f87171; border: 1px solid rgba(248,113,113,0.25); }
+    .adm-badge-ok   { background: rgba(74,222,128,0.12);  color: #4ade80; border: 1px solid rgba(74,222,128,0.2); }
+    .adm-chevron {
+      width: 14px; height: 14px; stroke: var(--text-muted); fill: none;
+      stroke-width: 2; transition: transform .2s; flex-shrink: 0;
+    }
+    .adm-enc-item.aberto .adm-chevron { transform: rotate(180deg); }
+    .adm-enc-body { display: none; padding: 0 14px 14px; }
+    .adm-enc-item.aberto .adm-enc-body { display: block; }
+    .adm-licoes-sec-titulo {
+      font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--text-muted); margin: 10px 0 6px; font-weight: 600;
+    }
+    .adm-licao-row {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 5px 0; border-bottom: 1px solid var(--border);
+      font-size: 12px; line-height: 1.4; color: var(--text-secondary);
+    }
+    .adm-licao-row:last-child { border-bottom: none; }
+    .adm-licao-row.feita { color: var(--text-muted); text-decoration: line-through; }
+    .adm-licao-row svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 2px; }
+
     /* ─── Modal nova mentorada ──────────────── */
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.75);
@@ -833,6 +886,7 @@
         <div id="detNotionConteudo" style="background:var(--navy);border:1px solid var(--border);border-radius:12px;padding:18px 20px;font-size:13px;color:var(--text-muted)">
           Carregando dados do Notion…
         </div>
+        <div id="detNotionTimeline" style="display:none"></div>
       </div>
 
       <!-- Notas da mentora -->
@@ -1633,7 +1687,7 @@
     import { auth } from './js/firebase-config.js';
     import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada,
              createContrato, getContratos, pagarParcela, editarPagamento, estornarPagamento, cancelarCobranca, cancelarContrato, editarContrato, getCobrancas,
-             criarPlanilha, getNotionCRM,
+             criarPlanilha, getNotionCRM, getMinhaJornada,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
              syncDiagnostico, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, comunicadoTecnico, migrarOrcamento, getAnalytics,
@@ -2486,14 +2540,76 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         const m = mentoradas.find(x => (x.uid ?? x.id) === uid);
         if (m) {
           m.notionLicoesPendentes = licoes.length;
-          // Atualiza a célula da mentorada na tabela se estiver visível
           const badge = document.querySelector(`[data-badge-licoes="${uid}"]`);
           if (badge) {
             badge.textContent = licoes.length > 0 ? `📚 ${licoes.length}` : '';
             badge.style.display = licoes.length > 0 ? '' : 'none';
           }
-          // Salva no Firestore para aparecer no próximo carregamento
           updateMentorada(uid, { notionLicoesPendentes: licoes.length }).catch(() => {});
+        }
+
+        // Timeline completa — chama getMinhaJornada após getNotionCRM ter cacheado o notionPageId
+        const tlEl = document.getElementById('detNotionTimeline');
+        if (tlEl) {
+          tlEl.style.display = '';
+          tlEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-top:12px">Carregando histórico completo…</div>';
+          try {
+            const jornada = await getMinhaJornada(uid);
+            const encs = jornada.encontros || [];
+            if (!encs.length) {
+              tlEl.innerHTML = '';
+            } else {
+              const itens = encs.map((enc, i) => {
+                const temPend  = enc.licoesPendentes.length > 0;
+                const temFeita = enc.licoesFeitas.length > 0;
+                const isAtivo  = i === 0;
+                const badge = temPend
+                  ? `<span class="adm-badge adm-badge-pend">${enc.licoesPendentes.length} pendente${enc.licoesPendentes.length > 1 ? 's' : ''}</span>`
+                  : `<span class="adm-badge adm-badge-ok">OK</span>`;
+                const pendHTML = temPend ? `
+                  <div class="adm-licoes-sec-titulo">Pendentes</div>
+                  ${enc.licoesPendentes.map(l => `
+                    <div class="adm-licao-row">
+                      <svg viewBox="0 0 24 24" stroke="#f87171" fill="none" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+                      ${l}
+                    </div>`).join('')}` : '';
+                const feitaHTML = temFeita ? `
+                  <div class="adm-licoes-sec-titulo">Concluídas</div>
+                  ${enc.licoesFeitas.map(l => `
+                    <div class="adm-licao-row feita">
+                      <svg viewBox="0 0 24 24" stroke="#4ade80" fill="none" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                      ${l}
+                    </div>`).join('')}` : '';
+                const semLicoes = !temPend && !temFeita
+                  ? '<div style="font-size:12px;color:var(--text-muted);padding:6px 0">Nenhuma lição registrada.</div>'
+                  : '';
+                return `
+                  <div class="adm-enc-item${isAtivo ? ' ativo' : ''}${isAtivo ? ' aberto' : ''}">
+                    <div class="adm-enc-num">${enc.numero}</div>
+                    <div class="adm-enc-card">
+                      <div class="adm-enc-header" onclick="this.closest('.adm-enc-item').classList.toggle('aberto')">
+                        <div>
+                          <div class="adm-enc-tema">${enc.tema}</div>
+                          <div class="adm-enc-data">${enc.data}</div>
+                        </div>
+                        <div class="adm-enc-badges">
+                          ${badge}
+                          <svg class="adm-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                        </div>
+                      </div>
+                      <div class="adm-enc-body">${pendHTML}${feitaHTML}${semLicoes}</div>
+                    </div>
+                  </div>`;
+              }).join('');
+              tlEl.innerHTML = `
+                <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);font-weight:600;margin-top:20px;margin-bottom:12px">
+                  Histórico completo (${encs.length} encontro${encs.length > 1 ? 's' : ''})
+                </div>
+                <div class="adm-timeline">${itens}</div>`;
+            }
+          } catch (e) {
+            tlEl.innerHTML = `<div style="font-size:12px;color:var(--text-muted);margin-top:8px">Histórico indisponível: ${e.message || e}</div>`;
+          }
         }
       } catch (err) {
         el.innerHTML = `<span style="color:var(--negative);font-size:13px">Erro ao carregar Notion: ${err.message || err}</span>`;
@@ -2609,6 +2725,8 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       // Acompanhamento — sempre visível ao abrir; carregarContratos oculta se encerrada
       document.getElementById('detNotionCRM').style.display = '';
       document.getElementById('detNotionConteudo').innerHTML = '<span style="color:var(--text-muted);font-size:13px">Carregando dados do Notion…</span>';
+      const tlReset = document.getElementById('detNotionTimeline');
+      if (tlReset) { tlReset.style.display = 'none'; tlReset.innerHTML = ''; }
       carregarNotionCRM(uid);
       document.getElementById('btnAtualizarNotion').onclick = () => carregarNotionCRM(uid);
 
