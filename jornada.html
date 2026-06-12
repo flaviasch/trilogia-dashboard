@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minha Jornada — Trilogia Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45;
+      --navy-dark: #081e30;
+      --navy-mid: #0f3352;
+      --gold: #CFAE65;
+      --gold-light: #e8d49b;
+      --gold-dim: rgba(207,174,101,0.15);
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.08);
+      --border-gold: rgba(207,174,101,0.2);
+      --positive: #4ade80;
+      --positive-dim: rgba(74,222,128,0.12);
+      --negative: #f87171;
+      --negative-dim: rgba(248,113,113,0.12);
+      --text-muted: rgba(255,255,255,0.45);
+      --text-secondary: rgba(255,255,255,0.65);
+    }
+
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+
+    /* ─── Navbar ─────────────────────────────── */
+    .navbar {
+      background: var(--navy); border-bottom: 1px solid var(--border);
+      padding: 0 32px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--white); }
+    .logo span { color: var(--gold); }
+    .navbar-right { display: flex; align-items: center; gap: 16px; }
+    .user-name { font-size: 14px; color: var(--text-secondary); }
+    .btn-logout {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 14px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-logout:hover { border-color: var(--border-gold); color: var(--gold); }
+
+    /* ─── Layout ─────────────────────────────── */
+    .main { max-width: 720px; margin: 0 auto; padding: 40px 24px 120px; }
+
+    /* ─── Loading ────────────────────────────── */
+    .loading-overlay {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: calc(100vh - 64px);
+      gap: 16px; color: var(--text-muted); font-size: 14px;
+    }
+    .spinner {
+      width: 32px; height: 32px; border: 2px solid var(--border);
+      border-top-color: var(--gold); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Page header ────────────────────────── */
+    .page-header { margin-bottom: 40px; }
+    .page-header h1 { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 600; margin-bottom: 6px; }
+    .page-header p { font-size: 14px; color: var(--text-muted); }
+    .sync-info { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+
+    /* ─── Card de lições pendentes (destaque) ── */
+    .card-pendentes {
+      background: linear-gradient(135deg, rgba(207,174,101,0.12) 0%, rgba(207,174,101,0.05) 100%);
+      border: 1px solid var(--border-gold); border-radius: 16px;
+      padding: 24px; margin-bottom: 40px;
+    }
+    .card-pendentes-titulo {
+      font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600;
+      color: var(--gold); margin-bottom: 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-pendentes-subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+    .licao-pendente-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
+    .licao-pendente-item:last-child { border-bottom: none; }
+    .licao-check {
+      width: 18px; height: 18px; border: 2px solid var(--border-gold);
+      border-radius: 4px; flex-shrink: 0; margin-top: 1px;
+    }
+    .licao-texto { font-size: 14px; line-height: 1.5; color: var(--white); }
+
+    /* ─── Timeline de encontros ──────────────── */
+    .timeline { position: relative; }
+    .timeline::before {
+      content: ''; position: absolute; left: 19px; top: 8px;
+      bottom: 0; width: 2px; background: var(--border);
+    }
+
+    .encontro-item { position: relative; margin-bottom: 32px; padding-left: 52px; }
+
+    .encontro-numero {
+      position: absolute; left: 0; top: 0;
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--navy); border: 2px solid var(--border-gold);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; color: var(--gold);
+      z-index: 1;
+    }
+    .encontro-item.ativo .encontro-numero {
+      background: var(--gold-dim); border-color: var(--gold);
+    }
+
+    .encontro-card {
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .encontro-card:hover { border-color: var(--border-gold); }
+    .encontro-item.ativo .encontro-card { border-color: var(--border-gold); }
+
+    .encontro-header {
+      padding: 16px 20px; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .encontro-header-info { flex: 1; min-width: 0; }
+    .encontro-tema { font-size: 14px; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
+    .encontro-data { font-size: 12px; color: var(--text-muted); }
+    .encontro-badges { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+    .badge {
+      font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+    }
+    .badge-pendente { background: var(--negative-dim); color: var(--negative); border: 1px solid rgba(248,113,113,0.2); }
+    .badge-ok { background: var(--positive-dim); color: var(--positive); border: 1px solid rgba(74,222,128,0.2); }
+    .chevron {
+      width: 16px; height: 16px; stroke: var(--text-muted); fill: none;
+      stroke-width: 2; transition: transform 0.2s; flex-shrink: 0;
+    }
+    .encontro-item.aberto .chevron { transform: rotate(180deg); }
+
+    .encontro-body { display: none; padding: 0 20px 20px; }
+    .encontro-item.aberto .encontro-body { display: block; }
+
+    .licoes-secao { margin-bottom: 16px; }
+    .licoes-secao:last-child { margin-bottom: 0; }
+    .licoes-secao-titulo {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--text-muted); margin-bottom: 10px; font-weight: 600;
+    }
+
+    .licao-row {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+      font-size: 13px; line-height: 1.5;
+    }
+    .licao-row:last-child { border-bottom: none; }
+    .licao-row.feita { color: var(--text-muted); text-decoration: line-through; }
+    .licao-row svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+
+    .sem-dados {
+      text-align: center; padding: 60px 24px;
+      color: var(--text-muted); font-size: 14px; line-height: 1.8;
+    }
+    .sem-dados strong { color: var(--white); display: block; margin-bottom: 8px; font-size: 16px; }
+
+    /* ─── Bottom nav ─────────────────────────── */
+    .bottom-nav {
+      display: none; position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--navy); border-top: 1px solid var(--border);
+      padding: 8px 0 12px; z-index: 100;
+      justify-content: space-around; align-items: center;
+    }
+    .bnav-item {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      font-size: 11px; color: var(--text-muted); text-decoration: none;
+      transition: color 0.2s; padding: 4px 12px;
+    }
+    .bnav-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+    .bnav-item.active, .bnav-item:hover { color: var(--gold); }
+    .bnav-item:visited { color: var(--text-muted); }
+    .bnav-item.active:visited { color: var(--gold); }
+
+    @media (max-width: 640px) {
+      .bottom-nav { display: flex; }
+      .main { padding-bottom: 100px; }
+      .navbar { padding: 0 16px; }
+      .user-name { display: none; }
+    }
+  </style>
+  <script>window.sentryOnLoad=function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0,allowUrls:['dashboard.flaviaschusciman.com','localhost'],ignoreErrors:['Script error.','Script error','Non-Error promise rejection captured']});};</script>
+  <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div style="display:flex;align-items:center;gap:20px">
+      <span class="logo">Trilogia <span>Dashboard</span></span>
+      <a href="index.html" style="font-size:13px;color:var(--text-muted);text-decoration:none;transition:color .2s" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">← Dashboard</a>
+    </div>
+    <div class="navbar-right">
+      <span class="user-name" id="userDisplayName"></span>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </nav>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Carregando sua jornada...</span>
+  </div>
+
+  <main class="main" id="mainContent" style="display:none">
+
+    <div class="page-header">
+      <h1>Minha <span style="color:var(--gold)">Jornada</span></h1>
+      <p>Encontros, lições de casa e sua evolução ao longo da mentoria.</p>
+      <div class="sync-info" id="syncInfo"></div>
+    </div>
+
+    <!-- Lições pendentes do último encontro -->
+    <div id="cardPendentes" style="display:none" class="card-pendentes">
+      <div class="card-pendentes-titulo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Lições pendentes
+      </div>
+      <div class="card-pendentes-subtitulo" id="pendentesSubtitulo"></div>
+      <div id="listaLicoesPendentes"></div>
+    </div>
+
+    <!-- Histórico de encontros -->
+    <div id="semDados" style="display:none" class="sem-dados">
+      <strong>Nenhum encontro registrado ainda</strong>
+      Seus encontros aparecerão aqui conforme a mentoria avançar.
+    </div>
+
+    <div class="timeline" id="timeline"></div>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="index.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Início
+    </a>
+    <a href="orcamento.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/></svg>
+      Orçamento
+    </a>
+    <a href="patrimonio.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Patrimônio
+    </a>
+    <a href="reservas.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Reservas
+    </a>
+    <a href="jornada.html" class="bnav-item active">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Jornada
+    </a>
+  </nav>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getMinhaJornada } from './js/api.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) { window.location.href = 'login.html'; return; }
+      window.Sentry?.onLoad?.(function(){ Sentry.setUser({ id: user.uid, email: user.email }); });
+      document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+      init();
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login.html';
+    });
+
+    function fmtData(str) {
+      if (!str) return '';
+      // Aceita "DD/MM/YYYY" ou "YYYY-MM-DD"
+      const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      const brMatch  = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      let dia, mes, ano;
+      if (isoMatch) { [, ano, mes, dia] = isoMatch; }
+      else if (brMatch) { [, dia, mes, ano] = brMatch; }
+      else return str; // devolve como veio se formato desconhecido
+      const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      return `${parseInt(dia)} de ${meses[parseInt(mes) - 1]} de ${ano}`;
+    }
+
+    function iconePendente() {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="var(--negative)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
+    }
+    function iconeFeito() {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="var(--positive)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="9 11 12 14 21 5"/></svg>`;
+    }
+    function iconeChevron() {
+      return `<svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>`;
+    }
+
+    async function init() {
+      let data;
+      try {
+        data = await getMinhaJornada();
+      } catch (err) {
+        document.getElementById('loadingOverlay').innerHTML =
+          `<p style="color:var(--negative);font-size:14px;text-align:center">
+            Erro ao carregar sua jornada.<br>
+            <a href="" onclick="location.reload();return false" style="color:var(--negative);text-decoration:underline">Tentar novamente</a>
+          </p>`;
+        return;
+      }
+
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+
+      const { encontros = [], syncedAt, semDados } = data;
+
+      // Exibe data da última sincronização
+      if (syncedAt) {
+        const dt = new Date(syncedAt);
+        document.getElementById('syncInfo').textContent =
+          `Última sincronização: ${dt.toLocaleDateString('pt-BR')} às ${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+      }
+
+      if (semDados || !encontros.length) {
+        document.getElementById('semDados').style.display = 'block';
+        return;
+      }
+
+      // Card de lições pendentes (do encontro mais recente que tiver pendentes)
+      const comPendentes = encontros.find(e => e.licoesPendentes.length > 0);
+      if (comPendentes) {
+        document.getElementById('cardPendentes').style.display = 'block';
+        document.getElementById('pendentesSubtitulo').textContent =
+          `Encontro ${comPendentes.numero} — ${comPendentes.tema}`;
+        document.getElementById('listaLicoesPendentes').innerHTML =
+          comPendentes.licoesPendentes.map(l => `
+            <div class="licao-pendente-item">
+              <div class="licao-check"></div>
+              <div class="licao-texto">${l}</div>
+            </div>`).join('');
+      }
+
+      // Timeline de encontros
+      const timeline = document.getElementById('timeline');
+      timeline.innerHTML = encontros.map((enc, idx) => {
+        const ativo     = idx === 0;
+        const nPend     = enc.licoesPendentes.length;
+        const nFeitas   = enc.licoesFeitas.length;
+        const totalLic  = nPend + nFeitas;
+        const aberto    = idx === 0; // primeiro encontro começa aberto
+
+        const badgesHtml = totalLic > 0
+          ? `${nPend > 0 ? `<span class="badge badge-pendente">${nPend} pendente${nPend > 1 ? 's' : ''}</span>` : ''}
+             ${nFeitas > 0 ? `<span class="badge badge-ok">${nFeitas} feita${nFeitas > 1 ? 's' : ''}</span>` : ''}`
+          : `<span style="font-size:12px;color:var(--text-muted)">sem lições</span>`;
+
+        const licoesHtml = totalLic > 0 ? `
+          ${nPend > 0 ? `
+            <div class="licoes-secao">
+              <div class="licoes-secao-titulo">Pendentes</div>
+              ${enc.licoesPendentes.map(l => `
+                <div class="licao-row">
+                  ${iconePendente()}
+                  <span>${l}</span>
+                </div>`).join('')}
+            </div>` : ''}
+          ${nFeitas > 0 ? `
+            <div class="licoes-secao">
+              <div class="licoes-secao-titulo">Concluídas</div>
+              ${enc.licoesFeitas.map(l => `
+                <div class="licao-row feita">
+                  ${iconeFeito()}
+                  <span>${l}</span>
+                </div>`).join('')}
+            </div>` : ''}
+        ` : `<p style="font-size:13px;color:var(--text-muted);padding:8px 0">Nenhuma lição de casa registrada neste encontro.</p>`;
+
+        return `
+          <div class="encontro-item ${ativo ? 'ativo' : ''} ${aberto ? 'aberto' : ''}" data-idx="${idx}">
+            <div class="encontro-numero">${enc.numero}</div>
+            <div class="encontro-card">
+              <div class="encontro-header" onclick="toggleEncontro(${idx})">
+                <div class="encontro-header-info">
+                  <div class="encontro-tema">${enc.tema}</div>
+                  <div class="encontro-data">${fmtData(enc.data)}</div>
+                </div>
+                <div class="encontro-badges">${badgesHtml}</div>
+                ${iconeChevron()}
+              </div>
+              <div class="encontro-body">${licoesHtml}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    window.toggleEncontro = function(idx) {
+      const el = document.querySelector(`.encontro-item[data-idx="${idx}"]`);
+      if (!el) return;
+      el.classList.toggle('aberto');
+    };
+  </script>
+
+</body>
+</html>
