@@ -24,10 +24,16 @@ const sDiagSecret = defineSecret('DIAGNOSTICO_WEBHOOK_SECRET');
 const sKiwify     = defineSecret('KIWIFY_WEBHOOK_SECRET');
 const sVapidPub   = defineSecret('VAPID_PUBLIC_KEY');
 const sVapidPriv  = defineSecret('VAPID_PRIVATE_KEY');
+const sMailerLite = defineSecret('MAILERLITE_API_KEY');
+const sZapiId     = defineSecret('ZAPI_INSTANCE_ID');
+const sZapiToken  = defineSecret('ZAPI_TOKEN');
+const sZapiClient = defineSecret('ZAPI_CLIENT_TOKEN');
 
 const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId } = require('./lib/auth');
-const { SheetsClient } = require('./lib/sheets');
-const { provisionar }  = require('./lib/provisionar');
+const { SheetsClient }    = require('./lib/sheets');
+const { provisionar }     = require('./lib/provisionar');
+const { MailerLiteClient } = require('./lib/mailerlite');
+const { ZApiClient }       = require('./lib/zapi');
 const {
   sendEmail,
   emailRenovacaoPerfil,
@@ -2495,6 +2501,24 @@ exports.estornarPagamento = onCall({}, async (request) => {
 });
 
 /**
+ * Edita o vencimento de uma cobrança pendente (não paga, não cancelada).
+ */
+exports.editarVencimento = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { cobrancaId, novoVencimento } = request.data;
+  if (!cobrancaId || !novoVencimento) throw new HttpsError('invalid-argument', 'cobrancaId e novoVencimento obrigatórios.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(novoVencimento)) throw new HttpsError('invalid-argument', 'novoVencimento deve estar no formato YYYY-MM-DD.');
+  const ref  = db.collection('cobrancas').doc(cobrancaId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Cobrança não encontrada.');
+  const data = snap.data();
+  if (data.pago) throw new HttpsError('failed-precondition', 'Cobrança já paga — vencimento não pode ser alterado.');
+  if (data.cancelada) throw new HttpsError('failed-precondition', 'Cobrança cancelada — vencimento não pode ser alterado.');
+  await ref.update({ vencimento: novoVencimento });
+  return { ok: true };
+});
+
+/**
  * Cancela um contrato (não apaga histórico de cobranças pagas).
  */
 exports.cancelarCobranca = onCall({}, async (request) => {
@@ -2592,6 +2616,80 @@ exports.editarContrato = onCall({}, async (request) => {
   await batch.commit();
   return { ok: true };
 });
+
+// ─── PÓS-VENDA: sequência de e-mail + WhatsApp agendado ──────────────────────
+
+/**
+ * Aciona a esteira de pós-venda para compradores de ebook ou curso:
+ *  1. Inscreve o contato no grupo MailerLite correspondente (dispara a sequência de e-mail)
+ *  2. Cria documentos em `whatsapp_agendado` para envio nos dias programados
+ *
+ * Sequências de WhatsApp por produto:
+ *  ebook → D+14 (contato pessoal) e D+21 (oferta do curso)
+ *  curso → D+60 (check de progresso) e D+75 (convite para mentoria)
+ *
+ * Chamada em background (fire-and-forget) — falha não bloqueia o webhook.
+ */
+async function acionarEsteiraPosVenda({ email, nome, telefone, produto, dataPagamento }) {
+  const PRODUTOS_ESTEIRA = ['ebook', 'curso'];
+  if (!PRODUTOS_ESTEIRA.includes(produto)) return;
+
+  const mailerApiKey = sMailerLite.value();
+  if (!mailerApiKey) {
+    console.warn('[posVenda] MAILERLITE_API_KEY não configurada — pulando MailerLite.');
+  } else {
+    try {
+      const ml = new MailerLiteClient(mailerApiKey);
+      await ml.inscreverNaSequencia(email, nome, produto);
+    } catch (err) {
+      console.error(`[posVenda] Erro ao inscrever ${email} no MailerLite:`, err.message);
+    }
+  }
+
+  // Agenda mensagens WhatsApp no Firestore (processaWhatsAppAgendado as envia diariamente)
+  if (!telefone) {
+    console.warn(`[posVenda] Telefone ausente para ${email} — WhatsApp não agendado.`);
+    return;
+  }
+
+  const diasPorProduto = {
+    ebook: [
+      { dias: 14, mensagem: `Oi, ${nome.split(' ')[0]}! Aqui é a Flávia. Vi que você baixou o ebook — como está indo? Teve alguma dúvida ou travamento no caminho? Pode me chamar aqui. 😊` },
+      { dias: 21, mensagem: `Oi, ${nome.split(' ')[0]}! Voltei para saber se o ebook ajudou. Se quiser dar um próximo passo e entender como organizar seu financeiro de verdade, posso te contar sobre o curso. Sem compromisso — é só me falar. 🙏` },
+    ],
+    curso: [
+      { dias: 60, mensagem: `Oi, ${nome.split(' ')[0]}! Aqui é a Flávia. Você já está no curso há dois meses — como está sendo? O que mais te travou até agora? Quero entender sua experiência. 💙` },
+      { dias: 75, mensagem: `Oi, ${nome.split(' ')[0]}! Vi que você está avançando no curso. Queria te convidar para uma conversa rápida sobre seu próximo passo financeiro — sem compromisso, só para entender onde você está e para onde quer ir. Topa? 🙏` },
+    ],
+  };
+
+  const dataBase = new Date(dataPagamento + 'T12:00:00-03:00');
+  const agendamentos = diasPorProduto[produto] || [];
+
+  const batch = db.batch();
+  for (const { dias, mensagem } of agendamentos) {
+    const dataEnvio = new Date(dataBase);
+    dataEnvio.setDate(dataEnvio.getDate() + dias);
+    const dataEnvioStr = dataEnvio.toISOString().slice(0, 10);
+
+    const ref = db.collection('whatsapp_agendado').doc();
+    batch.set(ref, {
+      email,
+      nome,
+      telefone,
+      produto,
+      mensagem,
+      dataEnvio: dataEnvioStr,
+      enviado:   false,
+      criadoEm:  admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`[posVenda] WhatsApp agendado para ${email} em D+${dias} (${dataEnvioStr})`);
+  }
+
+  await batch.commit().catch(err =>
+    console.error('[posVenda] Falha ao salvar WhatsApp agendado:', err.message)
+  );
+}
 
 /**
  * Webhook do Kiwify — registra pagamento automaticamente.
@@ -2782,6 +2880,9 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
     else if (/mentoria|mentoring/i.test(nomeProduto))        produtoCodigo = 'mentoria';
     else if (hasClube)                                       produtoCodigo = 'clube';
     else if (hasDash)                                        produtoCodigo = 'dashboard';
+    // Produtos de entrada — devem ser os últimos (palavras genéricas)
+    else if (/curso|course/i.test(nomeProduto))              produtoCodigo = 'curso';
+    else if (/ebook|e-book|livro digital/i.test(nomeProduto)) produtoCodigo = 'ebook';
 
     // Extrai valor
     // Kiwify usa Order.amount (em reais), ou Subscription.charge_amount
@@ -2806,6 +2907,8 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       dashboard: { min: 100,  max: 300   },  // R$147/mês standalone
       clube:     { min: 50,   max: 200   },  // legado — fundadoras R$67
       combo:     { min: 50,   max: 300   },  // R$67 fundadoras a R$197 público
+      curso:     { min: 97,   max: 997   },  // produtos de entrada
+      ebook:     { min: 9,    max: 97    },  // ebook / material digital
     };
     const rangeValor = produtoCodigo ? RANGES_VALOR[produtoCodigo] : null;
     if (rangeValor && (valorRecebido < rangeValor.min || valorRecebido > rangeValor.max)) {
@@ -2920,6 +3023,17 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       }
 
       console.log(`[kiwify] ✅ Mentorada criada via compra Kiwify: ${nomeCliente} (uid: ${novoUid})`);
+
+      // Esteira pós-venda para produtos de entrada (ebook / curso)
+      const telefoneNovo = (
+        body.Customer?.mobile_phone || body.Customer?.phone ||
+        data?.customer?.phone || ''
+      ).replace(/\D/g, '');
+      acionarEsteiraPosVenda({
+        email, nome: nomeCliente, telefone: telefoneNovo,
+        produto: produtoCodigo, dataPagamento,
+      }).catch(err => console.error('[kiwify] Erro na esteira pós-venda (nova):', err.message));
+
       res.status(200).json({ ok: true, acao: 'criada', uid: novoUid, nome: nomeCliente, produto: produtoCodigo });
       return;
     }
@@ -3020,6 +3134,18 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
     }
 
     console.log(`[kiwify] ✅ Pagamento registrado: ${email} | cobrança ${alvo.id} | R$${valorRecebido || alvo.valor}`);
+
+    // Esteira pós-venda para produtos de entrada (ebook / curso) — mentorada existente
+    const telefoneMent = (() => {
+      const mDoc = mentSnap.docs[0]?.data();
+      return (mDoc?.telefone || '').replace(/\D/g, '');
+    })();
+    const nomeMent = mentSnap.docs[0]?.data()?.nome || '';
+    acionarEsteiraPosVenda({
+      email, nome: nomeMent, telefone: telefoneMent,
+      produto: produtoCodigo, dataPagamento,
+    }).catch(err => console.error('[kiwify] Erro na esteira pós-venda (existente):', err.message));
+
     res.status(200).json({ ok: true, cobrancaId: alvo.id });
 
   } catch (err) {
@@ -3730,6 +3856,166 @@ exports.notifExpiracaoProxima = onSchedule(
     await marcarEnviado('notifExpiracaoProxima');
   },
 );
+
+// ─── WHATSAPP AGENDADO (esteira pós-venda) ────────────────────────────────────
+
+/**
+ * processaWhatsAppAgendado — roda todo dia às 10h (Sao_Paulo).
+ * Lê `whatsapp_agendado` com dataEnvio = hoje e enviado = false,
+ * envia cada mensagem via Z-API e marca como enviado.
+ *
+ * Estrutura do documento:
+ *   whatsapp_agendado/{id}
+ *     email, nome, telefone, produto, mensagem,
+ *     dataEnvio: "YYYY-MM-DD", enviado: false
+ */
+exports.processaWhatsAppAgendado = onSchedule(
+  {
+    schedule: '0 10 * * *',
+    timeZone: 'America/Sao_Paulo',
+    secrets:  [sZapiId, sZapiToken, sZapiClient],
+  },
+  comMonitoramento('processaWhatsAppAgendado', async () => {
+    if (await jaExecutouHoje('processaWhatsAppAgendado')) return;
+
+    const zapiId     = sZapiId.value();
+    const zapiToken  = sZapiToken.value();
+    const zapiClient = sZapiClient.value();
+
+    if (!zapiId || !zapiToken) {
+      console.warn('[whatsappAgendado] Secrets Z-API não configurados — abortando.');
+      return;
+    }
+
+    const zapi = new ZApiClient(zapiId, zapiToken, zapiClient);
+
+    // Verifica conexão antes de tentar enviar
+    const conectado = await zapi.verificarConexao().catch(() => false);
+    if (!conectado) {
+      console.error('[whatsappAgendado] Z-API desconectada (WhatsApp não logado). Escanear QR code em app.z-api.io.');
+      await alertarErro('processaWhatsAppAgendado', new Error('Z-API desconectada — WhatsApp offline'));
+      return;
+    }
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    const snap = await db.collection('whatsapp_agendado')
+      .where('dataEnvio', '==', hoje)
+      .where('enviado', '==', false)
+      .get();
+
+    if (snap.empty) {
+      console.log(`[whatsappAgendado] Nenhuma mensagem agendada para hoje (${hoje}).`);
+      await marcarEnviado('processaWhatsAppAgendado');
+      return;
+    }
+
+    console.log(`[whatsappAgendado] ${snap.size} mensagem(ns) para enviar em ${hoje}.`);
+
+    for (const doc of snap.docs) {
+      const { telefone, mensagem, email, nome, produto } = doc.data();
+
+      if (!telefone) {
+        console.warn(`[whatsappAgendado] Telefone ausente para ${email} — pulando.`);
+        await doc.ref.update({ enviado: true, erroEnvio: 'telefone_ausente', enviadoEm: admin.firestore.FieldValue.serverTimestamp() });
+        continue;
+      }
+
+      try {
+        await zapi.enviarTexto(telefone, mensagem);
+        await doc.ref.update({
+          enviado:   true,
+          enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log(`[whatsappAgendado] ✅ ${email} (${produto}) — mensagem enviada.`);
+      } catch (err) {
+        console.error(`[whatsappAgendado] Falha ao enviar para ${email} (${telefone}):`, err.message);
+        await doc.ref.update({
+          erroEnvio:    err.message,
+          tentativas:   admin.firestore.FieldValue.increment(1),
+          ultimaTentativa: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Pausa entre envios para não disparar rate limit do Z-API
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
+    await marcarEnviado('processaWhatsAppAgendado');
+  }),
+);
+
+// ─── FATURAMENTO (admin.html) ─────────────────────────────────────────────────
+
+/**
+ * getFaturamento — agrega cobranças pagas por produto para o painel admin.
+ * Retorna faturamento do mês solicitado + mês anterior (para comparativo).
+ *
+ * Parâmetros: { mes: number, ano: number }
+ * Resposta:
+ *   {
+ *     mesAtual:    { total, porProduto: { mentoria, private, dashboard, clube, combo, curso, ebook } },
+ *     mesAnterior: { total, porProduto: { ... } },
+ *     ticketMedio: number,
+ *   }
+ */
+exports.getFaturamento = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { mes, ano } = request.data;
+
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12)
+    throw new HttpsError('invalid-argument', 'mes deve ser inteiro entre 1 e 12.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100)
+    throw new HttpsError('invalid-argument', 'ano deve ser inteiro entre 2020 e 2100.');
+
+  // Calcula mês anterior
+  const mesAnt = mes === 1 ? 12 : mes - 1;
+  const anoAnt = mes === 1 ? ano - 1 : ano;
+
+  const PRODUTOS = ['mentoria', 'private', 'dashboard', 'clube', 'combo', 'curso', 'ebook'];
+
+  function prefixoMes(m, a) {
+    return `${a}-${String(m).padStart(2, '0')}`;
+  }
+
+  async function agregarMes(m, a) {
+    const prefixo = prefixoMes(m, a);
+
+    // Busca todas as cobranças pagas no mês pelo vencimento
+    const snap = await db.collection('cobrancas')
+      .where('pago', '==', true)
+      .where('vencimento', '>=', `${prefixo}-01`)
+      .where('vencimento', '<=', `${prefixo}-31`)
+      .get();
+
+    const porProduto = Object.fromEntries(PRODUTOS.map(p => [p, 0]));
+    let total = 0;
+
+    for (const doc of snap.docs) {
+      const { produto, valorRecebido, valor } = doc.data();
+      const v = valorRecebido || valor || 0;
+      total += v;
+      const key = PRODUTOS.includes(produto) ? produto : 'outros';
+      porProduto[key] = (porProduto[key] || 0) + v;
+    }
+
+    return { total: Math.round(total * 100) / 100, porProduto, qtd: snap.size };
+  }
+
+  const [mesAtual, mesAnterior] = await Promise.all([
+    agregarMes(mes, ano),
+    agregarMes(mesAnt, anoAnt),
+  ]);
+
+  const ticketMedio = mesAtual.qtd > 0
+    ? Math.round((mesAtual.total / mesAtual.qtd) * 100) / 100
+    : 0;
+
+  const variacao = mesAnterior.total > 0
+    ? Math.round(((mesAtual.total - mesAnterior.total) / mesAnterior.total) * 10000) / 100
+    : null;
+
+  return { mesAtual, mesAnterior, ticketMedio, variacao };
+});
 
 // ─── BACKUP AUTOMÁTICO ───────────────────────────────────────────────────────
 
