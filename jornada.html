@@ -200,6 +200,7 @@
       <a href="index.html" style="font-size:13px;color:var(--text-muted);text-decoration:none;transition:color .2s" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">← Dashboard</a>
     </div>
     <div class="navbar-right">
+      <a href="clube.html" class="link-clube" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
@@ -259,6 +260,10 @@
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Jornada
     </a>
+    <a href="clube.html" class="bnav-item link-clube" id="linkClube" style="display:none">
+      <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Clube
+    </a>
   </nav>
 
   <script type="module">
@@ -270,6 +275,9 @@
       if (!user) { window.location.href = 'login.html'; return; }
       window.Sentry?.onLoad?.(function(){ Sentry.setUser({ id: user.uid, email: user.email }); });
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+      if (localStorage.getItem('clubeAccess') === '1') {
+        document.querySelectorAll('.link-clube').forEach(el => el.style.display = '');
+      }
       init();
     });
 
