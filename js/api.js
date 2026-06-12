@@ -745,6 +745,11 @@ export async function anunciarNovidadesJun2026v3() {
   return call('anunciarNovidadesJun2026v3')({});
 }
 
+/** Edita o vencimento de uma cobrança pendente. Admin only. */
+export async function editarVencimento(cobrancaId, novoVencimento) {
+  return call('editarVencimento')({ cobrancaId, novoVencimento });
+}
+
 /** Envia comunicado técnico (instabilidade/reinstalação do app) para todas as ativas. Admin only. */
 export async function comunicadoTecnico() {
   return call('comunicadoTecnico')({});

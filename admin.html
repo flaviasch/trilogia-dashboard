@@ -1592,6 +1592,22 @@
     </div>
   </div>
 
+  <!-- Modal editar vencimento de parcela pendente -->
+  <div class="modal-overlay hidden" id="modalEditarVencimento">
+    <div class="modal-card" style="max-width:340px">
+      <h2 class="modal-title">Editar vencimento</h2>
+      <p id="modalVencDesc" style="font-size:13px;color:var(--text-muted);margin-bottom:16px"></p>
+      <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px">Novo vencimento</label>
+      <input id="modalVencData" type="date"
+        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--border-gold);border-radius:8px;
+               padding:10px 12px;color:var(--white);font-size:14px;box-sizing:border-box;margin-bottom:20px">
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="btnCancelarVenc" class="btn-secondary" style="padding:8px 16px">Cancelar</button>
+        <button id="btnSalvarVenc" class="btn-primary" style="padding:8px 16px">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal fechar mentoria — prompt pré-preenchido para /entregaveis-finais-mentoria -->
   <div class="modal-overlay hidden" id="modalFecharMentoria">
     <div class="modal-card" style="max-width:680px;overflow-y:auto;max-height:90vh">
@@ -1622,7 +1638,8 @@
              getLeads, saveLead, updateLead, deleteLead,
              syncDiagnostico, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, comunicadoTecnico, migrarOrcamento, getAnalytics,
              getAdmins, addAdmin, removeAdmin, getBackupStatus,
-             enviarPushManual, saveMissaoMes, getComunicadosStatus } from './js/api.js?v=14';
+             enviarPushManual, saveMissaoMes, getComunicadosStatus,
+             editarVencimento } from './js/api.js?v=15';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -3057,6 +3074,10 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
                 title="Registrar pagamento"
                 style="background:none;border:1px solid rgba(74,222,128,.3);color:var(--positive);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:4px;margin-right:4px"
                 onmouseover="this.style.background='rgba(74,222,128,.1)'" onmouseout="this.style.background='none'">✓ Pago</button>
+              <button class="btn-editar-venc-cob" data-id="${c.id}" data-venc="${c.vencimento}" data-nome="${c.nomeAluna}"
+                title="Editar vencimento"
+                style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1"
+                onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--text-muted)'">📅</button>
               <button class="btn-cancelar-cob" data-id="${c.id}" title="Cancelar cobrança"
                 style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px;line-height:1"
                 onmouseover="this.style.color='#e57373'" onmouseout="this.style.color='var(--text-muted)'">✕</button>` : ''}
@@ -3087,6 +3108,13 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
             alert(`Erro ao cancelar: ${err.message}`);
             btn.disabled = false; btn.textContent = '✕';
           }
+        });
+      });
+
+      // Handler para editar vencimento de parcela pendente
+      tbody.querySelectorAll('.btn-editar-venc-cob').forEach(btn => {
+        btn.addEventListener('click', () => {
+          abrirModalEditarVencimento(btn.dataset.id, btn.dataset.venc, btn.dataset.nome);
         });
       });
     }
@@ -3594,6 +3622,35 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
           </div>
         </div>`;
     }
+
+    // Modal editar vencimento
+    let vencCobrancaId = null;
+    let vencCallback   = null;
+    function abrirModalEditarVencimento(cobId, vencimentoAtual, nomeAluna) {
+      vencCobrancaId = cobId;
+      vencCallback   = renderFinanceiro;
+      document.getElementById('modalVencDesc').textContent = `${nomeAluna} · vencimento atual: ${fmtData(vencimentoAtual)}`;
+      document.getElementById('modalVencData').value = vencimentoAtual || '';
+      document.getElementById('modalEditarVencimento').classList.remove('hidden');
+    }
+    document.getElementById('btnCancelarVenc').addEventListener('click', () => {
+      document.getElementById('modalEditarVencimento').classList.add('hidden');
+    });
+    document.getElementById('btnSalvarVenc').addEventListener('click', async () => {
+      const novoVencimento = document.getElementById('modalVencData').value;
+      if (!novoVencimento) return;
+      const btn = document.getElementById('btnSalvarVenc');
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await editarVencimento(vencCobrancaId, novoVencimento);
+        document.getElementById('modalEditarVencimento').classList.add('hidden');
+        if (vencCallback) vencCallback();
+      } catch (err) {
+        alert(`Erro ao salvar: ${err.message}`);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
 
     // Modal registrar/editar pagamento
     let pagCobrancaId = null;
