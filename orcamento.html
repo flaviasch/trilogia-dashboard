@@ -83,6 +83,8 @@
       transition: all 0.2s;
     }
     .btn-logout:hover { border-color: var(--border-gold); color: var(--gold); }
+    .link-jornada-nav { display:none; }
+    @media (min-width: 641px) { .link-jornada-nav { display:inline; } }
 
     /* ─── Botões de ação rápida ──────────────────── */
     .btn-acao {
@@ -1149,6 +1151,7 @@
     <a href="index.html" class="logo">Trilogia <span>Dashboard</span></a>
     <div class="navbar-right">
       <a href="clube.html" class="link-clube" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
+      <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
@@ -2979,7 +2982,7 @@
       const _agora   = new Date();
       const _limiteTotal = (_agora.getFullYear() * 12 + _agora.getMonth() + 1) + 2;
       const _periodoTotal = data.periodo.ano * 12 + data.periodo.mes;
-      const _noLimite = _periodoTotal >= _limiteTotal;
+      const _noLimite = _periodoTotal > _limiteTotal;
       const _btnNext = document.getElementById('btnNext');
       _btnNext.disabled = _noLimite;
       _btnNext.style.opacity = _noLimite ? '0.25' : '';

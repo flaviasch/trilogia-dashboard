@@ -94,6 +94,8 @@
       border-color: var(--border-gold);
       color: var(--gold);
     }
+    .link-jornada-nav { display:none; }
+    @media (min-width: 641px) { .link-jornada-nav { display:inline; } }
 
     /* ─── Layout principal ────────────────────── */
     .main {
@@ -631,6 +633,7 @@
     <div class="navbar-right">
       <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
       <a href="clube.html" class="link-clube" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
+      <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>

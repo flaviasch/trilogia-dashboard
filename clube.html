@@ -44,6 +44,8 @@
       cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
     }
     .btn-logout:hover { border-color: var(--border-gold); color: var(--gold); }
+    .link-jornada-nav { display:none; }
+    @media (min-width: 641px) { .link-jornada-nav { display:inline; } }
 
     /* ─── Layout ─────────────────────────────── */
     .main { max-width: 960px; margin: 0 auto; padding: 40px 24px 120px; }
@@ -197,6 +199,7 @@
       <a href="index.html" id="linkVoltarDash" style="font-size:13px;color:var(--text-muted);text-decoration:none;transition:color .2s;display:none;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">← Dashboard</a>
     </div>
     <div class="navbar-right">
+      <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
