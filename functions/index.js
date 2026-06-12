@@ -24,8 +24,8 @@ const sDiagSecret = defineSecret('DIAGNOSTICO_WEBHOOK_SECRET');
 const sKiwify     = defineSecret('KIWIFY_WEBHOOK_SECRET');
 const sVapidPub   = defineSecret('VAPID_PUBLIC_KEY');
 const sVapidPriv  = defineSecret('VAPID_PRIVATE_KEY');
-const sMailerLite = defineSecret('MAILERLITE_API_KEY');
-const sZapiId     = defineSecret('ZAPI_INSTANCE_ID');
+const sMailerLite         = defineSecret('MAILERLITE_API_KEY');
+const sZapiId             = defineSecret('ZAPI_INSTANCE_ID');
 const sZapiToken  = defineSecret('ZAPI_TOKEN');
 const sZapiClient = defineSecret('ZAPI_CLIENT_TOKEN');
 
@@ -2630,17 +2630,19 @@ exports.editarContrato = onCall({}, async (request) => {
  *
  * Chamada em background (fire-and-forget) — falha não bloqueia o webhook.
  */
-async function acionarEsteiraPosVenda({ email, nome, telefone, produto, dataPagamento }) {
+async function acionarEsteiraPosVenda({ email, nome, telefone, produto, produtoEspecifico, dataPagamento }) {
   const PRODUTOS_ESTEIRA = ['ebook', 'curso'];
   if (!PRODUTOS_ESTEIRA.includes(produto)) return;
 
   const mailerApiKey = sMailerLite.value();
   if (!mailerApiKey) {
     console.warn('[posVenda] MAILERLITE_API_KEY não configurada — pulando MailerLite.');
+  } else if (!produtoEspecifico) {
+    console.warn(`[posVenda] produtoEspecifico ausente para produto "${produto}" — MailerLite ignorado.`);
   } else {
     try {
       const ml = new MailerLiteClient(mailerApiKey);
-      await ml.inscreverNaSequencia(email, nome, produto);
+      await ml.inscreverNaSequencia(email, nome, produtoEspecifico);
     } catch (err) {
       console.error(`[posVenda] Erro ao inscrever ${email} no MailerLite:`, err.message);
     }
@@ -2703,7 +2705,7 @@ async function acionarEsteiraPosVenda({ email, nome, telefone, produto, dataPaga
  * Eventos aceitos: order_approved, subscription_payment,
  *                  order.approved, subscription.payment (variações de formato)
  */
-exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwify] }, async (req, res) => {
+exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwify, sMailerLite] }, async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
   // Verificação de origem Kiwify via HMAC-SHA256 — obrigatória
@@ -2874,15 +2876,20 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
     // 3. Mentoria / Clube / Dashboard
     const hasDash  = /dashboard|dash/i.test(nomeProduto);
     const hasClube = /clube|club/i.test(nomeProduto);
-    let produtoCodigo = null;
+    let produtoCodigo    = null;
+    let produtoEspecifico = null;
     if ((hasDash && hasClube) || /combo/i.test(nomeProduto)) produtoCodigo = 'combo';
     else if (/private/i.test(nomeProduto))                   produtoCodigo = 'private';
     else if (/mentoria|mentoring/i.test(nomeProduto))        produtoCodigo = 'mentoria';
     else if (hasClube)                                       produtoCodigo = 'clube';
     else if (hasDash)                                        produtoCodigo = 'dashboard';
-    // Produtos de entrada — devem ser os últimos (palavras genéricas)
-    else if (/curso|course|jornada domine|jdd|reserva que rende/i.test(nomeProduto)) produtoCodigo = 'curso';
-    else if (/ebook|e-book|livro digital|raio.?x|mapa da reserva|mapa reserva/i.test(nomeProduto)) produtoCodigo = 'ebook';
+    // Produtos de entrada — mapeados com código específico para MailerLite
+    else if (/raio.?x/i.test(nomeProduto))                      { produtoCodigo = 'ebook'; produtoEspecifico = 'raiox'; }
+    else if (/mapa da reserva|mapa reserva/i.test(nomeProduto)) { produtoCodigo = 'ebook'; produtoEspecifico = 'mapa'; }
+    else if (/jornada domine|jdd/i.test(nomeProduto))           { produtoCodigo = 'curso'; produtoEspecifico = 'jdd'; }
+    else if (/reserva que rende/i.test(nomeProduto))            { produtoCodigo = 'curso'; produtoEspecifico = 'reserva_rende'; }
+    else if (/curso|course/i.test(nomeProduto))                  produtoCodigo = 'curso';
+    else if (/ebook|e-book|livro digital/i.test(nomeProduto))    produtoCodigo = 'ebook';
 
     // Extrai valor
     // Kiwify usa Order.amount (em reais), ou Subscription.charge_amount
@@ -3031,7 +3038,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       ).replace(/\D/g, '');
       acionarEsteiraPosVenda({
         email, nome: nomeCliente, telefone: telefoneNovo,
-        produto: produtoCodigo, dataPagamento,
+        produto: produtoCodigo, produtoEspecifico, dataPagamento,
       }).catch(err => console.error('[kiwify] Erro na esteira pós-venda (nova):', err.message));
 
       res.status(200).json({ ok: true, acao: 'criada', uid: novoUid, nome: nomeCliente, produto: produtoCodigo });
@@ -3143,7 +3150,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
     const nomeMent = mentSnap.docs[0]?.data()?.nome || '';
     acionarEsteiraPosVenda({
       email, nome: nomeMent, telefone: telefoneMent,
-      produto: produtoCodigo, dataPagamento,
+      produto: produtoCodigo, produtoEspecifico, dataPagamento,
     }).catch(err => console.error('[kiwify] Erro na esteira pós-venda (existente):', err.message));
 
     res.status(200).json({ ok: true, cobrancaId: alvo.id });
@@ -4324,12 +4331,7 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
   const docSnap = await db.collection('mentoradas').doc(uid).get();
   if (!docSnap.exists) throw new HttpsError('not-found', 'Mentorada não encontrada.');
 
-  const { notionPageId, notionSyncedAt } = docSnap.data();
-
-  if (!notionPageId) {
-    // Sem cache: retorna vazio com flag para o frontend exibir mensagem adequada
-    return { encontros: [], notionPageUrl: null, syncedAt: null, semDados: true };
-  }
+  const { nome, notionPageId: cachedPageId, notionSyncedAt } = docSnap.data();
 
   const NOTION_TOKEN = process.env.NOTION_TOKEN;
   const headers = {
@@ -4337,6 +4339,53 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
     'Notion-Version': '2022-06-28',
     'Content-Type': 'application/json',
   };
+
+  let notionPageId = cachedPageId || null;
+
+  // Sem cache: busca pelo nome no Notion (mesma lógica do getNotionCRM)
+  if (!notionPageId && nome) {
+    const nomePartes = nome.trim().split(/\s+/);
+    const nomeAbrev  = nomePartes.length >= 3
+      ? `${nomePartes[0]} ${nomePartes[nomePartes.length - 1]}`
+      : null;
+    const queries = [
+      `Mentoria Trilogia ${nome}`,
+      nome,
+      ...(nomeAbrev ? [`Mentoria Trilogia ${nomeAbrev}`, nomeAbrev] : []),
+    ];
+
+    let page = null;
+    for (const query of queries) {
+      const searchRes = await fetch('https://api.notion.com/v1/search', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query, filter: { value: 'page', property: 'object' }, page_size: 100 }),
+      });
+      if (!searchRes.ok) break;
+      const searchData = await searchRes.json();
+      const nomeNorm  = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const nomeWords = nomeNorm.split(/\s+/).filter(Boolean);
+      page = (searchData.results || []).find(p => {
+        const raw = getRichText(p.properties?.title?.title) ||
+                    getRichText(p.properties?.Name?.title)  || '';
+        const titleNorm  = raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const titleWords = titleNorm.split(/\s+/).filter(Boolean);
+        return titleWords.every(w => nomeWords.includes(w)) ||
+               nomeWords.every(w => titleWords.includes(w));
+      });
+      if (page) break;
+    }
+
+    if (page) {
+      notionPageId = page.id;
+      // Cacheia para as próximas chamadas
+      await db.collection('mentoradas').doc(uid).update({ notionPageId }).catch(() => {});
+    }
+  }
+
+  if (!notionPageId) {
+    return { encontros: [], notionPageUrl: null, syncedAt: null, semDados: true };
+  }
 
   // Lê blocos da página (com paginação)
   const blocks = [];

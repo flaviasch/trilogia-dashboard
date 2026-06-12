@@ -15,12 +15,14 @@
 
 const MAILERLITE_API_URL = 'https://connect.mailerlite.com/api';
 
-// Mapa produto → ID do grupo no MailerLite
+// Mapa produto específico → ID do grupo no MailerLite
 // Os valores vêm de variáveis de ambiente (secrets do Firebase)
 function getGrupos() {
   return {
-    ebook: process.env.MAILERLITE_GRUPO_EBOOK || null,
-    curso: process.env.MAILERLITE_GRUPO_CURSO || null,
+    raiox:         process.env.MAILERLITE_GRUPO_RAIOX        || null,
+    mapa:          process.env.MAILERLITE_GRUPO_MAPA          || null,
+    jdd:           process.env.MAILERLITE_GRUPO_JDD           || null,
+    reserva_rende: process.env.MAILERLITE_GRUPO_RESERVA_RENDE || null,
   };
 }
 
