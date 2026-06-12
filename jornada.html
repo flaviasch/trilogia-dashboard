@@ -334,7 +334,14 @@
           `Última sincronização: ${dt.toLocaleDateString('pt-BR')} às ${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
       }
 
-      if (semDados || !encontros.length) {
+      if (semDados) {
+        document.getElementById('semDados').innerHTML =
+          `<strong>Página não encontrada no Notion</strong>
+          Peça à Flávia para abrir seu acompanhamento no painel admin — isso vai sincronizar sua página automaticamente.`;
+        document.getElementById('semDados').style.display = 'block';
+        return;
+      }
+      if (!encontros.length) {
         document.getElementById('semDados').style.display = 'block';
         return;
       }
