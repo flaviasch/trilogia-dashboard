@@ -4117,6 +4117,13 @@ function getRichText(richText) {
   return richText.map(r => r.plain_text || '').join('');
 }
 
+function getFirstHref(richText) {
+  for (const rt of richText || []) {
+    if (rt.href) return rt.href;
+  }
+  return null;
+}
+
 /**
  * Normaliza uma string para comparação de nomes:
  * minúsculas, sem acentos, split por espaço.
@@ -4425,12 +4432,22 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
     cursor = page.has_more ? page.next_cursor : undefined;
   } while (cursor);
 
-  // Parseia encontros — mesma lógica do getNotionCRM mas retorna TODOS e inclui lições feitas
-  const encontros       = [];
-  let encontroAtual     = null;
-  let licoesPendentes   = [];
-  let licoesFeitas      = [];
-  let emLicao           = false;
+  // Parseia encontros — retorna TODOS com alinhamentos, lições e materiais
+  const encontros     = [];
+  let encontroAtual   = null;
+  let emSecao         = null; // 'alinhamentos' | 'licao' | 'materiais' | null
+  let mapaUrl         = null;
+  let gravacaoUrl     = null;
+  let alinhamentos    = [];
+  let licoesPendentes = [];
+  let licoesFeitas    = [];
+  let materiais       = [];
+
+  const pushEncontro = () => {
+    if (encontroAtual) {
+      encontros.push({ ...encontroAtual, mapaUrl, gravacaoUrl, alinhamentos, licoesPendentes, licoesFeitas, materiais });
+    }
+  };
 
   for (const block of blocks) {
     const type = block.type;
@@ -4439,13 +4456,11 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
       const text  = getRichText(block.heading_2?.rich_text);
       const match = text.match(/Encontro\s+(\d+)\s*[|\\]\s*(.+?)\s*[|\\]\s*(.+)/i);
       if (match) {
-        if (encontroAtual) {
-          encontros.push({ ...encontroAtual, licoesPendentes, licoesFeitas });
-        }
+        pushEncontro();
         encontroAtual   = { numero: parseInt(match[1], 10), tema: match[2].trim(), data: match[3].trim() };
-        licoesPendentes = [];
-        licoesFeitas    = [];
-        emLicao         = false;
+        emSecao         = null;
+        mapaUrl         = null; gravacaoUrl = null;
+        alinhamentos    = []; licoesPendentes = []; licoesFeitas = []; materiais = [];
       }
       continue;
     }
@@ -4454,25 +4469,65 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
 
     if (type === 'heading_3') {
       const text = getRichText(block.heading_3?.rich_text);
-      emLicao = /li[çc][õaã]o?[eE]?[sS]?\s+de\s+casa|compromissos/i.test(text);
+      if      (/alinhamento/i.test(text))                             emSecao = 'alinhamentos';
+      else if (/li[çc][õaã]o?.*casa|compromisso/i.test(text))        emSecao = 'licao';
+      else if (/material|recurso/i.test(text))                        emSecao = 'materiais';
+      else                                                             emSecao = null;
       continue;
     }
 
-    if (type === 'divider') { emLicao = false; continue; }
+    if (type === 'divider') { emSecao = null; continue; }
 
-    if (type === 'to_do' && emLicao) {
-      const texto    = getRichText(block.to_do?.rich_text).trim();
-      const checked  = block.to_do?.checked === true;
+    // Paragraphs sem seção definida (logo após o heading do encontro) → links de mapa/gravação
+    if (type === 'paragraph' && emSecao === null) {
+      const rt   = block.paragraph?.rich_text || [];
+      const text = getRichText(rt);
+      const url  = getFirstHref(rt);
+      if (url) {
+        if (/mapa mental/i.test(text)) mapaUrl = url;
+        else if (/grava[çc][aã]o/i.test(text)) gravacaoUrl = url;
+      }
+      continue;
+    }
+
+    if (type === 'bulleted_list_item' && emSecao === 'alinhamentos') {
+      const text = getRichText(block.bulleted_list_item?.rich_text).trim();
+      if (text) alinhamentos.push(text);
+      continue;
+    }
+
+    if (type === 'to_do' && emSecao === 'licao') {
+      const texto   = getRichText(block.to_do?.rich_text).trim();
+      const checked = block.to_do?.checked === true;
       if (texto) {
         if (checked) licoesFeitas.push(texto);
         else         licoesPendentes.push(texto);
       }
+      continue;
+    }
+
+    if (emSecao === 'materiais') {
+      if (type === 'bulleted_list_item') {
+        const rt   = block.bulleted_list_item?.rich_text || [];
+        const text = getRichText(rt).trim();
+        const url  = getFirstHref(rt);
+        if (text) materiais.push({ texto: text, url: url || null });
+      } else if (type === 'file') {
+        const f    = block.file;
+        const text = getRichText(f?.caption).trim() || 'Arquivo';
+        const url  = f?.type === 'external' ? f.external?.url : f?.file?.url;
+        if (url) materiais.push({ texto: text, url, arquivo: true });
+      } else if (type === 'pdf') {
+        const p    = block.pdf;
+        const text = getRichText(p?.caption).trim() || 'PDF';
+        const url  = p?.type === 'external' ? p.external?.url : p?.file?.url;
+        if (url) materiais.push({ texto: text, url, arquivo: true });
+      }
+      continue;
     }
   }
 
-  if (encontroAtual) {
-    encontros.push({ ...encontroAtual, licoesPendentes, licoesFeitas });
-  }
+  pushEncontro();
 
   console.log(`[getMinhaJornada] total de blocos: ${blocks.length}, encontros parseados: ${encontros.length}`);
 
