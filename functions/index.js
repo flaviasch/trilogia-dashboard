@@ -1690,7 +1690,7 @@ exports.updateMentorada = onCall({ secrets: [sGmail] }, async (request) => {
     'status', 'nota', 'perfil', 'inicio',
     'produto', 'valorMensal', 'formaPagamento', 'dataExpiracao',
     'mentoriaEncerrada', 'assinaturaDashboard', 'assinaturaClube',
-    'notionLicoesPendentes', 'nome', 'email',
+    'notionLicoesPendentes', 'notionPageId', 'nome', 'email',
   ];
   const atualizacao = {};
   for (const [k, v] of Object.entries(campos || {})) {
@@ -4108,10 +4108,104 @@ exports.backupDiario = onSchedule(
 
 // ─── NOTION CRM ───────────────────────────────────────────────────────────────
 
+// ID da página-mãe "🌙 Mentoradas" — usada como fallback quando a busca global não retorna nada
+const MENTORADAS_PAGE_ID = '361dc774-3897-80bf-9362-d7575f493a3e';
+
 /** Extrai texto puro de um array de rich_text do Notion. */
 function getRichText(richText) {
   if (!Array.isArray(richText)) return '';
   return richText.map(r => r.plain_text || '').join('');
+}
+
+/**
+ * Normaliza uma string para comparação de nomes:
+ * minúsculas, sem acentos, split por espaço.
+ */
+function normWords(str) {
+  return str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Verifica se dois conjuntos de palavras representam o mesmo nome.
+ * Lida com: nome do meio ausente no título, preposições, abreviações.
+ */
+function nomeCorresponde(nomeWords, titleWords) {
+  const preposicoes = new Set(['da', 'de', 'do', 'das', 'dos', 'e', 'del', 'di']);
+  const nomeKeyWords = nomeWords.filter(w => !preposicoes.has(w));
+  // Abreviação: primeiro + último nome
+  const nomeAbrevWords = nomeKeyWords.length >= 3
+    ? [nomeKeyWords[0], nomeKeyWords[nomeKeyWords.length - 1]]
+    : [];
+
+  return titleWords.every(w => nomeWords.includes(w)) ||
+         nomeWords.every(w => titleWords.includes(w)) ||
+         (nomeKeyWords.length && nomeKeyWords.every(w => titleWords.includes(w))) ||
+         (nomeAbrevWords.length >= 2 && nomeAbrevWords.every(w => titleWords.includes(w)));
+}
+
+/**
+ * Busca a página Notion da mentorada pelo nome.
+ * Estratégia 1: busca global via /search (rápida, mas depende de permissão de pesquisa)
+ * Estratégia 2: lê filhos da página-mãe Mentoradas (sempre acessível se a parent foi compartilhada)
+ * Retorna { id, url } ou null.
+ */
+async function buscarPaginaNotionPorNome(nome, headers) {
+  const nomePartes = nome.trim().split(/\s+/);
+  const nomeAbrev  = nomePartes.length >= 3
+    ? `${nomePartes[0]} ${nomePartes[nomePartes.length - 1]}`
+    : null;
+  const queries = [
+    `Mentoria Trilogia ${nome}`,
+    nome,
+    ...(nomeAbrev ? [`Mentoria Trilogia ${nomeAbrev}`, nomeAbrev] : []),
+  ];
+
+  const nomeWords = normWords(nome);
+
+  // ── Estratégia 1: busca global ──────────────────────────────────────────────
+  for (const query of queries) {
+    const res = await fetch('https://api.notion.com/v1/search', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query, filter: { value: 'page', property: 'object' }, page_size: 100 }),
+    });
+    if (!res.ok) break; // se a busca falhar, vai para estratégia 2
+    const data = await res.json();
+    const page = (data.results || []).find(p => {
+      const raw = getRichText(p.properties?.title?.title) || getRichText(p.properties?.Name?.title) || '';
+      return raw && nomeCorresponde(nomeWords, normWords(raw));
+    });
+    if (page) {
+      console.log(`[buscarNotion] match via search: "${page.properties?.title?.title?.[0]?.plain_text || page.id}"`);
+      return { id: page.id, url: page.url };
+    }
+  }
+
+  // ── Estratégia 2: filhos da página-mãe ─────────────────────────────────────
+  console.log(`[buscarNotion] search falhou para "${nome}", tentando filhos da página-mãe`);
+  let cursor;
+  do {
+    const url = `https://api.notion.com/v1/blocks/${MENTORADAS_PAGE_ID}/children?page_size=100`
+      + (cursor ? `&start_cursor=${cursor}` : '');
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      console.warn(`[buscarNotion] falha ao ler filhos da página-mãe: ${res.status}`);
+      break;
+    }
+    const data = await res.json();
+    for (const block of (data.results || [])) {
+      if (block.type !== 'child_page') continue;
+      const titulo = block.child_page?.title || '';
+      if (titulo && nomeCorresponde(nomeWords, normWords(titulo))) {
+        console.log(`[buscarNotion] match via filhos: "${titulo}" → ${block.id}`);
+        return { id: block.id, url: `https://notion.so/${block.id.replace(/-/g, '')}` };
+      }
+    }
+    cursor = data.has_more ? data.next_cursor : undefined;
+  } while (cursor);
+
+  console.warn(`[buscarNotion] página NÃO encontrada para "${nome}"`);
+  return null;
 }
 
 /**
@@ -4145,59 +4239,13 @@ exports.getNotionCRM = onCall({ secrets: [sNotion] }, async (request) => {
   let pageUrl = pageId ? `https://notion.so/${pageId.replace(/-/g, '')}` : null;
 
   if (!pageId) {
-    // Constrói queries em ordem decrescente de especificidade.
-    // Se o nome tem nome do meio (≥3 palavras), adiciona variantes com primeiro+último
-    // para cobrir páginas Notion com nome abreviado (ex: "Marcia Ribeiro" vs "Marcia Camila Ribeiro").
-    const nomePartes = nome.trim().split(/\s+/);
-    const nomeAbrev  = nomePartes.length >= 3
-      ? `${nomePartes[0]} ${nomePartes[nomePartes.length - 1]}`
-      : null;
-    const queries = [
-      `Mentoria Trilogia ${nome}`,
-      nome,
-      ...(nomeAbrev ? [`Mentoria Trilogia ${nomeAbrev}`, nomeAbrev] : []),
-    ];
-
-    let page = null;
-    for (const query of queries) {
-      const searchRes = await fetch('https://api.notion.com/v1/search', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query,
-          filter: { value: 'page', property: 'object' },
-          page_size: 100,
-        }),
-      });
-
-      if (!searchRes.ok) {
-        const err = await searchRes.json().catch(() => ({}));
-        throw new HttpsError('internal', `Notion search falhou: ${err.message || searchRes.status}`);
-      }
-
-      const searchData = await searchRes.json();
-      const nomeNorm  = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-      const nomeWords = nomeNorm.split(/\s+/).filter(Boolean);
-      page = (searchData.results || []).find(p => {
-        const raw = getRichText(p.properties?.title?.title) ||
-                    getRichText(p.properties?.Name?.title)  || '';
-        const titleNorm  = raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-        const titleWords = titleNorm.split(/\s+/).filter(Boolean);
-        // Corresponde se todas as palavras do título estiverem no nome do admin,
-        // ou se todas as palavras do nome estiverem no título (lida com nome do meio ausente em ambos os lados)
-        return titleWords.every(w => nomeWords.includes(w)) ||
-               nomeWords.every(w => titleWords.includes(w));
-      });
-
-      if (page) break;
-    }
-
-    if (!page) {
+    const found = await buscarPaginaNotionPorNome(nome, headers);
+    if (!found) {
       console.warn(`[getNotionCRM] Página não encontrada para: "${nome}" (uid=${uid})`);
       return { notionPageUrl: null, ultimoEncontro: null, licoesPendentes: [] };
     }
-    pageId  = page.id;
-    pageUrl = page.url;
+    pageId  = found.id;
+    pageUrl = found.url;
   }
 
   // ── 2. Ler os blocos da página (com paginação) ───────────────────────────
@@ -4341,44 +4389,15 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
   };
 
   let notionPageId = cachedPageId || null;
+  console.log(`[getMinhaJornada] uid=${uid} nome="${nome}" cachedPageId=${cachedPageId || 'null'}`);
 
   // Sem cache: busca pelo nome no Notion (mesma lógica do getNotionCRM)
   if (!notionPageId && nome) {
-    const nomePartes = nome.trim().split(/\s+/);
-    const nomeAbrev  = nomePartes.length >= 3
-      ? `${nomePartes[0]} ${nomePartes[nomePartes.length - 1]}`
-      : null;
-    const queries = [
-      `Mentoria Trilogia ${nome}`,
-      nome,
-      ...(nomeAbrev ? [`Mentoria Trilogia ${nomeAbrev}`, nomeAbrev] : []),
-    ];
-
-    let page = null;
-    for (const query of queries) {
-      const searchRes = await fetch('https://api.notion.com/v1/search', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ query, filter: { value: 'page', property: 'object' }, page_size: 100 }),
-      });
-      if (!searchRes.ok) break;
-      const searchData = await searchRes.json();
-      const nomeNorm  = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-      const nomeWords = nomeNorm.split(/\s+/).filter(Boolean);
-      page = (searchData.results || []).find(p => {
-        const raw = getRichText(p.properties?.title?.title) ||
-                    getRichText(p.properties?.Name?.title)  || '';
-        const titleNorm  = raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-        const titleWords = titleNorm.split(/\s+/).filter(Boolean);
-        return titleWords.every(w => nomeWords.includes(w)) ||
-               nomeWords.every(w => titleWords.includes(w));
-      });
-      if (page) break;
-    }
-
-    if (page) {
-      notionPageId = page.id;
-      // Cacheia para as próximas chamadas
+    console.log(`[getMinhaJornada] buscando página para "${nome}" (uid=${uid})`);
+    const found = await buscarPaginaNotionPorNome(nome, headers);
+    if (found) {
+      notionPageId = found.id;
+      console.log(`[getMinhaJornada] pageId descoberto e cacheado: ${notionPageId}`);
       await db.collection('mentoradas').doc(uid).update({ notionPageId }).catch(() => {});
     }
   }
@@ -4386,6 +4405,7 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
   if (!notionPageId) {
     return { encontros: [], notionPageUrl: null, syncedAt: null, semDados: true };
   }
+  console.log(`[getMinhaJornada] lendo blocos do pageId: ${notionPageId}`);
 
   // Lê blocos da página (com paginação)
   const blocks = [];
@@ -4453,6 +4473,8 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
   if (encontroAtual) {
     encontros.push({ ...encontroAtual, licoesPendentes, licoesFeitas });
   }
+
+  console.log(`[getMinhaJornada] total de blocos: ${blocks.length}, encontros parseados: ${encontros.length}`);
 
   // Ordena do mais recente para o mais antigo
   encontros.sort((a, b) => b.numero - a.numero);

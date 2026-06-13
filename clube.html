@@ -278,6 +278,18 @@
       if (!user) { window.location.href = 'login.html'; return; }
       window.Sentry?.onLoad?.(function(){ Sentry.setUser({ id: user.uid, email: user.email }); });
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+
+      // ViewAs: propaga ?viewAs em todos os links locais
+      const _va = new URLSearchParams(window.location.search).get('viewAs')
+               || localStorage.getItem('viewAsUid');
+      if (_va) {
+        document.querySelectorAll('a[href]').forEach(a => {
+          const href = a.getAttribute('href') || '';
+          if (!href || href.startsWith('http') || href.includes('viewAs=')) return;
+          a.setAttribute('href', href + (href.includes('?') ? '&' : '?') + `viewAs=${_va}`);
+        });
+      }
+
       init();
     });
 

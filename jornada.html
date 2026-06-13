@@ -278,6 +278,18 @@
       if (localStorage.getItem('clubeAccess') === '1') {
         document.querySelectorAll('.link-clube').forEach(el => el.style.display = '');
       }
+
+      // ViewAs: propaga ?viewAs em todos os links locais para manter o contexto da mentorada
+      const _va = new URLSearchParams(window.location.search).get('viewAs')
+               || localStorage.getItem('viewAsUid');
+      if (_va) {
+        document.querySelectorAll('a[href]').forEach(a => {
+          const href = a.getAttribute('href') || '';
+          if (!href || href.startsWith('http') || href.includes('viewAs=')) return;
+          a.setAttribute('href', href + (href.includes('?') ? '&' : '?') + `viewAs=${_va}`);
+        });
+      }
+
       init();
     });
 
@@ -312,7 +324,9 @@
     async function init() {
       let data;
       try {
-        data = await getMinhaJornada();
+        const viewAsUid = new URLSearchParams(window.location.search).get('viewAs')
+                       || localStorage.getItem('viewAsUid');
+        data = await getMinhaJornada(viewAsUid || undefined);
       } catch (err) {
         document.getElementById('loadingOverlay').innerHTML =
           `<p style="color:var(--negative);font-size:14px;text-align:center">
