@@ -908,7 +908,7 @@
         // Propaga ?viewAs em todos os links para sub-páginas
         // Preserva hash (#) e evita duplicar o parâmetro
         function propagarViewAs() {
-          ['orcamento.html','patrimonio.html','reservas.html','perfil.html'].forEach(page => {
+          ['orcamento.html','patrimonio.html','reservas.html','jornada.html','clube.html','perfil.html'].forEach(page => {
             document.querySelectorAll(`a[href^="${page}"]`).forEach(a => {
               const href = a.getAttribute('href');
               if (href.includes('viewAs=')) return;           // já propagado
@@ -933,7 +933,7 @@
           const href = a.getAttribute('href');
           if (!href || href.includes('viewAs=') || href.startsWith('http') ||
               href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('admin')) return;
-          const paginas = ['orcamento.html','patrimonio.html','reservas.html','perfil.html'];
+          const paginas = ['orcamento.html','patrimonio.html','reservas.html','jornada.html','clube.html','perfil.html'];
           if (!paginas.some(p => href === p || href.startsWith(p + '#') || href.startsWith(p + '?'))) return;
           e.preventDefault();
           window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;

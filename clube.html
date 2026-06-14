@@ -200,10 +200,17 @@
     </div>
     <div class="navbar-right">
       <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
+      <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </nav>
+
+  <!-- Banner viewAs (admin visualizando mentorada) -->
+  <div id="viewAsBanner" style="display:none; background:rgba(207,174,101,0.12); border-bottom:1px solid rgba(207,174,101,0.3); padding:10px 32px; font-size:13px; color:#CFAE65; gap:12px; align-items:center;">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html" style="color:#CFAE65; text-decoration:underline; margin-left:auto">← Voltar ao admin</a>
+  </div>
 
   <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
@@ -267,6 +274,7 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { getClubeContent } from './js/api.js?v=16';
+    import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
       signOut,
@@ -283,12 +291,15 @@
       const _va = new URLSearchParams(window.location.search).get('viewAs')
                || localStorage.getItem('viewAsUid');
       if (_va) {
+        document.getElementById('viewAsBanner').style.display = 'flex';
         document.querySelectorAll('a[href]').forEach(a => {
           const href = a.getAttribute('href') || '';
           if (!href || href.startsWith('http') || href.includes('viewAs=')) return;
           a.setAttribute('href', href + (href.includes('?') ? '&' : '?') + `viewAs=${_va}`);
         });
       }
+
+      if (await isAdmin()) document.getElementById('linkAdmin').style.display = 'inline';
 
       init();
     });

@@ -1152,6 +1152,7 @@
     <div class="navbar-right">
       <a href="clube.html" class="link-clube link-jornada-nav" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
       <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
+      <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
@@ -2029,7 +2030,7 @@
       const banner = document.getElementById('viewAsBanner');
       if (banner) banner.style.display = 'flex';
       const suffix = `?viewAs=${VIEW_AS_UID}`;
-      ['index.html','patrimonio.html','reservas.html','perfil.html'].forEach(page => {
+      ['index.html','patrimonio.html','reservas.html','jornada.html','clube.html','perfil.html'].forEach(page => {
         document.querySelectorAll(`a[href="${page}"], a[href^="${page}?"]`).forEach(a => { a.href = page + suffix; });
       });
       // Interceptor de cliques: preserva ?viewAs em toda navegação interna
@@ -2039,7 +2040,7 @@
         const href = a.getAttribute('href');
         if (!href || href.includes('viewAs=') || href.startsWith('http') ||
             href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('admin')) return;
-        const paginas = ['index.html','orcamento.html','patrimonio.html','reservas.html','perfil.html'];
+        const paginas = ['index.html','orcamento.html','patrimonio.html','reservas.html','jornada.html','clube.html','perfil.html'];
         if (!paginas.some(p => href === p || href.startsWith(p + '#') || href.startsWith(p + '?'))) return;
         e.preventDefault();
         window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;
@@ -2777,7 +2778,9 @@
     });
 
     async function init(user) {
-      if (!VIEW_AS_UID && await isAdmin() && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
+      const _admin = await isAdmin();
+      if (!VIEW_AS_UID && _admin && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
+      if (_admin) document.getElementById('linkAdmin').style.display = 'inline';
 
       // Inicia carga dos cartões agora que auth.currentUser está disponível
       _cartoesReady = carregarCartoes();
