@@ -921,15 +921,6 @@
           Carregando dados do Notion…
         </div>
         <div id="detNotionTimeline" style="display:none"></div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Notion Page ID (manual)</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input id="inputNotionPageId" type="text" placeholder="cole o ID ou URL da página do Notion"
-              style="flex:1;background:var(--navy);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--text);font-family:'Inter',sans-serif;outline:none">
-            <button id="btnSalvarNotionPageId" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap">Salvar ID</button>
-          </div>
-          <div id="statusNotionPageId" style="font-size:11px;margin-top:4px;min-height:14px"></div>
-        </div>
       </div>
 
       <!-- Notas da mentora -->
@@ -2803,8 +2794,6 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       const tlReset = document.getElementById('detNotionTimeline');
       if (tlReset) { tlReset.style.display = 'none'; tlReset.innerHTML = ''; }
       // Pré-preenche campo manual com pageId já cacheado (se houver)
-      const inputPid = document.getElementById('inputNotionPageId');
-      if (inputPid) { inputPid.value = m.notionPageId || ''; document.getElementById('statusNotionPageId').textContent = ''; }
       carregarNotionCRM(uid);
       document.getElementById('btnAtualizarNotion').onclick = () => carregarNotionCRM(uid);
 
@@ -3038,30 +3027,6 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 
     let mentoradaEmDetalhe  = null;
     let contratosDoDetalhe  = [];
-
-    document.getElementById('btnSalvarNotionPageId').addEventListener('click', async () => {
-      if (!mentoradaEmDetalhe) return;
-      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
-      const raw = document.getElementById('inputNotionPageId').value.trim();
-      const status = document.getElementById('statusNotionPageId');
-      if (!raw) { status.style.color = 'var(--negative)'; status.textContent = 'Cole o ID ou URL da página.'; return; }
-      // Extrai UUID de uma URL ou usa o valor direto
-      const match = raw.match(/([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})/i)
-                 || raw.match(/([0-9a-f]{32})/i);
-      const pageId = match
-        ? match[1].replace(/([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})/i, '$1-$2-$3-$4-$5')
-        : raw;
-      try {
-        await updateMentorada(uid, { notionPageId: pageId });
-        mentoradaEmDetalhe.notionPageId = pageId;
-        document.getElementById('inputNotionPageId').value = pageId;
-        status.style.color = 'var(--positive)';
-        status.textContent = '✓ Salvo — clique em ↻ Atualizar para recarregar o Notion.';
-      } catch (err) {
-        status.style.color = 'var(--negative)';
-        status.textContent = `Erro: ${err.message}`;
-      }
-    });
 
     document.getElementById('btnToggleClube').addEventListener('click', async () => {
       if (!mentoradaEmDetalhe) return;
