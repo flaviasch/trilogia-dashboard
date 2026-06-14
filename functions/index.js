@@ -4362,7 +4362,44 @@ exports.getNotionCRM = onCall({ secrets: [sNotion] }, async (request) => {
   };
 });
 
-// ─── MINHA JORNADA (mentorada — jornada.html) ────────────────────────────────
+// ─── BOOTSTRAP NOTION PAGE IDs (admin — uma vez) ─────────────────────────────
+
+/**
+ * Percorre todas as mentoradas sem notionPageId e tenta descobrir a página Notion.
+ * Admin only. Retorna { ok, atualizadas, falhas }.
+ */
+exports.bootstrapNotionPageIds = onCall({ secrets: [sNotion] }, async (request) => {
+  requireAdmin(request);
+
+  const NOTION_TOKEN = process.env.NOTION_TOKEN;
+  const headers = {
+    'Authorization': `Bearer ${NOTION_TOKEN}`,
+    'Notion-Version': '2022-06-28',
+    'Content-Type': 'application/json',
+  };
+
+  const snap = await db.collection('mentoradas').get();
+  let atualizadas = 0, falhas = 0;
+
+  for (const doc of snap.docs) {
+    const { nome, notionPageId } = doc.data();
+    if (notionPageId || !nome) continue;
+
+    const found = await buscarPaginaNotionPorNome(nome, headers);
+    if (found) {
+      await doc.ref.update({ notionPageId: found.id }).catch(() => {});
+      atualizadas++;
+      console.log(`[bootstrapNotionPageIds] ✓ ${nome} → ${found.id}`);
+    } else {
+      falhas++;
+      console.warn(`[bootstrapNotionPageIds] ✗ ${nome} — não encontrada`);
+    }
+  }
+
+  return { ok: true, atualizadas, falhas };
+});
+
+// ─── MINHA JORNADA (mentorada — jornada.html) ─────────────────────────────────
 
 /**
  * getMinhaJornada — retorna todos os encontros da mentorada com lições pendentes e concluídas.

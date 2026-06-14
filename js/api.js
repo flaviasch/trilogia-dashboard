@@ -424,6 +424,11 @@ export async function syncDiagnostico() {
   return call('syncDiagnostico')({});
 }
 
+/** Descobre e salva notionPageId para todas as mentoradas que ainda não têm. */
+export async function bootstrapNotionPageIds() {
+  return call('bootstrapNotionPageIds')({});
+}
+
 // ─── Mapa de cores para patrimônio (usado por patrimonio.html) ─────────────────
 // Nome original do IR → código de categoria para cor na UI.
 // Não usado pelo parser — apenas exportado para consulta visual.

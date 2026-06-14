@@ -1160,6 +1160,10 @@
           style="background:transparent;border:1px solid rgba(207,174,101,0.35);border-radius:6px;color:var(--gold);padding:6px 14px;font-size:12px;cursor:pointer;white-space:nowrap;">
           ⟳ Diagnóstico
         </button>
+        <button id="btnBootstrapNotion" title="Descobrir páginas Notion para todas as mentoradas sem ID"
+          style="background:transparent;border:1px solid rgba(207,174,101,0.35);border-radius:6px;color:var(--gold);padding:6px 14px;font-size:12px;cursor:pointer;white-space:nowrap;">
+          ⟳ Notion IDs
+        </button>
       </div>
 
       <!-- Painel de estatísticas -->
@@ -1724,7 +1728,7 @@
              criarPlanilha, getNotionCRM, getMinhaJornada,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, comunicadoTecnico, migrarOrcamento, getAnalytics,
+             syncDiagnostico, bootstrapNotionPageIds, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, comunicadoTecnico, migrarOrcamento, getAnalytics,
              getAdmins, addAdmin, removeAdmin, getBackupStatus,
              enviarPushManual, saveMissaoMes, getComunicadosStatus,
              editarVencimento } from './js/api.js?v=16';
@@ -4243,6 +4247,24 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       }
     });
 
+    // ─── Bootstrap Notion IDs ─────────────────────────────────────────────────
+    document.getElementById('btnBootstrapNotion').addEventListener('click', async () => {
+      const btn = document.getElementById('btnBootstrapNotion');
+      btn.disabled = true; btn.textContent = '⟳ Buscando…';
+      try {
+        const res = await bootstrapNotionPageIds();
+        if (res.falhas === 0) {
+          mostrarToast(`✓ Notion IDs: ${res.atualizadas} mentorada${res.atualizadas !== 1 ? 's' : ''} atualizada${res.atualizadas !== 1 ? 's' : ''}.`);
+        } else {
+          mostrarToast(`✓ ${res.atualizadas} encontrada${res.atualizadas !== 1 ? 's' : ''}, ${res.falhas} não localizada${res.falhas !== 1 ? 's' : ''} no Notion.`, 6000);
+        }
+        btn.textContent = `✓ ${res.atualizadas} atualizada${res.atualizadas !== 1 ? 's' : ''}`;
+        setTimeout(() => { btn.disabled = false; btn.textContent = '⟳ Notion IDs'; }, 4000);
+      } catch (err) {
+        mostrarToast(`Erro: ${err.message}`);
+        btn.disabled = false; btn.textContent = '⟳ Notion IDs';
+      }
+    });
 
     // ─── Pipeline CRM ────────────────────────────────────────────────
     const LEADS_POR_PAGINA   = 25;
