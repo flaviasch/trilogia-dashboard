@@ -25,6 +25,10 @@ const sKiwify     = defineSecret('KIWIFY_WEBHOOK_SECRET');
 const sVapidPub   = defineSecret('VAPID_PUBLIC_KEY');
 const sVapidPriv  = defineSecret('VAPID_PRIVATE_KEY');
 const sMailerLite         = defineSecret('MAILERLITE_API_KEY');
+const sMailerLiteRaiox    = defineSecret('MAILERLITE_GRUPO_RAIOX');
+const sMailerLiteMapa     = defineSecret('MAILERLITE_GRUPO_MAPA');
+const sMailerLiteJdd      = defineSecret('MAILERLITE_GRUPO_JDD');
+const sMailerLiteReserva  = defineSecret('MAILERLITE_GRUPO_RESERVA_RENDE');
 const sZapiId             = defineSecret('ZAPI_INSTANCE_ID');
 const sZapiToken  = defineSecret('ZAPI_TOKEN');
 const sZapiClient = defineSecret('ZAPI_CLIENT_TOKEN');
@@ -2705,7 +2709,7 @@ async function acionarEsteiraPosVenda({ email, nome, telefone, produto, produtoE
  * Eventos aceitos: order_approved, subscription_payment,
  *                  order.approved, subscription.payment (variações de formato)
  */
-exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwify, sMailerLite] }, async (req, res) => {
+exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwify, sMailerLite, sMailerLiteRaiox, sMailerLiteMapa, sMailerLiteJdd, sMailerLiteReserva] }, async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
   // Verificação de origem Kiwify via HMAC-SHA256 — obrigatória
