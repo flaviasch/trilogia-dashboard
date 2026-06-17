@@ -1080,17 +1080,28 @@
     });
 
     async function loadDashboard(user, viewAsUid = null) {
+      // Cache stale-while-revalidate: mostra dados anteriores instantaneamente
+      const _ck = viewAsUid ? null : `dash_v1_${user.uid}`;
+      let _hadCache = false;
+      if (_ck) {
+        try {
+          const raw = localStorage.getItem(_ck);
+          if (raw) {
+            document.getElementById('loadingOverlay').style.display = 'none';
+            _applyDashboard(JSON.parse(raw), user, viewAsUid);
+            _hadCache = true;
+          }
+        } catch (_) {}
+      }
+
       let data;
       try {
-        // Fase 1: carrega home com dados cacheados (rápido — apenas doc + reservas)
         data = await getDashboardHome(viewAsUid ? { uid: viewAsUid } : undefined);
-
-        // Adapta formato do getDashboardHome para compatibilidade com o restante do código
-        // Usa os valores reais retornados pela função (receita/despesa/aporte do Firestore)
         data.orcamento  = { receita: data.orcamento?.receita ?? 0, despesa: data.orcamento?.despesa ?? 0, sobra: data.orcamento?.sobra ?? data.sobraCacheada ?? 0, aporte: data.orcamento?.aporte ?? 0, mes: data.orcamento?.mes ?? data.mes, ano: data.orcamento?.ano ?? data.ano };
         data.patrimonio = { ativos: data.plCacheado ?? 0, dividas: 0, pl: data.plCacheado ?? 0 };
         data.sheetError = false;
       } catch (err) {
+        if (_hadCache) return true; // dados em cache visíveis; falha de rede silenciosa
         console.error('Erro ao carregar dashboard:', err);
         const banner = document.getElementById('erroBanner');
         const semPlanilha = err?.code === 'functions/failed-precondition' && viewAsUid;
@@ -1106,139 +1117,15 @@
         return false;
       }
 
-      // getDashboard retornou — esconde o overlay imediatamente, antes de qualquer renderização
-      // Garante que o app nunca fica travado no spinner mesmo se algum erro de rendering ocorrer depois
+      // Persiste dados frescos no cache local
+      if (_ck) { try { localStorage.setItem(_ck, JSON.stringify(data)); } catch (_) {} }
+
+      // Renderiza com dados frescos (esconde spinner se ainda estava visível)
       document.getElementById('loadingOverlay').style.display = 'none';
-
-      // Clube-only: redireciona imediatamente, antes de qualquer renderização
-      // (não redireciona em viewAs — admin precisa ver o estado da aluna)
-      if (data.apenasClube && !viewAsUid) {
-        localStorage.setItem('clubeAccess', '1');
-        window.location.replace('clube.html');
-        return true;
-      }
-
-      // Planilha inacessível mas dados do Firestore (inicio, perfil) estão disponíveis
-      if (data.sheetError) {
-        document.getElementById('avisoSheet').style.display = 'block';
-      }
-
-      // Banner de upgrade: mentoria encerrada e sem assinatura ativa
-      if (data.mentoriaEncerrada && !data.assinaturaDashboard && !viewAsUid) {
-        document.getElementById('upgradeBanner').style.display = 'block';
-      }
-
-      const NOMES_MESES = ['janeiro','fevereiro','março','abril','maio','junho',
-                           'julho','agosto','setembro','outubro','novembro','dezembro'];
-
-      // Saudação
-      const hora = new Date().getHours();
-      const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
-      // Em viewAs mode usa o nome da mentorada (vem do Firestore); caso contrário usa o usuário logado
-      const nomeExibido = (viewAsUid && data.nome) ? data.nome : (user.displayName || user.email);
-      document.getElementById('greetingText').textContent = `${saudacao}, ${nomeExibido}.`;
-
-      // Mentorada desde
-      if (data.inicio) {
-        const [iAno, iMes] = data.inicio.split('-').map(Number);
-        document.getElementById('mentoraSince').textContent =
-          `${NOMES_MESES[iMes - 1]} de ${iAno}`;
-      } else {
-        document.getElementById('mentoraSince').textContent = '—';
-      }
-
-      const perfilStr = data.perfil?.perfil;
-      document.getElementById('perfilBadge').textContent = perfilStr
-        ? perfilStr.charAt(0).toUpperCase() + perfilStr.slice(1) : '—';
-
-      // Score de saúde financeira
-      if (data.scoreMes != null && data.scoreChave) {
-        const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-        const [, sMes] = data.scoreChave.split('-');
-        let scoreCor, scoreNivel, scoreEmoji;
-        if (data.scoreMes >= 80)      { scoreCor = '#CFAE65'; scoreNivel = 'Excelente';         scoreEmoji = '⭐'; }
-        else if (data.scoreMes >= 60) { scoreCor = '#4ade80'; scoreNivel = 'Saudável';           scoreEmoji = '🟢'; }
-        else if (data.scoreMes >= 40) { scoreCor = '#f59e0b'; scoreNivel = 'Em construção';      scoreEmoji = '🟡'; }
-        else                          { scoreCor = '#f87171'; scoreNivel = 'Atenção necessária'; scoreEmoji = '🔴'; }
-
-        document.getElementById('scoreMesLabel').textContent   = MESES_ABREV[parseInt(sMes) - 1];
-        document.getElementById('scoreValorHome').textContent  = data.scoreMes;
-        document.getElementById('scoreValorHome').style.color  = scoreCor;
-        document.getElementById('scoreNivelHome').textContent  = `${scoreEmoji} ${scoreNivel}`;
-        document.getElementById('scoreNivelHome').style.color  = scoreCor;
-        document.getElementById('scoreBarraFill').style.width  = `${data.scoreMes}%`;
-        document.getElementById('scoreBarraFill').style.background = scoreCor;
-        const cardScore = document.getElementById('cardScore');
-        cardScore.style.borderColor = scoreCor + '40';
-        cardScore.style.display = '';
-
-        // Ação vinculada ao score
-        const acaoEl = document.getElementById('scoreAcao');
-        let acaoHtml = '';
-        if (data.scoreMes < 40) {
-          acaoHtml = '→ Registre um aporte e revise os limites de gastos para subir o score. <a href="orcamento.html" style="color:var(--gold);text-decoration:none;">Ir ao orçamento</a>';
-        } else if (data.scoreMes < 60) {
-          acaoHtml = '→ Um aporte registrado este mês pode elevar bastante seu score. <a href="orcamento.html" style="color:var(--gold);text-decoration:none;">Registrar aporte</a>';
-        } else if (data.scoreMes < 80) {
-          acaoHtml = '→ Verifique se alguma categoria ultrapassou o limite planejado. <a href="orcamento.html" style="color:var(--gold);text-decoration:none;">Ver planejamento</a>';
-        }
-        if (acaoHtml) { acaoEl.innerHTML = acaoHtml; acaoEl.style.display = ''; }
-      }
-
-      // Orçamento
-      const { receita, despesa, sobra, mes, ano } = data.orcamento;
-      document.getElementById('receita').textContent = brl(receita);
-      document.getElementById('despesa').textContent = brl(despesa);
-      document.getElementById('despesa').classList.add('negative');
-
-      const sobraEl = document.getElementById('sobra');
-      sobraEl.textContent = brl(sobra);
-      sobraEl.classList.add(sobra >= 0 ? 'positive' : 'negative');
-
-      const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
-      document.getElementById('receitaSub').textContent = `${NOMES_MESES[mes - 1]} de ${ano}`;
-      document.getElementById('despesaSub').textContent = `${pct((despesa/receita)*100)} da receita`;
-      document.getElementById('sobraSub').textContent = `${pct(sobraPct)} da receita`;
-
-      // Patrimônio
-      const { ativos, dividas, pl } = data.patrimonio;
-      document.getElementById('ativos').textContent = brl(ativos);
-      document.getElementById('dividas').textContent = brl(dividas);
-      document.getElementById('pl').textContent = brl(pl);
-
-      // Reservas: adiciona mesesRestantes calculado e dataMeta formatada
-      const hoje = new Date();
-      const reservasFormatadas = (data.reservas || []).map(r => {
-        let mesesRestantes = null;
-        let dataMeta = r.dataMeta;
-        if (r.dataMeta) {
-          const [dAno, dMes] = r.dataMeta.split('-').map(Number);
-          const alvo = new Date(dAno, dMes - 1, 1);
-          mesesRestantes = Math.max(0, Math.round((alvo - hoje) / (1000 * 60 * 60 * 24 * 30)));
-          dataMeta = `${NOMES_MESES[dMes - 1]} de ${dAno}`;
-        }
-        return { ...r, mesesRestantes, dataMeta };
-      });
-      renderReservas(reservasFormatadas);
-
-      // Onboarding
-      checkOnboarding(data);
-
-      // Notificações
-      renderNotificacoes(data);
-
-      // Clube: mostra link se a aluna tiver assinatura
-      if (data.assinaturaClube) {
-        localStorage.setItem('clubeAccess', '1');
-        document.querySelectorAll('.link-clube').forEach(el => el.style.display = '');
-      } else {
-        localStorage.removeItem('clubeAccess');
-      }
+      _applyDashboard(data, user, viewAsUid);
 
       // Fase 2: carrega orçamento e patrimônio em background e atualiza os cards
-      // mes e ano já disponíveis da desestruturação de data.orcamento (linha acima)
-      const uid = viewAsUid || null;
-
+      const { mes, ano } = data.orcamento;
       Promise.all([
         getOrcamento(mes, ano),
         getPatrimonio(),
@@ -1281,9 +1168,129 @@
           orcamento:  { receita, despesa, sobra, aporte, mes, ano },
           patrimonio: { ativos: (patData?.ativos || []).reduce((s, a) => s + a.valor, 0), dividas: 0, pl: 0 },
         });
+
+        // Persiste orcamento real da Fase 2 no cache para o próximo carregamento
+        if (_ck) {
+          try {
+            const saved = JSON.parse(localStorage.getItem(_ck) || '{}');
+            saved.orcamento = { receita, despesa, sobra, aporte, mes, ano };
+            localStorage.setItem(_ck, JSON.stringify(saved));
+          } catch (_) {}
+        }
       }).catch(e => console.warn('[home] Fase 2 falhou (dados cacheados mantidos):', e.message));
 
       return true;   // sucesso
+    }
+
+    function _applyDashboard(data, user, viewAsUid) {
+      if (data.apenasClube && !viewAsUid) {
+        localStorage.setItem('clubeAccess', '1');
+        window.location.replace('clube.html');
+        return;
+      }
+
+      if (data.sheetError) {
+        document.getElementById('avisoSheet').style.display = 'block';
+      }
+
+      if (data.mentoriaEncerrada && !data.assinaturaDashboard && !viewAsUid) {
+        document.getElementById('upgradeBanner').style.display = 'block';
+      }
+
+      const NOMES_MESES = ['janeiro','fevereiro','março','abril','maio','junho',
+                           'julho','agosto','setembro','outubro','novembro','dezembro'];
+
+      const hora = new Date().getHours();
+      const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+      const nomeExibido = (viewAsUid && data.nome) ? data.nome : (user.displayName || user.email);
+      document.getElementById('greetingText').textContent = `${saudacao}, ${nomeExibido}.`;
+
+      if (data.inicio) {
+        const [iAno, iMes] = data.inicio.split('-').map(Number);
+        document.getElementById('mentoraSince').textContent =
+          `${NOMES_MESES[iMes - 1]} de ${iAno}`;
+      } else {
+        document.getElementById('mentoraSince').textContent = '—';
+      }
+
+      const perfilStr = data.perfil?.perfil;
+      document.getElementById('perfilBadge').textContent = perfilStr
+        ? perfilStr.charAt(0).toUpperCase() + perfilStr.slice(1) : '—';
+
+      if (data.scoreMes != null && data.scoreChave) {
+        const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        const [, sMes] = data.scoreChave.split('-');
+        let scoreCor, scoreNivel, scoreEmoji;
+        if (data.scoreMes >= 80)      { scoreCor = '#CFAE65'; scoreNivel = 'Excelente';         scoreEmoji = '⭐'; }
+        else if (data.scoreMes >= 60) { scoreCor = '#4ade80'; scoreNivel = 'Saudável';           scoreEmoji = '🟢'; }
+        else if (data.scoreMes >= 40) { scoreCor = '#f59e0b'; scoreNivel = 'Em construção';      scoreEmoji = '🟡'; }
+        else                          { scoreCor = '#f87171'; scoreNivel = 'Atenção necessária'; scoreEmoji = '🔴'; }
+
+        document.getElementById('scoreMesLabel').textContent   = MESES_ABREV[parseInt(sMes) - 1];
+        document.getElementById('scoreValorHome').textContent  = data.scoreMes;
+        document.getElementById('scoreValorHome').style.color  = scoreCor;
+        document.getElementById('scoreNivelHome').textContent  = `${scoreEmoji} ${scoreNivel}`;
+        document.getElementById('scoreNivelHome').style.color  = scoreCor;
+        document.getElementById('scoreBarraFill').style.width  = `${data.scoreMes}%`;
+        document.getElementById('scoreBarraFill').style.background = scoreCor;
+        const cardScore = document.getElementById('cardScore');
+        cardScore.style.borderColor = scoreCor + '40';
+        cardScore.style.display = '';
+
+        const acaoEl = document.getElementById('scoreAcao');
+        let acaoHtml = '';
+        if (data.scoreMes < 40) {
+          acaoHtml = '→ Registre um aporte e revise os limites de gastos para subir o score. <a href="orcamento.html" style="color:var(--gold);text-decoration:none;">Ir ao orçamento</a>';
+        } else if (data.scoreMes < 60) {
+          acaoHtml = '→ Um aporte registrado este mês pode elevar bastante seu score. <a href="orcamento.html" style="color:var(--gold);text-decoration:none;">Registrar aporte</a>';
+        } else if (data.scoreMes < 80) {
+          acaoHtml = '→ Verifique se alguma categoria ultrapassou o limite planejado. <a href="orcamento.html" style="color:var(--gold);text-decoration:none;">Ver planejamento</a>';
+        }
+        if (acaoHtml) { acaoEl.innerHTML = acaoHtml; acaoEl.style.display = ''; }
+      }
+
+      const { receita, despesa, sobra, mes, ano } = data.orcamento;
+      document.getElementById('receita').textContent = brl(receita);
+      document.getElementById('despesa').textContent = brl(despesa);
+      document.getElementById('despesa').classList.add('negative');
+
+      const sobraEl = document.getElementById('sobra');
+      sobraEl.textContent = brl(sobra);
+      sobraEl.classList.add(sobra >= 0 ? 'positive' : 'negative');
+
+      const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
+      document.getElementById('receitaSub').textContent = `${NOMES_MESES[mes - 1]} de ${ano}`;
+      document.getElementById('despesaSub').textContent = `${pct((despesa/receita)*100)} da receita`;
+      document.getElementById('sobraSub').textContent = `${pct(sobraPct)} da receita`;
+
+      const { ativos, dividas, pl } = data.patrimonio;
+      document.getElementById('ativos').textContent = brl(ativos);
+      document.getElementById('dividas').textContent = brl(dividas);
+      document.getElementById('pl').textContent = brl(pl);
+
+      const hoje = new Date();
+      const reservasFormatadas = (data.reservas || []).map(r => {
+        let mesesRestantes = null;
+        let dataMeta = r.dataMeta;
+        if (r.dataMeta) {
+          const [dAno, dMes] = r.dataMeta.split('-').map(Number);
+          const alvo = new Date(dAno, dMes - 1, 1);
+          mesesRestantes = Math.max(0, Math.round((alvo - hoje) / (1000 * 60 * 60 * 24 * 30)));
+          dataMeta = `${NOMES_MESES[dMes - 1]} de ${dAno}`;
+        }
+        return { ...r, mesesRestantes, dataMeta };
+      });
+      renderReservas(reservasFormatadas);
+
+      checkOnboarding(data);
+      renderNotificacoes(data);
+
+      if (data.assinaturaClube) {
+        localStorage.setItem('clubeAccess', '1');
+        document.querySelectorAll('.link-clube').forEach(el => el.style.display = '');
+      } else {
+        localStorage.removeItem('clubeAccess');
+      }
     }
 
     // ─── Onboarding ──────────────────────────────
