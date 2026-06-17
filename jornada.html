@@ -323,6 +323,19 @@
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
+    // Propaga viewAs para links de volta ao dashboard de forma síncrona —
+    // antes da auth resolver, para não depender de timing
+    {
+      const _vaSync = new URLSearchParams(window.location.search).get('viewAs')
+                   || localStorage.getItem('viewAsUid');
+      if (_vaSync) {
+        document.querySelectorAll('a[href^="index.html"]').forEach(a => {
+          const h = a.getAttribute('href');
+          if (!h.includes('viewAs=')) a.setAttribute('href', h + (h.includes('?') ? '&' : '?') + `viewAs=${_vaSync}`);
+        });
+      }
+    }
+
     onAuthStateChanged(auth, async (user) => {
       if (!user) { window.location.href = 'login.html'; return; }
       window.Sentry?.onLoad?.(function(){ Sentry.setUser({ id: user.uid, email: user.email }); });
