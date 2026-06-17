@@ -760,6 +760,11 @@ export async function anunciarJornadaDashboard() {
   return call('anunciarJornadaDashboard')({});
 }
 
+/** Envia link de redefinição de senha via Gmail (substitui sendPasswordResetEmail do Firebase). */
+export async function solicitarRedefinicaoSenha(email) {
+  return call('solicitarRedefinicaoSenha')({ email });
+}
+
 /** Edita o vencimento de uma cobrança pendente. Admin only. */
 export async function editarVencimento(cobrancaId, novoVencimento) {
   return call('editarVencimento')({ cobrancaId, novoVencimento });

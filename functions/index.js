@@ -1896,6 +1896,37 @@ exports.reenviarAcesso = onCall({ secrets: ['GMAIL_APP_PASSWORD'] }, async (requ
 });
 
 /**
+ * Solicita redefinição de senha via Gmail — substitui o sendPasswordResetEmail
+ * do Firebase (que usa noreply@firebaseapp.com e cai em spam).
+ * Não requer autenticação. Sempre retorna ok=true (não revela se e-mail existe).
+ */
+exports.solicitarRedefinicaoSenha = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  const { email } = request.data;
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    throw new HttpsError('invalid-argument', 'E-mail inválido.');
+  }
+  const emailNorm = email.trim().toLowerCase();
+  try {
+    const userRecord = await admin.auth().getUserByEmail(emailNorm);
+    const link = await admin.auth().generatePasswordResetLink(userRecord.email, {
+      url: 'https://dashboard.flaviaschusciman.com/login.html',
+    });
+    const snap = await db.collection('mentoradas').doc(userRecord.uid).get();
+    const nome = snap.exists ? (snap.data().nome || userRecord.displayName || 'mentorada') : (userRecord.displayName || 'mentorada');
+    await sendEmail({
+      to: userRecord.email,
+      subject: 'Seu link de acesso — Trilogia Dashboard',
+      html: emailReenvioAcesso(nome, link),
+    });
+    console.log(`[solicitarRedefinicaoSenha] e-mail enviado para ${emailNorm}`);
+  } catch (err) {
+    // Silencia auth/user-not-found e outros erros — não revela se o e-mail existe
+    console.warn(`[solicitarRedefinicaoSenha] ${emailNorm}: ${err.message}`);
+  }
+  return { ok: true };
+});
+
+/**
  * Registra acesso da aluna: atualiza ultimoAcesso e incrementa contadores.
  * Chamado pelo client no load do dashboard.
  */
