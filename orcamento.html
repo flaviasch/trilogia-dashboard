@@ -741,6 +741,7 @@
         border-radius: 20px 20px 0 0; padding: 24px 20px 32px;
         max-height: 88vh; max-height: 88dvh; overflow-y: auto; max-width: 100%;
         overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
       }
 
       /* Gráfico um pouco menor para caber na tela */
@@ -1917,12 +1918,12 @@
         <input type="date" id="mData" required />
       </div>
       <div class="field-group">
-        <label for="mDescricao">Descrição (opcional)</label>
-        <input type="text" id="mDescricao" placeholder="ex: Supermercado, Aluguel, iFood…" />
-      </div>
-      <div class="field-group">
         <label for="mValor">Valor (R$)</label>
         <input type="text" inputmode="numeric" id="mValor" placeholder="0" />
+      </div>
+      <div class="field-group">
+        <label for="mDescricao">Descrição (opcional)</label>
+        <input type="text" id="mDescricao" placeholder="ex: Supermercado, Aluguel, iFood…" />
       </div>
 
       <!-- Cartão de crédito: oculto por padrão, reapare só ao editar item de cartão -->
@@ -2230,6 +2231,23 @@
     let editandoIdx = null;  // { tipo: 'receita'|'despesa', idx: number } ou null
     let _catLocked  = null;  // categoria pré-definida (ao clicar em "+ Adicionar em X")
 
+    // Body scroll lock — evita que o iOS trave o scroll interno do modal
+    let _bodyScrollY = 0;
+    function _lockBody() {
+      _bodyScrollY = window.scrollY;
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${_bodyScrollY}px`;
+      document.body.style.width = '100%';
+    }
+    function _unlockBody() {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, _bodyScrollY);
+    }
+
     function atualizarCategoriasSugeridas() {
       const dl = document.getElementById('categoriasSugeridas');
       if (!dl || !currentData) return;
@@ -2311,11 +2329,12 @@
       // Mostrar/ocultar opção de cartão conforme tipo (mobile)
       atualizarModalParaTipo(tipo);
 
+      _lockBody();
       modal.classList.remove('hidden');
       // Foco no campo mais relevante
       setTimeout(() => {
         (_catLocked
-          ? document.getElementById('mDescricao')
+          ? document.getElementById('mValor')
           : document.getElementById('mCategoria')
         ).focus();
       }, 80);
@@ -2343,6 +2362,7 @@
 
     function fecharModal() {
       modal.classList.add('hidden');
+      _unlockBody();
       editandoIdx = null;
       _catLocked  = null;
     }
