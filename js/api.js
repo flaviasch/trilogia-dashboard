@@ -755,6 +755,11 @@ export async function anunciarNovidadesJun2026v3() {
   return call('anunciarNovidadesJun2026v3')({});
 }
 
+/** Comunica nova aba Minha Jornada para mentoradas em processo. Admin only. */
+export async function anunciarJornadaDashboard() {
+  return call('anunciarJornadaDashboard')({});
+}
+
 /** Edita o vencimento de uma cobrança pendente. Admin only. */
 export async function editarVencimento(cobrancaId, novoVencimento) {
   return call('editarVencimento')({ cobrancaId, novoVencimento });

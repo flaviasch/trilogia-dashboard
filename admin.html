@@ -616,6 +616,12 @@
 
       <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:28px;max-height:60vh;overflow-y:auto;padding-right:4px;">
         <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🗺️ Minha Jornada no Dashboard — Jun/2026</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Comunica que mentoradas em processo podem acompanhar a jornada na nova aba.</div>
+          <button id="btnDispararJornada" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusJornada" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+        </div>
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">✨ Texto livre + CSV por mês — Jun/2026 (v3)</div>
           <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Registrar gasto por texto e importação de CSV com detecção automática de mês.</div>
           <button id="btnDispararNovidadesJun2026v3" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
@@ -1728,7 +1734,7 @@
              criarPlanilha, getNotionCRM, getMinhaJornada,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico, bootstrapNotionPageIds, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, comunicadoTecnico, migrarOrcamento, getAnalytics,
+             syncDiagnostico, bootstrapNotionPageIds, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, anunciarJornadaDashboard, comunicadoTecnico, migrarOrcamento, getAnalytics,
              getAdmins, addAdmin, removeAdmin, getBackupStatus,
              enviarPushManual, saveMissaoMes, getComunicadosStatus,
              editarVencimento } from './js/api.js?v=16';
@@ -1768,6 +1774,14 @@
           el.textContent = `✅ Enviado em ${fmt(status.novidades.enviadoEm)} · ${status.novidades.enviados} destinatários`;
           el.style.color = '#4ade80';
           const btn = document.getElementById('btnDispararNovidades');
+          btn.textContent = 'Reenviar →';
+          btn.style.background = 'rgba(207,174,101,0.15)';
+        }
+        if (status.jornadaDashboard?.enviadoEm) {
+          const el = document.getElementById('statusJornada');
+          el.textContent = `✅ Enviado em ${fmt(status.jornadaDashboard.enviadoEm)} · ${status.jornadaDashboard.enviados} destinatários`;
+          el.style.color = '#4ade80';
+          const btn = document.getElementById('btnDispararJornada');
           btn.textContent = 'Reenviar →';
           btn.style.background = 'rgba(207,174,101,0.15)';
         }
@@ -1832,6 +1846,27 @@
       status.textContent = '';
       try {
         const res = await anunciarNovidades();
+        btn.textContent = '✓ Enviado!';
+        btn.style.background = '#4ade80';
+        status.textContent = `${res.enviados} e-mails enviados${res.erros > 0 ? `, ${res.erros} erros` : ''}`;
+        status.style.color = res.erros > 0 ? '#f87171' : '#4ade80';
+      } catch (err) {
+        btn.textContent = 'Disparar agora →';
+        btn.disabled = false;
+        status.textContent = 'Erro: ' + (err.message || 'tente novamente');
+        status.style.color = '#f87171';
+      }
+    });
+
+    document.getElementById('btnDispararJornada')?.addEventListener('click', async () => {
+      if (!confirm('Disparar comunicado "Minha Jornada" para TODAS as mentoradas ativas?')) return;
+      const btn    = document.getElementById('btnDispararJornada');
+      const status = document.getElementById('statusJornada');
+      btn.disabled = true;
+      btn.textContent = '⏳ Enviando...';
+      status.textContent = '';
+      try {
+        const res = await anunciarJornadaDashboard();
         btn.textContent = '✓ Enviado!';
         btn.style.background = '#4ade80';
         status.textContent = `${res.enviados} e-mails enviados${res.erros > 0 ? `, ${res.erros} erros` : ''}`;

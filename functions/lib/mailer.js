@@ -693,6 +693,40 @@ function emailUpgradeDashboard(nome) {
   `);
 }
 
+// ─── Minha Jornada no Dashboard ──────────────────────────────────────────────
+
+function emailJornadaDashboard(nome) {
+  const featureItem = (emoji, titulo, desc) =>
+    `<tr><td style="padding:12px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:32px;vertical-align:top;padding-top:2px;font-size:20px;">${emoji}</td>
+        <td style="padding-left:12px;">
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Nova aba no seu Dashboard: Minha Jornada</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      A partir de agora, quem está em processo de mentoria pode acompanhar a jornada diretamente pelo Dashboard,
+      na nova aba <strong style="color:#0D2B45;">Minha Jornada</strong>.
+    </p>
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
+      ${featureItem('📍','Onde você está na mentoria','Visualize em qual etapa do processo você está, quantos encontros já aconteceram e o que vem pela frente.')}
+      ${featureItem('✅','Lições de casa do último encontro','As tarefas combinadas no seu encontro mais recente aparecem direto no dashboard, para você não perder nenhum compromisso assumido.')}
+      ${featureItem('📅','Histórico de encontros','Todos os encontros realizados ficam registrados com tema, data e anotações — uma linha do tempo da sua jornada financeira.')}
+      ${featureItem('🎯','Missão do mês','O foco definido para o mês fica destacado no topo da aba, para orientar suas ações no período.')}
+    </table>
+    <a href="https://dashboard.flaviaschusciman.com/jornada.html" style="${S.btn}">
+      Ver Minha Jornada →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 module.exports = {
   sendEmail,
   emailRenovacaoPerfil,
@@ -703,6 +737,7 @@ module.exports = {
   emailNovidades,
   emailNovidadesJun2026,
   emailNovidadesJun2026v3,
+  emailJornadaDashboard,
   emailComunicadoTecnico,
   emailIR,
   emailReenvioAcesso,

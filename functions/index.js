@@ -48,6 +48,7 @@ const {
   emailNovidades,
   emailNovidadesJun2026,
   emailNovidadesJun2026v3,
+  emailJornadaDashboard,
   emailIR,
   emailReenvioAcesso,
   emailBoasVindas,
@@ -3434,6 +3435,31 @@ exports.anunciarNovidadesJun2026 = onCall({ secrets: SECRETS_EMAIL }, async (req
   }
   await db.collection('config').doc('comunicados').set(
     { novidadesJun2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+exports.anunciarJornadaDashboard = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Nova aba no seu Dashboard: Minha Jornada',
+        html:    emailJornadaDashboard(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarJornadaDashboard] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { jornadaDashboard: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };
