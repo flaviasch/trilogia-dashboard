@@ -737,6 +737,7 @@
     });
 
     document.getElementById('btnLogout').addEventListener('click', async () => {
+      localStorage.removeItem('viewAsUid');
       await signOut(auth);
       window.location.href = 'login.html';
     });

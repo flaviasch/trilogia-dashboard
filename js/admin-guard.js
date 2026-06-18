@@ -74,6 +74,7 @@ export async function exigirAdmin() {
  * Faz logout e redireciona para login.html.
  */
 export async function logout() {
+  localStorage.removeItem('viewAsUid');
   await signOut(auth);
   window.location.href = 'login.html';
 }

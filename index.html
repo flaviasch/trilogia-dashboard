@@ -883,6 +883,7 @@
 
     // ─── Logout ───────────────────────────────────
     document.getElementById('btnLogout').addEventListener('click', async () => {
+      localStorage.removeItem('viewAsUid');
       await signOut(auth);
       window.location.href = 'login.html';
     });
@@ -1087,9 +1088,15 @@
         try {
           const raw = localStorage.getItem(_ck);
           if (raw) {
-            document.getElementById('loadingOverlay').style.display = 'none';
-            _applyDashboard(JSON.parse(raw), user, viewAsUid);
-            _hadCache = true;
+            const parsed = JSON.parse(raw);
+            const cached = parsed._exp && parsed._exp > Date.now() ? parsed._d : null;
+            if (cached) {
+              document.getElementById('loadingOverlay').style.display = 'none';
+              _applyDashboard(cached, user, viewAsUid);
+              _hadCache = true;
+            } else {
+              localStorage.removeItem(_ck); // expirado — limpa
+            }
           }
         } catch (_) {}
       }
@@ -1117,8 +1124,8 @@
         return false;
       }
 
-      // Persiste dados frescos no cache local
-      if (_ck) { try { localStorage.setItem(_ck, JSON.stringify(data)); } catch (_) {} }
+      // Persiste dados frescos no cache local (TTL 1h)
+      if (_ck) { try { localStorage.setItem(_ck, JSON.stringify({ _d: data, _exp: Date.now() + 3_600_000 })); } catch (_) {} }
 
       // Renderiza com dados frescos (esconde spinner se ainda estava visível)
       document.getElementById('loadingOverlay').style.display = 'none';
@@ -1172,9 +1179,13 @@
         // Persiste orcamento real da Fase 2 no cache para o próximo carregamento
         if (_ck) {
           try {
-            const saved = JSON.parse(localStorage.getItem(_ck) || '{}');
-            saved.orcamento = { receita, despesa, sobra, aporte, mes, ano };
-            localStorage.setItem(_ck, JSON.stringify(saved));
+            const raw2 = localStorage.getItem(_ck);
+            if (raw2) {
+              const parsed2 = JSON.parse(raw2);
+              const saved = parsed2._d || {};
+              saved.orcamento = { receita, despesa, sobra, aporte, mes, ano };
+              localStorage.setItem(_ck, JSON.stringify({ _d: saved, _exp: parsed2._exp || Date.now() + 3_600_000 }));
+            }
           } catch (_) {}
         }
       }).catch(e => console.warn('[home] Fase 2 falhou (dados cacheados mantidos):', e.message));
