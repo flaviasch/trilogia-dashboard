@@ -65,6 +65,23 @@ const {
 admin.initializeApp();
 const db = admin.firestore();
 
+// ─── Helpers internos ─────────────────────────────────────────────────────────
+function maskEmail(e) {
+  if (!e) return '';
+  const s = String(e);
+  const i = s.indexOf('@');
+  if (i < 2) return '***@***';
+  return s.slice(0, 2) + '***' + s.slice(i);
+}
+
+async function deleteSubcolecao(uid, nomeColecao) {
+  const snap = await db.collection('mentoradas').doc(uid).collection(nomeColecao).get();
+  if (snap.empty) return;
+  const batch = db.batch();
+  snap.docs.forEach(d => batch.delete(d.ref));
+  await batch.commit();
+}
+
 // Arrays de defineSecret para cada grupo de funções.
 const SECRETS_EMAIL  = [sGmail];
 const SECRETS_SHEETS = [sSA, sFolderId];
@@ -1826,6 +1843,13 @@ exports.deletarMentorada = onCall({}, async (request) => {
     console.warn(`[deletarMentorada] Falha ao remover contratos de ${uid}:`, err.message);
   }
 
+  // Apaga subcoleções de dados financeiros (LGPD — Firestore não deleta subcoleções automaticamente)
+  for (const sub of ['orcamento', 'reservas', 'perfil', 'historico', 'planejamento', 'scores']) {
+    try { await deleteSubcolecao(uid, sub); } catch (err) {
+      console.warn(`[deletarMentorada] Falha ao remover ${sub} de ${uid}:`, err.message);
+    }
+  }
+
   // Audit log LGPD: registra deleção para rastreabilidade e para agendar limpeza da planilha
   // Planilha é mantida 12 meses para possibilitar reativação, depois apagada por limparDadosExpirados
   try {
@@ -1918,7 +1942,7 @@ exports.solicitarRedefinicaoSenha = onCall({ secrets: SECRETS_EMAIL }, async (re
       subject: 'Seu link de acesso — Trilogia Dashboard',
       html: emailReenvioAcesso(nome, link),
     });
-    console.log(`[solicitarRedefinicaoSenha] e-mail enviado para ${emailNorm}`);
+    console.log(`[solicitarRedefinicaoSenha] e-mail enviado para ${maskEmail(emailNorm)}`);
   } catch (err) {
     // Silencia auth/user-not-found e outros erros — não revela se o e-mail existe
     console.warn(`[solicitarRedefinicaoSenha] ${emailNorm}: ${err.message}`);
@@ -2721,7 +2745,7 @@ async function acionarEsteiraPosVenda({ email, nome, telefone, produto, produtoE
       enviado:   false,
       criadoEm:  admin.firestore.FieldValue.serverTimestamp(),
     });
-    console.log(`[posVenda] WhatsApp agendado para ${email} em D+${dias} (${dataEnvioStr})`);
+    console.log(`[posVenda] WhatsApp agendado para ${maskEmail(email)} em D+${dias} (${dataEnvioStr})`);
   }
 
   await batch.commit().catch(err =>
@@ -2811,7 +2835,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         return;
       }
 
-      console.log(`[kiwify] Cancelamento/atraso: ${emailCancelado} | produto: ${nomeProdutoCancelado} | ehDashboard: ${ehDashboard}`);
+      console.log(`[kiwify] Cancelamento/atraso: ${maskEmail(emailCancelado)} | produto: ${nomeProdutoCancelado} | ehDashboard: ${ehDashboard}`);
 
       const mSnap = await db.collection('mentoradas').where('email', '==', emailCancelado).limit(1).get();
       if (mSnap.empty) {
@@ -2845,7 +2869,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
 
         await mRef.update(flagsRevogados);
         const acao = mantemAcesso ? 'mentoria_encerrada_dashboard_ativo' : 'bloqueada';
-        console.log(`[kiwify] ${mantemAcesso ? '🟡' : '🔴'} ${acao} — ${nomeProdutoCancelado || 'produto'} cancelado: ${emailCancelado}`);
+        console.log(`[kiwify] ${mantemAcesso ? '🟡' : '🔴'} ${acao} — ${nomeProdutoCancelado || 'produto'} cancelado: ${maskEmail(emailCancelado)}`);
         res.status(200).json({ ok: true, acao, flags: flagsRevogados, uid: mUid });
       } else {
         // Atraso: marca alerta (não bloqueia ainda) + registra quando começou
@@ -2960,7 +2984,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
 
     const dataPagamento = new Date().toISOString().slice(0, 10);
 
-    console.log(`[kiwify] Evento: ${event} | E-mail: ${email} | Produto: ${nomeProduto} (${produtoCodigo}) | Valor: R$${valorRecebido}`);
+    console.log(`[kiwify] Evento: ${event} | E-mail: ${maskEmail(email)} | Produto: ${nomeProduto} (${produtoCodigo}) | Valor: R$${valorRecebido}`);
 
     // Busca mentorada pelo e-mail
     const mentSnap = await db.collection('mentoradas')
@@ -2979,7 +3003,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         return;
       }
 
-      console.log(`[kiwify] 🆕 Auto-criando mentorada: "${nomeCliente}" (${email})`);
+      console.log(`[kiwify] 🆕 Auto-criando mentorada: (${maskEmail(email)})`);
 
       // 1. Firebase Auth
       const senha = Math.random().toString(36).slice(-8) + 'Aa1!';
@@ -3062,10 +3086,10 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         });
         await sendEmail({ to: email, subject: 'Bem-vinda ao Trilogia Dashboard', html: emailBoasVindas(nomeCliente, link) });
       } catch (err) {
-        console.error(`[kiwify] Falha no e-mail de boas-vindas para ${email}:`, err.message);
+        console.error(`[kiwify] Falha no e-mail de boas-vindas para ${maskEmail(email)}:`, err.message);
       }
 
-      console.log(`[kiwify] ✅ Mentorada criada via compra Kiwify: ${nomeCliente} (uid: ${novoUid})`);
+      console.log(`[kiwify] ✅ Mentorada criada via compra Kiwify (uid: ${novoUid})`);
 
       // Esteira pós-venda para produtos de entrada (ebook / curso)
       const telefoneNovo = (
@@ -3142,7 +3166,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       const authUser = await admin.auth().getUser(uidMentorada).catch(() => null);
       if (authUser && authUser.disabled) {
         await admin.auth().updateUser(uidMentorada, { disabled: false });
-        console.log(`[kiwify] ✅ Acesso reativado (${produtoCodigo}): ${email}`);
+        console.log(`[kiwify] ✅ Acesso reativado (${produtoCodigo}): ${maskEmail(email)}`);
       }
     }
 
@@ -3176,7 +3200,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       }
     }
 
-    console.log(`[kiwify] ✅ Pagamento registrado: ${email} | cobrança ${alvo.id} | R$${valorRecebido || alvo.valor}`);
+    console.log(`[kiwify] ✅ Pagamento registrado: ${maskEmail(email)} | cobrança ${alvo.id} | R$${valorRecebido || alvo.valor}`);
 
     // Esteira pós-venda para produtos de entrada (ebook / curso) — mentorada existente
     const telefoneMent = (() => {
@@ -3697,7 +3721,7 @@ exports.notifRetencao = onSchedule(
 
       if (tarefas.length) {
         await Promise.allSettled(tarefas);
-        console.log(`[retencao] ${tarefas.length} e-mail(s) enviados para ${email} (dia ${diasEmAlerta} de alerta)`);
+        console.log(`[retencao] ${tarefas.length} e-mail(s) enviados para ${maskEmail(email)} (dia ${diasEmAlerta} de alerta)`);
       }
     }
   }));
@@ -3994,9 +4018,9 @@ exports.processaWhatsAppAgendado = onSchedule(
           enviado:   true,
           enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
         });
-        console.log(`[whatsappAgendado] ✅ ${email} (${produto}) — mensagem enviada.`);
+        console.log(`[whatsappAgendado] ✅ ${maskEmail(email)} (${produto}) — mensagem enviada.`);
       } catch (err) {
-        console.error(`[whatsappAgendado] Falha ao enviar para ${email} (${telefone}):`, err.message);
+        console.error(`[whatsappAgendado] Falha ao enviar para ${maskEmail(email)}:`, err.message);
         await doc.ref.update({
           erroEnvio:    err.message,
           tentativas:   admin.firestore.FieldValue.increment(1),
