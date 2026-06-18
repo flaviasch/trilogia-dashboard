@@ -242,4 +242,14 @@ function getSaEmail() {
   return null;
 }
 
-module.exports = { provisionar };
+/**
+ * Move a planilha para a lixeira do Google Drive (LGPD — direito de apagamento).
+ * Usa as mesmas credenciais OAuth da Flávia usadas na criação.
+ */
+async function deletePlanilha(fileId) {
+  const auth  = buildAuth();
+  const drive = google.drive({ version: 'v3', auth });
+  await drive.files.delete({ fileId });
+}
+
+module.exports = { provisionar, deletePlanilha };

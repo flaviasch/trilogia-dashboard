@@ -35,7 +35,7 @@ const sZapiClient = defineSecret('ZAPI_CLIENT_TOKEN');
 
 const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId } = require('./lib/auth');
 const { SheetsClient }    = require('./lib/sheets');
-const { provisionar }     = require('./lib/provisionar');
+const { provisionar, deletePlanilha } = require('./lib/provisionar');
 const { MailerLiteClient } = require('./lib/mailerlite');
 const { ZApiClient }       = require('./lib/zapi');
 const {
@@ -1809,7 +1809,7 @@ exports.reativarMentorada = onCall({}, async (request) => {
  * automaticamente (pode ser feita manualmente se necessário).
  * Exclusivo para admin.
  */
-exports.deletarMentorada = onCall({}, async (request) => {
+exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, sNotion] }, async (request) => {
   requireAdmin(request);
 
   const { uid } = request.data;
@@ -1860,8 +1860,39 @@ exports.deletarMentorada = onCall({}, async (request) => {
     }
   }
 
-  // Audit log LGPD: registra deleção para rastreabilidade e para agendar limpeza da planilha
-  // Planilha é mantida 12 meses para possibilitar reativação, depois apagada por limparDadosExpirados
+  // Apaga planilha do Google Drive (LGPD — direito de apagamento)
+  let planilhaApagada = false;
+  if (docData.sheetId) {
+    try {
+      await deletePlanilha(docData.sheetId);
+      planilhaApagada = true;
+    } catch (err) {
+      console.warn(`[deletarMentorada] Falha ao apagar planilha ${docData.sheetId}:`, err.message);
+    }
+  }
+
+  // Arquiva página no Notion (LGPD — dados de mentoria: temas, lições, notas comportamentais)
+  if (docData.notionPageId) {
+    try {
+      const notionToken = process.env.NOTION_TOKEN;
+      if (notionToken) {
+        const resp = await fetch(`https://api.notion.com/v1/pages/${docData.notionPageId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${notionToken}`,
+            'Content-Type': 'application/json',
+            'Notion-Version': '2022-06-28',
+          },
+          body: JSON.stringify({ archived: true }),
+        });
+        if (!resp.ok) console.warn(`[deletarMentorada] Falha ao arquivar Notion ${docData.notionPageId}:`, resp.status);
+      }
+    } catch (err) {
+      console.warn(`[deletarMentorada] Erro ao arquivar Notion:`, err.message);
+    }
+  }
+
+  // Audit log LGPD
   try {
     await db.collection('mentoradas_deletadas').doc(uid).set({
       nome:            docData.nome            || null,
@@ -1869,7 +1900,8 @@ exports.deletarMentorada = onCall({}, async (request) => {
       produto:         docData.produto         || null,
       inicio:          docData.inicio          || null,
       sheetId:         docData.sheetId         || null,
-      planilhaApagada: false,
+      notionPageId:    docData.notionPageId    || null,
+      planilhaApagada,
       deletadoEm:      admin.firestore.FieldValue.serverTimestamp(),
       deletadoPor:     request.auth?.uid       || 'admin',
     });

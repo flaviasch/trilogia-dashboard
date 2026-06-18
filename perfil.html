@@ -455,6 +455,8 @@
     });
 
     document.getElementById('btnLogout').addEventListener('click', async () => {
+      const uid = auth.currentUser?.uid;
+      if (uid) localStorage.removeItem(`dash_v1_${uid}`);
       localStorage.removeItem('viewAsUid');
       await signOut(auth); window.location.href = 'login.html';
     });
