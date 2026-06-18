@@ -991,6 +991,11 @@ exports.saveCategoriasMes = onCall(async (request) => {
   requireSelfOrAdmin(request, uid);
 
   if (!Array.isArray(categorias)) throw new HttpsError('invalid-argument', 'categorias deve ser um array.');
+  if (categorias.length > 100) throw new HttpsError('invalid-argument', 'Máximo de 100 categorias por mês.');
+  for (const c of categorias) {
+    if (typeof c.nome !== 'string' || c.nome.length > 200) throw new HttpsError('invalid-argument', 'Nome de categoria inválido.');
+    if (c.limite != null && (typeof c.limite !== 'number' || c.limite < 0)) throw new HttpsError('invalid-argument', 'Limite inválido.');
+  }
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
   await db.collection('mentoradas').doc(uid)
     .collection('planejamento').doc(mesKey).set({
@@ -1016,6 +1021,11 @@ exports.saveCategorias = onCall(async (request) => {
   const { uid, categorias } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!Array.isArray(categorias)) throw new HttpsError('invalid-argument', 'categorias deve ser um array.');
+  if (categorias.length > 100) throw new HttpsError('invalid-argument', 'Máximo de 100 categorias.');
+  for (const c of categorias) {
+    if (typeof c.nome !== 'string' || c.nome.length > 200) throw new HttpsError('invalid-argument', 'Nome de categoria inválido.');
+    if (c.limite != null && (typeof c.limite !== 'number' || c.limite < 0)) throw new HttpsError('invalid-argument', 'Limite inválido.');
+  }
   await db.collection('mentoradas').doc(uid)
     .collection('config').doc('categorias').set({ categorias });
   return { ok: true };
@@ -2073,6 +2083,7 @@ exports.getScoreHistorico = onCall({}, async (request) => {
   requireAuth(request);
   const { viewAsUid } = request.data || {};
   const targetUid = viewAsUid || request.auth.uid;
+  requireSelfOrAdmin(request, targetUid);
 
   const snap = await db.collection('mentoradas').doc(targetUid)
     .collection('scores')
@@ -2792,9 +2803,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       ? Buffer.from(assinaturaRecebida.replace(/^sha256=/, ''), 'hex')
       : Buffer.alloc(32),
   );
-  const tokenValido = assinaturaRecebida === kiwifySecret;
-
-  if (!hmacValido && !tokenValido) {
+  if (!hmacValido) {
     console.warn(`[kiwify] Requisição rejeitada — assinatura inválida.`);
     errors.report(new Error(`[kiwify] Tentativa com assinatura inválida`));
     res.status(401).json({ error: 'Unauthorized' }); return;
@@ -2998,8 +3007,16 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       ).trim();
 
       if (!nomeCliente) {
-        console.warn(`[kiwify] Auto-criação impossível — nome ausente para: ${email}`);
-        res.status(200).json({ ok: false, msg: `Mentorada não encontrada e nome ausente no payload: ${email}` });
+        console.warn(`[kiwify] Auto-criação impossível — nome ausente para: ${maskEmail(email)}`);
+        res.status(200).json({ ok: false, msg: 'Mentorada não encontrada e nome ausente no payload.' });
+        return;
+      }
+
+      // Protege conta admin de ser recriada via webhook
+      if (email.toLowerCase() === ADMIN_MASTER_EMAIL.toLowerCase()) {
+        console.error(`[kiwify] Tentativa de auto-criação bloqueada para e-mail admin.`);
+        errors.report(new Error('[kiwify] Tentativa de auto-criação com e-mail admin'));
+        res.status(200).json({ ok: false, msg: 'Operação não permitida.' });
         return;
       }
 

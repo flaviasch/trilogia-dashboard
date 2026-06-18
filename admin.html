@@ -1741,6 +1741,12 @@
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
+    // Escaping de HTML para prevenir XSS em dados controlados pelo usuário
+    function esc(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function escUrl(u) { return u && /^https?:/.test(u) ? esc(u) : '#'; }
+
     // ─── Auth guard via Custom Claim ─────────────
     const user = await exigirAdmin();
     if (!user) {
@@ -2252,8 +2258,8 @@
         return `
         <tr data-id="${rowId}">
           <td class="td-nome">
-            <strong>${m.nome}</strong>${badgesAlerta}${badgeAcesso}${badgeLicoes}
-            <span>${m.email} · desde ${formatMesAno(m.inicio)}</span>
+            <strong>${esc(m.nome)}</strong>${badgesAlerta}${badgeAcesso}${badgeLicoes}
+            <span>${esc(m.email)} · desde ${formatMesAno(m.inicio)}</span>
           </td>
           <td>
             <span class="status-badge ${statusClass[m.status] || 'status-inativa'}">
@@ -2587,7 +2593,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
           <div class="notion-encontro-header">
             <span class="notion-encontro-num">Encontro ${enc.numero}</span>
           </div>
-          <div class="notion-encontro-tema">${enc.tema}</div>
+          <div class="notion-encontro-tema">${esc(enc.tema)}</div>
           <div class="notion-encontro-data">📅 ${enc.data}</div>
         ` : '<div style="color:var(--text-muted);font-size:13px">Nenhum encontro registrado ainda.</div>';
 
@@ -2596,14 +2602,14 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
           ${licoes.map(l => `
             <div class="notion-licao-item">
               <div class="notion-licao-checkbox"></div>
-              <span>${l}</span>
+              <span>${esc(l)}</span>
             </div>`).join('')}
         ` : enc ? `
           <div class="notion-licoes-titulo" style="color:var(--positive)">✅ Todas as lições concluídas</div>
         ` : '';
 
         const linkHTML = crm.notionPageUrl ? `
-          <a href="${crm.notionPageUrl}" target="_blank" class="notion-page-link">
+          <a href="${escUrl(crm.notionPageUrl)}" target="_blank" class="notion-page-link">
             Abrir página no Notion ↗
           </a>` : '';
 
@@ -2648,28 +2654,28 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
                 // Links mapa/gravação
                 const linksH = (enc.mapaUrl || enc.gravacaoUrl) ? `
                   <div class="adm-enc-links">
-                    ${enc.mapaUrl    ? `<a href="${enc.mapaUrl}"    target="_blank" rel="noopener" class="adm-enc-link">${icoMap} Mapa</a>` : ''}
-                    ${enc.gravacaoUrl ? `<a href="${enc.gravacaoUrl}" target="_blank" rel="noopener" class="adm-enc-link">${icoVid} Gravação</a>` : ''}
+                    ${enc.mapaUrl    ? `<a href="${escUrl(enc.mapaUrl)}"    target="_blank" rel="noopener" class="adm-enc-link">${icoMap} Mapa</a>` : ''}
+                    ${enc.gravacaoUrl ? `<a href="${escUrl(enc.gravacaoUrl)}" target="_blank" rel="noopener" class="adm-enc-link">${icoVid} Gravação</a>` : ''}
                   </div>` : '';
 
                 // Alinhamentos
                 const alinH = enc.alinhamentos?.length ? `
                   <div class="adm-licoes-sec-titulo">Alinhamentos</div>
                   ${enc.alinhamentos.map(a => `
-                    <div class="adm-alin-item"><div class="adm-alin-dot"></div><span>${a}</span></div>`).join('')}` : '';
+                    <div class="adm-alin-item"><div class="adm-alin-dot"></div><span>${esc(a)}</span></div>`).join('')}` : '';
 
                 // Lições
                 const pendH  = nPend  > 0 ? `
                   <div class="adm-licoes-sec-titulo">Lição de casa — pendentes</div>
                   ${enc.licoesPendentes.map(l => `
                     <div class="adm-licao-row">
-                      <svg viewBox="0 0 24 24" stroke="#f87171" fill="none" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>${l}
+                      <svg viewBox="0 0 24 24" stroke="#f87171" fill="none" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>${esc(l)}
                     </div>`).join('')}` : '';
                 const feitaH = nFeita > 0 ? `
                   <div class="adm-licoes-sec-titulo">Lição de casa — concluídas</div>
                   ${enc.licoesFeitas.map(l => `
                     <div class="adm-licao-row feita">
-                      <svg viewBox="0 0 24 24" stroke="#4ade80" fill="none" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>${l}
+                      <svg viewBox="0 0 24 24" stroke="#4ade80" fill="none" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>${esc(l)}
                     </div>`).join('')}` : '';
 
                 // Materiais
@@ -2678,8 +2684,8 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
                   ${enc.materiais.map(m => `
                     <div class="adm-mat-item">
                       ${m.url
-                        ? `${m.arquivo ? icoFile : icoLink}<a href="${m.url}" target="_blank" rel="noopener" class="adm-mat-link">${m.texto}</a>`
-                        : `${icoFile}<span class="adm-mat-nolink">${m.texto}</span>`}
+                        ? `${m.arquivo ? icoFile : icoLink}<a href="${escUrl(m.url)}" target="_blank" rel="noopener" class="adm-mat-link">${esc(m.texto)}</a>`
+                        : `${icoFile}<span class="adm-mat-nolink">${esc(m.texto)}</span>`}
                     </div>`).join('')}` : '';
 
                 const bodyH = linksH + alinH + pendH + feitaH + matH
@@ -2691,7 +2697,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
                     <div class="adm-enc-card">
                       <div class="adm-enc-header" onclick="this.closest('.adm-enc-item').classList.toggle('aberto')">
                         <div>
-                          <div class="adm-enc-tema">${enc.tema}</div>
+                          <div class="adm-enc-tema">${esc(enc.tema)}</div>
                           <div class="adm-enc-data">${enc.data}</div>
                         </div>
                         <div class="adm-enc-badges">
