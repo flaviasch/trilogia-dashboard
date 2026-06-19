@@ -739,9 +739,10 @@
       .modal-card,
       .modal-card.wide {
         border-radius: 20px 20px 0 0; padding: 24px 20px 32px;
-        max-height: 88vh; max-height: 88dvh; overflow-y: auto; max-width: 100%;
+        max-height: 88vh; max-height: 88dvh; overflow-y: scroll; max-width: 100%;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
       }
 
       /* Gráfico um pouco menor para caber na tela */
