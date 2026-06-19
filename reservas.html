@@ -813,17 +813,17 @@
     }
 
     /** Retorna verdadeiro se o nome indica reserva de emergência */
-    function ehEmergencia(nome) {
-      return /emerg[eê]ncia/i.test(nome || '');
+    function ehSempreLiquido(nome) {
+      return /emerg[eê]ncia|quita[cç]|d[ií]vida|sa[uú]de|corre[cç][aã]/i.test(nome || '');
     }
 
     /**
      * Meses a usar para a lógica de alocação.
      * Regra: se período total (início → meta) < 12 meses, usar o bucket de 1 ano.
-     * Reserva de emergência: sempre ≤ 12 (RF Pós).
+     * Reserva de emergência / quitação / saúde / correções: sempre RF Pós liquidez diária.
      */
     function mesesParaAlocacao(r) {
-      if (ehEmergencia(r.nome)) return 0; // sempre bucket curto prazo
+      if (ehSempreLiquido(r.nome)) return 0; // sempre bucket curto prazo
       const restantes = mesesAte(r.dataMeta);
       if (r.dataInicioAporte && r.dataMeta) {
         const total = mesesEntre(r.dataInicioAporte, r.dataMeta);
