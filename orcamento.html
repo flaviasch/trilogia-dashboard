@@ -1444,17 +1444,6 @@
         <select id="cdCartao" style="width:100%;padding:9px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;"></select>
       </div>
 
-      <div class="field-group">
-        <label for="cdDescricao">Descrição</label>
-        <input type="text" id="cdDescricao" placeholder="ex: Supermercado, Netflix, Farmácia…" />
-      </div>
-
-      <div class="field-group">
-        <label for="cdCategoria">Categoria</label>
-        <input type="text" id="cdCategoria" placeholder="ex: Alimentação, Saúde…" list="cdCategoriasSugeridas" autocomplete="off" />
-        <datalist id="cdCategoriasSugeridas"></datalist>
-      </div>
-
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div class="field-group">
           <label for="cdData">Data da compra</label>
@@ -1464,6 +1453,17 @@
           <label for="cdValor">Valor (R$)</label>
           <input type="text" inputmode="numeric" id="cdValor" placeholder="0" />
         </div>
+      </div>
+
+      <div class="field-group">
+        <label for="cdDescricao">Descrição</label>
+        <input type="text" id="cdDescricao" placeholder="ex: Supermercado, Netflix, Farmácia…" />
+      </div>
+
+      <div class="field-group">
+        <label for="cdCategoria">Categoria</label>
+        <input type="text" id="cdCategoria" placeholder="ex: Alimentação, Saúde…" list="cdCategoriasSugeridas" autocomplete="off" />
+        <datalist id="cdCategoriasSugeridas"></datalist>
       </div>
 
       <!-- Fatura em destaque -->
@@ -5012,7 +5012,9 @@
       document.getElementById('cdParceladoPreview').style.display = 'none';
       // Calcula fatura para a data de hoje
       _calcFaturaCartaoModal();
+      _lockBody();
       document.getElementById('modalCartaoDespesa').classList.remove('hidden');
+      setTimeout(() => document.getElementById('cdValor')?.focus(), 80);
     }
 
     function _calcFaturaCartaoModal() {
@@ -5096,7 +5098,7 @@
             await saveOrcamento(instMes, instAno, itensMes);
             _invalPeriodo(instMes, instAno);
           }
-          document.getElementById('modalCartaoDespesa').classList.add('hidden');
+          _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden');
           registrarEvento('despesa_cartao_parcelada');
           const ultimoMesIdx = ((fatMes - 1 + nParcelas - 1) % 12);
           const ultimoAno    = fatAno + Math.floor((fatMes - 1 + nParcelas - 1) / 12);
@@ -5107,7 +5109,7 @@
           itensFatura.push({ categoria, descricao, tipo: 'despesa', valor, data, cartao: true, cartaoId, fatura, origem: 'manual' });
           await saveOrcamento(fatMes, fatAno, itensFatura);
           _invalPeriodo(fatMes, fatAno);
-          document.getElementById('modalCartaoDespesa').classList.add('hidden');
+          _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden');
           registrarEvento('despesa_cartao_lancada');
           mostrarToast(`💳 Salvo na fatura de ${MESES[fatMes-1]} ✓`, 'success');
         }
@@ -5124,10 +5126,12 @@
     }
 
     // Event listeners do modal cartão despesa
-    document.getElementById('btnFecharCartaoDespesa')?.addEventListener('click', () =>
-      document.getElementById('modalCartaoDespesa').classList.add('hidden'));
+    document.getElementById('btnFecharCartaoDespesa')?.addEventListener('click', () => {
+      _unlockBody();
+      document.getElementById('modalCartaoDespesa').classList.add('hidden');
+    });
     document.getElementById('modalCartaoDespesa')?.addEventListener('click', e => {
-      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+      if (e.target === e.currentTarget) { _unlockBody(); e.currentTarget.classList.add('hidden'); }
     });
     document.getElementById('btnLancarNoCartao')?.addEventListener('click', () => abrirModalCartaoDespesa());
     document.getElementById('btnSalvarCartaoDespesa')?.addEventListener('click', _salvarCartaoDespesa);
