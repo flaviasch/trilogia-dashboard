@@ -770,9 +770,17 @@
     // ─── Formatação monetária em inputs ──────
     function bindMoneyInput(el) {
       el.addEventListener('input', () => {
-        const raw = el.value.replace(/\D/g, '');
-        if (!raw) { el.value = ''; return; }
-        el.value = parseInt(raw, 10).toLocaleString('pt-BR');
+        const v = el.value.replace(/[^\d,]/g, '');
+        if (!v) { el.value = ''; return; }
+        const commaIdx = v.indexOf(',');
+        if (commaIdx === -1) {
+          el.value = parseInt(v, 10).toLocaleString('pt-BR');
+        } else {
+          const intPart = v.slice(0, commaIdx);
+          const decPart = v.slice(commaIdx + 1).replace(/,/g, '').slice(0, 2);
+          const intNum  = intPart ? parseInt(intPart, 10) : 0;
+          el.value = intNum.toLocaleString('pt-BR') + ',' + decPart;
+        }
       });
     }
     function readMoney(el) {
@@ -781,7 +789,7 @@
     }
     function setMoney(el, v) {
       if (v == null || v === '' || isNaN(+v)) { el.value = ''; return; }
-      el.value = Math.round(+v).toLocaleString('pt-BR');
+      el.value = (+v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     bindMoneyInput(document.getElementById('ativoValor'));
