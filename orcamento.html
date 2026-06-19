@@ -2235,21 +2235,28 @@
     let editandoIdx = null;  // { tipo: 'receita'|'despesa', idx: number } ou null
     let _catLocked  = null;  // categoria pré-definida (ao clicar em "+ Adicionar em X")
 
-    // Body scroll lock — evita que o iOS trave o scroll interno do modal
+    // Body scroll lock — comportamento diferente por plataforma:
+    // iOS: position:fixed no body (necessário pois overflow:hidden é ignorado)
+    // Android: apenas overflow:hidden (position:fixed causa desalinhamento de toque com teclado virtual)
+    const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     let _bodyScrollY = 0;
     function _lockBody() {
       _bodyScrollY = window.scrollY;
       document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${_bodyScrollY}px`;
-      document.body.style.width = '100%';
+      if (_isIOS) {
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${_bodyScrollY}px`;
+        document.body.style.width = '100%';
+      }
     }
     function _unlockBody() {
       document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      window.scrollTo(0, _bodyScrollY);
+      if (_isIOS) {
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        window.scrollTo(0, _bodyScrollY);
+      }
     }
 
     function atualizarCategoriasSugeridas() {
