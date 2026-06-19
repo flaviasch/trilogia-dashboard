@@ -103,7 +103,7 @@
       background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
       padding: 10px 20px; font-size: 13px; font-weight: 700;
       font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap;
-      transition: background 0.2s;
+      transition: background 0.2s; touch-action: manipulation;
     }
     .btn-renovar:hover { background: var(--gold-light); }
 
@@ -139,6 +139,7 @@
       display: flex; align-items: flex-start; gap: 12px;
       background: rgba(255,255,255,0.04); border: 1px solid var(--border);
       border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: all 0.2s;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .opcao-label:hover { border-color: var(--border-gold); background: var(--gold-dim); }
     .opcao-label input[type="radio"] { margin-top: 2px; accent-color: var(--gold); flex-shrink: 0; }
@@ -151,12 +152,14 @@
       background: transparent; border: 1px solid var(--border); border-radius: 8px;
       padding: 12px 24px; font-size: 14px; color: var(--text-muted);
       cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+      touch-action: manipulation;
     }
     .btn-voltar:hover { border-color: var(--border-gold); color: var(--white); }
     .btn-avancar {
       background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
       padding: 12px 32px; font-size: 14px; font-weight: 700;
       font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.2s;
+      touch-action: manipulation;
     }
     .btn-avancar:hover { background: var(--gold-light); }
     .btn-avancar:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -180,12 +183,14 @@
       background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
       padding: 14px 40px; font-size: 15px; font-weight: 700;
       font-family: 'Inter', sans-serif; cursor: pointer; transition: background 0.2s;
+      touch-action: manipulation;
     }
     .btn-confirmar:hover { background: var(--gold-light); }
     .btn-refazer {
       background: transparent; border: 1px solid var(--border); border-radius: 8px;
       padding: 10px 24px; font-size: 13px; color: var(--text-muted);
       cursor: pointer; font-family: 'Inter', sans-serif; margin-left: 12px; transition: all 0.2s;
+      touch-action: manipulation;
     }
     .btn-refazer:hover { border-color: var(--border-gold); color: var(--white); }
 
@@ -713,15 +718,21 @@
         </div>`;
 
       atualizarBtnAvancar();
-      document.querySelectorAll('input[name="pergunta"]').forEach(radio => {
-        radio.addEventListener('change', atualizarBtnAvancar);
-      });
     }
 
     function atualizarBtnAvancar() {
       const checked = document.querySelector('input[name="pergunta"]:checked');
       document.getElementById('btnAvancar').disabled = !checked;
     }
+
+    // Delegado no container — registrado uma vez, funciona em todos os re-renders.
+    // Ouve 'click' além de 'change' porque no iOS Safari o evento change em radio
+    // dentro de label pode não disparar ao primeiro toque.
+    const _pq = document.getElementById('perguntaContainer');
+    _pq.addEventListener('change', atualizarBtnAvancar);
+    _pq.addEventListener('click', e => {
+      if (e.target.closest('.opcao-label, input[type="radio"]')) atualizarBtnAvancar();
+    });
 
     document.getElementById('btnAvancar').addEventListener('click', async () => {
       const checked = document.querySelector('input[name="pergunta"]:checked');
