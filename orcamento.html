@@ -5035,6 +5035,7 @@
       _calcFaturaCartaoModal();
       _lockBody();
       document.getElementById('modalCartaoDespesa').classList.remove('hidden');
+      document.getElementById('fabSpeedDial').style.display = 'none';
       setTimeout(() => document.getElementById('cdValor')?.focus(), 80);
     }
 
@@ -5120,7 +5121,7 @@
             await saveOrcamento(instMes, instAno, itensMes);
             _invalPeriodo(instMes, instAno);
           }
-          _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden');
+          _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden'); document.getElementById('fabSpeedDial').style.display = '';
           registrarEvento('despesa_cartao_parcelada');
           const ultimoMesIdx = ((fatMes - 1 + nParcelas - 1) % 12);
           const ultimoAno    = fatAno + Math.floor((fatMes - 1 + nParcelas - 1) / 12);
@@ -5131,7 +5132,7 @@
           itensFatura.push({ categoria, descricao, tipo: 'despesa', valor, data, cartao: true, cartaoId, fatura, origem: 'manual' });
           await saveOrcamento(fatMes, fatAno, itensFatura);
           _invalPeriodo(fatMes, fatAno);
-          _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden');
+          _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden'); document.getElementById('fabSpeedDial').style.display = '';
           registrarEvento('despesa_cartao_lancada');
           mostrarToast(`💳 Salvo na fatura de ${MESES[fatMes-1]} ✓`, 'success');
         }
@@ -5151,9 +5152,10 @@
     document.getElementById('btnFecharCartaoDespesa')?.addEventListener('click', () => {
       _unlockBody();
       document.getElementById('modalCartaoDespesa').classList.add('hidden');
+      document.getElementById('fabSpeedDial').style.display = '';
     });
     document.getElementById('modalCartaoDespesa')?.addEventListener('click', e => {
-      if (e.target === e.currentTarget) { _unlockBody(); e.currentTarget.classList.add('hidden'); }
+      if (e.target === e.currentTarget) { _unlockBody(); e.currentTarget.classList.add('hidden'); document.getElementById('fabSpeedDial').style.display = ''; }
     });
     document.getElementById('btnLancarNoCartao')?.addEventListener('click', () => abrirModalCartaoDespesa());
     document.getElementById('btnSalvarCartaoDespesa')?.addEventListener('click', _salvarCartaoDespesa);
