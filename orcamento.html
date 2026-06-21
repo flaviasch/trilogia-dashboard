@@ -5165,12 +5165,7 @@
     document.getElementById('btnSalvarCartaoDespesa')?.addEventListener('click', _salvarCartaoDespesa);
     document.getElementById('cdCartao')?.addEventListener('change', _calcFaturaCartaoModal);
     document.getElementById('cdData')?.addEventListener('change', _calcFaturaCartaoModal);
-    document.getElementById('cdBtnAjustarFatura')?.addEventListener('click', () => {
-      const el = document.getElementById('cdFaturaAjuste');
-      const open = el.style.display !== 'none';
-      el.style.display = open ? 'none' : '';
-      if (!open) document.getElementById('cdFaturaInput').focus();
-    });
+    // cdBtnAjustarFatura: tratado via onclick no HTML (compatível com Android PWA)
     document.getElementById('cdFaturaInput')?.addEventListener('change', () => {
       const yyyyMM    = document.getElementById('cdFaturaInput').value;
       const cartaoId  = document.getElementById('cdCartao')?.value;
