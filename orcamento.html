@@ -1479,7 +1479,8 @@
           <button id="cdBtnAjustarFatura"
             style="flex-shrink:0;background:none;border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text-secondary);font-size:12px;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:all .15s;"
             onmouseover="this.style.borderColor='rgba(207,174,101,0.5)';this.style.color='var(--gold)'"
-            onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">✎ Ajustar</button>
+            onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'"
+            onclick="(function(){var el=document.getElementById('cdFaturaAjuste');var open=el.style.display!=='none';el.style.display=open?'none':'';if(!open)document.getElementById('cdFaturaInput').focus();})()">✎ Ajustar</button>
         </div>
         <div id="cdFaturaAjuste" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid rgba(207,174,101,0.2);">
           <label style="font-size:11px;color:var(--text-secondary);">Ajustar para:</label>
