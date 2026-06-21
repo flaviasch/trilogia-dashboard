@@ -3390,7 +3390,8 @@
             const vcto = (() => {
               if (!cartaoObj?.diaVencimento || !d.fatura) return '';
               const [fAno, fMes] = d.fatura.split('-').map(Number);
-              const vMes = fMes < 12 ? fMes + 1 : 1;
+              const addMes = cartaoObj.diaVencimento <= cartaoObj.diaCorte;
+              const vMes = addMes ? (fMes < 12 ? fMes + 1 : 1) : fMes;
               return ` · vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vMes).padStart(2,'0')}`;
             })();
             const desc = d.descricao || d.categoria;
@@ -5067,9 +5068,10 @@
 
       const vctoEl = document.getElementById('cdVctoLabel');
       if (cartaoObj.diaVencimento) {
-        const anoN   = parseInt(ano, 10);
-        const vctoMes = mes < 12 ? mes + 1 : 1;
-        const vctoAno = mes < 12 ? anoN : anoN + 1;
+        const anoN    = parseInt(ano, 10);
+        const addMes  = cartaoObj.diaVencimento <= cartaoObj.diaCorte;
+        const vctoMes = addMes ? (mes < 12 ? mes + 1 : 1) : mes;
+        const vctoAno = addMes ? (mes < 12 ? anoN : anoN + 1) : anoN;
         vctoEl.textContent = `Vencimento: ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vctoMes).padStart(2,'0')}/${vctoAno}`;
       } else {
         vctoEl.textContent = '';
@@ -5206,8 +5208,9 @@
       if (!vctoEl) return;
       if (cartaoObj?.diaVencimento && fatura) {
         const [fAno, fMes] = fatura.split('-').map(Number);
-        const vMes = fMes < 12 ? fMes + 1 : 1;
-        const vAno = fMes < 12 ? fAno : fAno + 1;
+        const addMes = cartaoObj.diaVencimento <= cartaoObj.diaCorte;
+        const vMes = addMes ? (fMes < 12 ? fMes + 1 : 1) : fMes;
+        const vAno = addMes ? (fMes < 12 ? fAno : fAno + 1) : fAno;
         vctoEl.textContent = `vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vMes).padStart(2,'0')}/${vAno}`;
       } else {
         vctoEl.textContent = '';
