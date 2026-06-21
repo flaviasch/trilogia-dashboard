@@ -1493,6 +1493,16 @@
         });
       }
 
+      // ⓪-c Correções no módulo de cartão (Jun/2026)
+      if (!localStorage.getItem('notif_ajustes_cartao_jun26')) {
+        notifs.unshift({
+          id: 'ajustes-cartao', type: 'novidades', key: 'notif_ajustes_cartao_jun26', icon: '💳',
+          titulo: 'Correções no lançamento de cartão',
+          desc: 'O mês da fatura agora segue a convenção correta: compra paga em julho aparece como Fatura Junho, para qualquer cartão. O botão Ajustar e o vencimento exibido também foram corrigidos.',
+          cta: { label: 'Ver faturas', href: 'orcamento.html' },
+        });
+      }
+
       // ① Perfil de investidor — ausente ou > 180 dias sem atualizar
       const perfilKey = `notif_perfil_${mesKey}`;
       if (!localStorage.getItem(perfilKey)) {
