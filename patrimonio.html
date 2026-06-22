@@ -567,11 +567,11 @@
 
       <!-- Estado vazio: sem ativos importados -->
       <div id="patrimonioVazio" style="display:none; background:rgba(207,174,101,0.06); border:1px solid rgba(207,174,101,0.2); border-radius:12px; padding:20px 24px; margin-bottom:8px;">
-        <div style="font-size:13px; font-weight:600; color:var(--gold); margin-bottom:6px;">Ainda não tenho investimentos ou bens a declarar</div>
-        <div style="font-size:13px; color:var(--text-muted); line-height:1.6; margin-bottom:16px;">Se você ainda não tem ativos para registrar — nenhum investimento nem bens declarados no IR — confirme abaixo para concluir esta etapa. Você pode importar os dados quando começar a investir.</div>
-        <button id="btnConfirmarSemAtivos" style="background:var(--gold); color:#0D2B45; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer;">Confirmar: ainda não tenho ativos</button>
+        <div style="font-size:13px; font-weight:600; color:var(--gold); margin-bottom:6px;">Ainda não tenho investimentos para importar</div>
+        <div style="font-size:13px; color:var(--text-muted); line-height:1.6; margin-bottom:16px;">Se você ainda não tem declaração de IR nem extrato de corretora para importar, conclua esta etapa abaixo. Quando começar a investir, é só importar o CSV e o dashboard atualiza automaticamente.</div>
+        <button id="btnConfirmarSemAtivos" style="background:var(--gold); color:#0D2B45; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer;">Concluir etapa do patrimônio</button>
       </div>
-      <div id="patrimonioVazioConfirmado" style="display:none; font-size:13px; color:rgba(74,222,128,0.9); margin-bottom:8px; padding:10px 0;">✓ Etapa concluída — importe seus ativos quando começar a investir.</div>
+      <div id="patrimonioVazioConfirmado" style="display:none; font-size:13px; color:rgba(74,222,128,0.9); margin-bottom:8px; padding:10px 0;">✓ Etapa concluída — importe seus investimentos quando começar a investir.</div>
 
       <button class="btn-add-divida" id="btnAddAtivo">+ Adicionar ativo manualmente</button>
     </div>
@@ -987,11 +987,15 @@
       lista.querySelectorAll('[data-del-ativo]').forEach(btn =>
         btn.addEventListener('click', () => deletarAtivo(btn.dataset.delAtivo)));
 
-      // Estado vazio: exibe opção de confirmar "sem ativos" quando não há nada importado
-      const semAtivos = totalAtivos === 0;
+      // Se tem dívidas mas sem ativos: considera etapa concluída automaticamente
+      if (totalDividas > 0 && totalAtivos === 0) {
+        localStorage.setItem('patrimonio_sem_ativos', '1');
+      }
+
+      const semAtivos   = totalAtivos === 0;
       const jaConfirmou = localStorage.getItem('patrimonio_sem_ativos') === '1';
-      document.getElementById('patrimonioVazio').style.display          = semAtivos && !jaConfirmou ? '' : 'none';
-      document.getElementById('patrimonioVazioConfirmado').style.display = semAtivos && jaConfirmou  ? '' : 'none';
+      document.getElementById('patrimonioVazio').style.display           = semAtivos && !jaConfirmou ? '' : 'none';
+      document.getElementById('patrimonioVazioConfirmado').style.display  = semAtivos && jaConfirmou  ? '' : 'none';
 
       // Gráfico de barras do patrimônio
       renderBarrasPatrimonio(totalAtivos, totalDividas, pl);
