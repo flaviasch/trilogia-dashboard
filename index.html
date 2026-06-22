@@ -1103,6 +1103,15 @@
         } catch (_) {}
       }
 
+      // Sem conexão e sem cache → mensagem imediata
+      if (!navigator.onLine && !_hadCache) {
+        const banner = document.getElementById('erroBanner');
+        banner.innerHTML = `Sem conexão com a internet. &nbsp;·&nbsp; <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">Tentar novamente</a>`;
+        banner.style.display = 'block';
+        document.getElementById('loadingOverlay').style.display = 'none';
+        return false;
+      }
+
       let data;
       try {
         const _timeout = new Promise((_, reject) =>
@@ -1118,14 +1127,21 @@
       } catch (err) {
         if (_hadCache) return true; // dados em cache visíveis; falha de rede silenciosa
         console.error('Erro ao carregar dashboard:', err);
+        // Token expirado (comum no iPhone após longo período sem abrir) → volta ao login
+        if (err?.code === 'functions/unauthenticated' || err?.code === 'unauthenticated') {
+          await signOut(auth);
+          window.location.href = 'login.html';
+          return false;
+        }
         const banner = document.getElementById('erroBanner');
         const semPlanilha = err?.code === 'functions/failed-precondition' && viewAsUid;
         if (semPlanilha) {
           banner.innerHTML = `Esta mentorada ainda não tem planilha configurada. &nbsp;·&nbsp; <a href="admin.html" style="color:#f87171;text-decoration:underline;">Voltar ao admin para criar a planilha</a>`;
         } else {
-          const codigo = err?.code || 'unknown';
-          const msg    = err?.message || 'Erro desconhecido';
-          banner.innerHTML = `Erro ao carregar (${codigo}): ${msg} &nbsp;·&nbsp; <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">tentar novamente</a>`;
+          const msg = err?.code === 'deadline-exceeded'
+            ? 'Sem resposta do servidor. Verifique sua internet.'
+            : (err?.message || 'Erro desconhecido');
+          banner.innerHTML = `${msg} &nbsp;·&nbsp; <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">Tentar novamente</a>`;
         }
         banner.style.display = 'block';
         document.getElementById('loadingOverlay').style.display = 'none';
