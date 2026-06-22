@@ -50,6 +50,12 @@ async function _renovarOuLogout() {
   }
 }
 
+async function _logoutImediato() {
+  await signOut(auth).catch(() => {});
+  window.location.href = 'login.html';
+}
+
+// Chamadas de mentorada: unauthenticated → tenta renovar, falha → login.
 function call(nome) {
   const fn = httpsCallable(functions, nome);
   return async (dados) => {
@@ -64,10 +70,37 @@ function call(nome) {
           const retry = await fn(dados);
           return retry.data;
         } catch (retryErr) {
-          await signOut(auth).catch(() => {});
-          window.location.href = 'login.html';
+          await _logoutImediato();
           throw { code: retryErr.code || 'unknown', message: msgErro(retryErr) };
         }
+      }
+      throw { code: err.code || 'unknown', message: msgErro(err) };
+    }
+  };
+}
+
+// Chamadas admin: unauthenticated → tenta renovar; permission-denied → logout imediato.
+// Se a claim admin foi revogada com a sessão aberta, a usuária é redirecionada para login.
+function adminCall(nome) {
+  const fn = httpsCallable(functions, nome);
+  return async (dados) => {
+    try {
+      const result = await fn(dados);
+      return result.data;
+    } catch (err) {
+      if (err.code === 'functions/unauthenticated') {
+        const renovado = await _renovarOuLogout();
+        if (!renovado) throw { code: 'unauthenticated', message: msgErro(err) };
+        try {
+          const retry = await fn(dados);
+          return retry.data;
+        } catch (retryErr) {
+          await _logoutImediato();
+          throw { code: retryErr.code || 'unknown', message: msgErro(retryErr) };
+        }
+      }
+      if (err.code === 'functions/permission-denied') {
+        await _logoutImediato();
       }
       throw { code: err.code || 'unknown', message: msgErro(err) };
     }
@@ -308,41 +341,41 @@ export function parsearCsvDividas(csvText) {
  */
 export const bootstrapAdmin = call('bootstrapAdmin');
 
-export const getMentoradas = call('getMentoradas');
+export const getMentoradas = adminCall('getMentoradas');
 
 /**
  * @param {{ nome, email, inicio, perfil, produto, valorMensal, formaPagamento, dataExpiracao }} dados
  * @returns {Promise<{ uid, sheetId }>}
  */
-export const createMentorada = call('createMentorada');
+export const createMentorada = adminCall('createMentorada');
 
 /**
  * @param {string} uid
  * @param {{ status?, nota?, perfil?, inicio?, produto?, valorMensal?, formaPagamento?, dataExpiracao? }} campos
  */
 export async function updateMentorada(uid, campos) {
-  return call('updateMentorada')({ uid, campos });
+  return adminCall('updateMentorada')({ uid, campos });
 }
 
 export async function bloquearMentorada(uid) {
-  return call('bloquearMentorada')({ uid });
+  return adminCall('bloquearMentorada')({ uid });
 }
 
 export async function reativarMentorada(uid) {
-  return call('reativarMentorada')({ uid });
+  return adminCall('reativarMentorada')({ uid });
 }
 
 export async function deletarMentorada(uid) {
-  return call('deletarMentorada')({ uid });
+  return adminCall('deletarMentorada')({ uid });
 }
 
 /** Reenvía o link de definição de senha para a mentorada (admin only). */
 export async function reenviarAcesso(uid) {
-  return call('reenviarAcesso')({ uid });
+  return adminCall('reenviarAcesso')({ uid });
 }
 
 export async function criarPlanilha(uid) {
-  return call('criarPlanilha')({ uid });
+  return adminCall('criarPlanilha')({ uid });
 }
 
 /**
@@ -351,12 +384,12 @@ export async function criarPlanilha(uid) {
  * @param {string} uid
  */
 export async function getNotionCRM(uid) {
-  return call('getNotionCRM')({ uid });
+  return adminCall('getNotionCRM')({ uid });
 }
 
 /** Retorna todos os encontros da mentorada com lições pendentes e concluídas. */
 export async function getMinhaJornada(uid) {
-  return call('getMinhaJornada')(uid ? { uid } : {});
+  return adminCall('getMinhaJornada')(uid ? { uid } : {});
 }
 
 /** Registra acesso da aluna (chamar no load do dashboard). */
@@ -377,83 +410,83 @@ export const getScoreHistorico = call('getScoreHistorico');
 
 /** Cria contrato com parcelas. */
 export async function createContrato(dados) {
-  return call('createContrato')(dados);
+  return adminCall('createContrato')(dados);
 }
 
 /** Lista contratos de uma mentorada com suas cobranças. */
 export async function getContratos(uid) {
-  return call('getContratos')({ uid });
+  return adminCall('getContratos')({ uid });
 }
 
 /** Registra pagamento de uma parcela. */
 export async function pagarParcela(dados) {
-  return call('pagarParcela')(dados);
+  return adminCall('pagarParcela')(dados);
 }
 
 /** Edita data e valor de um pagamento já registrado. */
 export async function editarPagamento(dados) {
-  return call('editarPagamento')(dados);
+  return adminCall('editarPagamento')(dados);
 }
 
 /** Estorna um pagamento já registrado — reverte para pendente. */
 export async function estornarPagamento(cobrancaId) {
-  return call('estornarPagamento')({ cobrancaId });
+  return adminCall('estornarPagamento')({ cobrancaId });
 }
 
 /** Cancela um contrato. */
 export async function cancelarCobranca(cobrancaId) {
-  return call('cancelarCobranca')({ cobrancaId });
+  return adminCall('cancelarCobranca')({ cobrancaId });
 }
 
 export async function cancelarContrato(uid, contratoId) {
-  return call('cancelarContrato')({ uid, contratoId });
+  return adminCall('cancelarContrato')({ uid, contratoId });
 }
 
 /** Edita produto, forma de pagamento e periodicidade de um contrato. */
 export async function editarContrato(uid, contratoId, dados) {
-  return call('editarContrato')({ uid, contratoId, ...dados });
+  return adminCall('editarContrato')({ uid, contratoId, ...dados });
 }
 
 /** Retorna cobranças do mês para o hub financeiro. */
 export async function getCobrancas(mes, ano, uid) {
-  return call('getCobrancas')({ mes, ano, uid: uid || null });
+  return adminCall('getCobrancas')({ mes, ano, uid: uid || null });
 }
 
 // ─── CRM Pipeline ────────────────────────────────────────────────────────────
 
 /** Retorna todos os leads (filtros opcionais: segmento, estagio, origem). */
 export async function getLeads(filtros = {}) {
-  return call('getLeads')(filtros);
+  return adminCall('getLeads')(filtros);
 }
 
 /** Cria um novo lead. */
 export async function saveLead(lead) {
-  return call('saveLead')(lead);
+  return adminCall('saveLead')(lead);
 }
 
 /** Atualiza campos de um lead. */
 export async function updateLead(id, campos) {
-  return call('updateLead')({ id, ...campos });
+  return adminCall('updateLead')({ id, ...campos });
 }
 
 /** Deleta um lead. */
 export async function deleteLead(id) {
-  return call('deleteLead')({ id });
+  return adminCall('deleteLead')({ id });
 }
 
 /** Importa múltiplos leads de uma vez (batch). */
 export async function bulkImportLeads(leads) {
-  return call('bulkImportLeads')({ leads });
+  return adminCall('bulkImportLeads')({ leads });
 }
 
 /** Sincroniza leads novos da planilha de diagnóstico. */
 export async function syncDiagnostico() {
-  return call('syncDiagnostico')({});
+  return adminCall('syncDiagnostico')({});
 }
 
 /** Descobre e salva notionPageId para todas as mentoradas que ainda não têm. */
 export async function bootstrapNotionPageIds() {
-  return call('bootstrapNotionPageIds')({});
+  return adminCall('bootstrapNotionPageIds')({});
 }
 
 // ─── Mapa de cores para patrimônio (usado por patrimonio.html) ─────────────────
