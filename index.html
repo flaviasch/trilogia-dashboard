@@ -1105,7 +1105,13 @@
 
       let data;
       try {
-        data = await getDashboardHome(viewAsUid ? { uid: viewAsUid } : undefined);
+        const _timeout = new Promise((_, reject) =>
+          setTimeout(() => reject({ code: 'deadline-exceeded', message: 'A conexão demorou demais. Verifique sua internet e tente novamente.' }), 15000)
+        );
+        data = await Promise.race([
+          getDashboardHome(viewAsUid ? { uid: viewAsUid } : undefined),
+          _timeout,
+        ]);
         data.orcamento  = { receita: data.orcamento?.receita ?? 0, despesa: data.orcamento?.despesa ?? 0, sobra: data.orcamento?.sobra ?? data.sobraCacheada ?? 0, aporte: data.orcamento?.aporte ?? 0, mes: data.orcamento?.mes ?? data.mes, ano: data.orcamento?.ano ?? data.ano };
         data.patrimonio = { ativos: data.plCacheado ?? 0, dividas: 0, pl: data.plCacheado ?? 0 };
         data.sheetError = false;
