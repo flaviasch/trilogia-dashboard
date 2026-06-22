@@ -1325,7 +1325,7 @@
     // ─── Onboarding ──────────────────────────────
     function checkOnboarding(data) {
       const temPerfil     = !!data.perfil?.perfil;
-      const temPatrimonio = (data.patrimonio?.ativos || 0) > 0;
+      const temPatrimonio = (data.patrimonio?.ativos || 0) > 0 || localStorage.getItem('patrimonio_sem_ativos') === '1';
       const temReservas   = (data.reservas || []).length > 0;
       const temOrcamento  = (data.orcamento?.receita || 0) > 0;
       const temAporte     = (data.orcamento?.aporte  || 0) > 0;
