@@ -850,7 +850,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=16';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=17';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
     import {
@@ -1127,12 +1127,6 @@
       } catch (err) {
         if (_hadCache) return true; // dados em cache visíveis; falha de rede silenciosa
         console.error('Erro ao carregar dashboard:', err);
-        // Token expirado (comum no iPhone após longo período sem abrir) → volta ao login
-        if (err?.code === 'functions/unauthenticated' || err?.code === 'unauthenticated') {
-          await signOut(auth);
-          window.location.href = 'login.html';
-          return false;
-        }
         const banner = document.getElementById('erroBanner');
         const semPlanilha = err?.code === 'functions/failed-precondition' && viewAsUid;
         if (semPlanilha) {

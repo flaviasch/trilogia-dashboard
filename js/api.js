@@ -10,6 +10,7 @@
  */
 
 import { auth, functions } from './firebase-config.js';
+import { signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   httpsCallable,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
@@ -35,6 +36,20 @@ export function msgErro(err) {
 
 // ─── Helper central ────────────────────────────────────────────────────────────
 
+// Token expirado: tenta renovar e faz uma segunda tentativa.
+// Se a renovação também falhar, faz logout e redireciona para o login.
+// Cobre todas as páginas e plataformas (iOS, Android, desktop).
+async function _renovarOuLogout() {
+  try {
+    await auth.currentUser?.getIdToken(true);
+    return true; // renovado com sucesso → pode tentar de novo
+  } catch (_) {
+    await signOut(auth).catch(() => {});
+    window.location.href = 'login.html';
+    return false;
+  }
+}
+
 function call(nome) {
   const fn = httpsCallable(functions, nome);
   return async (dados) => {
@@ -42,6 +57,18 @@ function call(nome) {
       const result = await fn(dados);
       return result.data;
     } catch (err) {
+      if (err.code === 'functions/unauthenticated') {
+        const renovado = await _renovarOuLogout();
+        if (!renovado) throw { code: 'unauthenticated', message: msgErro(err) };
+        try {
+          const retry = await fn(dados);
+          return retry.data;
+        } catch (retryErr) {
+          await signOut(auth).catch(() => {});
+          window.location.href = 'login.html';
+          throw { code: retryErr.code || 'unknown', message: msgErro(retryErr) };
+        }
+      }
       throw { code: err.code || 'unknown', message: msgErro(err) };
     }
   };
