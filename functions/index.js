@@ -671,25 +671,39 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     return _mesPagamento(item.fatura, c?.diaCorte, c?.diaVencimento);
   };
 
+  // Retorna true se a fatura ainda está aberta (hoje <= data de corte)
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const _isFaturaAberta = (fatura, cartaoId) => {
+    const c = cartaoMap[cartaoId];
+    if (!fatura || !c?.diaCorte) return true; // sem diaCorte: assume aberta
+    const [fAno, fMes] = fatura.split('-').map(Number);
+    if (isNaN(fAno) || isNaN(fMes)) return true;
+    const ultimoDia = new Date(fAno, fMes, 0).getDate();
+    const dataCorte = new Date(fAno, fMes - 1, Math.min(c.diaCorte, ultimoDia));
+    return hoje <= dataCorte;
+  };
+
   const normalizar = arr => (arr || []).filter(item => item != null).map(item =>
     item.categoria ? { ...item, categoria: _resolverCategoria(item.categoria) } : item
   );
 
   const todosItensMes = normalizar(docSnap.exists ? docSnap.data().itens : []);
 
-  // Itens do mês atual: exclui fatura cujo pagamento NÃO é neste mês
-  const itensMes = todosItensMes
-    .filter(item => !(item.cartao && item.fatura) || _mp(item) === mesKey);
-
-  // Faturas abertas: itens do mês atual cujo pagamento é num mês futuro
-  // (_faturaAberta = flag de display — não afeta totais, só aparece na aba Faturas)
+  // Faturas abertas: fatura ainda acumulando (hoje <= corte), independe do mês de pagamento
   const itensFaturaAberta = todosItensMes
-    .filter(item => item.cartao && item.fatura && _mp(item) !== mesKey)
+    .filter(item => item.cartao && item.fatura && _isFaturaAberta(item.fatura, item.cartaoId))
     .map(item => ({ ...item, _faturaAberta: true }));
 
-  // Itens do mês anterior: só fatura cujo pagamento É neste mês — taggeia origem para o frontend
+  // Itens do mês atual: não-fatura + fatura fechada cujo pagamento é neste mês
+  const itensMes = todosItensMes
+    .filter(item => {
+      if (!(item.cartao && item.fatura)) return true;
+      return _mp(item) === mesKey && !_isFaturaAberta(item.fatura, item.cartaoId);
+    });
+
+  // Itens do mês anterior: só fatura fechada cujo pagamento É neste mês
   const itensPrev = normalizar(prevSnap.exists ? prevSnap.data().itens : [])
-    .filter(item => item.cartao && item.fatura && _mp(item) === mesKey)
+    .filter(item => item.cartao && item.fatura && _mp(item) === mesKey && !_isFaturaAberta(item.fatura, item.cartaoId))
     .map(item => ({ ...item, _sourceMes: prevMes, _sourceAno: prevAno }));
 
   return [...itensMes, ...itensPrev, ...itensFaturaAberta];
