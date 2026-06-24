@@ -2385,6 +2385,7 @@
       if (idx !== null) {
         const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
         const item  = lista[idx];
+        if (!item) return;
         document.getElementById('mCategoria').value = item.categoria;
         document.getElementById('mData').value      = item.data      || '';
         document.getElementById('mDescricao').value = item.descricao || '';
@@ -2602,6 +2603,7 @@
     async function excluirItem(tipo, idx) {
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
       const item  = lista[idx];
+      if (!item) return;
       if (!(await confirmDelete(`Excluir "${item.categoria}"?`))) return;
       lista.splice(idx, 1);
       await salvarEAtualizar();
@@ -3500,6 +3502,10 @@
         return itens.map(d => {
           const idxOriginal = data.despesas.indexOf(d);
           const desc = d.descricao || d.categoria;
+          const botoesAcao = idxOriginal >= 0
+            ? `<button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_E}</button>
+               <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_D}</button>`
+            : '';
           return `
             <div class="item-row" style="border-radius:0;border:none;border-top:1px solid var(--border);">
               <div>
@@ -3508,10 +3514,7 @@
               </div>
               <div></div>
               <div class="item-value despesa">${brl(d.valor)}</div>
-              <div class="item-actions">
-                <button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_E}</button>
-                <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_D}</button>
-              </div>
+              <div class="item-actions">${botoesAcao}</div>
             </div>`;
         }).join('');
       }

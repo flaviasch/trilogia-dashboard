@@ -655,7 +655,7 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const col = db.collection('mentoradas').doc(uid).collection('orcamento');
   const [docSnap, prevSnap] = await Promise.all([col.doc(mesKey).get(), col.doc(prevKey).get()]);
 
-  const normalizar = arr => (arr || []).map(item =>
+  const normalizar = arr => (arr || []).filter(item => item != null).map(item =>
     item.categoria ? { ...item, categoria: _resolverCategoria(item.categoria) } : item
   );
 
