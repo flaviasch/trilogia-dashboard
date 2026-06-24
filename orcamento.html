@@ -3763,9 +3763,11 @@
             const nomeCartao = cartaoObj ? escapeHtml(cartaoObj.nome) : '';
             const vcto = (() => {
               if (!cartaoObj?.diaVencimento || !item.fatura) return '';
-              const fMes = parseInt(item.fatura.split('-')[1], 10);
-              const vMes = fMes < 12 ? fMes + 1 : 1;
-              return ` · vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vMes).padStart(2,'0')}`;
+              const [fAno, fMes] = item.fatura.split('-').map(Number);
+              const mesmomes = cartaoObj.diaVencimento > (cartaoObj.diaCorte || 0);
+              const vMes = mesmomes ? fMes : (fMes < 12 ? fMes + 1 : 1);
+              const vAno = mesmomes ? fAno : (fMes < 12 ? fAno : fAno + 1);
+              return ` · vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vMes).padStart(2,'0')}/${vAno}`;
             })();
             return `<span style="font-size:10px;background:rgba(207,174,101,0.15);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px">💳 ${nomeCartao ? nomeCartao + ' · ' : ''}Fatura ${nomeMesFat}${vcto}</span>`;
           })();
