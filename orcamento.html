@@ -1256,6 +1256,7 @@
           <div class="resumo-sub" id="pctDespesa">—</div>
           <div id="fixasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;cursor:pointer;"></div>
           <div id="faturasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;">💳 <span id="faturasPendentesValor"></span> a vencer</div>
+          <div id="despesasPendentesIndicador" style="display:none;font-size:11px;color:var(--text-muted);margin-top:2px;">⏳ <span id="despesasPendentesValor"></span> pendente</div>
         </div>
         <div class="resumo-card destaque">
           <div class="resumo-label">Sobra do Mês</div>
@@ -1982,6 +1983,20 @@
         </div>
       </div>
 
+      <!-- Pendente: só para despesas -->
+      <div id="fgPendenteToggle" style="display:none;border-top:1px solid var(--border);margin-top:8px;padding-top:10px;">
+        <label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;cursor:pointer;user-select:none;gap:12px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span>⏳</span>
+            <div>
+              <div style="font-size:13px;color:var(--white);">Despesa pendente</div>
+              <div style="font-size:11px;color:var(--text-muted);">Prevista, mas ainda não aconteceu — não entra na sobra até confirmar</div>
+            </div>
+          </div>
+          <input type="checkbox" id="mPendente" style="width:17px;height:17px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;" />
+        </label>
+      </div>
+
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelarItem">Cancelar</button>
         <button class="btn-save" id="btnSalvarItem">Salvar</button>
@@ -2327,6 +2342,10 @@
           preencherSeletorCartoes(item.cartaoId || null);
           atualizarVctoCartao();
         }
+        // Pendente
+        const fgPend = document.getElementById('fgPendenteToggle');
+        document.getElementById('mPendente').checked = !!item.pendente;
+        if (fgPend) fgPend.style.display = tipo === 'despesa' ? '' : 'none';
         // Toggles recorrência: nunca mostrar ao editar
         if (fgToggles) fgToggles.style.display = 'none';
       } else {
@@ -2339,6 +2358,10 @@
         if (fgCartao) fgCartao.style.display = 'none';
         document.getElementById('fgCartaoOpcoes').style.display = 'none';
         document.getElementById('mFatura').value = '';
+        // Pendente: reset
+        document.getElementById('mPendente').checked = false;
+        const fgPendNovo = document.getElementById('fgPendenteToggle');
+        if (fgPendNovo) fgPendNovo.style.display = tipo === 'despesa' ? '' : 'none';
         // Toggles recorrência: visíveis só para despesa nova
         if (fgToggles) fgToggles.style.display = tipo === 'despesa' ? '' : 'none';
         document.getElementById('mVirarFixa').checked       = false;
@@ -2369,6 +2392,10 @@
         document.getElementById('fgCartaoOpcoes').style.display = 'none';
         document.getElementById('fgCartaoSection').style.display = 'none';
       }
+      // Pendente: só para despesa
+      const fgPend = document.getElementById('fgPendenteToggle');
+      if (fgPend) fgPend.style.display = isReceita ? 'none' : '';
+      if (isReceita) document.getElementById('mPendente').checked = false;
       // Toggles de recorrência: só para despesa nova (editandoIdx === null)
       const fgToggles = document.getElementById('fgRecorrenciaToggles');
       if (fgToggles && editandoIdx === null) {
@@ -2445,13 +2472,14 @@
       const cartao    = document.getElementById('mCartao').checked;
       const fatura    = cartao ? document.getElementById('mFatura').value.trim() : '';
       const cartaoId  = cartao ? (document.getElementById('mCartaoSelecionado')?.value || '') : '';
+      const pendente  = tipo === 'despesa' && document.getElementById('mPendente').checked;
 
       if (!categoria) { toast('Preencha a categoria.', 'warning'); return; }
       if (!data) { toast('Preencha a data do lançamento.', 'warning'); return; }
       if (cartao && !fatura) { toast('Selecione o mês da fatura.', 'warning'); return; }
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
 
-      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}) };
+      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}), ...(pendente ? { pendente: true } : {}) };
 
       if (cartao && fatura) {
         // Salva diretamente no mês da fatura (não no mês exibido)
@@ -2526,7 +2554,7 @@
       const mesAtual = new Date().getMonth() + 1;
       const itens = [
         ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: r.origem || 'manual' })),
-        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d._sourceMes != null ? { _sourceMes: d._sourceMes, _sourceAno: d._sourceAno } : {}) })),
+        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d._sourceMes != null ? { _sourceMes: d._sourceMes, _sourceAno: d._sourceAno } : {}), ...(d.pendente ? { pendente: true } : {}) })),
         ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
       ];
       try {
@@ -2843,7 +2871,7 @@
         currentData = {
           periodo:  { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}) })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}) })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
@@ -2892,7 +2920,7 @@
     // ─── Score de saúde financeira ───────────────────────────────────────────
     function calcularScore(data, reservasAtivas, cats) {
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
-      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
+      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !d.pendente).reduce((s, d) => s + d.valor, 0);
       const sobra        = totalReceita - totalDespesa;
       const totalAporte  = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
       const totalPlan    = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
@@ -2966,7 +2994,7 @@
           return gasto > c.limite;
         }).length;
         const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
-        const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
+        const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !d.pendente).reduce((s, d) => s + d.valor, 0);
         const sobraPct = totalReceita > 0 ? ((totalReceita - totalDespesa) / totalReceita * 100).toFixed(0) : 0;
 
         if (componentes.regularidade === 0) {
@@ -3037,7 +3065,8 @@
       // Despesas de cartão com fatura atribuída só impactam o caixa no mês do vencimento,
       // não no mês em que a compra foi feita.
       const totalFaturas  = data.despesas.filter(d => d.cartao && d.fatura).reduce((s, d) => s + d.valor, 0);
-      const totalDespesa  = data.despesas.reduce((s, d) => s + d.valor, 0) - totalFaturas;
+      const totalPendente = data.despesas.filter(d => d.pendente && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
+      const totalDespesa  = data.despesas.filter(d => !(d.pendente)).reduce((s, d) => s + d.valor, 0) - totalFaturas;
       const sobra = totalReceita - totalDespesa;
       const sobraPct = totalReceita > 0 ? (sobra / totalReceita) * 100 : 0;
 
@@ -3054,6 +3083,10 @@
       const fatVal = document.getElementById('faturasPendentesValor');
       if (totalFaturas > 0) { fatInd.style.display = ''; fatVal.textContent = brl(totalFaturas); }
       else { fatInd.style.display = 'none'; }
+      const pendInd = document.getElementById('despesasPendentesIndicador');
+      const pendVal = document.getElementById('despesasPendentesValor');
+      if (totalPendente > 0) { pendInd.style.display = ''; pendVal.textContent = brl(totalPendente); }
+      else { pendInd.style.display = 'none'; }
 
       const sobraEl = document.getElementById('totalSobra');
       sobraEl.textContent = brl(sobra);
@@ -3465,10 +3498,11 @@
       const grupos = {};
       data.despesas.forEach((d, idx) => {
         const cat = d.categoria;
-        if (!grupos[cat]) { grupos[cat] = { items: [], total: 0, totalCaixa: 0 }; ordem.push(cat); }
+        if (!grupos[cat]) { grupos[cat] = { items: [], total: 0, totalCaixa: 0, totalPendente: 0 }; ordem.push(cat); }
         grupos[cat].items.push({ ...d, _idx: idx });
         grupos[cat].total += d.valor;
-        if (!(d.cartao && d.fatura)) grupos[cat].totalCaixa += d.valor;
+        if (!(d.cartao && d.fatura) && !d.pendente) grupos[cat].totalCaixa += d.valor;
+        if (d.pendente && !(d.cartao && d.fatura)) grupos[cat].totalPendente += d.valor;
       });
       ordem.sort((a, b) => grupos[b].total - grupos[a].total);
 
@@ -3527,24 +3561,32 @@
           const parcelaTag = item.origem === 'parcelamento' && item.parcelaAtual && item.parcelasTotal
             ? `<span class="badge-parcela" style="font-size:10px;background:rgba(99,179,237,0.15);color:#63b3ed;border-radius:3px;padding:1px 5px;margin-left:4px" title="Lançamento parcelado">💳 ${item.parcelaAtual}/${item.parcelasTotal}</span>`
             : '';
-          const dataTag = item.data
-            ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}${faturaTag}${recTag}${parcelaTag}</div>`
-            : (faturaTag || recTag || parcelaTag) ? `<div class="item-fonte">${faturaTag}${recTag}${parcelaTag}</div>` : '';
           const editAttr = item.recorrenteId
             ? `data-edit-rec="${item._idx}" data-rec-id="${item.recorrenteId}"`
             : `data-edit-desp="${item._idx}"`;
           const cancelarParcelaBtn = item.origem === 'parcelamento' && item.parcelamentoId
             ? `<button class="btn-item" data-cancelar-parcela="${escapeHtml(item.parcelamentoId)}" title="Cancelar parcelas restantes" style="color:#f87171;">✕</button>`
             : '';
+          const pendenteTag = item.pendente
+            ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">⏳ pendente</span>`
+            : '';
+          const pendenteRowStyle = item.pendente ? 'opacity:0.6;border-left:2px dashed var(--border);padding-left:6px;' : '';
+          const confirmarBtn = item.pendente
+            ? `<button class="btn-item" data-confirmar-pend="${item._idx}" title="Confirmar lançamento" style="color:var(--positive);font-size:11px;white-space:nowrap;">✓</button>`
+            : '';
+          const dataTagFinal = item.data
+            ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}${faturaTag}${recTag}${parcelaTag}${pendenteTag}</div>`
+            : (faturaTag || recTag || parcelaTag || pendenteTag) ? `<div class="item-fonte">${faturaTag}${recTag}${parcelaTag}${pendenteTag}</div>` : '';
           return `
-            <div class="item-row">
+            <div class="item-row" style="${pendenteRowStyle}">
               <div>
                 <div class="item-categoria">${primary}</div>
-                ${dataTag}
+                ${dataTagFinal}
               </div>
               <div></div>
               <div class="item-value despesa">${brl(item.valor)}</div>
               <div class="item-actions">
+                ${confirmarBtn}
                 ${item.origem !== 'parcelamento' ? `<button class="btn-item" ${editAttr} title="Editar">${IC_E}</button>` : ''}
                 ${cancelarParcelaBtn}
                 <button class="btn-item del" data-del-desp="${item._idx}" title="Excluir">${IC_D}</button>
@@ -3566,9 +3608,12 @@
           deltaHTML = `<span style="font-size:11px;color:${cor};font-weight:600;white-space:nowrap;">${sinal}${brl(delta)} (${pctDelta}%)</span>`;
         }
 
-        const faturaGrupo = grupo.total - grupo.totalCaixa;
+        const faturaGrupo = grupo.total - grupo.totalCaixa - grupo.totalPendente;
         const faturaGrupoHTML = faturaGrupo > 0
           ? `<span style="font-size:11px;color:var(--gold);white-space:nowrap;margin-left:2px">+💳 ${brl(faturaGrupo)}</span>`
+          : '';
+        const pendenteGrupoHTML = grupo.totalPendente > 0
+          ? `<span style="font-size:11px;color:var(--text-muted);white-space:nowrap;margin-left:2px">+⏳ ${brl(grupo.totalPendente)}</span>`
           : '';
 
         return `
@@ -3577,7 +3622,7 @@
               <span class="cat-group-nome">${escapeHtml(catNome)}</span>
               ${limiteHTML}
               ${deltaHTML}
-              <span class="cat-group-total">${brl(grupo.totalCaixa)}${faturaGrupoHTML}</span>
+              <span class="cat-group-total">${brl(grupo.totalCaixa)}${faturaGrupoHTML}${pendenteGrupoHTML}</span>
               <button class="${btnLimClass}" data-cat="${escapeHtml(catNome)}">${btnLimText}</button>
             </div>
             <div class="items-list">${itemsHTML}</div>
@@ -3598,6 +3643,14 @@
         btn.addEventListener('click', () => abrirModalEditRecorrente(+btn.dataset.editRec, btn.dataset.recId)));
       despList.querySelectorAll('[data-del-desp]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
+      despList.querySelectorAll('[data-confirmar-pend]').forEach(btn =>
+        btn.addEventListener('click', async () => {
+          const idx = +btn.dataset.confirmarPend;
+          if (currentData.despesas[idx]) {
+            delete currentData.despesas[idx].pendente;
+            await salvarEAtualizar();
+          }
+        }));
       despList.querySelectorAll('[data-cancelar-parcela]').forEach(btn =>
         btn.addEventListener('click', () => cancelarParcelamentoUI(btn.dataset.cancelarParcela)));
       despList.querySelectorAll('.btn-set-limite').forEach(btn =>
@@ -3880,7 +3933,7 @@
       const el = document.getElementById('graficosContent');
       if (!el) return;
 
-      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
+      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !d.pendente).reduce((s, d) => s + d.valor, 0);
 
       // Agrega por categoria para a pizza
       const porCat = {};
@@ -4543,7 +4596,7 @@
         const data = {
           periodo:  { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}) })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}) })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
