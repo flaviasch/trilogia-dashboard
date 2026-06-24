@@ -2004,6 +2004,64 @@
     </div>
   </div>
 
+  <!-- Modal confirmar pagamento de fatura -->
+  <div class="modal-overlay hidden" id="modalConfirmarPagamento">
+    <div class="modal-card">
+      <h2 class="modal-title">Confirmar pagamento</h2>
+      <p class="modal-sub" id="cpSub">—</p>
+      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:14px 16px;margin:14px 0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text-secondary);">Total da fatura</span>
+          <span style="font-size:17px;font-weight:700;color:var(--negative);" id="cpTotalLabel">—</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;border:2px solid var(--gold);border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--white);background:rgba(207,174,101,0.1);">
+          <input type="radio" name="cpTipo" value="total" id="cpTotal" checked style="accent-color:var(--gold);" />
+          Pagamento total
+        </label>
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;border:1px solid var(--border);border-radius:10px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
+          <input type="radio" name="cpTipo" value="parcial" id="cpParcial" style="accent-color:var(--gold);" />
+          Parcial
+        </label>
+      </div>
+      <div id="cpParcialSection" style="display:none;">
+        <div class="field-group">
+          <label for="cpValorPago">Valor pago (R$)</label>
+          <input type="text" inputmode="numeric" id="cpValorPago" placeholder="ex: 800" />
+        </div>
+        <div id="cpRolloverInfo" style="font-size:12px;color:var(--text-muted);margin-top:6px;padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:8px;display:none;"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="cpCancelar">Cancelar</button>
+        <button class="btn-save" id="cpConfirmar">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal ajustar fatura -->
+  <div class="modal-overlay hidden" id="modalAjustarFatura">
+    <div class="modal-card">
+      <h2 class="modal-title">Ajustar total da fatura</h2>
+      <p class="modal-sub" id="afSub">—</p>
+      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:12px;color:var(--text-muted);">Total calculado pelos lançamentos</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-secondary);" id="afTotalCalculado">—</span>
+        </div>
+      </div>
+      <div class="field-group">
+        <label for="afValorReal">Valor real a pagar (R$)</label>
+        <input type="text" inputmode="numeric" id="afValorReal" placeholder="ex: 1.500" />
+        <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">Use quando o débito no banco difere do calculado pelo sistema</span>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="afCancelar">Cancelar</button>
+        <button class="btn-save" id="afSalvar">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal definir limite de categoria -->
   <div class="modal-overlay hidden" id="modalLimite">
     <div class="modal-card">
@@ -2027,7 +2085,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual } from './js/api.js?v=19';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado } from './js/api.js?v=20';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
 
@@ -2108,7 +2166,7 @@
       const _activeBtn = document.getElementById('tabBtn' + id.charAt(0).toUpperCase() + id.slice(1));
       _activeBtn?.classList.add('active');
       _activeBtn?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      if (id === 'faturas')      renderFaturas(currentData);
+      if (id === 'faturas')      carregarFaturaEstados().then(() => renderFaturas(currentData));
       if (id === 'planejamento') renderPlanejamento(currentData, categoriasMes);
       if (id === 'graficos')    renderGraficos(currentData);
       if (id === 'detalhe') {
@@ -3477,6 +3535,13 @@
         const abertaItens = gruposAberta[cartaoId]  || [];
         const fechadaItens= gruposFechada[cartaoId] || [];
 
+        // Rollover da fatura fechada anterior (pré-calculado para usar em htmlAberta)
+        const rolloverAberta = (() => {
+          if (!fechadaItens.length) return 0;
+          const fk = fechadaItens[0].fatura || '';
+          return _faturaEstados[`${cartaoId}_${fk}`]?.rollover || 0;
+        })();
+
         // Determina chave e estado da fatura aberta
         const abertaKey = abertaItens.length ? abertaItens[0].fatura : _calcFaturaAbertaKey(cartaoObj);
         const [aAno, aMes] = abertaKey ? abertaKey.split('-').map(Number) : [0, 0];
@@ -3522,6 +3587,7 @@
               <span style="font-size:15px;font-weight:700;color:${totalAberta > 0 ? 'var(--negative)' : 'var(--text-muted)'};">${totalAberta > 0 ? brl(totalAberta) : 'R$ 0'}</span>
             </div>
           </div>
+          ${rolloverAberta > 0 ? `<div style="margin:8px 20px 0;padding:8px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;font-size:12px;color:#fbbf24;">⚠️ Saldo anterior não pago: <strong>${brl(rolloverAberta)}</strong> — não incluso nos lançamentos</div>` : ''}
           ${_barraLimite(totalAberta, limite)}
           <div class="items-list" style="padding:0;margin-top:8px;">${_renderLinhas(abertaItens, cartaoObj)}</div>
           <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:6px 16px 0;width:calc(100% - 32px);">+ Adicionar a esta fatura</button>`;
@@ -3529,31 +3595,72 @@
         // Seção de fatura fechada (pagamento este mês) — só se existir
         let htmlFechada = '';
         if (fechadaItens.length) {
-          const fechadaKey = fechadaItens[0].fatura || '';
-          const [fAno, fMes] = fechadaKey ? fechadaKey.split('-').map(Number) : [0, 0];
+          const fechadaKey     = fechadaItens[0].fatura || '';
+          const estadoKey      = `${cartaoId}_${fechadaKey}`;
+          const fatEstado      = _faturaEstados[estadoKey] || {};
+          const [fAno, fMes]   = fechadaKey ? fechadaKey.split('-').map(Number) : [0, 0];
           const fechadaMesNome = fAno ? `${MESES[fMes - 1]} ${fAno}` : '—';
-          const totalFechada = fechadaItens.reduce((s, d) => s + d.valor, 0);
+          const totalCalculado = fechadaItens.reduce((s, d) => s + d.valor, 0);
+          const totalDisplay   = fatEstado.ajusteTotal ?? totalCalculado;
+
           const vencFechadaLabel = (() => {
             if (!cartaoObj?.diaVencimento || !fAno) return '';
             const vMes = fMes === 12 ? 1 : fMes + 1;
             const vAno = fMes === 12 ? fAno + 1 : fAno;
             return `Vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vMes).padStart(2,'0')}/${vAno}`;
           })();
+
+          const pagamentoBadge = (() => {
+            if (fatEstado.estado === 'paga_total')
+              return `<span style="font-size:11px;background:rgba(52,211,153,0.15);color:#34d399;border-radius:20px;padding:2px 8px;font-weight:600;">✓ Paga</span>`;
+            if (fatEstado.estado === 'paga_parcial')
+              return `<span style="font-size:11px;background:rgba(251,191,36,0.15);color:#fbbf24;border-radius:20px;padding:2px 8px;font-weight:600;">◑ Parcial</span>`;
+            return `<span style="font-size:11px;background:rgba(248,113,113,0.15);color:#f87171;border-radius:20px;padding:2px 8px;font-weight:600;">💸 Pagar este mês</span>`;
+          })();
+
+          const pagamentoInfo = (() => {
+            if (fatEstado.estado === 'paga_total') return '';
+            if (fatEstado.estado === 'paga_parcial' && fatEstado.rollover)
+              return `<div style="font-size:11px;color:#fbbf24;margin-top:4px;">Pago ${brl(fatEstado.valorPago || 0)} · Saldo restante: ${brl(fatEstado.rollover)}</div>`;
+            return '';
+          })();
+
+          const ajusteInfo = fatEstado.ajusteTotal != null && fatEstado.ajusteTotal !== totalCalculado
+            ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Calculado: ${brl(totalCalculado)} → Ajustado: ${brl(fatEstado.ajusteTotal)}</div>`
+            : '';
+
+          const btnConfirmar = fatEstado.estado === 'paga_total' ? '' :
+            `<button class="btn-add-item" data-confirmar-fat="${estadoKey}" data-total="${totalDisplay}" data-nome="${escapeHtml(nomeCartao)}" data-mes="${fechadaMesNome}"
+              style="margin:4px 16px 0;width:calc(100% - 32px);background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.3);">
+              ✓ Confirmar pagamento
+            </button>`;
+
           htmlFechada = `
             <div style="border-top:1px solid var(--border);margin-top:12px;padding:14px 20px 0;">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
                 <div>
                   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     <span style="font-size:13px;font-weight:600;color:var(--white);">${fechadaMesNome}</span>
-                    <span style="font-size:11px;background:rgba(248,113,113,0.15);color:#f87171;border-radius:20px;padding:2px 8px;font-weight:600;">💸 Pagar este mês</span>
+                    ${pagamentoBadge}
                   </div>
                   ${vencFechadaLabel ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${vencFechadaLabel}</div>` : ''}
+                  ${ajusteInfo}${pagamentoInfo}
                 </div>
-                <span style="font-size:15px;font-weight:700;color:var(--negative);">${brl(totalFechada)}</span>
+                <span style="font-size:15px;font-weight:700;color:var(--negative);">${brl(totalDisplay)}</span>
               </div>
             </div>
             <div class="items-list" style="padding:0;margin-top:8px;">${_renderLinhas(fechadaItens, cartaoObj)}</div>
-            <div class="total-row" style="padding:10px 20px 4px;"><span class="total-label">Total a pagar</span><span class="total-value despesa">${brl(totalFechada)}</span></div>`;
+            <div class="total-row" style="padding:10px 20px 4px;">
+              <span class="total-label">Total a pagar</span>
+              <span class="total-value despesa">${brl(totalDisplay)}</span>
+            </div>
+            <div style="display:flex;gap:8px;padding:0 16px;margin-top:4px;">
+              <button class="btn-add-item" data-ajustar-fat="${estadoKey}" data-total-calculado="${totalCalculado}" data-nome="${escapeHtml(nomeCartao)}" data-mes="${fechadaMesNome}"
+                style="flex:1;background:transparent;color:var(--text-muted);border-color:var(--border);">
+                ✎ Ajustar fatura
+              </button>
+            </div>
+            ${btnConfirmar}`;
         }
 
         return `
@@ -3581,6 +3688,12 @@
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
       el.querySelectorAll('[data-add-cartao]').forEach(btn =>
         btn.addEventListener('click', () => abrirModalCartaoDespesa(btn.dataset.addCartao)));
+      el.querySelectorAll('[data-confirmar-fat]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModalConfirmarPagamento(
+          btn.dataset.confirmarFat, parseFloat(btn.dataset.total), btn.dataset.nome, btn.dataset.mes)));
+      el.querySelectorAll('[data-ajustar-fat]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModalAjustarFatura(
+          btn.dataset.ajustarFat, parseFloat(btn.dataset.totalCalculado), btn.dataset.nome, btn.dataset.mes)));
     }
 
     // ─── Despesas agrupadas por categoria com limite ──────────────────────────
@@ -5117,6 +5230,151 @@
       document.getElementById('modalSMS').classList.add('hidden'));
     document.getElementById('modalSMS')?.addEventListener('click', e => {
       if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
+
+    // ─── FATURA ESTADOS ──────────────────────────────────────────────────────
+
+    let _faturaEstados = {}; // key: cartaoId_YYYY-MM
+
+    async function carregarFaturaEstados() {
+      try { _faturaEstados = await getFaturaEstados(); }
+      catch (e) { _faturaEstados = {}; }
+    }
+
+    // ── Modal confirmar pagamento ─────────────────────────────────────────────
+    let _cpEstadoKey = null, _cpTotal = 0;
+
+    function abrirModalConfirmarPagamento(estadoKey, total, nomeCartao, mesFatura) {
+      _cpEstadoKey = estadoKey;
+      _cpTotal     = total;
+      document.getElementById('cpSub').textContent       = `${nomeCartao} · ${mesFatura}`;
+      document.getElementById('cpTotalLabel').textContent = brl(total);
+      document.getElementById('cpTotal').checked          = true;
+      document.getElementById('cpValorPago').value        = '';
+      document.getElementById('cpParcialSection').style.display = 'none';
+      document.getElementById('cpRolloverInfo').style.display   = 'none';
+      _lockBody();
+      document.getElementById('modalConfirmarPagamento').classList.remove('hidden');
+    }
+
+    function fecharModalConfirmarPagamento() {
+      document.getElementById('modalConfirmarPagamento').classList.add('hidden');
+      _unlockBody();
+      _cpEstadoKey = null;
+    }
+
+    document.querySelectorAll('input[name="cpTipo"]').forEach(radio =>
+      radio.addEventListener('change', () => {
+        const parcial = document.getElementById('cpParcial').checked;
+        document.getElementById('cpParcialSection').style.display = parcial ? '' : 'none';
+        document.getElementById('cpRolloverInfo').style.display   = 'none';
+      }));
+
+    document.getElementById('cpValorPago').addEventListener('input', function() {
+      const pago     = readMoney(this);
+      const rollover = _cpTotal - (pago || 0);
+      const info     = document.getElementById('cpRolloverInfo');
+      if (pago > 0 && pago < _cpTotal) {
+        info.textContent  = `Saldo restante após pagamento: ${brl(rollover)}`;
+        info.style.display = '';
+      } else {
+        info.style.display = 'none';
+      }
+    });
+
+    document.getElementById('cpCancelar').addEventListener('click', fecharModalConfirmarPagamento);
+    document.getElementById('modalConfirmarPagamento').addEventListener('click',
+      e => { if (e.target.id === 'modalConfirmarPagamento') fecharModalConfirmarPagamento(); });
+
+    document.getElementById('cpConfirmar').addEventListener('click', async () => {
+      if (!_cpEstadoKey) return;
+      const btn = document.getElementById('cpConfirmar');
+      const parcial = document.getElementById('cpParcial').checked;
+      let valorPago = _cpTotal;
+      if (parcial) {
+        valorPago = readMoney(document.getElementById('cpValorPago'));
+        if (!valorPago || valorPago <= 0) { toast('Preencha o valor pago.', 'warning'); return; }
+        if (valorPago >= _cpTotal) { toast('Para pagamento total, use a opção "Pagamento total".', 'warning'); return; }
+      }
+      const rollover = parcial ? Math.round((_cpTotal - valorPago) * 100) / 100 : 0;
+      const [cartaoId, faturaKey] = _cpEstadoKey.split('_').reduce((acc, p, i, arr) =>
+        i === arr.length - 1 ? [arr.slice(0, -1).join('_'), p] : acc, ['', '']);
+
+      // Cria despesa "Pagamento Fatura" no mês atual
+      const { mes, ano } = currentData.periodo;
+      const nomeFatura = document.getElementById('cpSub').textContent;
+      const novaDesp = {
+        categoria: 'Cartão', tipo: 'despesa', valor: valorPago,
+        data: new Date().toISOString().split('T')[0],
+        descricao: `Pagamento Fatura ${nomeFatura}`,
+        cartao: false, fatura: '', origem: 'manual',
+      };
+      currentData.despesas.push(novaDesp);
+
+      setLoading(btn, true);
+      try {
+        await Promise.all([
+          salvarEAtualizar(),
+          saveFaturaEstado(cartaoId, faturaKey, {
+            estado: parcial ? 'paga_parcial' : 'paga_total',
+            valorPago, rollover,
+          }),
+        ]);
+        _faturaEstados[_cpEstadoKey] = {
+          ...(_faturaEstados[_cpEstadoKey] || {}),
+          estado: parcial ? 'paga_parcial' : 'paga_total',
+          valorPago, rollover,
+        };
+        fecharModalConfirmarPagamento();
+        renderFaturas(currentData);
+        toast('Pagamento confirmado.', 'success');
+      } catch (e) {
+        currentData.despesas.pop(); // desfaz se falhou
+        toast('Erro ao confirmar: ' + e.message, 'error');
+      } finally { setLoading(btn, false); }
+    });
+
+    // ── Modal ajustar fatura ──────────────────────────────────────────────────
+    let _afEstadoKey = null;
+
+    function abrirModalAjustarFatura(estadoKey, totalCalculado, nomeCartao, mesFatura) {
+      _afEstadoKey = estadoKey;
+      document.getElementById('afSub').textContent          = `${nomeCartao} · ${mesFatura}`;
+      document.getElementById('afTotalCalculado').textContent = brl(totalCalculado);
+      const existente = _faturaEstados[estadoKey]?.ajusteTotal;
+      setMoney(document.getElementById('afValorReal'), existente ?? totalCalculado);
+      _lockBody();
+      document.getElementById('modalAjustarFatura').classList.remove('hidden');
+    }
+
+    function fecharModalAjustarFatura() {
+      document.getElementById('modalAjustarFatura').classList.add('hidden');
+      _unlockBody();
+      _afEstadoKey = null;
+    }
+
+    document.getElementById('afCancelar').addEventListener('click', fecharModalAjustarFatura);
+    document.getElementById('modalAjustarFatura').addEventListener('click',
+      e => { if (e.target.id === 'modalAjustarFatura') fecharModalAjustarFatura(); });
+
+    document.getElementById('afSalvar').addEventListener('click', async () => {
+      if (!_afEstadoKey) return;
+      const btn        = document.getElementById('afSalvar');
+      const ajusteTotal = readMoney(document.getElementById('afValorReal'));
+      if (!ajusteTotal || ajusteTotal < 0) { toast('Preencha o valor real a pagar.', 'warning'); return; }
+      const [cartaoId, faturaKey] = _afEstadoKey.split('_').reduce((acc, p, i, arr) =>
+        i === arr.length - 1 ? [arr.slice(0, -1).join('_'), p] : acc, ['', '']);
+
+      setLoading(btn, true);
+      try {
+        await saveFaturaEstado(cartaoId, faturaKey, { ajusteTotal });
+        _faturaEstados[_afEstadoKey] = { ...(_faturaEstados[_afEstadoKey] || {}), ajusteTotal };
+        fecharModalAjustarFatura();
+        renderFaturas(currentData);
+        toast('Fatura ajustada.', 'success');
+      } catch (e) {
+        toast('Erro ao salvar: ' + e.message, 'error');
+      } finally { setLoading(btn, false); }
     });
 
     // ─── CARTÕES DE CRÉDITO ──────────────────────────────────────────────────

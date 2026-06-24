@@ -766,6 +766,52 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   return { ok: true };
 });
 
+// ─── FATURA ESTADOS ───────────────────────────────────────────────────────────
+
+/**
+ * Retorna estados de faturas (ajuste, pagamento, rollover) para todos os cartões.
+ * Armazenados em mentoradas/{uid}/faturaEstados/{cartaoId}_{faturaKey}
+ */
+exports.getFaturaEstados = onCall({ secrets: [] }, async (request) => {
+  requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const snaps = await db.collection('mentoradas').doc(uid)
+    .collection('faturaEstados').get();
+
+  const estados = {};
+  snaps.forEach(doc => { estados[doc.id] = doc.data(); });
+  return estados;
+});
+
+/**
+ * Salva o estado de uma fatura específica (ajuste total, pagamento, rollover).
+ * Espera: { uid, cartaoId, faturaKey, ajusteTotal?, estado?, valorPago?, rollover? }
+ */
+exports.saveFaturaEstado = onCall({ secrets: [] }, async (request) => {
+  requireAuth(request);
+  const { uid, cartaoId, faturaKey, ajusteTotal, estado, valorPago, rollover } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!cartaoId || typeof cartaoId !== 'string')
+    throw new HttpsError('invalid-argument', 'cartaoId é obrigatório.');
+  if (!faturaKey || !/^\d{4}-\d{2}$/.test(faturaKey))
+    throw new HttpsError('invalid-argument', 'faturaKey deve estar no formato YYYY-MM.');
+
+  const docId  = `${cartaoId}_${faturaKey}`;
+  const col    = db.collection('mentoradas').doc(uid).collection('faturaEstados');
+  const update = { cartaoId, faturaKey, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() };
+
+  if (ajusteTotal  != null) update.ajusteTotal  = ajusteTotal;
+  if (estado       != null) update.estado        = estado;
+  if (valorPago    != null) update.valorPago      = valorPago;
+  if (rollover     != null) update.rollover       = rollover;
+
+  await col.doc(docId).set(update, { merge: true });
+  return { ok: true };
+});
+
 // ─── PARCELAMENTO ─────────────────────────────────────────────────────────────
 
 /**

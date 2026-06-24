@@ -156,6 +156,16 @@ export async function saveOrcamento(mes, ano, itens) {
   return call('saveOrcamento')({ uid: uidAtual(), mes, ano, itens });
 }
 
+// ─── Fatura estados ───────────────────────────────────────────────────────────
+
+export async function getFaturaEstados() {
+  return call('getFaturaEstados')({ uid: uidAtual() });
+}
+
+export async function saveFaturaEstado(cartaoId, faturaKey, updates) {
+  return call('saveFaturaEstado')({ uid: uidAtual(), cartaoId, faturaKey, ...updates });
+}
+
 // ─── Patrimônio ───────────────────────────────────────────────────────────────
 
 /**
