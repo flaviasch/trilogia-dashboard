@@ -4838,7 +4838,7 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
       const text = getRichText(block.heading_3?.rich_text);
       if      (/alinhamento/i.test(text))                             emSecao = 'alinhamentos';
       else if (/li[çc][õaã]o?.*casa|compromisso/i.test(text))        emSecao = 'licao';
-      else if (/material|recurso/i.test(text))                        emSecao = 'materiais';
+      else if (/material|recurso|entregáv|entregav|link|documento|arquivo/i.test(text)) emSecao = 'materiais';
       else                                                             emSecao = null;
       continue;
     }
@@ -4888,8 +4888,8 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
         const b    = block.bookmark;
         const text = getRichText(b?.caption).trim() || b?.url || 'Link';
         if (b?.url) materiais.push({ texto: text, url: b.url });
-      } else if (type === 'link_preview') {
-        const url = block.link_preview?.url;
+      } else if (type === 'link_preview' || type === 'embed') {
+        const url = block[type]?.url;
         if (url) materiais.push({ texto: url, url });
       } else if (type === 'file') {
         const f    = block.file;
