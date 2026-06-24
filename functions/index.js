@@ -631,13 +631,17 @@ function _resolverCategoria(cat) {
     : cat;
 }
 
-// Retorna o mês de pagamento de um item de fatura (fatura + 1 mês) no formato YYYY-MM.
-function _mesPagamento(fatura) {
+// Retorna o mês de pagamento de um item de fatura no formato YYYY-MM.
+// Se diaVencimento > diaCorte, o débito ocorre no mesmo mês da fatura (ex: corte dia 20, venc dia 25).
+// Caso contrário (ou sem dados do cartão), o pagamento é no mês seguinte.
+function _mesPagamento(fatura, diaCorte, diaVencimento) {
   if (!fatura) return null;
   const [fAno, fMes] = fatura.split('-').map(Number);
-  return fMes === 12
-    ? `${fAno + 1}-01`
-    : `${fAno}-${String(fMes + 1).padStart(2, '0')}`;
+  if (isNaN(fAno) || isNaN(fMes)) return null;
+  if (diaVencimento && diaCorte && diaVencimento > diaCorte) {
+    return `${fAno}-${String(fMes).padStart(2, '0')}`;
+  }
+  return fMes === 12 ? `${fAno + 1}-01` : `${fAno}-${String(fMes + 1).padStart(2, '0')}`;
 }
 
 exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
@@ -653,7 +657,19 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const prevKey = `${prevAno}-${String(prevMes).padStart(2, '0')}`;
 
   const col = db.collection('mentoradas').doc(uid).collection('orcamento');
-  const [docSnap, prevSnap] = await Promise.all([col.doc(mesKey).get(), col.doc(prevKey).get()]);
+  const cartoesCol = db.collection('mentoradas').doc(uid).collection('cartoes');
+  const [docSnap, prevSnap, cartoesSnap] = await Promise.all([
+    col.doc(mesKey).get(), col.doc(prevKey).get(), cartoesCol.get(),
+  ]);
+
+  const cartaoMap = {};
+  cartoesSnap.forEach(doc => { cartaoMap[doc.id] = doc.data(); });
+
+  // Wrapper que usa dados do cartão para determinar o mês de pagamento correto
+  const _mp = item => {
+    const c = cartaoMap[item.cartaoId];
+    return _mesPagamento(item.fatura, c?.diaCorte, c?.diaVencimento);
+  };
 
   const normalizar = arr => (arr || []).filter(item => item != null).map(item =>
     item.categoria ? { ...item, categoria: _resolverCategoria(item.categoria) } : item
@@ -663,17 +679,17 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 
   // Itens do mês atual: exclui fatura cujo pagamento NÃO é neste mês
   const itensMes = todosItensMes
-    .filter(item => !(item.cartao && item.fatura) || _mesPagamento(item.fatura) === mesKey);
+    .filter(item => !(item.cartao && item.fatura) || _mp(item) === mesKey);
 
   // Faturas abertas: itens do mês atual cujo pagamento é num mês futuro
   // (_faturaAberta = flag de display — não afeta totais, só aparece na aba Faturas)
   const itensFaturaAberta = todosItensMes
-    .filter(item => item.cartao && item.fatura && _mesPagamento(item.fatura) !== mesKey)
+    .filter(item => item.cartao && item.fatura && _mp(item) !== mesKey)
     .map(item => ({ ...item, _faturaAberta: true }));
 
   // Itens do mês anterior: só fatura cujo pagamento É neste mês — taggeia origem para o frontend
   const itensPrev = normalizar(prevSnap.exists ? prevSnap.data().itens : [])
-    .filter(item => item.cartao && item.fatura && _mesPagamento(item.fatura) === mesKey)
+    .filter(item => item.cartao && item.fatura && _mp(item) === mesKey)
     .map(item => ({ ...item, _sourceMes: prevMes, _sourceAno: prevAno }));
 
   return [...itensMes, ...itensPrev, ...itensFaturaAberta];
@@ -739,20 +755,28 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 
   // Para meses de origem diferentes: faz merge (substitui só as faturas com pagamento = mesKey)
   const outrosMeses = Object.entries(itensPorOrigem).filter(([k]) => k !== mesKey);
-  for (const [srcKey, srcItens] of outrosMeses) {
-    const snap = await col.doc(srcKey).get();
-    const existentes = snap.exists ? (snap.data().itens || []) : [];
-    // Mantém itens que NÃO são faturas com pagamento = mesKey (esses foram atualizados no frontend)
-    const restantes  = existentes.filter(i => !(i.cartao && i.fatura && _mesPagamento(i.fatura) === mesKey));
-    const merged     = [...restantes, ...srcItens];
-    const [srcAno, srcMesStr] = srcKey.split('-');
-    await col.doc(srcKey).set({
-      uid,
-      mes: parseInt(srcMesStr, 10),
-      ano: parseInt(srcAno, 10),
-      itens: merged,
-      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-    });
+  if (outrosMeses.length) {
+    const cartoesSnap = await db.collection('mentoradas').doc(uid).collection('cartoes').get();
+    const cartaoMap = {};
+    cartoesSnap.forEach(doc => { cartaoMap[doc.id] = doc.data(); });
+    const _mp = item => {
+      const c = cartaoMap[item.cartaoId];
+      return _mesPagamento(item.fatura, c?.diaCorte, c?.diaVencimento);
+    };
+    for (const [srcKey, srcItens] of outrosMeses) {
+      const snap = await col.doc(srcKey).get();
+      const existentes = snap.exists ? (snap.data().itens || []) : [];
+      const restantes  = existentes.filter(i => !(i.cartao && i.fatura && _mp(i) === mesKey));
+      const merged     = [...restantes, ...srcItens];
+      const [srcAno, srcMesStr] = srcKey.split('-');
+      await col.doc(srcKey).set({
+        uid,
+        mes: parseInt(srcMesStr, 10),
+        ano: parseInt(srcAno, 10),
+        itens: merged,
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   // ── Cache de sobra (usa só os itens do mês atual) ──────────────────────
