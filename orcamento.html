@@ -5249,11 +5249,12 @@
     }
 
     // ── Modal confirmar pagamento ─────────────────────────────────────────────
-    let _cpEstadoKey = null, _cpTotal = 0;
+    let _cpEstadoKey = null, _cpTotal = 0, _cpNomeCartao = '';
 
     function abrirModalConfirmarPagamento(estadoKey, total, nomeCartao, mesFatura) {
-      _cpEstadoKey = estadoKey;
-      _cpTotal     = total;
+      _cpEstadoKey    = estadoKey;
+      _cpTotal        = total;
+      _cpNomeCartao   = nomeCartao || '';
       document.getElementById('cpSub').textContent       = `${nomeCartao} · ${mesFatura}`;
       document.getElementById('cpTotalLabel').textContent = brl(total);
       document.getElementById('cpTotal').checked          = true;
@@ -5307,26 +5308,20 @@
       const [cartaoId, faturaKey] = _cpEstadoKey.split('_').reduce((acc, p, i, arr) =>
         i === arr.length - 1 ? [arr.slice(0, -1).join('_'), p] : acc, ['', '']);
 
-      // Cria despesa "Pagamento Fatura" no mês atual
+      // nextMesKey = mês seguinte ao mês atual em exibição
       const { mes, ano } = currentData.periodo;
-      const nomeFatura = document.getElementById('cpSub').textContent;
-      const novaDesp = {
-        categoria: 'Cartão', tipo: 'despesa', valor: valorPago,
-        data: new Date().toISOString().split('T')[0],
-        descricao: `Pagamento Fatura ${nomeFatura}`,
-        cartao: false, fatura: '', origem: 'manual',
-      };
-      currentData.despesas.push(novaDesp);
+      const nextMes = mes === 12 ? 1 : mes + 1;
+      const nextAno = mes === 12 ? ano + 1 : ano;
+      const nextMesKey = `${nextAno}-${String(nextMes).padStart(2, '0')}`;
 
       setLoading(btn, true);
       try {
-        await Promise.all([
-          salvarEAtualizar(),
-          saveFaturaEstado(cartaoId, faturaKey, {
-            estado: parcial ? 'paga_parcial' : 'paga_total',
-            valorPago, rollover,
-          }),
-        ]);
+        await saveFaturaEstado(cartaoId, faturaKey, {
+          estado: parcial ? 'paga_parcial' : 'paga_total',
+          valorPago, rollover,
+          nomeCartao: _cpNomeCartao,
+          nextMesKey,
+        });
         _faturaEstados[_cpEstadoKey] = {
           ...(_faturaEstados[_cpEstadoKey] || {}),
           estado: parcial ? 'paga_parcial' : 'paga_total',
@@ -5334,9 +5329,11 @@
         };
         fecharModalConfirmarPagamento();
         renderFaturas(currentData);
-        toast('Pagamento confirmado.', 'success');
+        if (parcial && rollover > 0)
+          toast(`Pagamento parcial confirmado. Saldo de ${brl(rollover)} lançado em ${MESES[nextMes - 1]}.`, 'success');
+        else
+          toast('Pagamento confirmado.', 'success');
       } catch (e) {
-        currentData.despesas.pop(); // desfaz se falhou
         toast('Erro ao confirmar: ' + e.message, 'error');
       } finally { setLoading(btn, false); }
     });

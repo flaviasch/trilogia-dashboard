@@ -671,39 +671,24 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     return _mesPagamento(item.fatura, c?.diaCorte, c?.diaVencimento);
   };
 
-  // Retorna true se a fatura ainda está aberta (hoje <= data de corte)
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  const _isFaturaAberta = (fatura, cartaoId) => {
-    const c = cartaoMap[cartaoId];
-    if (!fatura || !c?.diaCorte) return true; // sem diaCorte: assume aberta
-    const [fAno, fMes] = fatura.split('-').map(Number);
-    if (isNaN(fAno) || isNaN(fMes)) return true;
-    const ultimoDia = new Date(fAno, fMes, 0).getDate();
-    const dataCorte = new Date(fAno, fMes - 1, Math.min(c.diaCorte, ultimoDia));
-    return hoje <= dataCorte;
-  };
-
   const normalizar = arr => (arr || []).filter(item => item != null).map(item =>
     item.categoria ? { ...item, categoria: _resolverCategoria(item.categoria) } : item
   );
 
   const todosItensMes = normalizar(docSnap.exists ? docSnap.data().itens : []);
 
-  // Faturas abertas: fatura ainda acumulando (hoje <= corte), independe do mês de pagamento
+  // Faturas abertas: itens cujo mês de pagamento ≠ mês atual (pagamento futuro ou passado)
   const itensFaturaAberta = todosItensMes
-    .filter(item => item.cartao && item.fatura && _isFaturaAberta(item.fatura, item.cartaoId))
+    .filter(item => item.cartao && item.fatura && _mp(item) !== mesKey)
     .map(item => ({ ...item, _faturaAberta: true }));
 
-  // Itens do mês atual: não-fatura + fatura fechada cujo pagamento é neste mês
+  // Itens do mês atual: não-fatura + fatura com pagamento neste mês
   const itensMes = todosItensMes
-    .filter(item => {
-      if (!(item.cartao && item.fatura)) return true;
-      return _mp(item) === mesKey && !_isFaturaAberta(item.fatura, item.cartaoId);
-    });
+    .filter(item => !(item.cartao && item.fatura) || _mp(item) === mesKey);
 
-  // Itens do mês anterior: só fatura fechada cujo pagamento É neste mês
+  // Itens do mês anterior: só fatura com pagamento neste mês
   const itensPrev = normalizar(prevSnap.exists ? prevSnap.data().itens : [])
-    .filter(item => item.cartao && item.fatura && _mp(item) === mesKey && !_isFaturaAberta(item.fatura, item.cartaoId))
+    .filter(item => item.cartao && item.fatura && _mp(item) === mesKey)
     .map(item => ({ ...item, _sourceMes: prevMes, _sourceAno: prevAno }));
 
   return [...itensMes, ...itensPrev, ...itensFaturaAberta];
@@ -825,11 +810,14 @@ exports.getFaturaEstados = onCall({ secrets: [] }, async (request) => {
 
 /**
  * Salva o estado de uma fatura específica (ajuste total, pagamento, rollover).
- * Espera: { uid, cartaoId, faturaKey, ajusteTotal?, estado?, valorPago?, rollover? }
+ * Espera: { uid, cartaoId, faturaKey, ajusteTotal?, estado?, valorPago?, rollover?,
+ *           nomeCartao?, nextMesKey? }
+ * Se estado=paga_parcial e rollover>0, cria automaticamente uma despesa no nextMesKey.
  */
 exports.saveFaturaEstado = onCall({ secrets: [] }, async (request) => {
   requireAuth(request);
-  const { uid, cartaoId, faturaKey, ajusteTotal, estado, valorPago, rollover } = request.data;
+  const { uid, cartaoId, faturaKey, ajusteTotal, estado, valorPago, rollover,
+          nomeCartao, nextMesKey } = request.data;
   requireSelfOrAdmin(request, uid);
 
   if (!cartaoId || typeof cartaoId !== 'string')
@@ -846,7 +834,38 @@ exports.saveFaturaEstado = onCall({ secrets: [] }, async (request) => {
   if (valorPago    != null) update.valorPago      = valorPago;
   if (rollover     != null) update.rollover       = rollover;
 
-  await col.doc(docId).set(update, { merge: true });
+  const ops = [col.doc(docId).set(update, { merge: true })];
+
+  // Pagamento parcial: cria despesa de saldo pendente no mês seguinte
+  if (estado === 'paga_parcial' && rollover > 0 && nextMesKey && /^\d{4}-\d{2}$/.test(nextMesKey)) {
+    const [nAno, nMes] = nextMesKey.split('-').map(Number);
+    const dataItem = `${nAno}-${String(nMes).padStart(2, '0')}-01`;
+    const nomeCartaoSafe = (nomeCartao || cartaoId).slice(0, 60);
+    const [fAno, fMes] = faturaKey.split('-').map(Number);
+    const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const mesFaturaLabel = `${MESES_PT[fMes - 1]}/${fAno}`;
+    const novoItem = {
+      tipo: 'despesa',
+      categoria: 'Cartão de crédito',
+      descricao: `Saldo pendente ${nomeCartaoSafe} - Fatura ${mesFaturaLabel}`,
+      valor: Math.round(rollover * 100) / 100,
+      data: dataItem,
+      origem: 'rollover',
+      cartaoId,
+      _rollover: true,
+    };
+    const orcCol = db.collection('mentoradas').doc(uid).collection('orcamento');
+    const nextDoc = orcCol.doc(nextMesKey);
+    ops.push(
+      db.runTransaction(async t => {
+        const snap = await t.get(nextDoc);
+        const itens = snap.exists ? (snap.data().itens || []) : [];
+        t.set(nextDoc, { itens: [...itens, novoItem] }, { merge: true });
+      })
+    );
+  }
+
+  await Promise.all(ops);
   return { ok: true };
 });
 
