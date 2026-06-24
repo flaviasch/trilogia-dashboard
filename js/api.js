@@ -567,7 +567,8 @@ export const PATRIMONIO_COR = {
  * @returns {Array<{categoria, tipo, valor, data?, descricao?, fixa?}>}
  */
 export function parsearCsvRaioX(csvText) {
-  const linhas = csvText.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  // Remove BOM (gerado por Excel/Numbers) e normaliza quebras de linha
+  const linhas = csvText.replace(/^﻿/, '').trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   if (linhas.length < 2) throw new Error('CSV vazio ou sem dados.');
 
   const primeiraLinha = linhas[0];
@@ -575,19 +576,20 @@ export function parsearCsvRaioX(csvText) {
             : primeiraLinha.includes(';')  ? ';'
             : ',';
 
-  const cabecalho = primeiraLinha.split(sep).map(c => c.trim().toLowerCase());
+  const cabecalho = primeiraLinha.split(sep).map(c => c.trim().toLowerCase().replace(/[^a-záéíóúãõâêôçàü]/gi, ''));
 
-  const idxCategoria = cabecalho.indexOf('categoria');
-  const idxTipo      = cabecalho.indexOf('tipo');
-  const idxValor     = cabecalho.indexOf('valor');
-  const idxData      = cabecalho.indexOf('data');
-  const idxDescricao = ['descricao','descrição','descricão','description']
-    .map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
-  const idxFixa      = ['fixa','fixed','is_fixed','isfixed']
-    .map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
+  const _find = (...nomes) => nomes.map(n => cabecalho.indexOf(n)).find(i => i !== -1) ?? -1;
+
+  const idxCategoria = _find('categoria', 'category', 'cat', 'nome', 'name');
+  const idxTipo      = _find('tipo', 'type', 'natureza');
+  const idxValor     = _find('valor', 'value', 'amount', 'quantia', 'preco', 'preco');
+  const idxData      = _find('data', 'date', 'dt');
+  const idxDescricao = _find('descricao', 'descrio', 'description', 'descricao', 'obs', 'observacao');
+  const idxFixa      = _find('fixa', 'fixed', 'is_fixed', 'isfixed', 'recorrente');
 
   if (idxCategoria === -1 || idxTipo === -1 || idxValor === -1) {
-    throw new Error('CSV inválido: colunas esperadas são "categoria", "tipo", "valor".');
+    const encontradas = cabecalho.join(', ');
+    throw new Error(`CSV inválido: colunas esperadas são "categoria", "tipo", "valor". Encontradas: ${encontradas}`);
   }
 
   // Padrões de linhas de totais/subtotais que devem ser ignorados
