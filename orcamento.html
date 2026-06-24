@@ -1255,6 +1255,7 @@
           <div class="resumo-value negative" id="totalDespesa">—</div>
           <div class="resumo-sub" id="pctDespesa">—</div>
           <div id="fixasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;cursor:pointer;"></div>
+          <div id="faturasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;">💳 <span id="faturasPendentesValor"></span> a vencer</div>
         </div>
         <div class="resumo-card destaque">
           <div class="resumo-label">Sobra do Mês</div>
@@ -2891,7 +2892,7 @@
     // ─── Score de saúde financeira ───────────────────────────────────────────
     function calcularScore(data, reservasAtivas, cats) {
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
-      const totalDespesa = data.despesas.reduce((s, d) => s + d.valor, 0);
+      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
       const sobra        = totalReceita - totalDespesa;
       const totalAporte  = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
       const totalPlan    = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
@@ -2965,7 +2966,7 @@
           return gasto > c.limite;
         }).length;
         const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
-        const totalDespesa = data.despesas.reduce((s, d) => s + d.valor, 0);
+        const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
         const sobraPct = totalReceita > 0 ? ((totalReceita - totalDespesa) / totalReceita * 100).toFixed(0) : 0;
 
         if (componentes.regularidade === 0) {
@@ -3033,7 +3034,10 @@
       _btnNext.style.cursor  = _noLimite ? 'not-allowed' : '';
 
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
-      const totalDespesa = data.despesas.reduce((s, r) => s + r.valor, 0);
+      // Despesas de cartão com fatura atribuída só impactam o caixa no mês do vencimento,
+      // não no mês em que a compra foi feita.
+      const totalFaturas  = data.despesas.filter(d => d.cartao && d.fatura).reduce((s, d) => s + d.valor, 0);
+      const totalDespesa  = data.despesas.reduce((s, d) => s + d.valor, 0) - totalFaturas;
       const sobra = totalReceita - totalDespesa;
       const sobraPct = totalReceita > 0 ? (sobra / totalReceita) * 100 : 0;
 
@@ -3046,6 +3050,10 @@
       document.getElementById('qtdReceitas').textContent = `${data.receitas.length} fonte${data.receitas.length > 1 ? 's' : ''} de renda`;
       document.getElementById('totalDespesa').textContent = brl(totalDespesa);
       document.getElementById('pctDespesa').textContent = `${pct(totalDespesa, totalReceita)} da receita`;
+      const fatInd = document.getElementById('faturasPendentesIndicador');
+      const fatVal = document.getElementById('faturasPendentesValor');
+      if (totalFaturas > 0) { fatInd.style.display = ''; fatVal.textContent = brl(totalFaturas); }
+      else { fatInd.style.display = 'none'; }
 
       const sobraEl = document.getElementById('totalSobra');
       sobraEl.textContent = brl(sobra);
@@ -3866,7 +3874,7 @@
       const el = document.getElementById('graficosContent');
       if (!el) return;
 
-      const totalDespesa = data.despesas.reduce((s, d) => s + d.valor, 0);
+      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
 
       // Agrega por categoria para a pizza
       const porCat = {};
