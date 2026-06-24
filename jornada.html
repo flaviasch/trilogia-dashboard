@@ -431,8 +431,8 @@
         return;
       }
 
-      // Card de lições pendentes (do encontro mais recente que tiver pendentes)
-      const comPendentes = encontros.find(e => e.licoesPendentes.length > 0);
+      // Card de lições pendentes — só do encontro mais recente (não ressurgir lições antigas)
+      const comPendentes = encontros[0]?.licoesPendentes.length > 0 ? encontros[0] : null;
       if (comPendentes) {
         document.getElementById('cardPendentes').style.display = 'block';
         document.getElementById('pendentesSubtitulo').textContent =

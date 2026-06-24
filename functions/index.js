@@ -4874,11 +4874,23 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
     }
 
     if (emSecao === 'materiais') {
-      if (type === 'bulleted_list_item') {
-        const rt   = block.bulleted_list_item?.rich_text || [];
+      if (type === 'bulleted_list_item' || type === 'numbered_list_item') {
+        const rt   = block[type]?.rich_text || [];
         const text = getRichText(rt).trim();
         const url  = getFirstHref(rt);
         if (text) materiais.push({ texto: text, url: url || null });
+      } else if (type === 'paragraph') {
+        const rt   = block.paragraph?.rich_text || [];
+        const text = getRichText(rt).trim();
+        const url  = getFirstHref(rt);
+        if (text || url) materiais.push({ texto: text || url, url: url || null });
+      } else if (type === 'bookmark') {
+        const b    = block.bookmark;
+        const text = getRichText(b?.caption).trim() || b?.url || 'Link';
+        if (b?.url) materiais.push({ texto: text, url: b.url });
+      } else if (type === 'link_preview') {
+        const url = block.link_preview?.url;
+        if (url) materiais.push({ texto: url, url });
       } else if (type === 'file') {
         const f    = block.file;
         const text = getRichText(f?.caption).trim() || 'Arquivo';
