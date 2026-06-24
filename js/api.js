@@ -555,6 +555,42 @@ export const PATRIMONIO_COR = {
 
 // ─── Utilitários de parse de CSV ───────────────────────────────────────────────
 
+const _CATEGORIAS_CODIGO = {
+  // MORADIA
+  1:'Aluguel', 2:'Financiamento Imóvel', 3:'IPTU', 4:'Condomínio', 5:'Manutenção',
+  6:'Energia', 7:'Água', 8:'Gás', 9:'Suprimentos', 10:'Outros Moradia',
+  // ALIMENTAÇÃO
+  11:'Supermercado', 12:'Restaurante', 13:'Café', 14:'Barzinho',
+  // COMUNICAÇÃO
+  15:'Celular', 16:'Internet', 17:'Streaming', 18:'Telefonia Fixa', 19:'TV a Cabo', 20:'Outros Comunicação',
+  // SAÚDE E CUIDADOS
+  21:'Academia', 22:'Assistência Médica', 23:'Cabelo e Unha', 24:'Cosméticos',
+  25:'Dentista', 26:'Exames médicos', 27:'Farmácia', 28:'Médicos particular',
+  29:'Suplementos', 30:'Outros Saúde',
+  // VESTUÁRIO
+  31:'Roupas', 32:'Acessórios', 33:'Outros Vestuário',
+  // PET
+  34:'Veterinário', 35:'Remédios', 36:'Alimentação', 37:'Outros Pet',
+  // TRANSPORTE
+  40:'Aplicativos', 41:'Combustível', 42:'Estacionamento', 43:'Financiamento',
+  44:'IPVA', 45:'Licenciamento', 46:'Manutenção', 47:'Passagens',
+  48:'Seguro', 49:'Táxi', 50:'Transporte Público', 51:'Outros Transporte',
+  // EDUCAÇÃO
+  52:'Mensalidades', 53:'Idiomas', 54:'Despesas Gerais', 55:'Cursos',
+  56:'Livros e Revistas', 57:'FIES', 58:'Outros Educação',
+  // LAZER
+  60:'Cinema', 61:'Esportes', 62:'Shows', 63:'Viagens', 64:'Outros Lazer',
+  // ARTIGOS RESIDÊNCIA
+  70:'Cama, Mesa e Banho', 71:'Consertos', 72:'Eletrodomésticos', 73:'Móveis',
+  74:'TV, Som e Informática', 75:'Utensílios e decoração', 76:'Outros Artigos',
+  // OUTROS
+  80:'Presentes', 81:'Doações', 82:'Cigarro', 83:'Outros',
+  // FINANCEIRO
+  90:'Juros Cartão de Crédito', 91:'Empréstimos', 92:'Outros Financeiro',
+  // PROJETOS DE VIDA
+  93:'Reserva Financeira', 94:'Aposentadoria', 95:'Casa Própria', 96:'Outros Projetos',
+};
+
 /**
  * Parseia o CSV do Raio-X para o formato esperado por saveOrcamento.
  *
@@ -609,7 +645,11 @@ export function parsearCsvRaioX(csvText) {
     }
     const valor = parseFloat(cols[idxValor]?.replace(',', '.'));
     if (isNaN(valor)) throw new Error(`Linha ${i + 2}: valor inválido "${cols[idxValor]}".`);
-    const item = { categoria: catBruta || 'Sem categoria', tipo, valor };
+    const catNum = parseInt(catBruta, 10);
+    const categoria = (!isNaN(catNum) && String(catNum) === catBruta.trim() && _CATEGORIAS_CODIGO[catNum])
+      ? _CATEGORIAS_CODIGO[catNum]
+      : catBruta;
+    const item = { categoria: categoria || 'Sem categoria', tipo, valor };
     if (idxData      !== -1 && cols[idxData])      item.data      = cols[idxData];
     if (idxDescricao !== -1 && cols[idxDescricao]) item.descricao = cols[idxDescricao];
     if (idxFixa      !== -1 && FIXA_SIM.test(cols[idxFixa] || '')) item.fixa = true;
