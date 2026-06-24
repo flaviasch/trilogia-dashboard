@@ -2871,7 +2871,7 @@
         currentData = {
           periodo:  { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}) })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
@@ -2948,7 +2948,7 @@
       let ptsOrcamento = 75; // neutro se sem limites
       if (catsComLimite.length > 0) {
         const estouradas = catsComLimite.filter(c => {
-          const gasto = data.despesas.filter(d => d.categoria === c.nome).reduce((s, d) => s + d.valor, 0);
+          const gasto = data.despesas.filter(d => d.categoria === c.nome && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
           return gasto > c.limite;
         }).length;
         if (estouradas === 0)      ptsOrcamento = 100;
@@ -2990,7 +2990,7 @@
         const totalPlan   = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
         const catsComLimite = (categoriasMes || []).filter(c => c.limite > 0);
         const nEstouradas = catsComLimite.filter(c => {
-          const gasto = data.despesas.filter(d => d.categoria === c.nome).reduce((s, d) => s + d.valor, 0);
+          const gasto = data.despesas.filter(d => d.categoria === c.nome && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
           return gasto > c.limite;
         }).length;
         const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
@@ -3064,9 +3064,9 @@
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
       // Despesas de cartão com fatura atribuída só impactam o caixa no mês do vencimento,
       // não no mês em que a compra foi feita.
-      const totalFaturas  = data.despesas.filter(d => d.cartao && d.fatura).reduce((s, d) => s + d.valor, 0);
+      const totalFaturas  = data.despesas.filter(d => d.cartao && d.fatura && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
       const totalPendente = data.despesas.filter(d => d.pendente && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
-      const totalDespesa  = data.despesas.filter(d => !(d.pendente)).reduce((s, d) => s + d.valor, 0) - totalFaturas;
+      const totalDespesa  = data.despesas.filter(d => !(d.pendente) && !d._faturaAberta).reduce((s, d) => s + d.valor, 0) - totalFaturas;
       const sobra = totalReceita - totalDespesa;
       const sobraPct = totalReceita > 0 ? (sobra / totalReceita) * 100 : 0;
 
@@ -3278,7 +3278,7 @@
       if (bannerAlertaEl) {
         const alertasResumo = categoriasMes
           .map(cat => {
-            const real = data.despesas.filter(d => d.categoria === cat.nome).reduce((s, d) => s + d.valor, 0);
+            const real = data.despesas.filter(d => d.categoria === cat.nome && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
             if (!cat.limite || real === 0) return null;
             const p = real / cat.limite * 100;
             if (p < 80) return null;
@@ -3369,13 +3369,38 @@
     }
 
     // ─── Faturas por cartão (aba Resumo) ─────────────────────────────────────
+    // Retorna estado da fatura: 'aberta' | 'fechada'
+    function _faturaEstado(cartaoObj, faturaKey) {
+      if (!faturaKey || !cartaoObj?.diaCorte) return 'aberta';
+      const [fAno, fMes] = faturaKey.split('-').map(Number);
+      const ultimoDia = new Date(fAno, fMes, 0).getDate();
+      const diaFechamento = Math.min(cartaoObj.diaCorte, ultimoDia);
+      const dataFechamento = new Date(fAno, fMes - 1, diaFechamento);
+      const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+      return hoje > dataFechamento ? 'fechada' : 'aberta';
+    }
+
+    // Calcula a chave da fatura aberta atual para um cartão (YYYY-MM)
+    function _calcFaturaAbertaKey(cartaoObj) {
+      const hoje = new Date();
+      const ano  = hoje.getFullYear();
+      const mes  = hoje.getMonth() + 1;
+      const diaCorte = cartaoObj?.diaCorte || 31;
+      const ultimoDia = new Date(ano, mes, 0).getDate();
+      if (hoje.getDate() <= Math.min(diaCorte, ultimoDia)) {
+        return `${ano}-${String(mes).padStart(2,'0')}`;
+      }
+      const proxMes = mes === 12 ? 1 : mes + 1;
+      const proxAno = mes === 12 ? ano + 1 : ano;
+      return `${proxAno}-${String(proxMes).padStart(2,'0')}`;
+    }
+
     function renderFaturas(data) {
       const el = document.getElementById('secaoFaturas');
       if (!el) return;
 
       const cartoesAtivos = _cartoes.filter(c => c.ativo);
 
-      // Sem nenhum cartão cadastrado ainda
       if (!cartoesAtivos.length) {
         el.innerHTML = `
           <div style="text-align:center;padding:48px 20px;color:var(--text-secondary);">
@@ -3387,99 +3412,169 @@
         return;
       }
 
-      // Agrupa despesas por cartaoId
-      const grupos = {};
+      // Separa itens por cartaoId em abertos (acumulando) e fechados (pagamento este mês)
+      const gruposAberta  = {}; // cartaoId → itens com _faturaAberta
+      const gruposFechada = {}; // cartaoId → itens sem _faturaAberta (pagamento este mês)
       data.despesas.filter(d => d.cartao && d.cartaoId).forEach(d => {
-        if (!grupos[d.cartaoId]) grupos[d.cartaoId] = [];
-        grupos[d.cartaoId].push(d);
+        const id = d.cartaoId;
+        if (d._faturaAberta) {
+          if (!gruposAberta[id])  gruposAberta[id]  = [];
+          gruposAberta[id].push(d);
+        } else {
+          if (!gruposFechada[id]) gruposFechada[id] = [];
+          gruposFechada[id].push(d);
+        }
       });
 
-      // Lista de IDs: cartões ativos + eventuais cartões excluídos que ainda têm despesas
       const todosIds = [...new Set([
         ...cartoesAtivos.map(c => c.id),
-        ...Object.keys(grupos)
+        ...Object.keys(gruposAberta),
+        ...Object.keys(gruposFechada),
       ])];
 
       const IC_E = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
       const IC_D = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
 
-      const secoes = todosIds.map(cartaoId => {
-        const cartaoObj = _cartoes.find(c => c.id === cartaoId);
-        const itens = grupos[cartaoId] || [];
-        const nomeCartao = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
-        const totalFatura = itens.reduce((s, d) => s + d.valor, 0);
-        const limite = cartaoObj?.limite || 0;
-
-        let barraLimite = '';
-        if (limite > 0 && totalFatura > 0) {
-          const p = Math.min(totalFatura / limite * 100, 200);
-          const cor = p > 100 ? 'var(--negative)' : p > 80 ? '#f59e0b' : 'var(--positive)';
-          barraLimite = `
-            <div style="display:flex;align-items:center;gap:8px;margin-top:10px;margin-bottom:2px;">
-              <div style="flex:1;height:5px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;">
-                <div style="height:100%;border-radius:4px;width:${Math.min(p,100).toFixed(1)}%;background:${cor};"></div>
+      function _renderLinhas(itens, cartaoObj) {
+        if (!itens.length) {
+          return `<div style="padding:16px 20px;color:var(--text-muted);font-size:13px;text-align:center;border-top:1px solid var(--border);">Nenhuma despesa lançada ainda</div>`;
+        }
+        return itens.map(d => {
+          const idxOriginal = data.despesas.indexOf(d);
+          const desc = d.descricao || d.categoria;
+          return `
+            <div class="item-row" style="border-radius:0;border:none;border-top:1px solid var(--border);">
+              <div>
+                <div class="item-categoria">${escapeHtml(desc)}</div>
+                ${d.data ? `<div class="item-fonte">${escapeHtml(formatData(d.data))}</div>` : ''}
               </div>
-              <span style="font-size:11px;font-weight:700;color:${cor};white-space:nowrap;">${p.toFixed(0)}% do limite (${brl(limite)})</span>
+              <div></div>
+              <div class="item-value despesa">${brl(d.valor)}</div>
+              <div class="item-actions">
+                <button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_E}</button>
+                <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_D}</button>
+              </div>
             </div>`;
-        }
+        }).join('');
+      }
 
-        let linhasItens = '';
-        if (itens.length) {
-          linhasItens = itens.map(d => {
-            const idxOriginal = data.despesas.indexOf(d);
-            const nomeMesFat = d.fatura ? MESES[parseInt(d.fatura.split('-')[1]) - 1] : '';
-            const vcto = (() => {
-              if (!cartaoObj?.diaVencimento || !d.fatura) return '';
-              const fMes = parseInt(d.fatura.split('-')[1], 10);
-              const vMes = fMes < 12 ? fMes + 1 : 1;
-              return ` · vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vMes).padStart(2,'0')}`;
-            })();
-            const desc = d.descricao || d.categoria;
-            return `
-              <div class="item-row" style="border-radius:0;border:none;border-top:1px solid var(--border);">
+      function _barraLimite(total, limite) {
+        if (!limite || !total) return '';
+        const p = Math.min(total / limite * 100, 200);
+        const cor = p > 100 ? 'var(--negative)' : p > 80 ? '#f59e0b' : 'var(--positive)';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:10px 20px 0;">
+          <div style="flex:1;height:5px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;">
+            <div style="height:100%;border-radius:4px;width:${Math.min(p,100).toFixed(1)}%;background:${cor};"></div>
+          </div>
+          <span style="font-size:11px;font-weight:700;color:${cor};white-space:nowrap;">${p.toFixed(0)}% do limite (${brl(limite)})</span>
+        </div>`;
+      }
+
+      const secoes = todosIds.map(cartaoId => {
+        const cartaoObj   = _cartoes.find(c => c.id === cartaoId);
+        const nomeCartao  = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
+        const limite      = cartaoObj?.limite || 0;
+        const abertaItens = gruposAberta[cartaoId]  || [];
+        const fechadaItens= gruposFechada[cartaoId] || [];
+
+        // Determina chave e estado da fatura aberta
+        const abertaKey = abertaItens.length ? abertaItens[0].fatura : _calcFaturaAbertaKey(cartaoObj);
+        const [aAno, aMes] = abertaKey ? abertaKey.split('-').map(Number) : [0, 0];
+        const estado = _faturaEstado(cartaoObj, abertaKey);
+        const diaCorte = cartaoObj?.diaCorte || 0;
+        const ultimoDiaA = aAno ? new Date(aAno, aMes, 0).getDate() : 31;
+        const diaFechamento = Math.min(diaCorte, ultimoDiaA);
+        const abertaMesNome = aAno ? `${MESES[aMes - 1]} ${aAno}` : '—';
+
+        const fechaLabel = (() => {
+          if (!diaCorte || !aAno) return '';
+          const hoje = new Date(); hoje.setHours(0,0,0,0);
+          const dataCorte = new Date(aAno, aMes - 1, diaFechamento);
+          return hoje > dataCorte
+            ? `Fechou em ${String(diaFechamento).padStart(2,'0')}/${String(aMes).padStart(2,'0')}`
+            : `Fecha em ${String(diaFechamento).padStart(2,'0')}/${String(aMes).padStart(2,'0')}`;
+        })();
+
+        const vencAbertaLabel = (() => {
+          if (!cartaoObj?.diaVencimento || !aAno) return '';
+          const vMes = aMes === 12 ? 1 : aMes + 1;
+          const vAno = aMes === 12 ? aAno + 1 : aAno;
+          return `Vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vMes).padStart(2,'0')}/${vAno}`;
+        })();
+
+        const estadoBadge = estado === 'aberta'
+          ? `<span style="font-size:11px;background:rgba(52,211,153,0.15);color:#34d399;border-radius:20px;padding:2px 8px;font-weight:600;">● Aberta</span>`
+          : `<span style="font-size:11px;background:rgba(251,191,36,0.15);color:#fbbf24;border-radius:20px;padding:2px 8px;font-weight:600;">🔒 Fechada</span>`;
+
+        const totalAberta = abertaItens.reduce((s, d) => s + d.valor, 0);
+
+        // Seção da fatura aberta
+        const htmlAberta = `
+          <div style="padding:14px 20px 0;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span style="font-size:13px;font-weight:600;color:var(--white);">${abertaMesNome}</span>
+                  ${estadoBadge}
+                </div>
+                ${(fechaLabel || vencAbertaLabel) ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${[fechaLabel, vencAbertaLabel].filter(Boolean).join(' · ')}</div>` : ''}
+              </div>
+              <span style="font-size:15px;font-weight:700;color:${totalAberta > 0 ? 'var(--negative)' : 'var(--text-muted)'};">${totalAberta > 0 ? brl(totalAberta) : 'R$ 0'}</span>
+            </div>
+          </div>
+          ${_barraLimite(totalAberta, limite)}
+          <div class="items-list" style="padding:0;margin-top:8px;">${_renderLinhas(abertaItens, cartaoObj)}</div>
+          <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:6px 16px 0;width:calc(100% - 32px);">+ Adicionar a esta fatura</button>`;
+
+        // Seção de fatura fechada (pagamento este mês) — só se existir
+        let htmlFechada = '';
+        if (fechadaItens.length) {
+          const fechadaKey = fechadaItens[0].fatura || '';
+          const [fAno, fMes] = fechadaKey ? fechadaKey.split('-').map(Number) : [0, 0];
+          const fechadaMesNome = fAno ? `${MESES[fMes - 1]} ${fAno}` : '—';
+          const totalFechada = fechadaItens.reduce((s, d) => s + d.valor, 0);
+          const vencFechadaLabel = (() => {
+            if (!cartaoObj?.diaVencimento || !fAno) return '';
+            const vMes = fMes === 12 ? 1 : fMes + 1;
+            const vAno = fMes === 12 ? fAno + 1 : fAno;
+            return `Vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vMes).padStart(2,'0')}/${vAno}`;
+          })();
+          htmlFechada = `
+            <div style="border-top:1px solid var(--border);margin-top:12px;padding:14px 20px 0;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
                 <div>
-                  <div class="item-categoria">${escapeHtml(desc)}</div>
-                  ${d.data || nomeMesFat ? `<div class="item-fonte">${d.data ? escapeHtml(formatData(d.data)) + ' · ' : ''}${nomeMesFat ? 'Fatura ' + nomeMesFat + vcto : ''}</div>` : ''}
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span style="font-size:13px;font-weight:600;color:var(--white);">${fechadaMesNome}</span>
+                    <span style="font-size:11px;background:rgba(248,113,113,0.15);color:#f87171;border-radius:20px;padding:2px 8px;font-weight:600;">💸 Pagar este mês</span>
+                  </div>
+                  ${vencFechadaLabel ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${vencFechadaLabel}</div>` : ''}
                 </div>
-                <div></div>
-                <div class="item-value despesa">${brl(d.valor)}</div>
-                <div class="item-actions">
-                  <button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_E}</button>
-                  <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_D}</button>
-                </div>
-              </div>`;
-          }).join('');
-        } else {
-          linhasItens = `<div style="padding:16px 20px;color:var(--text-secondary);font-size:13px;text-align:center;border-top:1px solid var(--border);">Nenhuma despesa nesta fatura</div>`;
+                <span style="font-size:15px;font-weight:700;color:var(--negative);">${brl(totalFechada)}</span>
+              </div>
+            </div>
+            <div class="items-list" style="padding:0;margin-top:8px;">${_renderLinhas(fechadaItens, cartaoObj)}</div>
+            <div class="total-row" style="padding:10px 20px 4px;"><span class="total-label">Total a pagar</span><span class="total-value despesa">${brl(totalFechada)}</span></div>`;
         }
-
-        const totalRow = itens.length
-          ? `<div class="total-row" style="padding:12px 20px 4px;"><span class="total-label">Total fatura</span><span class="total-value despesa">${brl(totalFatura)}</span></div>`
-          : '';
-
-        const totalColor = totalFatura > 0 ? 'var(--negative)' : 'var(--text-secondary)';
 
         return `
           <div class="section" style="margin-bottom:10px;">
-            <div class="section-header expansivel aberta" style="background:var(--navy);border:1px solid var(--border);border-radius:12px 12px 0 0;padding:14px 20px;cursor:default;user-select:none;">
-              <div class="section-title-row">
+            <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px 12px 0 0;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+              <div style="display:flex;align-items:center;gap:8px;">
                 <span style="font-size:15px;">💳</span>
-                <h2 class="section-title" style="font-size:15px;">Fatura ${nomeCartao}</h2>
+                <h2 class="section-title" style="font-size:15px;margin:0;">${nomeCartao}</h2>
+                ${diaCorte ? `<span style="font-size:11px;color:var(--text-muted);">corte dia ${diaCorte}</span>` : ''}
               </div>
-              <span class="section-total" style="color:${totalColor};font-weight:700;">${totalFatura > 0 ? brl(totalFatura) : 'R$ 0'}</span>
+              ${limite ? `<span style="font-size:11px;color:var(--text-muted);">limite ${brl(limite)}</span>` : ''}
             </div>
-            <div style="background:var(--navy);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding-bottom:4px;">
-              ${barraLimite ? `<div style="padding:0 20px;">${barraLimite}</div>` : ''}
-              <div class="items-list" style="padding:0;">${linhasItens}</div>
-              ${totalRow}
-              <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:4px 16px 10px;width:calc(100% - 32px);">+ Adicionar a esta fatura</button>
+            <div style="background:var(--navy);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding-bottom:12px;">
+              ${htmlAberta}
+              ${htmlFechada}
             </div>
           </div>`;
       }).join('');
 
       el.innerHTML = secoes;
 
-      // Wires
       el.querySelectorAll('[data-edit-desp]').forEach(btn =>
         btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
       el.querySelectorAll('[data-del-desp]').forEach(btn =>
@@ -3497,6 +3592,7 @@
       const ordem  = [];
       const grupos = {};
       data.despesas.forEach((d, idx) => {
+        if (d._faturaAberta) return; // itens da fatura aberta só aparecem na aba Faturas
         const cat = d.categoria;
         if (!grupos[cat]) { grupos[cat] = { items: [], total: 0, totalCaixa: 0, totalPendente: 0 }; ordem.push(cat); }
         grupos[cat].items.push({ ...d, _idx: idx });
@@ -3671,6 +3767,7 @@
       // Agrega despesas por categoria
       const porCat = {};
       data.despesas.forEach(d => {
+        if (d._faturaAberta) return;
         porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
       });
 
@@ -3718,7 +3815,7 @@
 
       // Totais
       const totalPlan = cats.reduce((s, c) => s + (c.limite || 0), 0);
-      const totalReal = data.despesas.reduce((s, d) => s + d.valor, 0);
+      const totalReal = data.despesas.filter(d => !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
 
       // Linhas da tabela
       const linhas = todasCats.map(cat => {
@@ -3938,6 +4035,7 @@
       // Agrega por categoria para a pizza
       const porCat = {};
       data.despesas.forEach(d => {
+        if (d._faturaAberta) return;
         porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
       });
       const cats    = Object.keys(porCat).sort((a, b) => porCat[b] - porCat[a]);
@@ -4026,6 +4124,7 @@
         const dadosPorMes = resultados.map(data => {
           const r = {};
           data.despesas.forEach(d => {
+            if (d._faturaAberta) return;
             r[d.categoria] = (r[d.categoria] || 0) + d.valor;
           });
           return r;
@@ -4076,10 +4175,10 @@
               .then(data => ({
                 mes:       m,
                 receita:   data.receitas.reduce((s, r) => s + r.valor, 0),
-                despesa:   data.despesas.reduce((s, d) => s + d.valor, 0),
+                despesa:   data.despesas.filter(d => !d._faturaAberta).reduce((s, d) => s + d.valor, 0),
                 aporte:    data.aportes.reduce((s, a) => s + a.valor, 0),
                 temDados:  data.receitas.length > 0 || data.despesas.length > 0 || data.aportes.length > 0,
-                porCartao: data.despesas.filter(d => d.cartao && d.cartaoId)
+                porCartao: data.despesas.filter(d => d.cartao && d.cartaoId && !d._faturaAberta)
                   .reduce((acc, d) => { acc[d.cartaoId] = (acc[d.cartaoId] || 0) + d.valor; return acc; }, {}),
               }))
               .catch(() => ({ mes: m, receita: 0, despesa: 0, aporte: 0, temDados: false, porCartao: {} }))
@@ -4596,7 +4695,7 @@
         const data = {
           periodo:  { mes, ano },
           receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}) })),
+          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
           aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,

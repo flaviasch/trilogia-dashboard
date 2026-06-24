@@ -659,16 +659,24 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     item.categoria ? { ...item, categoria: _resolverCategoria(item.categoria) } : item
   );
 
+  const todosItensMes = normalizar(docSnap.exists ? docSnap.data().itens : []);
+
   // Itens do mês atual: exclui fatura cujo pagamento NÃO é neste mês
-  const itensMes = normalizar(docSnap.exists ? docSnap.data().itens : [])
+  const itensMes = todosItensMes
     .filter(item => !(item.cartao && item.fatura) || _mesPagamento(item.fatura) === mesKey);
+
+  // Faturas abertas: itens do mês atual cujo pagamento é num mês futuro
+  // (_faturaAberta = flag de display — não afeta totais, só aparece na aba Faturas)
+  const itensFaturaAberta = todosItensMes
+    .filter(item => item.cartao && item.fatura && _mesPagamento(item.fatura) !== mesKey)
+    .map(item => ({ ...item, _faturaAberta: true }));
 
   // Itens do mês anterior: só fatura cujo pagamento É neste mês — taggeia origem para o frontend
   const itensPrev = normalizar(prevSnap.exists ? prevSnap.data().itens : [])
     .filter(item => item.cartao && item.fatura && _mesPagamento(item.fatura) === mesKey)
     .map(item => ({ ...item, _sourceMes: prevMes, _sourceAno: prevAno }));
 
-  return [...itensMes, ...itensPrev];
+  return [...itensMes, ...itensPrev, ...itensFaturaAberta];
 });
 
 /**
