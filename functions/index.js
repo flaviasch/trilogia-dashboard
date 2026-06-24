@@ -631,6 +631,15 @@ function _resolverCategoria(cat) {
     : cat;
 }
 
+// Retorna o mês de pagamento de um item de fatura (fatura + 1 mês) no formato YYYY-MM.
+function _mesPagamento(fatura) {
+  if (!fatura) return null;
+  const [fAno, fMes] = fatura.split('-').map(Number);
+  return fMes === 12
+    ? `${fAno + 1}-01`
+    : `${fAno}-${String(fMes + 1).padStart(2, '0')}`;
+}
+
 exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   requireAuth(request);
   const { uid, mes, ano } = request.data;
@@ -638,18 +647,28 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
 
-  // ── Firestore first ───────────────────────────────────────────────────────
-  const docSnap = await db.collection('mentoradas').doc(uid)
-    .collection('orcamento').doc(mesKey).get();
-  if (docSnap.exists) {
-    const itens = (docSnap.data().itens || []).map(item =>
-      item.categoria ? { ...item, categoria: _resolverCategoria(item.categoria) } : item
-    );
-    return itens;
-  }
+  // Mês anterior — fornece itens de fatura cujo vencimento cai neste mês
+  const prevMes = mes === 1 ? 12 : mes - 1;
+  const prevAno = mes === 1 ? ano - 1 : ano;
+  const prevKey = `${prevAno}-${String(prevMes).padStart(2, '0')}`;
 
-  // Migração concluída em 05/06/2026 — Firestore é fonte de verdade.
-  return [];
+  const col = db.collection('mentoradas').doc(uid).collection('orcamento');
+  const [docSnap, prevSnap] = await Promise.all([col.doc(mesKey).get(), col.doc(prevKey).get()]);
+
+  const normalizar = arr => (arr || []).map(item =>
+    item.categoria ? { ...item, categoria: _resolverCategoria(item.categoria) } : item
+  );
+
+  // Itens do mês atual: exclui fatura cujo pagamento NÃO é neste mês
+  const itensMes = normalizar(docSnap.exists ? docSnap.data().itens : [])
+    .filter(item => !(item.cartao && item.fatura) || _mesPagamento(item.fatura) === mesKey);
+
+  // Itens do mês anterior: só fatura cujo pagamento É neste mês — taggeia origem para o frontend
+  const itensPrev = normalizar(prevSnap.exists ? prevSnap.data().itens : [])
+    .filter(item => item.cartao && item.fatura && _mesPagamento(item.fatura) === mesKey)
+    .map(item => ({ ...item, _sourceMes: prevMes, _sourceAno: prevAno }));
+
+  return [...itensMes, ...itensPrev];
 });
 
 /**
@@ -689,17 +708,48 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     if (it.descricao && it.descricao.length > 500) it.descricao = it.descricao.slice(0, 500);
   }
 
-  // ── Grava no Firestore (operação atômica — sem clear+write) ─────────────
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
-  await db.collection('mentoradas').doc(uid)
-    .collection('orcamento').doc(mesKey).set({
-      uid, mes, ano, itens,
+  const col    = db.collection('mentoradas').doc(uid).collection('orcamento');
+
+  // Separa itens por mês de origem (_sourceMes/_sourceAno = campos opcionais vindos do frontend)
+  const itensPorOrigem = {}; // key → array de itens (sem os campos _source*)
+  for (const it of itens) {
+    const srcMes = it._sourceMes ?? mes;
+    const srcAno = it._sourceAno ?? ano;
+    const key    = `${srcAno}-${String(srcMes).padStart(2, '0')}`;
+    const { _sourceMes, _sourceAno, ...clean } = it;
+    if (!itensPorOrigem[key]) itensPorOrigem[key] = [];
+    itensPorOrigem[key].push(clean);
+  }
+
+  // Para o mês atual: grava direto (substitui tudo — comportamento histórico)
+  const itensMesAtual = itensPorOrigem[mesKey] || [];
+  await col.doc(mesKey).set({
+    uid, mes, ano, itens: itensMesAtual,
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Para meses de origem diferentes: faz merge (substitui só as faturas com pagamento = mesKey)
+  const outrosMeses = Object.entries(itensPorOrigem).filter(([k]) => k !== mesKey);
+  for (const [srcKey, srcItens] of outrosMeses) {
+    const snap = await col.doc(srcKey).get();
+    const existentes = snap.exists ? (snap.data().itens || []) : [];
+    // Mantém itens que NÃO são faturas com pagamento = mesKey (esses foram atualizados no frontend)
+    const restantes  = existentes.filter(i => !(i.cartao && i.fatura && _mesPagamento(i.fatura) === mesKey));
+    const merged     = [...restantes, ...srcItens];
+    const [srcAno, srcMesStr] = srcKey.split('-');
+    await col.doc(srcKey).set({
+      uid,
+      mes: parseInt(srcMesStr, 10),
+      ano: parseInt(srcAno, 10),
+      itens: merged,
       atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
     });
+  }
 
-  // ── Cache de sobra calculado direto dos itens (sem re-leitura) ──────────
-  const receita = itens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
-  const despesa = itens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
+  // ── Cache de sobra (usa só os itens do mês atual) ──────────────────────
+  const receita = itensMesAtual.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
+  const despesa = itensMesAtual.filter(i => i.tipo === 'despesa' && !(i.cartao && i.fatura)).reduce((s, i) => s + i.valor, 0);
   db.collection('mentoradas').doc(uid).update({
     sobra: receita - despesa,
     dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
