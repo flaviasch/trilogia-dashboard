@@ -5397,15 +5397,11 @@
     }
 
     // Fatura = mês anterior ao vencimento (se paga em julho → Fatura Junho)
-    function sugerirFatura(dataCompra, diaCorte, diaVencimento) {
+    function sugerirFatura(dataCompra, diaCorte) {
       const dia = parseInt(dataCompra.split('-')[2], 10);
       const d   = new Date(dataCompra + 'T12:00:00');
-      // Avança para o mês de fechamento se a compra for após o corte
+      // Compras após o corte entram na fatura do mês seguinte
       if (dia > diaCorte) d.setMonth(d.getMonth() + 1);
-      // Avança para o mês de vencimento se vcto ≤ corte (vence no mês seguinte ao fechamento)
-      if (diaVencimento <= diaCorte) d.setMonth(d.getMonth() + 1);
-      // Fatura = mês anterior ao vencimento
-      d.setMonth(d.getMonth() - 1);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     }
 
