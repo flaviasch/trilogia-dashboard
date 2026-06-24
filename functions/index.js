@@ -600,6 +600,37 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
 
 // ─── ORÇAMENTO (orcamento.html) ───────────────────────────────────────────────
 
+const _CATEGORIAS_CODIGO = {
+  1:'Aluguel', 2:'Financiamento Imóvel', 3:'IPTU', 4:'Condomínio', 5:'Manutenção',
+  6:'Energia', 7:'Água', 8:'Gás', 9:'Suprimentos', 10:'Outros Moradia',
+  11:'Supermercado', 12:'Restaurante', 13:'Café', 14:'Barzinho',
+  15:'Celular', 16:'Internet', 17:'Streaming', 18:'Telefonia Fixa', 19:'TV a Cabo', 20:'Outros Comunicação',
+  21:'Academia', 22:'Assistência Médica', 23:'Cabelo e Unha', 24:'Cosméticos',
+  25:'Dentista', 26:'Exames médicos', 27:'Farmácia', 28:'Médicos particular',
+  29:'Suplementos', 30:'Outros Saúde',
+  31:'Roupas', 32:'Acessórios', 33:'Outros Vestuário',
+  34:'Veterinário', 35:'Remédios', 36:'Alimentação', 37:'Outros Pet',
+  40:'Aplicativos', 41:'Combustível', 42:'Estacionamento', 43:'Financiamento',
+  44:'IPVA', 45:'Licenciamento', 46:'Manutenção', 47:'Passagens',
+  48:'Seguro', 49:'Táxi', 50:'Transporte Público', 51:'Outros Transporte',
+  52:'Mensalidades', 53:'Idiomas', 54:'Despesas Gerais', 55:'Cursos',
+  56:'Livros e Revistas', 57:'FIES', 58:'Outros Educação',
+  60:'Cinema', 61:'Esportes', 62:'Shows', 63:'Viagens', 64:'Outros Lazer',
+  70:'Cama, Mesa e Banho', 71:'Consertos', 72:'Eletrodomésticos', 73:'Móveis',
+  74:'TV, Som e Informática', 75:'Utensílios e decoração', 76:'Outros Artigos',
+  80:'Presentes', 81:'Doações', 82:'Cigarro', 83:'Outros',
+  90:'Juros Cartão de Crédito', 91:'Empréstimos', 92:'Outros Financeiro',
+  93:'Reserva Financeira', 94:'Aposentadoria', 95:'Casa Própria', 96:'Outros Projetos',
+};
+
+function _resolverCategoria(cat) {
+  if (!cat) return cat;
+  const n = parseInt(cat, 10);
+  return (!isNaN(n) && String(n) === String(cat).trim() && _CATEGORIAS_CODIGO[n])
+    ? _CATEGORIAS_CODIGO[n]
+    : cat;
+}
+
 exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   requireAuth(request);
   const { uid, mes, ano } = request.data;
@@ -611,7 +642,10 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const docSnap = await db.collection('mentoradas').doc(uid)
     .collection('orcamento').doc(mesKey).get();
   if (docSnap.exists) {
-    return docSnap.data().itens || [];
+    const itens = (docSnap.data().itens || []).map(item =>
+      item.categoria ? { ...item, categoria: _resolverCategoria(item.categoria) } : item
+    );
+    return itens;
   }
 
   // Migração concluída em 05/06/2026 — Firestore é fonte de verdade.
@@ -649,7 +683,8 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
       throw new HttpsError('invalid-argument', `Item ${i + 1}: valor deve ser número não-negativo.`);
     if (it.valor > 10_000_000)
       throw new HttpsError('invalid-argument', `Item ${i + 1}: valor acima do limite permitido.`);
-    // Sanitiza strings longas
+    // Traduz código numérico de categoria e sanitiza strings longas
+    it.categoria = _resolverCategoria(it.categoria);
     if (it.categoria.length > 200) it.categoria = it.categoria.slice(0, 200);
     if (it.descricao && it.descricao.length > 500) it.descricao = it.descricao.slice(0, 500);
   }
