@@ -2106,11 +2106,11 @@
             itens.filter(i => i.tipo === 'despesa').forEach(d => {
               dadosMesAnterior[d.categoria] = (dadosMesAnterior[d.categoria] || 0) + d.valor;
             });
-            renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
+            renderDespesasGrupos(currentData, currentData.despesas.filter(d=>!(d.cartao&&d.fatura)).reduce((s,d)=>s+d.valor,0));
           })
           .catch(() => {
             dadosMesAnterior = {};
-            renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
+            renderDespesasGrupos(currentData, currentData.despesas.filter(d=>!(d.cartao&&d.fatura)).reduce((s,d)=>s+d.valor,0));
           });
       }
       if (id === 'anual')       { renderAnual(); registrarEvento('aba_anual_aberta'); }
@@ -3465,9 +3465,10 @@
       const grupos = {};
       data.despesas.forEach((d, idx) => {
         const cat = d.categoria;
-        if (!grupos[cat]) { grupos[cat] = { items: [], total: 0 }; ordem.push(cat); }
+        if (!grupos[cat]) { grupos[cat] = { items: [], total: 0, totalCaixa: 0 }; ordem.push(cat); }
         grupos[cat].items.push({ ...d, _idx: idx });
         grupos[cat].total += d.valor;
+        if (!(d.cartao && d.fatura)) grupos[cat].totalCaixa += d.valor;
       });
       ordem.sort((a, b) => grupos[b].total - grupos[a].total);
 
@@ -3489,10 +3490,10 @@
         const catObj = categoriasMes.find(c => c.nome === catNome);
         const limite = catObj?.limite || 0;
 
-        // Barra de limite
+        // Barra de limite (usa só despesas à vista — fatura ainda não saiu do caixa)
         let limiteHTML = '';
         if (limite > 0) {
-          const p   = Math.min((grupo.total / limite) * 100, 200);
+          const p   = Math.min((grupo.totalCaixa / limite) * 100, 200);
           const cor = p > 100 ? 'var(--negative)' : p > 80 ? '#f59e0b' : 'var(--positive)';
           limiteHTML = `
             <div class="cat-limit-wrap">
@@ -3554,16 +3555,21 @@
         const btnLimClass = limite > 0 ? 'btn-set-limite tem-limite' : 'btn-set-limite';
         const btnLimText  = limite > 0 ? `${brl(limite)}/mês` : '+ limite';
 
-        // Delta vs mês anterior
+        // Delta vs mês anterior (compara só o que saiu do caixa)
         let deltaHTML = '';
         const totalAnterior = dadosMesAnterior[catNome] || 0;
         if (totalAnterior > 0) {
-          const delta    = grupo.total - totalAnterior;
+          const delta    = grupo.totalCaixa - totalAnterior;
           const cor      = delta > 0 ? 'var(--negative)' : 'var(--positive)';
           const sinal    = delta > 0 ? '+' : '';
           const pctDelta = Math.round(Math.abs(delta) / totalAnterior * 100);
           deltaHTML = `<span style="font-size:11px;color:${cor};font-weight:600;white-space:nowrap;">${sinal}${brl(delta)} (${pctDelta}%)</span>`;
         }
+
+        const faturaGrupo = grupo.total - grupo.totalCaixa;
+        const faturaGrupoHTML = faturaGrupo > 0
+          ? `<span style="font-size:11px;color:var(--gold);white-space:nowrap;margin-left:2px">+💳 ${brl(faturaGrupo)}</span>`
+          : '';
 
         return `
           <div class="cat-group">
@@ -3571,7 +3577,7 @@
               <span class="cat-group-nome">${escapeHtml(catNome)}</span>
               ${limiteHTML}
               ${deltaHTML}
-              <span class="cat-group-total">${brl(grupo.total)}</span>
+              <span class="cat-group-total">${brl(grupo.totalCaixa)}${faturaGrupoHTML}</span>
               <button class="${btnLimClass}" data-cat="${escapeHtml(catNome)}">${btnLimText}</button>
             </div>
             <div class="items-list">${itemsHTML}</div>
@@ -4287,7 +4293,7 @@
         // Re-renderiza as abas que dependem de limites
         render(currentData);
         if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
-        if (_tabAtiva === 'detalhe')      renderDespesasGrupos(currentData, currentData.despesas.reduce((s,d)=>s+d.valor,0));
+        if (_tabAtiva === 'detalhe')      renderDespesasGrupos(currentData, currentData.despesas.filter(d=>!(d.cartao&&d.fatura)).reduce((s,d)=>s+d.valor,0));
         toast(limite > 0 ? `Limite de ${brl(limite)}/mês definido.` : 'Limite removido.', 'success');
         if (limite > 0) registrarEvento('planejamento_configurado');
       } catch (err) {
