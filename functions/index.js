@@ -4799,6 +4799,23 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
     cursor = page.has_more ? page.next_cursor : undefined;
   } while (cursor);
 
+  // Expande heading toggleáveis: seus filhos ficam aninhados no Notion e
+  // precisam de fetch separado; insere-os logo após o heading pai.
+  const expandedBlocks = [];
+  for (const block of blocks) {
+    expandedBlocks.push(block);
+    if (block.has_children &&
+        (block.type === 'heading_1' || block.type === 'heading_2' || block.type === 'heading_3' ||
+         block.type === 'toggle' || block.type === 'callout')) {
+      const childRes = await fetch(
+        `https://api.notion.com/v1/blocks/${block.id}/children?page_size=100`, { headers });
+      if (childRes.ok) {
+        const childPage = await childRes.json();
+        expandedBlocks.push(...(childPage.results || []));
+      }
+    }
+  }
+
   // Parseia encontros — retorna TODOS com alinhamentos, lições e materiais
   const encontros     = [];
   let encontroAtual   = null;
@@ -4816,7 +4833,7 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
     }
   };
 
-  for (const block of blocks) {
+  for (const block of expandedBlocks) {
     const type = block.type;
 
     if (type === 'heading_2') {
