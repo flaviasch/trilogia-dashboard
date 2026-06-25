@@ -1519,6 +1519,16 @@
         });
       }
 
+      // ⓪-d Novidades Jul/2026 — faturas + jornada
+      if (!localStorage.getItem('notif_faturas_jul2026')) {
+        notifs.unshift({
+          id: 'faturas-jul2026', type: 'novidades', key: 'notif_faturas_jul2026', icon: '💳',
+          titulo: 'Cartão, faturas e Minha Jornada: três melhorias esta semana',
+          desc: 'A despesa do cartão agora cai no mês certo (o do pagamento). Pagou parcial? O saldo vai automaticamente pro mês seguinte. E os materiais e links de cada encontro aparecem na aba Minha Jornada.',
+          cta: { label: 'Ver orçamento', href: 'orcamento.html' },
+        });
+      }
+
       // ① Perfil de investidor — ausente ou > 180 dias sem atualizar
       const perfilKey = `notif_perfil_${mesKey}`;
       if (!localStorage.getItem(perfilKey)) {
