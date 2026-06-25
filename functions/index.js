@@ -4850,6 +4850,15 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
     }
   }
 
+  console.log(`[getMinhaJornada] expandedBlocks total: ${expandedBlocks.length} (originais: ${blocks.length})`);
+  expandedBlocks.forEach((b, i) => {
+    const rt = b[b.type]?.rich_text;
+    const txt = rt ? getRichText(rt).substring(0, 80) : '';
+    if (txt || b.type === 'to_do' || b.type === 'bulleted_list_item') {
+      console.log(`[jornada] [${i}] ${b.type} has_children=${b.has_children} "${txt}"`);
+    }
+  });
+
   // Parseia encontros — retorna TODOS com alinhamentos, lições e materiais
   const encontros     = [];
   let encontroAtual   = null;
@@ -4885,12 +4894,13 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
 
     if (!encontroAtual) continue;
 
-    if (type === 'heading_3') {
-      const text = getRichText(block.heading_3?.rich_text);
-      if      (/alinhamento/i.test(text))                             emSecao = 'alinhamentos';
-      else if (/li[çc][õaã]o?.*casa|compromisso/i.test(text))        emSecao = 'licao';
-      else if (/material|recurso|entregáv|entregav|link|documento|arquivo/i.test(text)) emSecao = 'materiais';
-      else                                                             emSecao = null;
+    if (type === 'heading_3' || type === 'toggle') {
+      const text = getRichText(block[type]?.rich_text);
+      if      (/alinhamento/i.test(text))                                                   emSecao = 'alinhamentos';
+      else if (/li[çc][õaã]o?.*casa|compromisso/i.test(text))                              emSecao = 'licao';
+      else if (/material|recurso|entregáv|entregav|link|documento|arquivo/i.test(text))     emSecao = 'materiais';
+      else                                                                                   emSecao = null;
+      console.log(`[jornada] seção detectada: type=${type} text="${text}" → emSecao=${emSecao}`);
       continue;
     }
 
@@ -4960,6 +4970,10 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
   pushEncontro();
 
   console.log(`[getMinhaJornada] total de blocos: ${blocks.length}, encontros parseados: ${encontros.length}`);
+  encontros.forEach(e => {
+    console.log(`[jornada] Encontro ${e.numero}: lições=${e.licoesPendentes.length} materiais=${e.materiais.length}`);
+    e.materiais.forEach(m => console.log(`  [material] "${m.texto}" url=${m.url}`));
+  });
 
   // Ordena do mais recente para o mais antigo
   encontros.sort((a, b) => b.numero - a.numero);
