@@ -4898,7 +4898,7 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
       const text = getRichText(block[type]?.rich_text);
       if      (/alinhamento/i.test(text))                                                   emSecao = 'alinhamentos';
       else if (/li[çc][õaã]o?.*casa|compromisso/i.test(text))                              emSecao = 'licao';
-      else if (/material|recurso|entregáv|entregav|link|documento|arquivo/i.test(text))     emSecao = 'materiais';
+      else if (/materi[ao]|recurso|entregáv|entregav|link|documento|arquivo/i.test(text))     emSecao = 'materiais';
       else                                                                                   emSecao = null;
       console.log(`[jornada] seção detectada: type=${type} text="${text}" → emSecao=${emSecao}`);
       continue;
