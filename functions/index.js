@@ -48,6 +48,7 @@ const {
   emailNovidades,
   emailNovidadesJun2026,
   emailNovidadesJun2026v3,
+  emailNovidadesJul2026,
   emailJornadaDashboard,
   emailIR,
   emailReenvioAcesso,
@@ -3795,6 +3796,35 @@ exports.anunciarNovidadesJun2026v3 = onCall({ secrets: SECRETS_EMAIL }, async (r
 });
 
 /**
+ * Dispara e-mail de novidades Jul/2026 para todas as mentoradas ativas.
+ * Faturas no mês de pagamento + pagamento parcial com rollover + materiais na Jornada.
+ */
+exports.anunciarNovidadesJul2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Atualizações no Dashboard: faturas e Minha Jornada',
+        html:    emailNovidadesJul2026(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarNovidadesJul2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { novidadesJul2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+/**
  * Envia comunicado técnico para todas as mentoradas ativas.
  * Usado quando há instabilidade no app — orienta a reinstalar o PWA.
  */
@@ -4799,10 +4829,13 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
     cursor = page.has_more ? page.next_cursor : undefined;
   } while (cursor);
 
-  // Expande heading toggleáveis: seus filhos ficam aninhados no Notion e
-  // precisam de fetch separado; insere-os logo após o heading pai.
+  // Expande heading/toggle recursivamente: os encontros podem ser heading_2 toggleáveis,
+  // e as seções internas (materiais, lições) podem ser heading_3 toggleáveis dentro deles.
+  // Processa em profundidade para garantir que todos os níveis sejam expandidos.
   const expandedBlocks = [];
-  for (const block of blocks) {
+  const queue = [...blocks];
+  while (queue.length) {
+    const block = queue.shift();
     expandedBlocks.push(block);
     if (block.has_children &&
         (block.type === 'heading_1' || block.type === 'heading_2' || block.type === 'heading_3' ||
@@ -4811,7 +4844,8 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
         `https://api.notion.com/v1/blocks/${block.id}/children?page_size=100`, { headers });
       if (childRes.ok) {
         const childPage = await childRes.json();
-        expandedBlocks.push(...(childPage.results || []));
+        const children = childPage.results || [];
+        queue.unshift(...children);
       }
     }
   }
