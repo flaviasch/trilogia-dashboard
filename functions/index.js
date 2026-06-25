@@ -4918,8 +4918,8 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
       const texto   = getRichText(block.to_do?.rich_text).trim();
       const checked = block.to_do?.checked === true;
       if (texto) {
-        if (checked) licoesFeitas.push(texto);
-        else         licoesPendentes.push(texto);
+        if (checked) licoesFeitas.push({ id: block.id, texto });
+        else         licoesPendentes.push({ id: block.id, texto });
       }
       continue;
     }
@@ -4968,6 +4968,38 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
   const syncedAt = notionSyncedAt?.toDate?.()?.toISOString?.() || null;
 
   return { encontros, notionPageUrl: pageUrl, syncedAt };
+});
+
+/**
+ * Marca ou desmarca uma lição de casa no Notion (PATCH to_do block).
+ */
+exports.marcarLicaoCasa = onCall({ secrets: [sNotion] }, async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+
+  const { blockId, checked } = request.data;
+  if (!blockId || typeof checked !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'blockId e checked são obrigatórios.');
+  }
+
+  const NOTION_TOKEN = process.env.NOTION_TOKEN;
+  const res = await fetch(`https://api.notion.com/v1/blocks/${blockId}`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${NOTION_TOKEN}`,
+      'Notion-Version': '2022-06-28',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ to_do: { checked } }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new HttpsError('internal', `Notion falhou: ${err.message || res.status}`);
+  }
+
+  return { ok: true };
 });
 
 // ─── CLUBE TRILOGIA ───────────────────────────────────────────────────────────

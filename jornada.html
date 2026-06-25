@@ -84,8 +84,10 @@
     .licao-pendente-item {
       display: flex; align-items: flex-start; gap: 12px;
       padding: 12px 0; border-bottom: 1px solid var(--border);
+      cursor: pointer; transition: opacity .15s;
     }
     .licao-pendente-item:last-child { border-bottom: none; }
+    .licao-pendente-item:hover { opacity: .8; }
     .licao-check {
       width: 18px; height: 18px; border: 2px solid var(--border-gold);
       border-radius: 4px; flex-shrink: 0; margin-top: 1px;
@@ -150,6 +152,8 @@
       color: var(--text-muted); margin-bottom: 10px; font-weight: 600;
     }
 
+    .licao-row { cursor: pointer; transition: opacity .15s; }
+    .licao-row:hover { opacity: .8; }
     .licao-row {
       display: flex; align-items: flex-start; gap: 10px;
       padding: 8px 0; border-bottom: 1px solid var(--border);
@@ -319,7 +323,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getMinhaJornada } from './js/api.js?v=19';
+    import { getMinhaJornada, marcarLicaoCasa } from './js/api.js?v=20';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -338,6 +342,7 @@
 
     onAuthStateChanged(auth, async (user) => {
       if (!user) { window.location.href = 'login.html'; return; }
+      _currentUid = user.uid;
       window.Sentry?.onLoad?.(function(){ Sentry.setUser({ id: user.uid, email: user.email }); });
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
       if (localStorage.getItem('clubeAccess') === '1') {
@@ -392,6 +397,46 @@
       return `<svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>`;
     }
 
+    // uid corrente (populado no onAuthStateChanged)
+    let _currentUid = null;
+
+    async function marcarLicao(row, blockId, checked, origem) {
+      row.style.opacity = '0.4';
+      row.style.pointerEvents = 'none';
+      try {
+        const viewAsUid = new URLSearchParams(window.location.search).get('viewAs')
+                       || localStorage.getItem('viewAsUid');
+        await marcarLicaoCasa({ blockId, checked, uid: viewAsUid || _currentUid });
+        if (origem === 'card') {
+          // remove o item do card de pendentes
+          row.remove();
+          if (!document.getElementById('listaLicoesPendentes').children.length) {
+            document.getElementById('cardPendentes').style.display = 'none';
+          }
+        } else {
+          // atualiza visual na timeline
+          if (checked) {
+            row.classList.add('feita');
+            row.querySelector('svg').outerHTML; // força reflow
+            row.innerHTML = `${iconeFeito()}<span>${row.querySelector('span').textContent}</span>`;
+            row.setAttribute('onclick', `marcarLicao(this,'${blockId}',false,'timeline')`);
+          } else {
+            row.classList.remove('feita');
+            row.innerHTML = `${iconePendente()}<span>${row.querySelector('span').textContent}</span>`;
+            row.setAttribute('onclick', `marcarLicao(this,'${blockId}',true,'timeline')`);
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao marcar lição:', err.message);
+        row.style.background = 'rgba(248,113,113,0.15)';
+        setTimeout(() => { row.style.background = ''; }, 2000);
+      } finally {
+        row.style.opacity = '';
+        row.style.pointerEvents = '';
+      }
+    }
+    window.marcarLicao = marcarLicao;
+
     async function init() {
       let data;
       try {
@@ -439,9 +484,9 @@
           `Encontro ${comPendentes.numero} — ${comPendentes.tema}`;
         document.getElementById('listaLicoesPendentes').innerHTML =
           comPendentes.licoesPendentes.map(l => `
-            <div class="licao-pendente-item">
+            <div class="licao-pendente-item" onclick="marcarLicao(this,'${l.id}',true,'card')">
               <div class="licao-check"></div>
-              <div class="licao-texto">${l}</div>
+              <div class="licao-texto">${l.texto}</div>
             </div>`).join('');
       }
 
@@ -488,14 +533,14 @@
           <div class="enc-secao">
             <div class="enc-secao-titulo">Lição de Casa</div>
             ${nPend > 0 ? enc.licoesPendentes.map(l => `
-              <div class="licao-row">
+              <div class="licao-row" onclick="marcarLicao(this,'${l.id}',true,'timeline')">
                 ${iconePendente()}
-                <span>${l}</span>
+                <span>${l.texto}</span>
               </div>`).join('') : ''}
             ${nFeitas > 0 ? enc.licoesFeitas.map(l => `
-              <div class="licao-row feita">
+              <div class="licao-row feita" onclick="marcarLicao(this,'${l.id}',false,'timeline')">
                 ${iconeFeito()}
-                <span>${l}</span>
+                <span>${l.texto}</span>
               </div>`).join('') : ''}
           </div>` : '';
 

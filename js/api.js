@@ -877,6 +877,11 @@ export async function anunciarNovidadesJul2026() {
   return call('anunciarNovidadesJul2026')({});
 }
 
+/** Marca/desmarca lição de casa no Notion. */
+export async function marcarLicaoCasa({ blockId, checked, uid }) {
+  return call('marcarLicaoCasa')({ blockId, checked, uid });
+}
+
 /** Envia link de redefinição de senha via Gmail (substitui sendPasswordResetEmail do Firebase). */
 export async function solicitarRedefinicaoSenha(email) {
   return call('solicitarRedefinicaoSenha')({ email });
