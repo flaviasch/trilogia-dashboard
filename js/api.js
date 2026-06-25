@@ -872,6 +872,11 @@ export async function anunciarJornadaDashboard() {
   return call('anunciarJornadaDashboard')({});
 }
 
+/** Dispara e-mail de novidades Jul/2026 — faturas + jornada. Admin only. */
+export async function anunciarNovidadesJul2026() {
+  return call('anunciarNovidadesJul2026')({});
+}
+
 /** Envia link de redefinição de senha via Gmail (substitui sendPasswordResetEmail do Firebase). */
 export async function solicitarRedefinicaoSenha(email) {
   return call('solicitarRedefinicaoSenha')({ email });
