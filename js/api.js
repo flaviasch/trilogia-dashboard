@@ -156,6 +156,10 @@ export async function saveOrcamento(mes, ano, itens) {
   return call('saveOrcamento')({ uid: uidAtual(), mes, ano, itens });
 }
 
+export async function atualizarRecorrenteEmTodos(recorrenteId, valor, descricao) {
+  return call('atualizarRecorrenteEmTodos')({ uid: uidAtual(), recorrenteId, valor, descricao });
+}
+
 // ─── Fatura estados ───────────────────────────────────────────────────────────
 
 export async function getFaturaEstados() {

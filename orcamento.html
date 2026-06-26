@@ -1815,8 +1815,9 @@
           style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:14px;box-sizing:border-box;">
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;">
-        <button id="btnEditRecSoMes" class="btn-primary" style="font-size:13px;">Alterar só este mês</button>
-        <button id="btnEditRecEProximos" class="btn-primary" style="font-size:13px;background:var(--gold);color:var(--navy);">Alterar este e próximos meses</button>
+        <button id="btnEditRecSoMes" class="btn-primary" style="font-size:13px;">Somente este mês</button>
+        <button id="btnEditRecEProximos" class="btn-primary" style="font-size:13px;background:var(--gold);color:var(--navy);">Este e os próximos meses</button>
+        <button id="btnEditRecTodos" class="btn-primary" style="font-size:13px;background:rgba(207,174,101,0.15);border:1px solid rgba(207,174,101,0.4);color:var(--gold);">Todos, incluindo passados</button>
         <button id="btnEditRecCancelar" class="btn-secondary" style="font-size:13px;">Cancelar</button>
       </div>
     </div>
@@ -2085,7 +2086,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado } from './js/api.js?v=20';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=21';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
 
@@ -4855,6 +4856,8 @@
       mes++;
       if (mes > 12) { mes = 1; ano++; }
       currentData = await buscarPeriodo(mes, ano);
+      const ehFuturo = (ano * 12 + mes) > (agora.getFullYear() * 12 + agora.getMonth() + 1);
+      if (ehFuturo) await autoLancarFixasFuturo(mes, ano);
       render(currentData);
       verificarBannerFixas(currentData);
     });
@@ -5873,6 +5876,50 @@
       localStorage.setItem('fixas_puladas', JSON.stringify(toKeep));
     }
 
+    // Lança todas as fixas pendentes silenciosamente em meses futuros (sem modal/banner)
+    async function autoLancarFixasFuturo(mes, ano) {
+      if (!_recorrentes.length) return;
+      const jainseridos = new Set(currentData.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
+      const jaLancada = r => currentData.despesas.some(d => !d.recorrenteId && d.categoria === r.categoria && d.valor === r.valor);
+      const pendentes = _recorrentes.filter(r =>
+        r.ativo &&
+        !jainseridos.has(r.id) &&
+        !jaLancada(r) &&
+        !_fixasPuladas.has(r.id + '_' + mes + '_' + ano)
+      );
+      if (!pendentes.length) return;
+
+      const faturaAtual = `${ano}-${String(mes).padStart(2,'0')}`;
+      const novos = [];
+      for (const r of pendentes) {
+        const freq = r.frequencia || 'mensal';
+        let diasDoMes;
+        if (freq === 'semanal') {
+          diasDoMes = diasSemanaNoMes(ano, mes, r.dia);
+        } else if (freq === 'quinzenal') {
+          diasDoMes = [r.dia, r.dia + 14].filter(d => d >= 1 && d <= 31);
+        } else {
+          diasDoMes = [r.dia];
+        }
+        for (const d of diasDoMes) {
+          novos.push({
+            categoria:    r.categoria,
+            tipo:         'despesa',
+            valor:        r.valor,
+            descricao:    r.descricao || '',
+            data:         `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`,
+            cartao:       !!r.cartao,
+            fatura:       r.cartao ? faturaAtual : '',
+            cartaoId:     r.cartaoId || '',
+            origem:       'recorrente',
+            recorrenteId: r.id,
+          });
+        }
+      }
+      currentData.despesas.push(...novos);
+      await salvarEAtualizar();
+    }
+
     // Verifica recorrentes não lançadas e não puladas — exibe/oculta banner e indicador
     function verificarBannerFixas(data) {
       const banner    = document.getElementById('bannerFixas');
@@ -6241,22 +6288,38 @@
       const novaDesc  = document.getElementById('editRecDescricao').value.trim();
       if (isNaN(novoValor) || novoValor < 0) return mostrarToast('Valor inválido.');
 
-      // Atualiza item no mês atual
+      // Atualiza item no mês atual (todos os escopos)
       if (currentData?.despesas && _editRecIdx !== null) {
         currentData.despesas[_editRecIdx].valor    = novoValor;
         currentData.despesas[_editRecIdx].descricao = novaDesc;
       }
 
-      // Se "este e próximos": atualiza o template
-      if (escopo === 'proximos' && _editRecId) {
+      // "Este e próximos" ou "Todos": atualiza o template da fixa
+      if ((escopo === 'proximos' || escopo === 'todos') && _editRecId) {
         const rec = _recorrentes.find(r => r.id === _editRecId);
         if (rec) {
           await saveRecorrente({ id: _editRecId, categoria: rec.categoria, valor: novoValor, descricao: novaDesc, dia: rec.dia, ativo: rec.ativo });
+          await carregarRecorrentes();
         }
       }
 
       // Salva o mês atual
       await salvarEAtualizar();
+
+      // "Todos incluindo passados": atualiza todos os meses via Cloud Function
+      if (escopo === 'todos' && _editRecId) {
+        try {
+          mostrarToast('Atualizando todos os meses…');
+          const { mesesAlterados } = await atualizarRecorrenteEmTodos(_editRecId, novoValor, novaDesc);
+          _periodoCache.clear(); // invalida cache local — dados podem ter mudado
+          document.getElementById('modalEditRecorrente').classList.add('hidden');
+          mostrarToast(`Atualizado em ${mesesAlterados} mês${mesesAlterados !== 1 ? 'es' : ''}.`);
+        } catch (e) {
+          mostrarToast('Erro ao atualizar meses passados: ' + e.message, 'error');
+        }
+        return;
+      }
+
       document.getElementById('modalEditRecorrente').classList.add('hidden');
       mostrarToast(escopo === 'proximos' ? 'Alterado neste e nos próximos meses.' : 'Alterado só neste mês.');
     }
@@ -6477,6 +6540,7 @@
     });
     document.getElementById('btnEditRecSoMes')?.addEventListener('click', () => aplicarEditRecorrente('soeste'));
     document.getElementById('btnEditRecEProximos')?.addEventListener('click', () => aplicarEditRecorrente('proximos'));
+    document.getElementById('btnEditRecTodos')?.addEventListener('click', () => aplicarEditRecorrente('todos'));
     document.getElementById('btnEditRecCancelar')?.addEventListener('click', () => document.getElementById('modalEditRecorrente').classList.add('hidden'));
     document.getElementById('modalEditRecorrente')?.addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
 

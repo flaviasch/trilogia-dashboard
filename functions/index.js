@@ -1051,6 +1051,45 @@ exports.deleteRecorrente = onCall(async (request) => {
   return { ok: true };
 });
 
+/**
+ * Atualiza valor/descrição de uma recorrente em TODOS os meses (passados e futuros)
+ * que já tenham esse item lançado. Usa batch write para eficiência.
+ * Espera: { uid, recorrenteId, valor, descricao }
+ */
+exports.atualizarRecorrenteEmTodos = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, recorrenteId, valor, descricao } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!recorrenteId || typeof recorrenteId !== 'string')
+    throw new HttpsError('invalid-argument', 'recorrenteId inválido.');
+  if (typeof valor !== 'number' || valor < 0 || valor > 10_000_000)
+    throw new HttpsError('invalid-argument', 'valor inválido.');
+
+  const col  = db.collection('mentoradas').doc(uid).collection('orcamento');
+  const snap = await col.get();
+
+  const batch = db.batch();
+  let mesesAlterados = 0;
+
+  snap.forEach(doc => {
+    const itens = doc.data().itens || [];
+    let changed = false;
+    const novosItens = itens.map(item => {
+      if (item.recorrenteId !== recorrenteId) return item;
+      changed = true;
+      return { ...item, valor, descricao: descricao ?? item.descricao };
+    });
+    if (changed) {
+      batch.update(doc.ref, { itens: novosItens });
+      mesesAlterados++;
+    }
+  });
+
+  if (mesesAlterados > 0) await batch.commit();
+  return { ok: true, mesesAlterados };
+});
+
 // ─── CARTÕES DE CRÉDITO ───────────────────────────────────────────────────────
 
 exports.getCartoes = onCall(async (request) => {
