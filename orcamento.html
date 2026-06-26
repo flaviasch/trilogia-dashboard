@@ -4857,7 +4857,11 @@
       if (mes > 12) { mes = 1; ano++; }
       currentData = await buscarPeriodo(mes, ano);
       const ehFuturo = (ano * 12 + mes) > (agora.getFullYear() * 12 + agora.getMonth() + 1);
-      if (ehFuturo) await autoLancarFixasFuturo(mes, ano);
+      if (ehFuturo) {
+        await autoLancarFixasFuturo(mes, ano);
+        // Recarrega do backend para que _faturaAberta seja calculado corretamente
+        currentData = await buscarPeriodo(mes, ano);
+      }
       render(currentData);
       verificarBannerFixas(currentData);
     });
