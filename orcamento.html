@@ -3123,9 +3123,10 @@
       _btnNext.style.cursor  = _noLimite ? 'not-allowed' : '';
 
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
-      // Despesas de cartão com fatura atribuída só impactam o caixa no mês do vencimento,
-      // não no mês em que a compra foi feita.
-      const totalFaturas  = data.despesas.filter(d => d.cartao && d.fatura && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
+      // Em meses futuros tudo é projeção; não separa cartão do total.
+      // Em meses atuais/passados, cartão com fatura só impacta o caixa no mês do vencimento.
+      const _ehFuturo = _periodoTotal > (_agora.getFullYear() * 12 + _agora.getMonth() + 1);
+      const totalFaturas  = _ehFuturo ? 0 : data.despesas.filter(d => d.cartao && d.fatura && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
       const totalPendente = data.despesas.filter(d => d.pendente && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
       const totalDespesa  = data.despesas.filter(d => !(d.pendente) && !d._faturaAberta).reduce((s, d) => s + d.valor, 0) - totalFaturas;
       const sobra = totalReceita - totalDespesa;
