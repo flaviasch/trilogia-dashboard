@@ -5883,6 +5883,18 @@
     // Lança todas as fixas pendentes silenciosamente em meses futuros (sem modal/banner)
     async function autoLancarFixasFuturo(mes, ano) {
       if (!_recorrentes.length) return;
+
+      // Corrige itens já lançados automaticamente que ainda tenham cartao:true (lançamentos antigos)
+      let precisaCorrigir = false;
+      currentData.despesas = currentData.despesas.map(d => {
+        if (d.recorrenteId && d.cartao) {
+          precisaCorrigir = true;
+          return { ...d, cartao: false, fatura: '', cartaoId: '' };
+        }
+        return d;
+      });
+      if (precisaCorrigir) await salvarEAtualizar();
+
       const jainseridos = new Set(currentData.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
       const jaLancada = r => currentData.despesas.some(d => !d.recorrenteId && d.categoria === r.categoria && d.valor === r.valor);
       const pendentes = _recorrentes.filter(r =>
@@ -5912,9 +5924,10 @@
             valor:        r.valor,
             descricao:    r.descricao || '',
             data:         `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`,
-            cartao:       !!r.cartao,
-            fatura:       r.cartao ? faturaAtual : '',
-            cartaoId:     r.cartaoId || '',
+            // Meses futuros são projeções — sem vínculo de fatura para não distorcer totais
+            cartao:       false,
+            fatura:       '',
+            cartaoId:     '',
             origem:       'recorrente',
             recorrenteId: r.id,
           });
