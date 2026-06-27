@@ -5410,12 +5410,16 @@
       if (tabFat) tabFat.style.display = temCartao ? '' : 'none';
     }
 
-    // Fatura = mês anterior ao vencimento (se paga em julho → Fatura Junho)
-    function sugerirFatura(dataCompra, diaCorte) {
+    // Fatura = mês das compras (sempre 1 mês antes do pagamento)
+    // Ex: corte dia 2, vence dia 10 → compra 27/jun → fatura Junho → paga 10/jul
+    function sugerirFatura(dataCompra, diaCorte, diaVencimento) {
       const dia = parseInt(dataCompra.split('-')[2], 10);
       const d   = new Date(dataCompra + 'T12:00:00');
-      // Compras após o corte entram na fatura do mês seguinte
+      // Compras após o corte entram no próximo ciclo
       if (dia > diaCorte) d.setMonth(d.getMonth() + 1);
+      // Quando vencimento > corte, pagamento cai no mesmo mês do corte.
+      // Nomeia a fatura pelo mês anterior (onde as compras de fato ocorreram).
+      if (diaVencimento && diaVencimento > diaCorte) d.setMonth(d.getMonth() - 1);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     }
 
@@ -5515,9 +5519,8 @@
       const vctoEl = document.getElementById('cdVctoLabel');
       if (cartaoObj.diaVencimento) {
         const anoN    = parseInt(ano, 10);
-        const mesmomes = cartaoObj.diaVencimento > (cartaoObj.diaCorte || 0);
-        const vctoMes = mesmomes ? mes : (mes < 12 ? mes + 1 : 1);
-        const vctoAno = mesmomes ? anoN : (mes < 12 ? anoN : anoN + 1);
+        const vctoMes = mes < 12 ? mes + 1 : 1;
+        const vctoAno = mes < 12 ? anoN : anoN + 1;
         vctoEl.textContent = `Vencimento: ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vctoMes).padStart(2,'0')}/${vctoAno}`;
       } else {
         vctoEl.textContent = '';
@@ -5650,9 +5653,8 @@
       if (!vctoEl) return;
       if (cartaoObj?.diaVencimento && fatura) {
         const [fAno, fMes] = fatura.split('-').map(Number);
-        const mesmomes = cartaoObj.diaVencimento > (cartaoObj.diaCorte || 0);
-        const vMes = mesmomes ? fMes : (fMes < 12 ? fMes + 1 : 1);
-        const vAno = mesmomes ? fAno : (fMes < 12 ? fAno : fAno + 1);
+        const vMes = fMes < 12 ? fMes + 1 : 1;
+        const vAno = fMes < 12 ? fAno : fAno + 1;
         vctoEl.textContent = `vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vMes).padStart(2,'0')}/${vAno}`;
       } else {
         vctoEl.textContent = '';

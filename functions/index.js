@@ -633,15 +633,12 @@ function _resolverCategoria(cat) {
 }
 
 // Retorna o mês de pagamento de um item de fatura no formato YYYY-MM.
-// Se diaVencimento > diaCorte, o débito ocorre no mesmo mês da fatura (ex: corte dia 20, venc dia 25).
-// Caso contrário (ou sem dados do cartão), o pagamento é no mês seguinte.
-function _mesPagamento(fatura, diaCorte, diaVencimento) {
+// Convenção: fatura = mês das compras; pagamento = sempre o mês seguinte.
+// Ex: fatura Junho (compras) → paga em Julho, independente do diaCorte/diaVencimento.
+function _mesPagamento(fatura) {
   if (!fatura) return null;
   const [fAno, fMes] = fatura.split('-').map(Number);
   if (isNaN(fAno) || isNaN(fMes)) return null;
-  if (diaVencimento && diaCorte && diaVencimento > diaCorte) {
-    return `${fAno}-${String(fMes).padStart(2, '0')}`;
-  }
   return fMes === 12 ? `${fAno + 1}-01` : `${fAno}-${String(fMes + 1).padStart(2, '0')}`;
 }
 
@@ -669,7 +666,7 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   // Wrapper que usa dados do cartão para determinar o mês de pagamento correto
   const _mp = item => {
     const c = cartaoMap[item.cartaoId];
-    return _mesPagamento(item.fatura, c?.diaCorte, c?.diaVencimento);
+    return _mesPagamento(item.fatura);
   };
 
   const normalizar = arr => (arr || []).filter(item => item != null).map(item =>
@@ -761,7 +758,7 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     cartoesSnap.forEach(doc => { cartaoMap[doc.id] = doc.data(); });
     const _mp = item => {
       const c = cartaoMap[item.cartaoId];
-      return _mesPagamento(item.fatura, c?.diaCorte, c?.diaVencimento);
+      return _mesPagamento(item.fatura);
     };
     for (const [srcKey, srcItens] of outrosMeses) {
       const snap = await col.doc(srcKey).get();
