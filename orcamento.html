@@ -5515,8 +5515,9 @@
       const vctoEl = document.getElementById('cdVctoLabel');
       if (cartaoObj.diaVencimento) {
         const anoN    = parseInt(ano, 10);
-        const vctoMes = mes < 12 ? mes + 1 : 1;
-        const vctoAno = mes < 12 ? anoN : anoN + 1;
+        const mesmomes = cartaoObj.diaVencimento > (cartaoObj.diaCorte || 0);
+        const vctoMes = mesmomes ? mes : (mes < 12 ? mes + 1 : 1);
+        const vctoAno = mesmomes ? anoN : (mes < 12 ? anoN : anoN + 1);
         vctoEl.textContent = `Vencimento: ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vctoMes).padStart(2,'0')}/${vctoAno}`;
       } else {
         vctoEl.textContent = '';
@@ -5649,8 +5650,9 @@
       if (!vctoEl) return;
       if (cartaoObj?.diaVencimento && fatura) {
         const [fAno, fMes] = fatura.split('-').map(Number);
-        const vMes = fMes < 12 ? fMes + 1 : 1;
-        const vAno = fMes < 12 ? fAno : fAno + 1;
+        const mesmomes = cartaoObj.diaVencimento > (cartaoObj.diaCorte || 0);
+        const vMes = mesmomes ? fMes : (fMes < 12 ? fMes + 1 : 1);
+        const vAno = mesmomes ? fAno : (fMes < 12 ? fAno : fAno + 1);
         vctoEl.textContent = `vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(vMes).padStart(2,'0')}/${vAno}`;
       } else {
         vctoEl.textContent = '';
