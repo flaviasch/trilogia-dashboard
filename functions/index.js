@@ -633,13 +633,12 @@ function _resolverCategoria(cat) {
 }
 
 // Retorna o mês de pagamento de um item de fatura no formato YYYY-MM.
-// Convenção: fatura = mês das compras; pagamento = sempre o mês seguinte.
-// Ex: fatura Junho (compras) → paga em Julho, independente do diaCorte/diaVencimento.
+// Convenção: fatura = mês do débito na conta, então o mês de pagamento = a própria fatura.
 function _mesPagamento(fatura) {
   if (!fatura) return null;
   const [fAno, fMes] = fatura.split('-').map(Number);
   if (isNaN(fAno) || isNaN(fMes)) return null;
-  return fMes === 12 ? `${fAno + 1}-01` : `${fAno}-${String(fMes + 1).padStart(2, '0')}`;
+  return fatura;
 }
 
 exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
