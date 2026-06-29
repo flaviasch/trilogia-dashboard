@@ -766,8 +766,6 @@
       .plan-table td:first-child { padding-left: 14px; }
       .plan-table th:last-child,
       .plan-table td:last-child { padding-right: 14px; }
-      /* Botão de edição sempre visível no mobile */
-      .btn-edit-plan { opacity: 1; }
       /* Barra de ações do planejamento: empilha */
       .plan-acoes { flex-direction: column; align-items: flex-start; gap: 8px; }
       .btn-copiar-mes { width: 100%; justify-content: center; }
@@ -894,6 +892,7 @@
     }
     .plan-row:hover .btn-edit-plan { opacity: 1; }
     .btn-edit-plan:hover { border-color: var(--border-gold); color: var(--gold); }
+    @media (max-width: 640px) { .btn-edit-plan { opacity: 1; } }
     .input-plan {
       background: rgba(255,255,255,.06); border: 1px solid var(--border-gold); border-radius: 6px;
       padding: 4px 8px; font-size: 13px; font-weight: 600; color: var(--gold);
