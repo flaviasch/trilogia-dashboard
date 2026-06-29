@@ -2223,6 +2223,24 @@
       document.getElementById('btnTextoLivreConfirmar')?.addEventListener('click', function() { window.confirmarTextoLivre?.(); });
 
     })();
+
+    // Android PWA: notif-cta links rendered via innerHTML in <script type="module"> may not
+    // respond to native anchor navigation. Delegate via inline script using window.location.href,
+    // the same pattern used by FAB buttons above.
+    (function() {
+      var _va = new URLSearchParams(location.search).get('viewAs');
+      document.addEventListener('click', function(e) {
+        var a = e.target.closest('a.notif-cta');
+        if (!a) return;
+        var href = a.getAttribute('href');
+        if (!href) return;
+        e.preventDefault();
+        if (_va && !href.includes('viewAs=')) {
+          href += (href.includes('?') ? '&' : '?') + 'viewAs=' + encodeURIComponent(_va);
+        }
+        window.location.href = href;
+      });
+    })();
   </script>
 
 </body>
