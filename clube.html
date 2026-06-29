@@ -314,8 +314,8 @@
 
     async function init() {
       // Mostra "← Dashboard" e bnav completo apenas para quem tem dashboard
-      // clube-only = veio redirecionado de index.html com localStorage 'clubeAccess'
-      const apenasClube = localStorage.getItem('clubeAccess') === '1';
+      // clube-only = veio redirecionado de index.html com localStorage 'clubeOnlyMode'
+      const apenasClube = localStorage.getItem('clubeOnlyMode') === '1';
       if (!apenasClube) {
         const linkVoltar = document.getElementById('linkVoltarDash');
         if (linkVoltar) linkVoltar.style.display = '';

@@ -862,6 +862,7 @@
     onAuthStateChanged(auth, (user) => {
       if (!user) {
         localStorage.removeItem('clubeAccess');
+        localStorage.removeItem('clubeOnlyMode');
         window.location.href = 'login.html';
         return;
       }
@@ -1214,6 +1215,7 @@
     function _applyDashboard(data, user, viewAsUid) {
       if (data.apenasClube && !viewAsUid) {
         localStorage.setItem('clubeAccess', '1');
+        localStorage.setItem('clubeOnlyMode', '1');
         window.location.replace('clube.html');
         return;
       }
@@ -1320,6 +1322,7 @@
       } else {
         localStorage.removeItem('clubeAccess');
       }
+      localStorage.removeItem('clubeOnlyMode');
     }
 
     // ─── Onboarding ──────────────────────────────
