@@ -3299,35 +3299,36 @@
       document.getElementById('btnAddReceita').addEventListener('click', () => abrirModal('receita'));
 
       // ── Despesas — lista plana no Resumo ────────────────────────────────────
+      // Resumo: agrupa por categoria (detalhe item a item está na aba Detalhe)
       const despList = document.getElementById('despesasList');
-      const despOrdenadas = [...data.despesas].sort((a, b) => b.valor - a.valor);
-      despList.innerHTML = despOrdenadas.map((d) => {
-          const idxOriginal = data.despesas.indexOf(d);
-          const pDesp = totalDespesa > 0 ? (d.valor / totalDespesa) * 100 : 0;
-          // Verifica se tem limite definido e se ultrapassou
-          const catPlan = categoriasMes.find(c => c.nome === d.categoria);
-          const ultrapassou = catPlan?.limite > 0 && d.valor > catPlan.limite;
+      const _gruposResumo = {};
+      data.despesas.filter(d => !d._faturaAberta).forEach(d => {
+        if (!_gruposResumo[d.categoria]) _gruposResumo[d.categoria] = { total: 0, n: 0 };
+        _gruposResumo[d.categoria].total += d.valor;
+        _gruposResumo[d.categoria].n++;
+      });
+      const _ordemResumo = Object.keys(_gruposResumo).sort((a, b) => _gruposResumo[b].total - _gruposResumo[a].total);
+      despList.innerHTML = _ordemResumo.map(catNome => {
+          const g = _gruposResumo[catNome];
+          const pDesp = totalDespesa > 0 ? (g.total / totalDespesa) * 100 : 0;
+          const catPlan = categoriasMes.find(c => c.nome === catNome);
+          const ultrapassou = catPlan?.limite > 0 && g.total > catPlan.limite;
           const sub = [
-            d.data ? formatData(d.data) : null,
-            `${pct(d.valor, totalReceita)} da receita`,
-            d.cartao && d.fatura ? `💳 Fatura ${MESES[parseInt(d.fatura.split('-')[1]) - 1]}` : null,
-            ultrapassou ? '🔴 acima do limite planejado' : null
+            `${g.n} lançamento${g.n > 1 ? 's' : ''}`,
+            `${pct(g.total, totalReceita)} da receita`,
+            ultrapassou ? '🔴 acima do limite' : null
           ].filter(Boolean).join(' · ');
           return `
             <div class="item-row">
               <div>
-                <div class="item-categoria">${escapeHtml(d.categoria)}</div>
+                <div class="item-categoria">${escapeHtml(catNome)}</div>
                 <div class="item-fonte">${escapeHtml(sub)}</div>
               </div>
               <div class="item-bar-col">
                 <div class="item-bar-track"><div class="item-bar-fill despesa" style="width:${pDesp}%"></div></div>
                 <div class="item-pct">${pDesp.toFixed(1)}% das despesas</div>
               </div>
-              <div class="item-value despesa" style="${ultrapassou?'color:var(--negative)':''}">${brl(d.valor)}</div>
-              <div class="item-actions">
-                <button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_EDIT}</button>
-                <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_DEL}</button>
-              </div>
+              <div class="item-value despesa" style="${ultrapassou ? 'color:var(--negative)' : ''}">${brl(g.total)}</div>
             </div>`;
         }).join('') +
         `<div class="total-row">
@@ -3336,10 +3337,6 @@
         </div>
         <button class="btn-add-item" id="btnAddDespesa">+ Adicionar despesa</button>`;
 
-      despList.querySelectorAll('[data-edit-desp]').forEach(btn =>
-        btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
-      despList.querySelectorAll('[data-del-desp]').forEach(btn =>
-        btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
       document.getElementById('btnAddDespesa').addEventListener('click', () => abrirModal('despesa'));
 
       renderFaturas(data);
