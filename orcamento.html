@@ -3550,32 +3550,42 @@
         return;
       }
 
-      // Agrupa itens por cartão
-      const gruposAberta  = {};
-      const gruposFechada = {};
-      data.despesas.filter(d => d.cartao && d.cartaoId).forEach(d => {
-        const id = d.cartaoId;
-        if (d._faturaAberta) { if (!gruposAberta[id])  gruposAberta[id]  = []; gruposAberta[id].push(d); }
-        else                  { if (!gruposFechada[id]) gruposFechada[id] = []; gruposFechada[id].push(d); }
-      });
-
-      // Pré-carrega itens do mês da fatura para cartões sem itens abertos no período atual
-      const _faturaExtraCache = {};
+      // Fatura aberta = determinada pela data de HOJE, não pelo mês visualizado
       const hoje = new Date();
       const _dataHoje = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
-      await Promise.all(cartoesAtivos.map(async c => {
-        if (gruposAberta[c.id]?.length) return;
-        if (!c.diaCorte) return;
-        const fatKey = sugerirFatura(_dataHoje, c.diaCorte, c.diaVencimento || 1);
-        if (!fatKey) return;
-        const [kAno, kMes] = fatKey.split('-').map(Number);
-        if (kMes === data.periodo.mes && kAno === data.periodo.ano) return;
-        try {
-          const pd = await buscarPeriodo(kMes, kAno);
-          const items = (pd.despesas || []).filter(d => d.cartao && d.cartaoId === c.id && d.fatura === fatKey);
-          if (items.length) _faturaExtraCache[c.id] = items;
-        } catch (_) {}
+
+      // openKey por cartão: a fatura que está acumulando compras agora
+      const _openKey = {}; // cartaoId → "YYYY-MM"
+      cartoesAtivos.forEach(c => {
+        if (c.diaCorte) _openKey[c.id] = sugerirFatura(_dataHoje, c.diaCorte, c.diaVencimento || 1);
+      });
+
+      // Busca dados dos períodos das faturas abertas (pode diferir do período visualizado)
+      const _periodoAberta = {}; // "YYYY-MM" → data do período
+      await Promise.all([...new Set(Object.values(_openKey))].map(async key => {
+        if (!key) return;
+        const [kAno, kMes] = key.split('-').map(Number);
+        if (kMes === data.periodo.mes && kAno === data.periodo.ano) { _periodoAberta[key] = data; return; }
+        try { _periodoAberta[key] = await buscarPeriodo(kMes, kAno); } catch (_) { _periodoAberta[key] = { despesas: [] }; }
       }));
+
+      // Grupos por cartão
+      const gruposAberta  = {}; // itens da fatura aberta (baseado em hoje)
+      const gruposFechada = {}; // itens do período visualizado que não são a fatura aberta
+      cartoesAtivos.forEach(c => {
+        const key = _openKey[c.id];
+        const pd  = key ? _periodoAberta[key] : null;
+        if (pd) {
+          const items = (pd.despesas || []).filter(d => d.cartao && d.cartaoId === c.id && d.fatura === key);
+          if (items.length) gruposAberta[c.id] = items;
+        }
+      });
+      data.despesas.filter(d => d.cartao && d.cartaoId).forEach(d => {
+        if (d.fatura !== _openKey[d.cartaoId]) {
+          if (!gruposFechada[d.cartaoId]) gruposFechada[d.cartaoId] = [];
+          gruposFechada[d.cartaoId].push(d);
+        }
+      });
 
       const todosIds = [...new Set([
         ...cartoesAtivos.map(c => c.id),
@@ -3637,7 +3647,7 @@
         const cartaoObj   = _cartoes.find(c => c.id === cartaoId);
         const nomeCartao  = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
         const limite      = cartaoObj?.limite || 0;
-        const abertaItens = gruposAberta[cartaoId]?.length ? gruposAberta[cartaoId] : (_faturaExtraCache[cartaoId] || []);
+        const abertaItens = gruposAberta[cartaoId] || [];
         const fechadaItens= gruposFechada[cartaoId] || [];
         const rollover    = (() => {
           if (!fechadaItens.length) return 0;
