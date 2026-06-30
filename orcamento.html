@@ -3626,7 +3626,17 @@
           return _faturaEstados[`${cartaoId}_${fechadaItens[0].fatura || ''}`]?.rollover || 0;
         })();
 
-        const abertaKey = abertaItens.length ? abertaItens[0].fatura : _calcFaturaAbertaKey(cartaoObj);
+        const abertaKey = (() => {
+          if (abertaItens.length) return abertaItens[0].fatura;
+          if (!cartaoObj) return '';
+          const { diaVencimento = 0, diaCorte = 0 } = cartaoObj;
+          const { mes, ano } = currentData.periodo;
+          const offset = (diaVencimento && diaCorte && diaVencimento <= diaCorte) ? 1 : 0;
+          const mRaw = mes + offset;
+          const m = mRaw > 12 ? 1 : mRaw;
+          const a = mRaw > 12 ? ano + 1 : ano;
+          return `${a}-${String(m).padStart(2,'0')}`;
+        })();
         const [aAno, aMes] = abertaKey ? abertaKey.split('-').map(Number) : [0, 0];
         const estado     = _faturaEstado(cartaoObj, abertaKey);
         const diaCorte   = cartaoObj?.diaCorte || 0;
@@ -3768,11 +3778,18 @@
             Abertas <span style="font-size:10px;opacity:.6;">(${todosIds.length})</span>
           </button>
           <button onclick="window._setFatTab('fechadas')" style="${tabStyle(_fatTabAtiva==='fechadas')}">
-            A pagar ${nFechadas > 0 ? `<span style="font-size:10px;background:#f87171;color:#fff;border-radius:10px;padding:1px 6px;margin-left:2px;">${nFechadas}</span>` : ''}
+            Fechadas ${nFechadas > 0 ? `<span style="font-size:10px;background:#f87171;color:#fff;border-radius:10px;padding:1px 6px;margin-left:2px;">${nFechadas}</span>` : ''}
           </button>
         </div>
         <div id="fatAbertasContent"  style="${_fatTabAtiva !== 'abertas'  ? 'display:none;' : ''}">${cardsAbertas  || '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Nenhuma fatura aberta</div>'}</div>
-        <div id="fatFechadasContent" style="${_fatTabAtiva !== 'fechadas' ? 'display:none;' : ''}">${cardsFechadas || '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Nenhuma fatura a pagar este mês 🎉</div>'}</div>`;
+        <div id="fatFechadasContent" style="${_fatTabAtiva !== 'fechadas' ? 'display:none;' : ''}">
+          ${cardsFechadas
+            ? `<div style="display:flex;align-items:center;gap:8px;padding:2px 4px 12px;color:var(--text-muted);font-size:12px;">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="8"/><line x1="8" y1="11" x2="8.01" y2="11"/></svg>
+                Confirme o pagamento das faturas abaixo quando realizá-lo
+              </div>${cardsFechadas}`
+            : '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Nenhuma fatura a pagar este mês 🎉</div>'}
+        </div>`;
 
       // Handlers globais (Android PWA safe)
       window._setFatTab = (tab) => { _fatTabAtiva = tab; renderFaturas(currentData); };
