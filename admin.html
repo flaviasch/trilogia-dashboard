@@ -616,7 +616,13 @@
 
       <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:28px;max-height:60vh;overflow-y:auto;padding-right:4px;">
         <div style="background:rgba(207,174,101,0.07);border:1px solid rgba(207,174,101,0.25);border-radius:10px;padding:16px;">
-          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">💳 Faturas + Jornada — Jul/2026 <span style="font-size:11px;font-weight:400;color:#CFAE65;">Novo</span></div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🎊 Tudo que melhoramos em Junho — Jun/2026 <span style="font-size:11px;font-weight:400;color:#CFAE65;">Novo</span></div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Resumo completo do mês: Saldo em Conta, Saldo Final, ciclo de fatura, despesas fixas futuras, Jornada, melhorias Android/iOS, sessão sem expiração e LGPD.</div>
+          <button id="btnDispararNovidadesJun2026Completo" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusNovidadesJun2026Completo" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+        </div>
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">💳 Faturas + Jornada — Jul/2026</div>
           <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Faturas no mês de vencimento, pagamento parcial com rollover automático e materiais na Jornada.</div>
           <button id="btnDispararNovidadesJul2026" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
           <span id="statusNovidadesJul2026" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
@@ -1740,7 +1746,7 @@
              criarPlanilha, getNotionCRM, getMinhaJornada,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico, bootstrapNotionPageIds, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, anunciarJornadaDashboard, anunciarNovidadesJul2026, comunicadoTecnico, migrarOrcamento, getAnalytics,
+             syncDiagnostico, bootstrapNotionPageIds, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, anunciarNovidadesJun2026Completo, anunciarJornadaDashboard, anunciarNovidadesJul2026, comunicadoTecnico, migrarOrcamento, getAnalytics,
              getAdmins, addAdmin, removeAdmin, getBackupStatus,
              enviarPushManual, saveMissaoMes, getComunicadosStatus,
              editarVencimento } from './js/api.js?v=20';
@@ -1786,6 +1792,14 @@
           el.textContent = `✅ Enviado em ${fmt(status.novidades.enviadoEm)} · ${status.novidades.enviados} destinatários`;
           el.style.color = '#4ade80';
           const btn = document.getElementById('btnDispararNovidades');
+          btn.textContent = 'Reenviar →';
+          btn.style.background = 'rgba(207,174,101,0.15)';
+        }
+        if (status.novidadesJun2026Completo?.enviadoEm) {
+          const el = document.getElementById('statusNovidadesJun2026Completo');
+          el.textContent = `✅ Enviado em ${fmt(status.novidadesJun2026Completo.enviadoEm)} · ${status.novidadesJun2026Completo.enviados} destinatários`;
+          el.style.color = '#4ade80';
+          const btn = document.getElementById('btnDispararNovidadesJun2026Completo');
           btn.textContent = 'Reenviar →';
           btn.style.background = 'rgba(207,174,101,0.15)';
         }
@@ -1873,6 +1887,23 @@
       } catch (err) {
         btn.textContent = 'Disparar agora →';
         btn.disabled = false;
+        status.textContent = 'Erro: ' + (err.message || 'tente novamente');
+        status.style.color = '#f87171';
+      }
+    });
+
+    document.getElementById('btnDispararNovidadesJun2026Completo')?.addEventListener('click', async () => {
+      if (!confirm('Disparar "Tudo que melhoramos em Junho" para TODAS as mentoradas ativas?')) return;
+      const btn    = document.getElementById('btnDispararNovidadesJun2026Completo');
+      const status = document.getElementById('statusNovidadesJun2026Completo');
+      btn.disabled = true; btn.textContent = '⏳ Enviando...'; status.textContent = '';
+      try {
+        const res = await anunciarNovidadesJun2026Completo();
+        btn.textContent = '✓ Enviado!'; btn.style.background = '#4ade80';
+        status.textContent = `${res.enviados} e-mails enviados${res.erros > 0 ? `, ${res.erros} erros` : ''}`;
+        status.style.color = res.erros > 0 ? '#f87171' : '#4ade80';
+      } catch (err) {
+        btn.textContent = 'Disparar agora →'; btn.disabled = false;
         status.textContent = 'Erro: ' + (err.message || 'tente novamente');
         status.style.color = '#f87171';
       }

@@ -48,6 +48,7 @@ const {
   emailNovidades,
   emailNovidadesJun2026,
   emailNovidadesJun2026v3,
+  emailNovidadesJun2026Completo,
   emailNovidadesJul2026,
   emailJornadaDashboard,
   emailIR,
@@ -3834,6 +3835,31 @@ exports.anunciarNovidadesJun2026v3 = onCall({ secrets: SECRETS_EMAIL }, async (r
  * Dispara e-mail de novidades Jul/2026 para todas as mentoradas ativas.
  * Faturas no mês de pagamento + pagamento parcial com rollover + materiais na Jornada.
  */
+exports.anunciarNovidadesJun2026Completo = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Tudo que melhoramos em Junho para você — Trilogia Dashboard',
+        html:    emailNovidadesJun2026Completo(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarNovidadesJun2026Completo] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { novidadesJun2026Completo: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
 exports.anunciarNovidadesJul2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
   requireAdmin(request);
   const mentoradas = await getAtivas();

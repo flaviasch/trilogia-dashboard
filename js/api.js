@@ -866,6 +866,11 @@ export async function anunciarNovidadesJun2026() {
   return call('anunciarNovidadesJun2026')({});
 }
 
+/** Dispara e-mail completo de Junho/2026 — todas as melhorias do mês. Admin only. */
+export async function anunciarNovidadesJun2026Completo() {
+  return call('anunciarNovidadesJun2026Completo')({});
+}
+
 /** Dispara e-mail de novidades Jun/2026 v3 — texto livre + CSV por mês. Admin only. */
 export async function anunciarNovidadesJun2026v3() {
   return call('anunciarNovidadesJun2026v3')({});

@@ -539,6 +539,25 @@
       opacity: 0.5; transition: opacity .2s; font-family: 'Inter', sans-serif;
     }
     .notif-dismiss:hover { opacity: 1; }
+    .notif-expand-btn {
+      background: none; border: 1px solid rgba(207,174,101,0.25); color: var(--gold);
+      font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px 10px;
+      border-radius: 6px; font-family: 'Inter', sans-serif; margin-top: 8px;
+      transition: background .2s;
+    }
+    .notif-expand-btn:hover { background: rgba(207,174,101,0.1); }
+    .notif-itens {
+      display: none; margin-top: 12px; padding-top: 12px;
+      border-top: 1px solid rgba(207,174,101,0.15);
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    }
+    .notif-itens.fechado { display: none; }
+    .notif-item {
+      background: rgba(255,255,255,0.04); border-radius: 8px; padding: 10px 12px;
+    }
+    .notif-item-emoji { font-size: 16px; margin-bottom: 4px; }
+    .notif-item-titulo { font-size: 12px; font-weight: 700; color: var(--white); margin-bottom: 2px; }
+    .notif-item-desc { font-size: 11px; color: var(--text-muted); line-height: 1.45; }
 
     /* ─── Empty state ─────────────────────────── */
     .empty-state {
@@ -1532,6 +1551,23 @@
         });
       }
 
+      // ⓪-e Balanço de Junho — banner expansível com todas as melhorias
+      if (!localStorage.getItem('notif_balanco_jun2026')) {
+        notifs.unshift({ id: 'balanco-jun2026', type: 'novidades', key: 'notif_balanco_jun2026', icon: '🎊', _expansivel: true,
+          titulo: 'Junho foi intenso — veja tudo que melhoramos para você',
+          desc: 'Saldo em Conta, Saldo Final, ciclo completo de faturas, despesas fixas futuras, Jornada com lições e materiais, app mais estável no Android e iPhone, sessão sem expiração e mais.',
+          cta: { label: 'Ver orçamento', href: 'orcamento.html' },
+          itens: [
+            { emoji: '🏦', titulo: 'Saldo em Conta + Saldo Final', desc: 'Informe o saldo inicial do mês e veja o Saldo Final calculado automaticamente.' },
+            { emoji: '💳', titulo: 'Ciclo de vida da fatura', desc: 'Despesa do cartão cai no mês do pagamento. Fatura aberta/fechada com rollover automático.' },
+            { emoji: '📋', titulo: 'Despesas fixas em meses futuros', desc: 'Seus lançamentos fixos são copiados automaticamente quando você navega para meses futuros.' },
+            { emoji: '✅', titulo: 'Jornada com lições clicáveis', desc: 'Marque tarefas como feitas e acesse materiais e gravações de cada encontro direto no app.' },
+            { emoji: '🔧', titulo: 'App mais estável no Android e iPhone', desc: 'Corrigimos travamentos em modais, botões e notificações no PWA instalado.' },
+            { emoji: '🔑', titulo: 'Sessão sem expiração inesperada', desc: 'Renovação automática do token — sem ser deslogada no meio do dia.' },
+          ],
+        });
+      }
+
       // ① Perfil de investidor — ausente ou > 180 dias sem atualizar
       const perfilKey = `notif_perfil_${mesKey}`;
       if (!localStorage.getItem(perfilKey)) {
@@ -1619,19 +1655,31 @@
       const box = document.getElementById('notificacoesBox');
       if (!box || notifs.length === 0) { box && (box.innerHTML = ''); return; }
 
-      box.innerHTML = notifs.map(n => `
+      box.innerHTML = notifs.map(n => {
+        const itensHtml = n._expansivel && n.itens ? `
+          <button class="notif-expand-btn" onclick="window._toggleNotifItens('${n.id}', this)">Ver tudo ↓</button>
+          <div class="notif-itens fechado" id="notif_itens_${n.id}">
+            ${n.itens.map(it => `
+              <div class="notif-item">
+                <div class="notif-item-emoji">${it.emoji}</div>
+                <div class="notif-item-titulo">${it.titulo}</div>
+                <div class="notif-item-desc">${it.desc}</div>
+              </div>`).join('')}
+          </div>` : '';
+        return `
         <div class="notif-card ${n.type}" id="notif_${n.id}">
           <span class="notif-icon">${n.icon}</span>
           <div class="notif-body">
             <div class="notif-titulo">${n.titulo}</div>
             <div class="notif-desc">${n.desc}</div>
             <a href="${n.cta.href}" class="notif-cta">${n.cta.label} →</a>
+            ${itensHtml}
           </div>
           <button class="notif-dismiss" onclick="window._dispensarNotif(this)"
             ${n.removeKey ? `data-remove="${n.removeKey}"` : `data-key="${n.key}"`}
             data-id="${n.id}" title="Dispensar">✕</button>
-        </div>
-      `).join('');
+        </div>`;
+      }).join('');
 
       // Android PWA: onclick no atributo + window._ garante disparo fora do módulo ES
       window._dispensarNotif = (btn) => {
@@ -1641,6 +1689,13 @@
           localStorage.setItem(btn.dataset.key, '1');
         }
         document.getElementById(`notif_${btn.dataset.id}`)?.remove();
+      };
+      window._toggleNotifItens = (id, btn) => {
+        const el = document.getElementById(`notif_itens_${id}`);
+        if (!el) return;
+        const aberto = !el.classList.contains('fechado');
+        el.classList.toggle('fechado', aberto);
+        btn.textContent = aberto ? 'Ver tudo ↓' : 'Recolher ↑';
       };
       box.querySelectorAll('.notif-dismiss').forEach(btn => {
         btn.addEventListener('click', () => window._dispensarNotif(btn));

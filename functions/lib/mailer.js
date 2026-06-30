@@ -727,6 +727,62 @@ function emailJornadaDashboard(nome) {
   `);
 }
 
+function emailNovidadesJun2026Completo(nome) {
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  const secao = (titulo) =>
+    `<tr><td style="padding:18px 0 6px;">
+      <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Tudo que melhoramos em Junho para você</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Junho foi um mês cheio de novidades no seu Dashboard. Veja o que ficou mais fácil, mais preciso e mais completo:
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('💰 Orçamento — novo card Saldo em Conta')}
+      ${item('🏦','Saldo em Conta','Informe quanto está na conta no início do mês. O Dashboard usa esse valor no cálculo da Sobra e do Saldo Final automaticamente.')}
+      ${item('🏁','Saldo Final','Novo card que mostra: saldo + receita − despesas − aporte. O retrato real do que sobrou no caixa.')}
+
+      ${secao('💳 Cartão — ciclo de vida completo da fatura')}
+      ${item('📆','Despesa cai no mês do pagamento','Compra feita agora aparece no mês em que a fatura vence, não no mês do lançamento. Zero confusão no fluxo de caixa.')}
+      ${item('✂️','Fatura aberta e fechada','Controle se a fatura já fechou ou ainda está aberta. O saldo pendente vira fatura do próximo mês automaticamente.')}
+      ${item('📋','Despesas fixas em meses futuros','Os lançamentos fixos do mês atual são copiados para os meses seguintes quando você navega para frente.')}
+
+      ${secao('🗺️ Minha Jornada')}
+      ${item('✅','Lições de casa clicáveis','As tarefas da sua jornada agora têm checkbox. Marque como feito e o Notion é atualizado em tempo real.')}
+      ${item('📚','Materiais do encontro','Links, gravações e materiais de cada sessão aparecem diretamente na aba Minha Jornada.')}
+
+      ${secao('📱 App móvel — Android e iPhone')}
+      ${item('🔧','Botões funcionando no Android PWA','Corrigimos travamentos em modais e botões que não respondiam no app instalado no Android.')}
+      ${item('🔔','Notificações com dismiss que funciona','O X das notificações agora dispensa corretamente no Android e salva o estado entre sessões.')}
+      ${item('🔑','Sessão que não expira do nada','Renovação automática do token de acesso — sem logout inesperado no meio do dia.')}
+
+      ${secao('🔐 Segurança')}
+      ${item('🧹','Exclusão completa de dados (LGPD)','Ao encerrar a mentoria, todos os dados pessoais são removidos do Drive e do Notion de forma automática.')}
+
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Explorar as novidades →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 module.exports = {
   sendEmail,
   emailRenovacaoPerfil,
@@ -737,6 +793,7 @@ module.exports = {
   emailNovidades,
   emailNovidadesJun2026,
   emailNovidadesJun2026v3,
+  emailNovidadesJun2026Completo,
   emailJornadaDashboard,
   emailComunicadoTecnico,
   emailIR,
