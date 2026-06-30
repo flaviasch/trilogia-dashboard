@@ -5704,6 +5704,9 @@
         if (fatMes === mesVis && fatAno === anoVis) {
           currentData = await buscarPeriodo(fatMes, fatAno);
           render(currentData);
+        } else {
+          // Fatura em mês diferente do visualizado: atualiza só a aba de faturas
+          renderFaturas(currentData);
         }
       } catch (err) {
         mostrarToast(msgErro(err), 'error');
