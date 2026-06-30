@@ -3643,7 +3643,12 @@
 
         const vencAbertaLabel = (() => {
           if (!cartaoObj?.diaVencimento || !aAno) return '';
-          return `Vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(aMes).padStart(2,'0')}/${aAno}`;
+          // Se diaVencimento <= diaCorte o pagamento cai no mês seguinte ao corte
+          const _vctoMesOffset = cartaoObj.diaVencimento <= (cartaoObj.diaCorte || 31) ? 1 : 0;
+          const _vctoMesRaw = aMes + _vctoMesOffset;
+          const _vctoMes = _vctoMesRaw > 12 ? 1 : _vctoMesRaw;
+          const _vctoAno = _vctoMesRaw > 12 ? aAno + 1 : aAno;
+          return `Vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(_vctoMes).padStart(2,'0')}/${_vctoAno}`;
         })();
 
         const estadoBadge = estado === 'aberta'
@@ -3684,7 +3689,11 @@
 
           const vencFechadaLabel = (() => {
             if (!cartaoObj?.diaVencimento || !fAno) return '';
-            return `Vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(fMes).padStart(2,'0')}/${fAno}`;
+            const _vctoMesOffset = cartaoObj.diaVencimento <= (cartaoObj.diaCorte || 31) ? 1 : 0;
+            const _vctoMesRaw = fMes + _vctoMesOffset;
+            const _vctoMes = _vctoMesRaw > 12 ? 1 : _vctoMesRaw;
+            const _vctoAno = _vctoMesRaw > 12 ? fAno + 1 : fAno;
+            return `Vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(_vctoMes).padStart(2,'0')}/${_vctoAno}`;
           })();
 
           const pagamentoBadge = (() => {
