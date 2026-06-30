@@ -252,7 +252,7 @@
     .resumo-section { margin-bottom: 40px; }
     .resumo-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 16px;
     }
     .resumo-card {
@@ -717,7 +717,7 @@
       .navbar { padding: 0 16px; }
       .user-name { display: none; }
       .main { padding: 24px 16px 60px; }
-      .resumo-grid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+      .resumo-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; }
       .resumo-card { padding: 8px 4px; }
       .resumo-label { font-size: 8px; margin-bottom: 6px; }
       .resumo-value { font-size: 13px; margin-bottom: 4px; }
@@ -1087,7 +1087,7 @@
       .print-header h1 { font-family: 'Playfair Display', serif; font-size: 20px; color: #0D2B45; margin-bottom: 3px; }
       .print-header p  { font-size: 12px; color: #6b7280; }
 
-      .resumo-grid { grid-template-columns: repeat(4, 1fr) !important; }
+      .resumo-grid { grid-template-columns: repeat(3, 1fr) !important; }
       .resumo-card { background: #f9fafb !important; border: 1px solid #e5e7eb !important; color: #1F2937 !important; break-inside: avoid; }
       .resumo-label { color: #6b7280 !important; }
       .resumo-value.positive { color: #16a34a !important; }
@@ -1244,6 +1244,27 @@
     <!-- Resumo -->
     <div class="resumo-section">
       <div class="resumo-grid">
+        <!-- Saldo em Conta — editável -->
+        <div class="resumo-card" style="border-color:rgba(255,255,255,0.15);">
+          <div class="resumo-label" style="display:flex;align-items:center;justify-content:space-between;">
+            Saldo em Conta
+            <button id="btnEditarSaldo" onclick="window._editarSaldoConta()" title="Editar saldo" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0;line-height:1;">✏️</button>
+          </div>
+          <div id="saldoContaDisplay" style="display:flex;align-items:center;gap:8px;">
+            <div class="resumo-value" id="totalSaldoConta" style="color:var(--white);">R$ 0</div>
+          </div>
+          <div id="saldoContaForm" style="display:none;margin-top:8px;">
+            <input id="saldoContaInput" type="text" inputmode="decimal"
+              style="width:100%;background:rgba(255,255,255,0.07);border:1px solid var(--border-gold);border-radius:6px;padding:6px 10px;font-size:14px;color:var(--white);font-family:'Inter',sans-serif;outline:none;"
+              placeholder="0,00" />
+            <div style="display:flex;gap:6px;margin-top:6px;">
+              <button onclick="window._salvarSaldoConta()" style="flex:1;background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:5px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Salvar</button>
+              <button onclick="window._cancelarSaldoConta()" style="flex:1;background:rgba(255,255,255,0.07);color:var(--text-muted);border:none;border-radius:6px;padding:5px;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif;">Cancelar</button>
+            </div>
+          </div>
+          <div class="resumo-sub" id="saldoContaSub">saldo inicial do mês</div>
+        </div>
+
         <div class="resumo-card">
           <div class="resumo-label">Receita Total</div>
           <div class="resumo-value positive" id="totalReceita">—</div>
@@ -1257,15 +1278,22 @@
           <div id="faturasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;">💳 <span id="faturasPendentesValor"></span> a vencer</div>
           <div id="despesasPendentesIndicador" style="display:none;font-size:11px;color:var(--text-muted);margin-top:2px;">⏳ <span id="despesasPendentesValor"></span> pendente</div>
         </div>
+
+        <div class="resumo-card" style="border-color: rgba(207,174,101,0.3);">
+          <div class="resumo-label">Aporte Efetivado</div>
+          <div class="resumo-value gold" id="totalAporteCard">—</div>
+          <div class="resumo-sub" id="aporteSubLabel">nenhum registrado</div>
+        </div>
         <div class="resumo-card destaque">
           <div class="resumo-label">Sobra do Mês</div>
           <div class="resumo-value" id="totalSobra">—</div>
           <div id="sobraIndicador"></div>
         </div>
-        <div class="resumo-card" style="border-color: rgba(207,174,101,0.3);">
-          <div class="resumo-label">Aporte Efetivado</div>
-          <div class="resumo-value gold" id="totalAporteCard">—</div>
-          <div class="resumo-sub" id="aporteSubLabel">nenhum registrado</div>
+        <!-- Saldo Final -->
+        <div class="resumo-card" style="border-color:rgba(74,222,128,0.25);background:rgba(74,222,128,0.03);">
+          <div class="resumo-label">Saldo Final</div>
+          <div class="resumo-value" id="totalSaldoFinal" style="color:#4ade80;">—</div>
+          <div class="resumo-sub" id="saldoFinalSub">saldo + receita − despesa − aporte</div>
         </div>
       </div>
     </div>
@@ -1859,7 +1887,7 @@
       <div class="aporte-distribuido" id="aporteDistribuido">—</div>
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelarReservas">Cancelar</button>
-        <button class="btn-save" id="btnProximoClasse">Próximo →</button>
+        <button class="btn-save" id="btnProximoClasse" onclick="window._btnProximoClasse()">Próximo →</button>
       </div>
     </div>
   </div>
@@ -2409,7 +2437,7 @@
         if (fgToggles) fgToggles.style.display = 'none';
       } else {
         if (!_catLocked) document.getElementById('mCategoria').value = '';
-        document.getElementById('mData').value      = new Date().toISOString().split('T')[0];
+        const _h = new Date(); document.getElementById('mData').value = `${_h.getFullYear()}-${String(_h.getMonth()+1).padStart(2,'0')}-${String(_h.getDate()).padStart(2,'0')}`;
         document.getElementById('mDescricao').value = '';
         document.getElementById('mValor').value     = '';
         // Cartão: sempre oculto em novos lançamentos (usar botão '💳 Lançar no cartão')
@@ -2543,9 +2571,16 @@
       if (cartao && fatura) {
         // Salva diretamente no mês da fatura (não no mês exibido)
         const [fatAno, fatMes] = fatura.split('-').map(Number);
+        const editandoIdxCaptura = editandoIdx; // captura antes de fecharModal zerar
         fecharModal();
         setLoading(btnSalvarItem, true);
         try {
+          // Se é edição, remove o item original do mês atual antes de salvar na fatura
+          if (editandoIdxCaptura !== null) {
+            const listaOrigem = editandoIdxCaptura.tipo === 'receita' ? currentData.receitas : currentData.despesas;
+            listaOrigem.splice(editandoIdxCaptura.idx, 1);
+            await salvarEAtualizar();
+          }
           const itensFatura = await getOrcamento(fatMes, fatAno);
           itensFatura.push(novoItem);
           await saveOrcamento(fatMes, fatAno, itensFatura);
@@ -2613,6 +2648,7 @@
       const { mes, ano } = currentData.periodo;
       const mesAtual = new Date().getMonth() + 1;
       const itens = [
+        ...(currentData.saldoConta > 0 ? [{ categoria: '__saldo_conta__', tipo: 'receita', valor: currentData.saldoConta, data: '', descricao: 'Saldo em conta', cartao: false, fatura: '', origem: 'manual' }] : []),
         ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: r.origem || 'manual' })),
         ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d._sourceMes != null ? { _sourceMes: d._sourceMes, _sourceAno: d._sourceAno } : {}), ...(d.pendente ? { pendente: true } : {}) })),
         ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
@@ -2708,7 +2744,37 @@
       }
     });
 
-    document.getElementById('btnProximoClasse').addEventListener('click', () => {
+    // ─── Saldo em Conta — edição inline ──────────────────────────────────────
+    window._editarSaldoConta = () => {
+      document.getElementById('saldoContaDisplay').style.display = 'none';
+      document.getElementById('saldoContaSub').style.display = 'none';
+      const inp = document.getElementById('saldoContaInput');
+      inp.value = (currentData.saldoConta || 0).toFixed(2).replace('.', ',');
+      document.getElementById('saldoContaForm').style.display = '';
+      inp.focus();
+      inp.select();
+    };
+    window._salvarSaldoConta = async () => {
+      const raw = document.getElementById('saldoContaInput').value.replace(/\./g, '').replace(',', '.');
+      const valor = parseFloat(raw) || 0;
+      currentData.saldoConta = valor;
+      document.getElementById('saldoContaForm').style.display = 'none';
+      document.getElementById('saldoContaDisplay').style.display = '';
+      document.getElementById('saldoContaSub').style.display = '';
+      render(currentData);
+      try { await salvarEAtualizar(); } catch (e) { /* já tratado em salvarEAtualizar */ }
+    };
+    window._cancelarSaldoConta = () => {
+      document.getElementById('saldoContaForm').style.display = 'none';
+      document.getElementById('saldoContaDisplay').style.display = '';
+      document.getElementById('saldoContaSub').style.display = '';
+    };
+    document.getElementById('saldoContaInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') window._salvarSaldoConta();
+      if (e.key === 'Escape') window._cancelarSaldoConta();
+    });
+
+    window._btnProximoClasse = () => {
       const inputs = document.querySelectorAll('#reservasAporteList .reserva-aporte-input');
       const distribuido = [...inputs].reduce((s, i) => s + readMoney(i), 0);
 
@@ -2765,7 +2831,8 @@
       document.getElementById('modalClasseSub').textContent =
         `Confirme a classe para atualizar o patrimônio agora (${brl(valorAportePendente)}), ou clique em Pular e importe o extrato da corretora depois.`;
       modalClasse.classList.remove('hidden');
-    });
+    };
+    document.getElementById('btnProximoClasse').addEventListener('click', window._btnProximoClasse);
 
     // ── Passo 2: modal de classe ──────────────────────────────────────────────
     document.getElementById('btnCancelarClasse').addEventListener('click', () => {
@@ -2928,11 +2995,13 @@
 
       if (orcResult.status === 'fulfilled') {
         const itens = orcResult.value;
+        const _saldoItem = itens.find(i => i.tipo === 'receita' && i.categoria === '__saldo_conta__');
         currentData = {
-          periodo:  { mes, ano },
-          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
-          aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
+          periodo:    { mes, ano },
+          saldoConta: _saldoItem ? _saldoItem.valor : 0,
+          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
+          despesas:   itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
+          aportes:    itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
             nota: a.categoria !== 'Aporte efetivado' ? a.categoria : '',
@@ -2940,7 +3009,7 @@
         };
       } else {
         toast(msgErro(orcResult.reason), 'error');
-        currentData = { periodo: { mes, ano }, receitas: [], despesas: [], aportes: [] };
+        currentData = { periodo: { mes, ano }, saldoConta: 0, receitas: [], despesas: [], aportes: [] };
       }
 
       if (resResult.status === 'fulfilled')   reservas = resResult.value || [];
@@ -3121,6 +3190,7 @@
       _btnNext.style.opacity = _noLimite ? '0.25' : '';
       _btnNext.style.cursor  = _noLimite ? 'not-allowed' : '';
 
+      const saldoConta = data.saldoConta || 0;
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
       // Em meses futuros tudo é projeção; não separa cartão do total.
       // Em meses atuais/passados, cartão com fatura só impacta o caixa no mês do vencimento.
@@ -3128,12 +3198,17 @@
       const totalFaturas  = _ehFuturo ? 0 : data.despesas.filter(d => d.cartao && d.fatura && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
       const totalPendente = data.despesas.filter(d => d.pendente && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
       const totalDespesa  = data.despesas.filter(d => !(d.pendente) && !d._faturaAberta).reduce((s, d) => s + d.valor, 0) - totalFaturas;
-      const sobra = totalReceita - totalDespesa;
-      const sobraPct = totalReceita > 0 ? (sobra / totalReceita) * 100 : 0;
+      const sobra = saldoConta + totalReceita - totalDespesa;
+      const sobraPct = (saldoConta + totalReceita) > 0 ? (sobra / (saldoConta + totalReceita)) * 100 : 0;
+      const totalAp = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
+      const saldoFinal = sobra - totalAp;
 
       // Banner de importação: compacto se já há dados no mês
       const temDados = data.receitas.length > 0 || data.despesas.length > 0;
       document.getElementById('uploadBanner')?.classList.toggle('compacto', temDados);
+
+      // Saldo em Conta card
+      document.getElementById('totalSaldoConta').textContent = brl(saldoConta);
 
       // Resumo
       document.getElementById('totalReceita').textContent = brl(totalReceita);
@@ -3155,11 +3230,10 @@
 
       const indicEl = document.getElementById('sobraIndicador');
       indicEl.innerHTML = `<span class="resumo-pct ${sobraPct >= 20 ? 'ok' : 'alerta'}">
-        ${sobraPct.toFixed(1)}% da receita
+        ${sobraPct.toFixed(1)}% do total disponível
       </span>`;
 
       // Aporte efetivado — KPI card
-      const totalAp = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
       document.getElementById('totalAporteCard').textContent = totalAp > 0 ? brl(totalAp) : '—';
       if (totalAp > 0) {
         const n = data.aportes.length;
@@ -3169,6 +3243,12 @@
       } else {
         document.getElementById('aporteSubLabel').textContent = 'nenhum registrado';
       }
+
+      // Saldo Final card
+      const sfEl = document.getElementById('totalSaldoFinal');
+      sfEl.textContent = brl(saldoFinal);
+      sfEl.style.color = saldoFinal >= 0 ? '#4ade80' : '#f87171';
+
       // Limpa o strip para novo lançamento
       document.getElementById('aporteEfetivadoInput').value = '';
 
@@ -4811,11 +4891,13 @@
           getCategoriasMes(mes, ano),
         ]);
         categoriasMes = cats || [];
+        const _saldoItemB = itens.find(i => i.tipo === 'receita' && i.categoria === '__saldo_conta__');
         const data = {
-          periodo:  { mes, ano },
-          receitas: itens.filter(i => i.tipo === 'receita').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
-          despesas: itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
-          aportes:  itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
+          periodo:    { mes, ano },
+          saldoConta: _saldoItemB ? _saldoItemB.valor : 0,
+          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
+          despesas:   itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
+          aportes:    itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
             nota: a.categoria !== 'Aporte efetivado' ? a.categoria : '',
@@ -5149,7 +5231,7 @@
       // ── Extrai data ───────────────────────────────────────────────────────
       // Padrões: 30/05/2026 | 30/05 | 30 de maio
       const mesesNomes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-      let dataISO = new Date().toISOString().split('T')[0]; // fallback: hoje
+      const _hj = new Date(); let dataISO = `${_hj.getFullYear()}-${String(_hj.getMonth()+1).padStart(2,'0')}-${String(_hj.getDate()).padStart(2,'0')}`; // fallback: hoje
       const regexData1 = /(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/;
       const regexData2 = new RegExp(`(\\d{1,2})\\s+de\\s+(${mesesNomes.join('|')})`, 'i');
       const mData1 = t.match(regexData1);
