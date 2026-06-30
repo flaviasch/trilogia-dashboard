@@ -1627,21 +1627,23 @@
             <div class="notif-desc">${n.desc}</div>
             <a href="${n.cta.href}" class="notif-cta">${n.cta.label} →</a>
           </div>
-          <button class="notif-dismiss"
+          <button class="notif-dismiss" onclick="window._dispensarNotif(this)"
             ${n.removeKey ? `data-remove="${n.removeKey}"` : `data-key="${n.key}"`}
             data-id="${n.id}" title="Dispensar">✕</button>
         </div>
       `).join('');
 
+      // Android PWA: onclick no atributo + window._ garante disparo fora do módulo ES
+      window._dispensarNotif = (btn) => {
+        if (btn.dataset.remove) {
+          localStorage.removeItem(btn.dataset.remove);
+        } else {
+          localStorage.setItem(btn.dataset.key, '1');
+        }
+        document.getElementById(`notif_${btn.dataset.id}`)?.remove();
+      };
       box.querySelectorAll('.notif-dismiss').forEach(btn => {
-        btn.addEventListener('click', () => {
-          if (btn.dataset.remove) {
-            localStorage.removeItem(btn.dataset.remove);
-          } else {
-            localStorage.setItem(btn.dataset.key, '1');
-          }
-          document.getElementById(`notif_${btn.dataset.id}`)?.remove();
-        });
+        btn.addEventListener('click', () => window._dispensarNotif(btn));
       });
     }
 
