@@ -3550,18 +3550,13 @@
         return;
       }
 
-      // Separa itens por cartaoId em abertos (acumulando) e fechados (pagamento este mês)
-      const gruposAberta  = {}; // cartaoId → itens com _faturaAberta
-      const gruposFechada = {}; // cartaoId → itens sem _faturaAberta (pagamento este mês)
+      // Agrupa itens por cartão
+      const gruposAberta  = {};
+      const gruposFechada = {};
       data.despesas.filter(d => d.cartao && d.cartaoId).forEach(d => {
         const id = d.cartaoId;
-        if (d._faturaAberta) {
-          if (!gruposAberta[id])  gruposAberta[id]  = [];
-          gruposAberta[id].push(d);
-        } else {
-          if (!gruposFechada[id]) gruposFechada[id] = [];
-          gruposFechada[id].push(d);
-        }
+        if (d._faturaAberta) { if (!gruposAberta[id])  gruposAberta[id]  = []; gruposAberta[id].push(d); }
+        else                  { if (!gruposFechada[id]) gruposFechada[id] = []; gruposFechada[id].push(d); }
       });
 
       const todosIds = [...new Set([
@@ -3572,11 +3567,12 @@
 
       const IC_E = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
       const IC_D = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
+      const IC_CHEV_DOWN = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4,6 8,10 12,6"/></svg>`;
+      const IC_CHEV_UP   = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4,10 8,6 12,10"/></svg>`;
 
       function _renderLinhas(itens, cartaoObj) {
-        if (!itens.length) {
+        if (!itens.length)
           return `<div style="padding:16px 20px;color:var(--text-muted);font-size:13px;text-align:center;border-top:1px solid var(--border);">Nenhuma despesa lançada ainda</div>`;
-        }
         return itens.map(d => {
           const idxOriginal = data.despesas.indexOf(d);
           const desc = d.descricao || d.categoria;
@@ -3609,171 +3605,182 @@
         </div>`;
       }
 
-      const secoes = todosIds.map(cartaoId => {
+      function _vctoLabel(diaVencimento, diaCorte, mes, ano) {
+        if (!diaVencimento || !ano) return '';
+        const offset = diaVencimento <= (diaCorte || 31) ? 1 : 0;
+        const mRaw = mes + offset;
+        const m = mRaw > 12 ? 1 : mRaw;
+        const a = mRaw > 12 ? ano + 1 : ano;
+        return `Vence ${String(diaVencimento).padStart(2,'0')}/${String(m).padStart(2,'0')}/${a}`;
+      }
+
+      // ── Constroí cards de faturas ABERTAS ─────────────────────────────────────
+      const cardsAbertas = todosIds.map(cartaoId => {
         const cartaoObj   = _cartoes.find(c => c.id === cartaoId);
         const nomeCartao  = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
         const limite      = cartaoObj?.limite || 0;
-        const abertaItens = gruposAberta[cartaoId]  || [];
+        const abertaItens = gruposAberta[cartaoId] || [];
         const fechadaItens= gruposFechada[cartaoId] || [];
-
-        // Rollover da fatura fechada anterior (pré-calculado para usar em htmlAberta)
-        const rolloverAberta = (() => {
+        const rollover    = (() => {
           if (!fechadaItens.length) return 0;
-          const fk = fechadaItens[0].fatura || '';
-          return _faturaEstados[`${cartaoId}_${fk}`]?.rollover || 0;
+          return _faturaEstados[`${cartaoId}_${fechadaItens[0].fatura || ''}`]?.rollover || 0;
         })();
 
-        // Determina chave e estado da fatura aberta
         const abertaKey = abertaItens.length ? abertaItens[0].fatura : _calcFaturaAbertaKey(cartaoObj);
         const [aAno, aMes] = abertaKey ? abertaKey.split('-').map(Number) : [0, 0];
-        const estado = _faturaEstado(cartaoObj, abertaKey);
-        const diaCorte = cartaoObj?.diaCorte || 0;
-        const ultimoDiaA = aAno ? new Date(aAno, aMes, 0).getDate() : 31;
-        const diaFechamento = Math.min(diaCorte, ultimoDiaA);
-        const abertaMesNome = aAno ? `${MESES[aMes - 1]} ${aAno}` : '—';
+        const estado     = _faturaEstado(cartaoObj, abertaKey);
+        const diaCorte   = cartaoObj?.diaCorte || 0;
+        const ultimoDia  = aAno ? new Date(aAno, aMes, 0).getDate() : 31;
+        const diaFecha   = Math.min(diaCorte, ultimoDia);
+        const mesNome    = aAno ? `${MESES[aMes - 1]} ${aAno}` : '—';
+        const totalAberta= abertaItens.reduce((s, d) => s + d.valor, 0);
 
-        const fechaLabel = (() => {
+        const fechaStr = (() => {
           if (!diaCorte || !aAno) return '';
           const hoje = new Date(); hoje.setHours(0,0,0,0);
-          const dataCorte = new Date(aAno, aMes - 1, diaFechamento);
+          const dataCorte = new Date(aAno, aMes - 1, diaFecha);
           return hoje > dataCorte
-            ? `Fechou em ${String(diaFechamento).padStart(2,'0')}/${String(aMes).padStart(2,'0')}`
-            : `Fecha em ${String(diaFechamento).padStart(2,'0')}/${String(aMes).padStart(2,'0')}`;
+            ? `Fechou em ${String(diaFecha).padStart(2,'0')}/${String(aMes).padStart(2,'0')}`
+            : `Fecha em ${String(diaFecha).padStart(2,'0')}/${String(aMes).padStart(2,'0')}`;
         })();
-
-        const vencAbertaLabel = (() => {
-          if (!cartaoObj?.diaVencimento || !aAno) return '';
-          // Se diaVencimento <= diaCorte o pagamento cai no mês seguinte ao corte
-          const _vctoMesOffset = cartaoObj.diaVencimento <= (cartaoObj.diaCorte || 31) ? 1 : 0;
-          const _vctoMesRaw = aMes + _vctoMesOffset;
-          const _vctoMes = _vctoMesRaw > 12 ? 1 : _vctoMesRaw;
-          const _vctoAno = _vctoMesRaw > 12 ? aAno + 1 : aAno;
-          return `Vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(_vctoMes).padStart(2,'0')}/${_vctoAno}`;
-        })();
+        const vctoStr  = _vctoLabel(cartaoObj?.diaVencimento, diaCorte, aMes, aAno);
+        const subLabel = [fechaStr, vctoStr].filter(Boolean).join(' · ');
 
         const estadoBadge = estado === 'aberta'
           ? `<span style="font-size:11px;background:rgba(52,211,153,0.15);color:#34d399;border-radius:20px;padding:2px 8px;font-weight:600;">● Aberta</span>`
           : `<span style="font-size:11px;background:rgba(251,191,36,0.15);color:#fbbf24;border-radius:20px;padding:2px 8px;font-weight:600;">🔒 Fechada</span>`;
 
-        const totalAberta = abertaItens.reduce((s, d) => s + d.valor, 0);
-
-        // Seção da fatura aberta
-        const htmlAberta = `
-          <div style="padding:14px 20px 0;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-              <div>
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                  <span style="font-size:13px;font-weight:600;color:var(--white);">${abertaMesNome}</span>
-                  ${estadoBadge}
-                </div>
-                ${(fechaLabel || vencAbertaLabel) ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${[fechaLabel, vencAbertaLabel].filter(Boolean).join(' · ')}</div>` : ''}
-              </div>
-              <span style="font-size:15px;font-weight:700;color:${totalAberta > 0 ? 'var(--negative)' : 'var(--text-muted)'};">${totalAberta > 0 ? brl(totalAberta) : 'R$ 0'}</span>
-            </div>
-          </div>
-          ${rolloverAberta > 0 ? `<div style="margin:8px 20px 0;padding:8px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;font-size:12px;color:#fbbf24;">⚠️ Saldo anterior não pago: <strong>${brl(rolloverAberta)}</strong> — não incluso nos lançamentos</div>` : ''}
-          ${_barraLimite(totalAberta, limite)}
-          <div class="items-list" style="padding:0;margin-top:8px;">${_renderLinhas(abertaItens, cartaoObj)}</div>
-          <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:6px 16px 0;width:calc(100% - 32px);">+ Adicionar a esta fatura</button>`;
-
-        // Seção de fatura fechada (pagamento este mês) — só se existir
-        let htmlFechada = '';
-        if (fechadaItens.length) {
-          const fechadaKey     = fechadaItens[0].fatura || '';
-          const estadoKey      = `${cartaoId}_${fechadaKey}`;
-          const fatEstado      = _faturaEstados[estadoKey] || {};
-          const [fAno, fMes]   = fechadaKey ? fechadaKey.split('-').map(Number) : [0, 0];
-          const fechadaMesNome = fAno ? `${MESES[fMes - 1]} ${fAno}` : '—';
-          const totalCalculado = fechadaItens.reduce((s, d) => s + d.valor, 0);
-          const totalDisplay   = fatEstado.ajusteTotal ?? totalCalculado;
-
-          const vencFechadaLabel = (() => {
-            if (!cartaoObj?.diaVencimento || !fAno) return '';
-            const _vctoMesOffset = cartaoObj.diaVencimento <= (cartaoObj.diaCorte || 31) ? 1 : 0;
-            const _vctoMesRaw = fMes + _vctoMesOffset;
-            const _vctoMes = _vctoMesRaw > 12 ? 1 : _vctoMesRaw;
-            const _vctoAno = _vctoMesRaw > 12 ? fAno + 1 : fAno;
-            return `Vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(_vctoMes).padStart(2,'0')}/${_vctoAno}`;
-          })();
-
-          const pagamentoBadge = (() => {
-            if (fatEstado.estado === 'paga_total')
-              return `<span style="font-size:11px;background:rgba(52,211,153,0.15);color:#34d399;border-radius:20px;padding:2px 8px;font-weight:600;">✓ Paga</span>`;
-            if (fatEstado.estado === 'paga_parcial')
-              return `<span style="font-size:11px;background:rgba(251,191,36,0.15);color:#fbbf24;border-radius:20px;padding:2px 8px;font-weight:600;">◑ Parcial</span>`;
-            return `<span style="font-size:11px;background:rgba(248,113,113,0.15);color:#f87171;border-radius:20px;padding:2px 8px;font-weight:600;">💸 Pagar este mês</span>`;
-          })();
-
-          const pagamentoInfo = (() => {
-            if (fatEstado.estado === 'paga_total') return '';
-            if (fatEstado.estado === 'paga_parcial' && fatEstado.rollover)
-              return `<div style="font-size:11px;color:#fbbf24;margin-top:4px;">Pago ${brl(fatEstado.valorPago || 0)} · Saldo restante: ${brl(fatEstado.rollover)}</div>`;
-            return '';
-          })();
-
-          const ajusteInfo = fatEstado.ajusteTotal != null && fatEstado.ajusteTotal !== totalCalculado
-            ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Calculado: ${brl(totalCalculado)} → Ajustado: ${brl(fatEstado.ajusteTotal)}</div>`
-            : '';
-
-          const btnConfirmar = fatEstado.estado === 'paga_total' ? '' :
-            `<button class="btn-add-item" data-confirmar-fat="${estadoKey}" data-total="${totalDisplay}" data-nome="${escapeHtml(nomeCartao)}" data-mes="${fechadaMesNome}"
-              style="margin:4px 16px 0;width:calc(100% - 32px);background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.3);">
-              ✓ Confirmar pagamento
-            </button>`;
-
-          htmlFechada = `
-            <div style="display:flex;align-items:center;gap:10px;padding:0 20px;margin-top:14px;">
-              <div style="flex:1;height:1px;background:rgba(248,113,113,0.4);"></div>
-              <span style="font-size:10px;letter-spacing:0.08em;font-weight:700;color:#f87171;text-transform:uppercase;white-space:nowrap;">Vencimento este mês</span>
-              <div style="flex:1;height:1px;background:rgba(248,113,113,0.4);"></div>
-            </div>
-            <div style="background:rgba(248,113,113,0.04);margin-top:6px;border-top:1px solid rgba(248,113,113,0.15);padding-bottom:4px;">
-              <div style="padding:12px 20px 0;">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-                  <div>
-                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                      <span style="font-size:13px;font-weight:600;color:var(--white);">${fechadaMesNome}</span>
-                      ${pagamentoBadge}
-                    </div>
-                    ${vencFechadaLabel ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${vencFechadaLabel}</div>` : ''}
-                    ${ajusteInfo}${pagamentoInfo}
-                  </div>
-                  <span style="font-size:15px;font-weight:700;color:var(--negative);">${brl(totalDisplay)}</span>
-                </div>
-              </div>
-              <div class="items-list" style="padding:0;margin-top:8px;">${_renderLinhas(fechadaItens, cartaoObj)}</div>
-              <div class="total-row" style="padding:10px 20px 4px;">
-                <span class="total-label">Total a pagar</span>
-                <span class="total-value despesa">${brl(totalDisplay)}</span>
-              </div>
-              <div style="display:flex;gap:8px;padding:0 16px;margin-top:4px;">
-                <button class="btn-add-item" data-ajustar-fat="${estadoKey}" data-total-calculado="${totalCalculado}" data-nome="${escapeHtml(nomeCartao)}" data-mes="${fechadaMesNome}"
-                  style="flex:1;background:transparent;color:var(--text-muted);border-color:var(--border);">
-                  ✎ Ajustar fatura
-                </button>
-              </div>
-              ${btnConfirmar}
-            </div>`;
-        }
+        const cardKey  = `ab_${cartaoId}`;
+        const expanded = _faturasExpandidas.has(cardKey);
 
         return `
-          <div class="section" style="margin-bottom:10px;">
-            <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px 12px 0 0;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:15px;">💳</span>
-                <h2 class="section-title" style="font-size:15px;margin:0;">${nomeCartao}</h2>
-                ${diaCorte ? `<span style="font-size:11px;color:var(--text-muted);">corte dia ${diaCorte}</span>` : ''}
+          <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
+            <!-- Header clicável -->
+            <div onclick="window._toggleFatCard('${cardKey}')" style="padding:14px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;user-select:none;">
+              <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                <span style="font-size:15px;flex-shrink:0;">💳</span>
+                <div style="min-width:0;">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span style="font-size:14px;font-weight:600;color:var(--white);">${nomeCartao}</span>
+                    <span style="font-size:11px;color:var(--text-muted);">${mesNome}</span>
+                    ${estadoBadge}
+                  </div>
+                  ${subLabel ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${subLabel}</div>` : ''}
+                </div>
               </div>
-              ${limite ? `<span style="font-size:11px;color:var(--text-muted);">limite ${brl(limite)}</span>` : ''}
+              <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                <span style="font-size:15px;font-weight:700;color:${totalAberta > 0 ? 'var(--negative)' : 'var(--text-muted)'};">${totalAberta > 0 ? brl(totalAberta) : 'R$ 0'}</span>
+                <span style="color:var(--text-muted);">${expanded ? IC_CHEV_UP : IC_CHEV_DOWN}</span>
+              </div>
             </div>
-            <div style="background:var(--navy);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding-bottom:12px;">
-              ${htmlAberta}
-              ${htmlFechada}
+            <!-- Corpo expansível -->
+            <div style="${expanded ? '' : 'display:none;'}border-top:1px solid var(--border);padding-bottom:10px;">
+              ${rollover > 0 ? `<div style="margin:10px 16px 0;padding:8px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;font-size:12px;color:#fbbf24;">⚠️ Saldo anterior não pago: <strong>${brl(rollover)}</strong></div>` : ''}
+              ${_barraLimite(totalAberta, limite)}
+              <div class="items-list" style="padding:0;margin-top:8px;">${_renderLinhas(abertaItens, cartaoObj)}</div>
+              <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:6px 14px 0;width:calc(100% - 28px);">+ Adicionar a esta fatura</button>
             </div>
           </div>`;
       }).join('');
 
-      el.innerHTML = secoes;
+      // ── Constroí cards de faturas FECHADAS (a pagar este mês) ─────────────────
+      const idsFechadas = todosIds.filter(id => gruposFechada[id]?.length);
+      const cardsFechadas = idsFechadas.map(cartaoId => {
+        const cartaoObj    = _cartoes.find(c => c.id === cartaoId);
+        const nomeCartao   = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
+        const fechadaItens = gruposFechada[cartaoId];
+        const fechadaKey   = fechadaItens[0].fatura || '';
+        const estadoKey    = `${cartaoId}_${fechadaKey}`;
+        const fatEstado    = _faturaEstados[estadoKey] || {};
+        const [fAno, fMes] = fechadaKey ? fechadaKey.split('-').map(Number) : [0, 0];
+        const mesNome      = fAno ? `${MESES[fMes - 1]} ${fAno}` : '—';
+        const totalCalc    = fechadaItens.reduce((s, d) => s + d.valor, 0);
+        const totalDisplay = fatEstado.ajusteTotal ?? totalCalc;
+        const vctoStr      = _vctoLabel(cartaoObj?.diaVencimento, cartaoObj?.diaCorte, fMes, fAno);
+
+        const statusBadge = (() => {
+          if (fatEstado.estado === 'paga_total')
+            return `<span style="font-size:11px;background:rgba(52,211,153,0.15);color:#34d399;border-radius:20px;padding:2px 8px;font-weight:600;">✓ Paga</span>`;
+          if (fatEstado.estado === 'paga_parcial')
+            return `<span style="font-size:11px;background:rgba(251,191,36,0.15);color:#fbbf24;border-radius:20px;padding:2px 8px;font-weight:600;">◑ Parcial</span>`;
+          return `<span style="font-size:11px;background:rgba(248,113,113,0.15);color:#f87171;border-radius:20px;padding:2px 8px;font-weight:600;">💸 A pagar</span>`;
+        })();
+
+        const cardKey  = `fe_${cartaoId}`;
+        const expanded = _faturasExpandidas.has(cardKey);
+
+        const pagamentoInfo = fatEstado.estado === 'paga_parcial' && fatEstado.rollover
+          ? `<div style="font-size:11px;color:#fbbf24;margin-top:2px;">Pago ${brl(fatEstado.valorPago || 0)} · Restante: ${brl(fatEstado.rollover)}</div>`
+          : '';
+        const ajusteInfo = fatEstado.ajusteTotal != null && fatEstado.ajusteTotal !== totalCalc
+          ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Calculado: ${brl(totalCalc)} → Ajustado: ${brl(fatEstado.ajusteTotal)}</div>`
+          : '';
+        const btnConfirmar = fatEstado.estado === 'paga_total' ? '' :
+          `<button class="btn-add-item" data-confirmar-fat="${estadoKey}" data-total="${totalDisplay}" data-nome="${nomeCartao}" data-mes="${mesNome}"
+            style="margin:4px 14px 0;width:calc(100% - 28px);background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.3);">✓ Confirmar pagamento</button>`;
+
+        return `
+          <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
+            <!-- Header clicável -->
+            <div onclick="window._toggleFatCard('${cardKey}')" style="padding:14px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;user-select:none;">
+              <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                <span style="font-size:15px;flex-shrink:0;">💳</span>
+                <div style="min-width:0;">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span style="font-size:14px;font-weight:600;color:var(--white);">${nomeCartao}</span>
+                    <span style="font-size:11px;color:var(--text-muted);">${mesNome}</span>
+                    ${statusBadge}
+                  </div>
+                  ${vctoStr ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${vctoStr}</div>` : ''}
+                  ${ajusteInfo}${pagamentoInfo}
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                <span style="font-size:15px;font-weight:700;color:var(--negative);">${brl(totalDisplay)}</span>
+                <span style="color:var(--text-muted);">${expanded ? IC_CHEV_UP : IC_CHEV_DOWN}</span>
+              </div>
+            </div>
+            <!-- Corpo expansível -->
+            <div style="${expanded ? '' : 'display:none;'}border-top:1px solid var(--border);padding-bottom:10px;">
+              <div class="items-list" style="padding:0;margin-top:0;">${_renderLinhas(fechadaItens, cartaoObj)}</div>
+              <div class="total-row" style="padding:10px 16px 4px;">
+                <span class="total-label">Total a pagar</span>
+                <span class="total-value despesa">${brl(totalDisplay)}</span>
+              </div>
+              <div style="display:flex;gap:8px;padding:0 14px;margin-top:4px;">
+                <button class="btn-add-item" data-ajustar-fat="${estadoKey}" data-total-calculado="${totalCalc}" data-nome="${nomeCartao}" data-mes="${mesNome}"
+                  style="flex:1;background:transparent;color:var(--text-muted);border-color:var(--border);">✎ Ajustar fatura</button>
+              </div>
+              ${btnConfirmar}
+            </div>
+          </div>`;
+      }).join('');
+
+      // ── Sub-abas ───────────────────────────────────────────────────────────────
+      const nFechadas = idsFechadas.length;
+      const tabStyle  = (ativa) => ativa
+        ? 'flex:1;padding:8px 12px;border:none;border-radius:7px;background:var(--dark-blue);color:var(--white);font-size:13px;font-weight:600;cursor:pointer;font-family:"Inter",sans-serif;'
+        : 'flex:1;padding:8px 12px;border:none;border-radius:7px;background:transparent;color:var(--text-muted);font-size:13px;font-weight:500;cursor:pointer;font-family:"Inter",sans-serif;';
+
+      el.innerHTML = `
+        <div style="display:flex;gap:4px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:14px;">
+          <button onclick="window._setFatTab('abertas')" style="${tabStyle(_fatTabAtiva==='abertas')}">
+            Abertas <span style="font-size:10px;opacity:.6;">(${todosIds.length})</span>
+          </button>
+          <button onclick="window._setFatTab('fechadas')" style="${tabStyle(_fatTabAtiva==='fechadas')}">
+            A pagar ${nFechadas > 0 ? `<span style="font-size:10px;background:#f87171;color:#fff;border-radius:10px;padding:1px 6px;margin-left:2px;">${nFechadas}</span>` : ''}
+          </button>
+        </div>
+        <div id="fatAbertasContent"  style="${_fatTabAtiva !== 'abertas'  ? 'display:none;' : ''}">${cardsAbertas  || '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Nenhuma fatura aberta</div>'}</div>
+        <div id="fatFechadasContent" style="${_fatTabAtiva !== 'fechadas' ? 'display:none;' : ''}">${cardsFechadas || '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Nenhuma fatura a pagar este mês 🎉</div>'}</div>`;
+
+      // Handlers globais (Android PWA safe)
+      window._setFatTab = (tab) => { _fatTabAtiva = tab; renderFaturas(currentData); };
+      window._toggleFatCard = (key) => {
+        if (_faturasExpandidas.has(key)) _faturasExpandidas.delete(key);
+        else _faturasExpandidas.add(key);
+        renderFaturas(currentData);
+      };
 
       el.querySelectorAll('[data-edit-desp]').forEach(btn =>
         btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
@@ -5335,6 +5342,8 @@
     // ─── FATURA ESTADOS ──────────────────────────────────────────────────────
 
     let _faturaEstados = {}; // key: cartaoId_YYYY-MM
+    let _fatTabAtiva = 'abertas';
+    const _faturasExpandidas = new Set();
 
     async function carregarFaturaEstados() {
       try { _faturaEstados = await getFaturaEstados(); }
