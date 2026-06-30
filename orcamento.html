@@ -3628,14 +3628,11 @@
 
         const abertaKey = (() => {
           if (abertaItens.length) return abertaItens[0].fatura;
-          if (!cartaoObj) return '';
-          const { diaVencimento = 0, diaCorte = 0 } = cartaoObj;
-          const { mes, ano } = currentData.periodo;
-          const offset = (diaVencimento && diaCorte && diaVencimento <= diaCorte) ? 1 : 0;
-          const mRaw = mes + offset;
-          const m = mRaw > 12 ? 1 : mRaw;
-          const a = mRaw > 12 ? ano + 1 : ano;
-          return `${a}-${String(m).padStart(2,'0')}`;
+          if (!cartaoObj?.diaCorte) return '';
+          // Calcula a fatura aberta atual: o que uma compra HOJE acumularia
+          const hoje = new Date();
+          const dataHoje = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
+          return sugerirFatura(dataHoje, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1);
         })();
         const [aAno, aMes] = abertaKey ? abertaKey.split('-').map(Number) : [0, 0];
         const estado     = _faturaEstado(cartaoObj, abertaKey);
