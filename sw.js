@@ -1,11 +1,13 @@
-// Trilogia Dashboard — Service Worker v20
+// Trilogia Dashboard — Service Worker v21
 // HTML:           sempre rede (no-store)
 // JS/CSS com ?v=: Cache First — URL versionada, muda só no ?v=
 // JS/CSS locais:  Network First → garante versão atual; fallback cache se offline
 // Fontes/CDN:     Cache First (raramente mudam)
 // Push:           exibe notificação + abre dashboard ao clicar
+// v21: corrige crash no fetch de navegação (mode:'navigate' inválido no
+// construtor de Request) e protege clone() do Response com try/catch.
 
-const CACHE_NAME = 'trilogia-v20';
+const CACHE_NAME = 'trilogia-v21';
 
 const ASSETS_TO_CACHE = [
   '/manifest.json',
@@ -90,13 +92,15 @@ self.addEventListener('fetch', (event) => {
     url.pathname === ''
   ) {
     event.respondWith(
+      // mode: 'navigate' não pode ser passado ao construtor de Request — é reservado
+      // para a navegação de topo do próprio navegador. Omitir deixa o mode default
+      // ('cors'/'same-origin'), que funciona igual para buscar o HTML.
       fetch(new Request(event.request.url, {
         method: 'GET',
         headers: event.request.headers,
         cache: 'no-store',
         credentials: event.request.credentials,
         redirect: event.request.redirect,
-        mode: event.request.mode === 'navigate' ? 'navigate' : event.request.mode,
       })).catch(() => caches.match(event.request))
     );
     return;
@@ -124,7 +128,12 @@ self.addEventListener('fetch', (event) => {
         if (cached) return cached;
         return fetch(event.request).then((res) => {
           if (res && res.status === 200) {
-            caches.open(CACHE_NAME).then((c) => c.put(event.request, res.clone()));
+            // clone() pode falhar em alguns casos de corrida no body do Response;
+            // isola num try/catch pra não derrubar a resposta real servida abaixo.
+            try {
+              const toCache = res.clone();
+              caches.open(CACHE_NAME).then((c) => c.put(event.request, toCache));
+            } catch (e) { /* ignora — resposta original ainda é servida */ }
           }
           return res;
         }).catch(() => new Response('', { status: 503 }));
@@ -144,7 +153,12 @@ self.addEventListener('fetch', (event) => {
         if (cached) return cached;
         return fetch(event.request).then((res) => {
           if (res && res.status === 200) {
-            caches.open(CACHE_NAME).then((c) => c.put(event.request, res.clone()));
+            // clone() pode falhar em alguns casos de corrida no body do Response;
+            // isola num try/catch pra não derrubar a resposta real servida abaixo.
+            try {
+              const toCache = res.clone();
+              caches.open(CACHE_NAME).then((c) => c.put(event.request, toCache));
+            } catch (e) { /* ignora — resposta original ainda é servida */ }
           }
           return res;
         }).catch(() => new Response('', { status: 503 }));
@@ -162,7 +176,12 @@ self.addEventListener('fetch', (event) => {
       fetch(new Request(event.request.url, { cache: 'no-store' }))
         .then((res) => {
           if (res && res.status === 200) {
-            caches.open(CACHE_NAME).then((c) => c.put(event.request, res.clone()));
+            // clone() pode falhar em alguns casos de corrida no body do Response;
+            // isola num try/catch pra não derrubar a resposta real servida abaixo.
+            try {
+              const toCache = res.clone();
+              caches.open(CACHE_NAME).then((c) => c.put(event.request, toCache));
+            } catch (e) { /* ignora — resposta original ainda é servida */ }
           }
           return res;
         })
@@ -179,7 +198,10 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
       return fetch(event.request).then((res) => {
         if (res && res.status === 200) {
-          caches.open(CACHE_NAME).then((c) => c.put(event.request, res.clone()));
+          try {
+            const toCache = res.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(event.request, toCache));
+          } catch (e) { /* ignora — resposta original ainda é servida */ }
         }
         return res;
       }).catch(() => new Response('', { status: 503 }));
