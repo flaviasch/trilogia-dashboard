@@ -695,7 +695,7 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     if (!(item.cartaoId in _abertaKeyPorCartao)) {
       _abertaKeyPorCartao[item.cartaoId] = _sugerirFatura(hojeStr, c.diaCorte, c.diaVencimento || 1);
     }
-    return item.fatura === _abertaKeyPorCartao[item.cartaoId] && item.fatura !== mesKey;
+    return item.fatura === _abertaKeyPorCartao[item.cartaoId];
   };
 
   const normalizar = arr => (arr || []).filter(item => item != null).map(item =>
