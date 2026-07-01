@@ -283,6 +283,68 @@
       font-size: 12px;
       color: var(--text-muted);
     }
+    .pendencias-section { margin-bottom: 40px; }
+    .pendencias-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .pendencia-card {
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .pendencia-card:hover { border-color: var(--border-gold); }
+    .pendencia-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .pendencia-badge {
+      background: var(--gold);
+      color: var(--navy);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 1px 8px;
+      flex-shrink: 0;
+    }
+    .pendencia-value { font-size: 20px; font-weight: 700; }
+    .pendencia-value.positive { color: var(--positive); }
+    .pendencia-value.negative { color: var(--negative); }
+    .pendencia-value.gold { color: var(--gold); }
+    .projecao-section { margin-bottom: 40px; }
+    .projecao-card {
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 20px;
+    }
+    .projecao-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .projecao-row:last-child { border-bottom: none; }
+    .projecao-info { min-width: 0; }
+    .projecao-data { font-size: 11px; color: var(--text-muted); }
+    .projecao-label { font-size: 13px; color: var(--white); margin-top: 1px; }
+    .projecao-valores { text-align: right; flex-shrink: 0; }
+    .projecao-valor { font-size: 13px; font-weight: 600; }
+    .projecao-saldo { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
     .resumo-pct {
       display: inline-block;
       font-size: 11px;
@@ -710,6 +772,7 @@
     /* ─── Responsive ─────────────────────────── */
     @media (max-width: 768px) {
       .resumo-grid { grid-template-columns: repeat(2, 1fr); }
+      .pendencias-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 640px) {
       .bottom-nav { display: flex; }
@@ -1271,7 +1334,7 @@
           <div class="resumo-sub" id="qtdReceitas">—</div>
         </div>
         <div class="resumo-card">
-          <div class="resumo-label">Despesa Total</div>
+          <div class="resumo-label" style="display:flex;align-items:center;gap:5px;">Despesa Total<span title="Conta só o que já saiu (ou fatura confirmada como paga) do caixa. Para ver o total comprometido por categoria, veja Planejamento." style="cursor:help;opacity:0.6;font-size:11px;">ⓘ</span></div>
           <div class="resumo-value negative" id="totalDespesa">—</div>
           <div class="resumo-sub" id="pctDespesa">—</div>
           <div id="fixasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;cursor:pointer;"></div>
@@ -1285,16 +1348,52 @@
           <div class="resumo-sub" id="aporteSubLabel">nenhum registrado</div>
         </div>
         <div class="resumo-card destaque">
-          <div class="resumo-label">Sobra do Mês</div>
+          <div class="resumo-label" style="display:flex;align-items:center;gap:5px;">Sobra do Mês<span title="Baseado no caixa real (só fatura confirmada como paga entra na conta), não no total comprometido do Planejamento." style="cursor:help;opacity:0.6;font-size:11px;">ⓘ</span></div>
           <div class="resumo-value" id="totalSobra">—</div>
           <div id="sobraIndicador"></div>
         </div>
         <!-- Saldo Final -->
         <div class="resumo-card" style="border-color:rgba(74,222,128,0.25);background:rgba(74,222,128,0.03);">
-          <div class="resumo-label">Saldo Final</div>
+          <div class="resumo-label" style="display:flex;align-items:center;gap:5px;">Saldo Final<span title="Baseado no caixa real (só fatura confirmada como paga entra na conta), não no total comprometido do Planejamento." style="cursor:help;opacity:0.6;font-size:11px;">ⓘ</span></div>
           <div class="resumo-value" id="totalSaldoFinal" style="color:#4ade80;">—</div>
           <div class="resumo-sub" id="saldoFinalSub">saldo + receita − despesa − aporte</div>
         </div>
+      </div>
+    </div>
+
+    <!-- Pendências e Alertas -->
+    <div class="pendencias-section" id="pendenciasSection" style="display:none;">
+      <h2 style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:16px;">Pendências e Alertas</h2>
+      <div class="pendencias-grid">
+        <div class="pendencia-card" id="pendCardDespesas" style="display:none;">
+          <div class="pendencia-label">
+            <span>⏳ Despesas pendentes</span>
+            <span class="pendencia-badge" id="pendDespesasBadge">0</span>
+          </div>
+          <div class="pendencia-value negative" id="pendDespesasValor">R$ 0</div>
+        </div>
+        <div class="pendencia-card" id="pendCardReceitas" style="display:none;">
+          <div class="pendencia-label">
+            <span>⏳ Receitas pendentes</span>
+            <span class="pendencia-badge" id="pendReceitasBadge">0</span>
+          </div>
+          <div class="pendencia-value positive" id="pendReceitasValor">R$ 0</div>
+        </div>
+        <div class="pendencia-card" id="pendCardFaturas" style="display:none;">
+          <div class="pendencia-label">
+            <span>💳 Faturas a vencer</span>
+            <span class="pendencia-badge" id="pendFaturasBadge">0</span>
+          </div>
+          <div class="pendencia-value gold" id="pendFaturasValor">R$ 0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Saldo Projetado -->
+    <div class="projecao-section" id="projecaoSection" style="display:none;">
+      <h2 style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:16px;">Saldo Projetado</h2>
+      <div class="projecao-card">
+        <div id="projecaoLista"></div>
       </div>
     </div>
 
@@ -2011,14 +2110,14 @@
         </div>
       </div>
 
-      <!-- Pendente: só para despesas -->
+      <!-- Pendente: para despesas e receitas -->
       <div id="fgPendenteToggle" style="display:none;border-top:1px solid var(--border);margin-top:8px;padding-top:10px;">
         <label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;cursor:pointer;user-select:none;gap:12px;">
           <div style="display:flex;align-items:center;gap:8px;">
             <span>⏳</span>
             <div>
-              <div style="font-size:13px;color:var(--white);">Despesa pendente</div>
-              <div style="font-size:11px;color:var(--text-muted);">Prevista, mas ainda não aconteceu — não entra na sobra até confirmar</div>
+              <div style="font-size:13px;color:var(--white);" id="mPendenteLabel">Lançamento pendente</div>
+              <div style="font-size:11px;color:var(--text-muted);">Previsto, mas ainda não aconteceu — não entra no saldo até confirmar</div>
             </div>
           </div>
           <input type="checkbox" id="mPendente" style="width:17px;height:17px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;" />
@@ -2224,6 +2323,13 @@
     document.getElementById('tabBtnGraficos')    ?.addEventListener('click', () => ativarTab('graficos'));
     document.getElementById('tabBtnDetalhe')     ?.addEventListener('click', () => ativarTab('detalhe'));
     document.getElementById('tabBtnAnual')       ?.addEventListener('click', () => ativarTab('anual'));
+
+    // Cards de Pendências e Alertas — levam pra onde o item já pode ser confirmado
+    document.getElementById('pendCardDespesas')?.addEventListener('click', () =>
+      document.getElementById('despesasList')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    document.getElementById('pendCardReceitas')?.addEventListener('click', () =>
+      document.getElementById('receitasList')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    document.getElementById('pendCardFaturas')?.addEventListener('click', () => ativarTab('faturas'));
 
     // Abreviar labels no mobile para caber em 1 linha
     if (window.innerWidth <= 640) {
@@ -2432,7 +2538,7 @@
         // Pendente
         const fgPend = document.getElementById('fgPendenteToggle');
         document.getElementById('mPendente').checked = !!item.pendente;
-        if (fgPend) fgPend.style.display = tipo === 'despesa' ? '' : 'none';
+        if (fgPend) fgPend.style.display = '';
         // Toggles recorrência: nunca mostrar ao editar
         if (fgToggles) fgToggles.style.display = 'none';
       } else {
@@ -2448,7 +2554,7 @@
         // Pendente: reset
         document.getElementById('mPendente').checked = false;
         const fgPendNovo = document.getElementById('fgPendenteToggle');
-        if (fgPendNovo) fgPendNovo.style.display = tipo === 'despesa' ? '' : 'none';
+        if (fgPendNovo) fgPendNovo.style.display = '';
         // Toggles recorrência: visíveis só para despesa nova
         if (fgToggles) fgToggles.style.display = tipo === 'despesa' ? '' : 'none';
         document.getElementById('mVirarFixa').checked       = false;
@@ -2479,10 +2585,9 @@
         document.getElementById('fgCartaoOpcoes').style.display = 'none';
         document.getElementById('fgCartaoSection').style.display = 'none';
       }
-      // Pendente: só para despesa
-      const fgPend = document.getElementById('fgPendenteToggle');
-      if (fgPend) fgPend.style.display = isReceita ? 'none' : '';
-      if (isReceita) document.getElementById('mPendente').checked = false;
+      // Pendente: disponível para despesa e receita
+      const mPendenteLabel = document.getElementById('mPendenteLabel');
+      if (mPendenteLabel) mPendenteLabel.textContent = isReceita ? 'Receita pendente' : 'Despesa pendente';
       // Toggles de recorrência: só para despesa nova (editandoIdx === null)
       const fgToggles = document.getElementById('fgRecorrenciaToggles');
       if (fgToggles && editandoIdx === null) {
@@ -2559,7 +2664,7 @@
       const cartao    = document.getElementById('mCartao').checked;
       const fatura    = cartao ? document.getElementById('mFatura').value.trim() : '';
       const cartaoId  = cartao ? (document.getElementById('mCartaoSelecionado')?.value || '') : '';
-      const pendente  = tipo === 'despesa' && document.getElementById('mPendente').checked;
+      const pendente  = document.getElementById('mPendente').checked;
 
       if (!categoria) { toast('Preencha a categoria.', 'warning'); return; }
       if (!data) { toast('Preencha a data do lançamento.', 'warning'); return; }
@@ -2644,12 +2749,22 @@
       await salvarEAtualizar();
     }
 
+    // Confirma um lançamento pendente (despesa ou receita): some da lista de
+    // pendências e passa a contar no saldo/caixa.
+    async function confirmarPendente(tipo, idx) {
+      const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
+      if (lista[idx]) {
+        delete lista[idx].pendente;
+        await salvarEAtualizar();
+      }
+    }
+
     async function salvarEAtualizar() {
       const { mes, ano } = currentData.periodo;
       const mesAtual = new Date().getMonth() + 1;
       const itens = [
         ...(currentData.saldoConta > 0 ? [{ categoria: '__saldo_conta__', tipo: 'receita', valor: currentData.saldoConta, data: '', descricao: 'Saldo em conta', cartao: false, fatura: '', origem: 'manual' }] : []),
-        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: r.origem || 'manual' })),
+        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: r.origem || 'manual', ...(r.pendente ? { pendente: true } : {}) })),
         ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d._sourceMes != null ? { _sourceMes: d._sourceMes, _sourceAno: d._sourceAno } : {}), ...(d.pendente ? { pendente: true } : {}) })),
         ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
       ];
@@ -3000,7 +3115,7 @@
         currentData = {
           periodo:    { mes, ano },
           saldoConta: _saldoItem ? _saldoItem.valor : 0,
-          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
+          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual', ...(i.pendente ? { pendente: true } : {}) })),
           despesas:   itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
           aportes:    itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
@@ -3050,7 +3165,7 @@
 
     // ─── Score de saúde financeira ───────────────────────────────────────────
     function calcularScore(data, reservasAtivas, cats) {
-      const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
+      const totalReceita = data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0);
       const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !d.pendente).reduce((s, d) => s + d.valor, 0);
       const sobra        = totalReceita - totalDespesa;
       const totalAporte  = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
@@ -3124,7 +3239,7 @@
           const gasto = data.despesas.filter(d => d.categoria === c.nome && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
           return gasto > c.limite;
         }).length;
-        const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
+        const totalReceita = data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0);
         const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !d.pendente).reduce((s, d) => s + d.valor, 0);
         const sobraPct = totalReceita > 0 ? ((totalReceita - totalDespesa) / totalReceita * 100).toFixed(0) : 0;
 
@@ -3193,7 +3308,7 @@
       _btnNext.style.cursor  = _noLimite ? 'not-allowed' : '';
 
       const saldoConta = data.saldoConta || 0;
-      const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
+      const totalReceita = data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0);
       // Em meses futuros tudo é projeção; não separa cartão do total (ver abaixo).
       const _ehFuturo = _periodoTotal > (_agora.getFullYear() * 12 + _agora.getMonth() + 1);
 
@@ -3222,7 +3337,10 @@
       const totalCartaoCaixa = _ehFuturo
         ? Object.values(gruposFechadaCaixa).reduce((s, v) => s + v, 0)
         : totalCartaoPago;
-      const totalPendente = data.despesas.filter(d => d.pendente && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
+      const despesasPendentes = data.despesas.filter(d => d.pendente && !(d.cartao && d.fatura));
+      const totalPendente = despesasPendentes.reduce((s, d) => s + d.valor, 0);
+      const receitasPendentes = data.receitas.filter(r => r.pendente);
+      const totalReceitaPendente = receitasPendentes.reduce((s, r) => s + r.valor, 0);
       const totalDespesa  = data.despesas.filter(d => !d.pendente && !d._faturaAberta && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0) + totalCartaoCaixa;
       // Critério de "comprometido" — gasto que já aconteceu, pago ou não. Usado nos
       // alertas de categoria (Resumo) e no Planejamento, que acompanham comportamento
@@ -3253,6 +3371,93 @@
       const pendVal = document.getElementById('despesasPendentesValor');
       if (totalPendente > 0) { pendInd.style.display = ''; pendVal.textContent = brl(totalPendente); }
       else { pendInd.style.display = 'none'; }
+
+      // ── Pendências e Alertas ────────────────────────────────────────────────
+      const faturasFechadasNaoPagas = Object.keys(gruposFechadaCaixa).filter(key => {
+        const fe = _faturaEstados[key];
+        return !(fe?.estado === 'paga_total' || fe?.estado === 'paga_parcial');
+      }).length;
+
+      const pendCardDesp = document.getElementById('pendCardDespesas');
+      if (despesasPendentes.length > 0) {
+        pendCardDesp.style.display = '';
+        document.getElementById('pendDespesasBadge').textContent = despesasPendentes.length;
+        document.getElementById('pendDespesasValor').textContent = brl(totalPendente);
+      } else {
+        pendCardDesp.style.display = 'none';
+      }
+
+      const pendCardRec = document.getElementById('pendCardReceitas');
+      if (receitasPendentes.length > 0) {
+        pendCardRec.style.display = '';
+        document.getElementById('pendReceitasBadge').textContent = receitasPendentes.length;
+        document.getElementById('pendReceitasValor').textContent = brl(totalReceitaPendente);
+      } else {
+        pendCardRec.style.display = 'none';
+      }
+
+      const pendCardFat = document.getElementById('pendCardFaturas');
+      if (totalFaturas > 0) {
+        pendCardFat.style.display = '';
+        document.getElementById('pendFaturasBadge').textContent = faturasFechadasNaoPagas;
+        document.getElementById('pendFaturasValor').textContent = brl(totalFaturas);
+      } else {
+        pendCardFat.style.display = 'none';
+      }
+
+      document.getElementById('pendenciasSection').style.display =
+        (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0) ? '' : 'none';
+
+      // ── Saldo Projetado ─────────────────────────────────────────────────────
+      // Eventos conhecidos ainda não confirmados dentro do mês (faturas fechadas
+      // não pagas + pendências datadas), com saldo acumulado a partir do Saldo
+      // Final atual — não busca outro período, só o que já está carregado aqui.
+      const eventosProjecao = [];
+      Object.entries(gruposFechadaCaixa).forEach(([key, total]) => {
+        const fe = _faturaEstados[key];
+        if (fe?.estado === 'paga_total' || fe?.estado === 'paga_parcial') return;
+        const [cartaoId, faturaKey] = key.split('_');
+        const cartaoObj = _cartoes.find(c => c.id === cartaoId);
+        if (!cartaoObj?.diaVencimento || !faturaKey) return;
+        const [fAno, fMes] = faturaKey.split('-').map(Number);
+        eventosProjecao.push({
+          data: new Date(fAno, fMes - 1, cartaoObj.diaVencimento),
+          label: `${cartaoObj.nome} — fatura`,
+          valor: -(fe?.ajusteTotal ?? total),
+        });
+      });
+      despesasPendentes.forEach(d => {
+        if (!d.data) return;
+        eventosProjecao.push({ data: new Date(d.data + 'T00:00:00'), label: d.categoria, valor: -d.valor });
+      });
+      receitasPendentes.forEach(r => {
+        if (!r.data) return;
+        eventosProjecao.push({ data: new Date(r.data + 'T00:00:00'), label: r.categoria, valor: r.valor });
+      });
+      eventosProjecao.sort((a, b) => a.data - b.data);
+
+      const projecaoSection = document.getElementById('projecaoSection');
+      if (eventosProjecao.length === 0) {
+        projecaoSection.style.display = 'none';
+      } else {
+        projecaoSection.style.display = '';
+        let saldoAcumulado = saldoFinal;
+        document.getElementById('projecaoLista').innerHTML = eventosProjecao.map(ev => {
+          saldoAcumulado += ev.valor;
+          const cor = ev.valor >= 0 ? 'var(--positive)' : 'var(--negative)';
+          return `
+            <div class="projecao-row">
+              <div class="projecao-info">
+                <div class="projecao-data">${formatData(`${ev.data.getFullYear()}-${String(ev.data.getMonth()+1).padStart(2,'0')}-${String(ev.data.getDate()).padStart(2,'0')}`)}</div>
+                <div class="projecao-label">${escapeHtml(ev.label)}</div>
+              </div>
+              <div class="projecao-valores">
+                <div class="projecao-valor" style="color:${cor}">${ev.valor >= 0 ? '+' : ''}${brl(ev.valor)}</div>
+                <div class="projecao-saldo">saldo: ${brl(saldoAcumulado)}</div>
+              </div>
+            </div>`;
+        }).join('');
+      }
 
       const sobraEl = document.getElementById('totalSobra');
       sobraEl.textContent = brl(sobra);
@@ -3297,11 +3502,18 @@
           const idxOriginal = data.receitas.indexOf(r);
           const p   = totalReceita > 0 ? (r.valor / totalReceita) * 100 : 0;
           const sub = [r.data ? formatData(r.data) : null, r.descricao || null].filter(Boolean).join(' · ');
+          const pendenteTag = r.pendente
+            ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">⏳ pendente</span>`
+            : '';
+          const pendenteRowStyle = r.pendente ? 'opacity:0.6;border-left:2px dashed var(--border);padding-left:6px;' : '';
+          const confirmarBtn = r.pendente
+            ? `<button class="btn-item" data-confirmar-pend-rec="${idxOriginal}" title="Confirmar recebimento" style="color:var(--positive);font-size:11px;white-space:nowrap;">✓</button>`
+            : '';
           return `
-            <div class="item-row">
+            <div class="item-row" style="${pendenteRowStyle}">
               <div>
                 <div class="item-categoria">${escapeHtml(r.categoria)}</div>
-                ${sub ? `<div class="item-fonte">${escapeHtml(sub)}</div>` : ''}
+                ${sub || pendenteTag ? `<div class="item-fonte">${sub ? escapeHtml(sub) : ''}${pendenteTag}</div>` : ''}
               </div>
               <div class="item-bar-col">
                 <div class="item-bar-track">
@@ -3311,6 +3523,7 @@
               </div>
               <div class="item-value receita">${brl(r.valor)}</div>
               <div class="item-actions">
+                ${confirmarBtn}
                 <button class="btn-item" data-edit-rec="${idxOriginal}" title="Editar">${IC_EDIT}</button>
                 <button class="btn-item del" data-del-rec="${idxOriginal}" title="Excluir">${IC_DEL}</button>
               </div>
@@ -3326,6 +3539,8 @@
         btn.addEventListener('click', () => abrirModal('receita', +btn.dataset.editRec)));
       recList.querySelectorAll('[data-del-rec]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec)));
+      recList.querySelectorAll('[data-confirmar-pend-rec]').forEach(btn =>
+        btn.addEventListener('click', () => confirmarPendente('receita', +btn.dataset.confirmarPendRec)));
       document.getElementById('btnAddReceita').addEventListener('click', () => abrirModal('receita'));
 
       // ── Despesas — lista plana no Resumo ────────────────────────────────────
@@ -4025,13 +4240,7 @@
       despList.querySelectorAll('[data-del-desp]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
       despList.querySelectorAll('[data-confirmar-pend]').forEach(btn =>
-        btn.addEventListener('click', async () => {
-          const idx = +btn.dataset.confirmarPend;
-          if (currentData.despesas[idx]) {
-            delete currentData.despesas[idx].pendente;
-            await salvarEAtualizar();
-          }
-        }));
+        btn.addEventListener('click', () => confirmarPendente('despesa', +btn.dataset.confirmarPend)));
       despList.querySelectorAll('[data-cancelar-parcela]').forEach(btn =>
         btn.addEventListener('click', () => cancelarParcelamentoUI(btn.dataset.cancelarParcela)));
       despList.querySelectorAll('.btn-set-limite').forEach(btn =>
@@ -4047,7 +4256,7 @@
       if (!el) return;
 
       const { mes, ano } = data.periodo;
-      const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
+      const totalReceita = data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0);
 
       // Planejamento acompanha gasto comprometido por categoria (aconteceu ou não
       // foi pago ainda), diferente do caixa exato do Resumo (Despesa Total/Sobra).
@@ -4463,7 +4672,7 @@
             buscarPeriodo(m, ano)
               .then(data => ({
                 mes:       m,
-                receita:   data.receitas.reduce((s, r) => s + r.valor, 0),
+                receita:   data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0),
                 despesa:   data.despesas.filter(d => !d._faturaAberta).reduce((s, d) => s + d.valor, 0),
                 aporte:    data.aportes.reduce((s, a) => s + a.valor, 0),
                 temDados:  data.receitas.length > 0 || data.despesas.length > 0 || data.aportes.length > 0,
@@ -4978,7 +5187,7 @@
         const data = {
           periodo:    { mes, ano },
           saldoConta: _saldoItemB ? _saldoItemB.valor : 0,
-          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual' })),
+          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual', ...(i.pendente ? { pendente: true } : {}) })),
           despesas:   itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
           aportes:    itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
