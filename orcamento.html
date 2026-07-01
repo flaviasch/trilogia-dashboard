@@ -323,13 +323,7 @@
     .pendencia-value.positive { color: var(--positive); }
     .pendencia-value.negative { color: var(--negative); }
     .pendencia-value.gold { color: var(--gold); }
-    .projecao-section { margin-bottom: 40px; }
-    .projecao-card {
-      background: var(--navy);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 8px 20px;
-    }
+    #projecaoLista { padding: 4px 16px 0; }
     .projecao-row {
       display: flex;
       align-items: center;
@@ -1389,10 +1383,19 @@
       </div>
     </div>
 
-    <!-- Saldo Projetado -->
-    <div class="projecao-section" id="projecaoSection" style="display:none;">
-      <h2 style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:16px;">Saldo Projetado</h2>
-      <div class="projecao-card">
+    <!-- Saldo Projetado (colapsável) -->
+    <div class="section" id="projecaoSection" style="display:none;margin-top:12px">
+      <div class="section-header expansivel" id="headerProjecao">
+        <div class="section-title-row">
+          <h2 class="section-title">Saldo Projetado</h2>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="section-chevron">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4,6 8,10 12,6"/></svg>
+          </span>
+        </div>
+      </div>
+      <div class="section-body-col" id="bodyProjecao">
         <div id="projecaoLista"></div>
       </div>
     </div>
@@ -2340,8 +2343,10 @@
       setTimeout(() => document.getElementById('secaoReceitas')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 320);
     });
     document.getElementById('pendCardFaturas')?.addEventListener('click', () => {
-      ativarTab('faturas');
-      document.querySelector('.tabs-bar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const h = document.getElementById('headerProjecao');
+      const b = document.getElementById('bodyProjecao');
+      if (h && b && !b.classList.contains('aberta')) { b.classList.add('aberta'); h.classList.add('aberta'); }
+      setTimeout(() => document.getElementById('projecaoSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 320);
     });
 
     // Abreviar labels no mobile para caber em 1 linha
@@ -2352,6 +2357,7 @@
 
     document.getElementById('headerReceitas')   ?.addEventListener('click', toggleReceitas);
     document.getElementById('headerDespesas')   ?.addEventListener('click', toggleDespesas);
+    document.getElementById('headerProjecao')   ?.addEventListener('click', toggleProjecao);
 
     // ─── Colapsáveis ─────────────────────────────────────────────────────────
     function toggleReceitas() {
@@ -2363,6 +2369,12 @@
     function toggleDespesas() {
       const h = document.getElementById('headerDespesas');
       const b = document.getElementById('bodyDespesas');
+      const open = b.classList.toggle('aberta');
+      h.classList.toggle('aberta', open);
+    }
+    function toggleProjecao() {
+      const h = document.getElementById('headerProjecao');
+      const b = document.getElementById('bodyProjecao');
       const open = b.classList.toggle('aberta');
       h.classList.toggle('aberta', open);
     }

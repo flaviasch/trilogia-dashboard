@@ -642,6 +642,17 @@ function _mesPagamento(fatura) {
   return fatura;
 }
 
+// Mesma lógica do sugerirFatura() do cliente (orcamento.html) — calcula a chave
+// de fatura (mês de pagamento) que uma compra feita em dataCompra geraria, dado
+// o dia de corte e de vencimento do cartão.
+function _sugerirFatura(dataCompra, diaCorte, diaVencimento) {
+  const dia = parseInt(dataCompra.split('-')[2], 10);
+  const d   = new Date(dataCompra + 'T12:00:00');
+  if (dia > diaCorte) d.setMonth(d.getMonth() + 1);
+  if (!diaVencimento || diaVencimento <= diaCorte) d.setMonth(d.getMonth() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   requireAuth(request);
   const { uid, mes, ano } = request.data;
@@ -669,20 +680,38 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     return _mesPagamento(item.fatura);
   };
 
+  // Fatura genuinamente "aberta" = o ciclo que uma compra feita HOJE geraria
+  // pra aquele cartão — não apenas "mês de pagamento diferente do mês
+  // visualizado". Esse critério antigo classificava como aberta qualquer coisa
+  // com mês de pagamento diferente do mês em tela, mesmo quando o ciclo já
+  // tinha fechado de verdade (ex: navegando pro mesmo mês do vencimento de uma
+  // fatura ainda em curso, em cartão com dia de vencimento ≤ dia de corte).
+  const hojeStr = hoje();
+  const _abertaKeyPorCartao = {};
+  const _ehCicloAberto = item => {
+    if (!item.cartao || !item.fatura || !item.cartaoId) return false;
+    const c = cartaoMap[item.cartaoId];
+    if (!c?.diaCorte) return false;
+    if (!(item.cartaoId in _abertaKeyPorCartao)) {
+      _abertaKeyPorCartao[item.cartaoId] = _sugerirFatura(hojeStr, c.diaCorte, c.diaVencimento || 1);
+    }
+    return item.fatura === _abertaKeyPorCartao[item.cartaoId] && item.fatura !== mesKey;
+  };
+
   const normalizar = arr => (arr || []).filter(item => item != null).map(item =>
     item.categoria ? { ...item, categoria: _resolverCategoria(item.categoria) } : item
   );
 
   const todosItensMes = normalizar(docSnap.exists ? docSnap.data().itens : []);
 
-  // Faturas abertas: itens cujo mês de pagamento ≠ mês atual (pagamento futuro ou passado)
+  // Faturas abertas: só o que é de verdade o ciclo em curso hoje
   const itensFaturaAberta = todosItensMes
-    .filter(item => item.cartao && item.fatura && _mp(item) !== mesKey)
+    .filter(item => _ehCicloAberto(item))
     .map(item => ({ ...item, _faturaAberta: true }));
 
-  // Itens do mês atual: não-fatura + fatura com pagamento neste mês
+  // Itens do mês atual: tudo que não é o ciclo em aberto de verdade
   const itensMes = todosItensMes
-    .filter(item => !(item.cartao && item.fatura) || _mp(item) === mesKey);
+    .filter(item => !_ehCicloAberto(item));
 
   // Itens do mês anterior: só fatura com pagamento neste mês
   const itensPrev = normalizar(prevSnap.exists ? prevSnap.data().itens : [])
