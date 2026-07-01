@@ -337,6 +337,7 @@
     .projecao-data { font-size: 11px; color: var(--text-muted); }
     .projecao-label { font-size: 13px; color: var(--white); margin-top: 1px; }
     .projecao-valores { text-align: right; flex-shrink: 0; }
+    .projecao-acoes { display: flex; gap: 4px; flex-shrink: 0; }
     .projecao-valor { font-size: 13px; font-weight: 600; }
     .projecao-saldo { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
     .resumo-pct {
@@ -3462,19 +3463,22 @@
         const cartaoObj = _cartoes.find(c => c.id === cartaoId);
         if (!cartaoObj?.diaVencimento || !faturaKey) return;
         const [fAno, fMes] = faturaKey.split('-').map(Number);
+        const totalAjustado = fe?.ajusteTotal ?? total;
         eventosProjecao.push({
           data: new Date(fAno, fMes - 1, cartaoObj.diaVencimento),
           label: `${cartaoObj.nome} — fatura`,
-          valor: -(fe?.ajusteTotal ?? total),
+          valor: -totalAjustado,
+          tipo: 'fatura',
+          acao: { estadoKey: key, total: totalAjustado, nomeCartao: cartaoObj.nome, mesFatura: `${MESES[fMes - 1]} ${fAno}` },
         });
       });
       despesasPendentes.forEach(d => {
         if (!d.data) return;
-        eventosProjecao.push({ data: new Date(d.data + 'T00:00:00'), label: d.categoria, valor: -d.valor });
+        eventosProjecao.push({ data: new Date(d.data + 'T00:00:00'), label: d.categoria, valor: -d.valor, tipo: 'despesa', idx: data.despesas.indexOf(d) });
       });
       receitasPendentes.forEach(r => {
         if (!r.data) return;
-        eventosProjecao.push({ data: new Date(r.data + 'T00:00:00'), label: r.categoria, valor: r.valor });
+        eventosProjecao.push({ data: new Date(r.data + 'T00:00:00'), label: r.categoria, valor: r.valor, tipo: 'receita', idx: data.receitas.indexOf(r) });
       });
       eventosProjecao.sort((a, b) => a.data - b.data);
 
@@ -3484,9 +3488,15 @@
       } else {
         projecaoSection.style.display = '';
         let saldoAcumulado = saldoFinal;
-        document.getElementById('projecaoLista').innerHTML = eventosProjecao.map(ev => {
+        const projecaoListaEl = document.getElementById('projecaoLista');
+        projecaoListaEl.innerHTML = eventosProjecao.map(ev => {
           saldoAcumulado += ev.valor;
           const cor = ev.valor >= 0 ? 'var(--positive)' : 'var(--negative)';
+          const acaoHtml = ev.tipo === 'fatura'
+            ? `<button class="btn-item" data-proj-fatura="${ev.acao.estadoKey}" data-proj-fatura-total="${ev.acao.total}" data-proj-fatura-nome="${escapeHtml(ev.acao.nomeCartao)}" data-proj-fatura-mes="${escapeHtml(ev.acao.mesFatura)}" title="Confirmar pagamento" style="color:var(--positive)">✓</button>`
+            : `<button class="btn-item" data-proj-confirmar="${ev.tipo}:${ev.idx}" title="Confirmar" style="color:var(--positive)">✓</button>
+               <button class="btn-item" data-proj-editar="${ev.tipo}:${ev.idx}" title="Editar">✎</button>
+               <button class="btn-item" data-proj-excluir="${ev.tipo}:${ev.idx}" title="Excluir" style="color:var(--negative)">✕</button>`;
           return `
             <div class="projecao-row">
               <div class="projecao-info">
@@ -3497,8 +3507,29 @@
                 <div class="projecao-valor" style="color:${cor}">${ev.valor >= 0 ? '+' : ''}${brl(ev.valor)}</div>
                 <div class="projecao-saldo">saldo: ${brl(saldoAcumulado)}</div>
               </div>
+              <div class="projecao-acoes">${acaoHtml}</div>
             </div>`;
         }).join('');
+
+        projecaoListaEl.querySelectorAll('[data-proj-confirmar]').forEach(btn =>
+          btn.addEventListener('click', () => {
+            const [tipo, idx] = btn.dataset.projConfirmar.split(':');
+            confirmarPendente(tipo, +idx);
+          }));
+        projecaoListaEl.querySelectorAll('[data-proj-editar]').forEach(btn =>
+          btn.addEventListener('click', () => {
+            const [tipo, idx] = btn.dataset.projEditar.split(':');
+            abrirModal(tipo, +idx);
+          }));
+        projecaoListaEl.querySelectorAll('[data-proj-excluir]').forEach(btn =>
+          btn.addEventListener('click', () => {
+            const [tipo, idx] = btn.dataset.projExcluir.split(':');
+            excluirItem(tipo, +idx);
+          }));
+        projecaoListaEl.querySelectorAll('[data-proj-fatura]').forEach(btn =>
+          btn.addEventListener('click', () => {
+            abrirModalConfirmarPagamento(btn.dataset.projFatura, parseFloat(btn.dataset.projFaturaTotal), btn.dataset.projFaturaNome, btn.dataset.projFaturaMes);
+          }));
       }
 
       const sobraEl = document.getElementById('totalSobra');
