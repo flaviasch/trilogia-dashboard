@@ -2329,13 +2329,15 @@
       const h = document.getElementById('headerDespesas');
       const b = document.getElementById('bodyDespesas');
       if (h && b && !b.classList.contains('aberta')) { b.classList.add('aberta'); h.classList.add('aberta'); }
-      document.getElementById('secaoDespesas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Espera a transição de altura (.3s no CSS) terminar antes de rolar,
+      // senão o scroll calcula a posição com a seção ainda fechada.
+      setTimeout(() => document.getElementById('secaoDespesas')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 320);
     });
     document.getElementById('pendCardReceitas')?.addEventListener('click', () => {
       const h = document.getElementById('headerReceitas');
       const b = document.getElementById('bodyReceitas');
       if (h && b && !b.classList.contains('aberta')) { b.classList.add('aberta'); h.classList.add('aberta'); }
-      document.getElementById('secaoReceitas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => document.getElementById('secaoReceitas')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 320);
     });
     document.getElementById('pendCardFaturas')?.addEventListener('click', () => {
       ativarTab('faturas');
