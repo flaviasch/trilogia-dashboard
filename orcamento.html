@@ -338,6 +338,7 @@
     .projecao-label { font-size: 13px; color: var(--white); margin-top: 1px; }
     .projecao-valores { text-align: right; flex-shrink: 0; }
     .projecao-acoes { display: flex; gap: 4px; flex-shrink: 0; }
+    .projecao-filtro-aviso { font-size: 12px; color: var(--text-muted); padding: 10px 0; display: flex; align-items: center; gap: 8px; }
     .projecao-valor { font-size: 13px; font-weight: 600; }
     .projecao-saldo { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
     .resumo-pct {
@@ -2328,27 +2329,23 @@
     document.getElementById('tabBtnDetalhe')     ?.addEventListener('click', () => ativarTab('detalhe'));
     document.getElementById('tabBtnAnual')       ?.addEventListener('click', () => ativarTab('anual'));
 
-    // Cards de Pendências e Alertas — levam pra onde o item já pode ser confirmado
-    document.getElementById('pendCardDespesas')?.addEventListener('click', () => {
-      const h = document.getElementById('headerDespesas');
-      const b = document.getElementById('bodyDespesas');
-      if (h && b && !b.classList.contains('aberta')) { b.classList.add('aberta'); h.classList.add('aberta'); }
-      // Espera a transição de altura (.3s no CSS) terminar antes de rolar,
-      // senão o scroll calcula a posição com a seção ainda fechada.
-      setTimeout(() => document.getElementById('secaoDespesas')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 320);
-    });
-    document.getElementById('pendCardReceitas')?.addEventListener('click', () => {
-      const h = document.getElementById('headerReceitas');
-      const b = document.getElementById('bodyReceitas');
-      if (h && b && !b.classList.contains('aberta')) { b.classList.add('aberta'); h.classList.add('aberta'); }
-      setTimeout(() => document.getElementById('secaoReceitas')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 320);
-    });
-    document.getElementById('pendCardFaturas')?.addEventListener('click', () => {
+    // Cards de Pendências e Alertas — abrem o Saldo Projetado já filtrado pro
+    // tipo clicado, que é o único lugar com botão de confirmar/editar/excluir
+    // por item (as seções de Despesas/Receitas do Resumo só mostram totais
+    // agrupados por categoria, sem ação nenhuma).
+    function _abrirProjecaoFiltrada(tipo) {
+      _projecaoFiltro = tipo;
+      render(currentData);
       const h = document.getElementById('headerProjecao');
       const b = document.getElementById('bodyProjecao');
       if (h && b && !b.classList.contains('aberta')) { b.classList.add('aberta'); h.classList.add('aberta'); }
+      // Espera a transição de altura (.3s no CSS) terminar antes de rolar,
+      // senão o scroll calcula a posição com a seção ainda fechada.
       setTimeout(() => document.getElementById('projecaoSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 320);
-    });
+    }
+    document.getElementById('pendCardDespesas')?.addEventListener('click', () => _abrirProjecaoFiltrada('despesa'));
+    document.getElementById('pendCardReceitas')?.addEventListener('click', () => _abrirProjecaoFiltrada('receita'));
+    document.getElementById('pendCardFaturas')?.addEventListener('click', () => _abrirProjecaoFiltrada('fatura'));
 
     // Abreviar labels no mobile para caber em 1 linha
     if (window.innerWidth <= 640) {
@@ -2413,6 +2410,7 @@
     let reservas = [];
     let perfilInvestidor = null;
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
+    let _projecaoFiltro = null; // 'despesa' | 'receita' | 'fatura' | null (mostra tudo)
     let _tabAtiva = 'resumo';
     const _periodoCache = new Map(); // { '2026-5': { data, cats } }
     const _invalPeriodo = (m, a) => _periodoCache.delete(`${a}-${m}`);
@@ -3487,10 +3485,14 @@
         projecaoSection.style.display = 'none';
       } else {
         projecaoSection.style.display = '';
+        const PROJECAO_FILTRO_LABEL = { despesa: 'despesas pendentes', receita: 'receitas pendentes', fatura: 'faturas a vencer' };
         let saldoAcumulado = saldoFinal;
         const projecaoListaEl = document.getElementById('projecaoLista');
-        projecaoListaEl.innerHTML = eventosProjecao.map(ev => {
+        // Saldo acumulado sempre considera TODOS os eventos em ordem, mesmo os
+        // escondidos pelo filtro — só a exibição da linha é filtrada.
+        const linhasHtml = eventosProjecao.map(ev => {
           saldoAcumulado += ev.valor;
+          if (_projecaoFiltro && ev.tipo !== _projecaoFiltro) return '';
           const cor = ev.valor >= 0 ? 'var(--positive)' : 'var(--negative)';
           const acaoHtml = ev.tipo === 'fatura'
             ? `<button class="btn-item" data-proj-fatura="${ev.acao.estadoKey}" data-proj-fatura-total="${ev.acao.total}" data-proj-fatura-nome="${escapeHtml(ev.acao.nomeCartao)}" data-proj-fatura-mes="${escapeHtml(ev.acao.mesFatura)}" title="Confirmar pagamento" style="color:var(--positive)">✓</button>`
@@ -3510,6 +3512,16 @@
               <div class="projecao-acoes">${acaoHtml}</div>
             </div>`;
         }).join('');
+        const filtroAvisoHtml = _projecaoFiltro
+          ? `<div class="projecao-filtro-aviso">Mostrando só ${PROJECAO_FILTRO_LABEL[_projecaoFiltro] || _projecaoFiltro} <button id="btnLimparFiltroProjecao" style="background:none;border:none;color:var(--gold);text-decoration:underline;cursor:pointer;font-size:12px;padding:0;">Ver tudo</button></div>`
+          : '';
+        projecaoListaEl.innerHTML = filtroAvisoHtml + (linhasHtml.trim()
+          ? linhasHtml
+          : `<div style="padding:16px 0;color:var(--text-muted);font-size:13px;">Nada pendente nessa categoria.</div>`);
+        document.getElementById('btnLimparFiltroProjecao')?.addEventListener('click', () => {
+          _projecaoFiltro = null;
+          render(currentData);
+        });
 
         projecaoListaEl.querySelectorAll('[data-proj-confirmar]').forEach(btn =>
           btn.addEventListener('click', () => {
