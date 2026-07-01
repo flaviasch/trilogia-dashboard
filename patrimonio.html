@@ -882,9 +882,11 @@
       renderLastImport();
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
-      // Snapshot do mês NÃO é gravado aqui — só ao editar/importar de fato
-      // (ver chamadas de snapshotHistorico() nos handlers de mutação abaixo).
-      // Só abrir a página pra olhar não deve sobrescrever o histórico do mês.
+      // Snapshot do mês NÃO é gravado aqui, nem em edições manuais pontuais de
+      // ativo/dívida — só em importação de CSV (ver handlers abaixo). Aporte e
+      // retirada de reserva já geram snapshot por conta própria (aportePatrimonio
+      // no backend, ou redirect para importar CSV atualizado). Isso evita que o
+      // gráfico de evolução seja poluído por ajustes pontuais no meio do mês.
     }
 
     /** Grava snapshot do mês atual em background. */
@@ -1095,8 +1097,8 @@
       const plH      = plPos ? maxH - dividasH : 0; // preenche o resto → iguala as alturas
 
       const fmt = v => v >= 1e6
-        ? `R$ ${(v/1e6).toFixed(2).replace(".",",")}M`
-        : v >= 1e3 ? `R$ ${(v/1e3).toFixed(0)}k` : brl(v);
+        ? `R$ ${(v/1e6).toFixed(3).replace(".",",")}M`
+        : v >= 1e3 ? `R$ ${(v/1e3).toFixed(1).replace(".",",")}k` : brl(v);
 
       const BG_ATIVO  = "linear-gradient(160deg,rgba(207,174,101,0.95),rgba(160,128,55,0.85))";
       const BG_DIVIDA = "linear-gradient(160deg,rgba(248,113,113,0.92),rgba(200,60,60,0.78))";
@@ -1448,7 +1450,8 @@
       await gravarAtivos();
       setLoading(btnSaveAtivo, false);
       toast('Ativo salvo!', 'success');
-      snapshotHistorico();
+      // Sem snapshot aqui de propósito: edição manual pontual de um ativo não
+      // deve virar um ponto no gráfico de evolução — só CSV/aporte/retirada.
     });
 
     async function deletarAtivo(classe) {
@@ -1458,7 +1461,6 @@
       ativos = ativos.filter(x => x.classe !== classe);
       render(ativos, dividas);
       await gravarAtivos();
-      snapshotHistorico();
     }
 
     // ─── Modal de dívida ──────────────────────
@@ -1542,7 +1544,7 @@
       document.getElementById('subDividas').textContent   = `${dividas.length} dívida${dividas.length !== 1 ? 's' : ''}`;
       document.getElementById('totalDividasHeader').textContent = brl(totalDividas);
       renderDividas(dividas, totalDividas);
-      snapshotHistorico();
+      // Sem snapshot aqui de propósito — mesmo critério da edição manual de ativo.
 
       fecharModalDivida();
     });
@@ -1555,7 +1557,6 @@
       try { await deleteDivida(id); }
       catch (err) { console.error('Erro ao excluir dívida:', err); toast(`Erro: ${msgErro(err)}`, 'error'); }
       render(ativos, dividas);
-      snapshotHistorico();
     }
 
     // ─── Import CSV de dívidas ────────────────

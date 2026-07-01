@@ -1651,6 +1651,49 @@ exports.corrigirHistoricoMes = onCall(async (request) => {
   return { ok: true, pl };
 });
 
+/**
+ * Snapshot mensal automático do patrimônio de todas as mentoradas ativas —
+ * roda nos dias 1 e 28 (início e fim do mês). Complementa os snapshots feitos
+ * ao importar CSV, garantindo um ponto de referência no gráfico de evolução
+ * mesmo em meses sem nenhuma importação/edição.
+ */
+async function snapshotMensalPatrimonioTodasAtivas() {
+  const mesKey = hoje().slice(0, 7);
+  const mentoradas = await getAtivas();
+  for (const m of mentoradas) {
+    try {
+      const docSnap = await db.collection('mentoradas').doc(m.id).collection('patrimonio').doc('dados').get();
+      if (!docSnap.exists) continue;
+      const { ir = [], corretora = [], dividas = [] } = docSnap.data();
+      const totalAtivos  = consolidarAtivos(ir, corretora).reduce((s, a) => s + a.valor, 0);
+      const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+      if (!totalAtivos && !totalDividas) continue;
+      await db.collection('mentoradas').doc(m.id).collection('historico').doc(mesKey).set({
+        data: mesKey, ativos: totalAtivos, dividas: totalDividas, pl: totalAtivos - totalDividas,
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } catch (e) {
+      console.warn(`[snapshotMensalPatrimonio] Falha para ${m.id}:`, e.message);
+    }
+  }
+}
+
+exports.snapshotMensalPatrimonioDia1 = onSchedule(
+  { schedule: '0 8 1 * *', timeZone: 'America/Sao_Paulo' },
+  comMonitoramento('snapshotMensalPatrimonioDia1', async () => {
+    if (await jaExecutouHoje('snapshotMensalPatrimonioDia1')) return;
+    await snapshotMensalPatrimonioTodasAtivas();
+  })
+);
+
+exports.snapshotMensalPatrimonioDia28 = onSchedule(
+  { schedule: '0 8 28 * *', timeZone: 'America/Sao_Paulo' },
+  comMonitoramento('snapshotMensalPatrimonioDia28', async () => {
+    if (await jaExecutouHoje('snapshotMensalPatrimonioDia28')) return;
+    await snapshotMensalPatrimonioTodasAtivas();
+  })
+);
+
 // ─── DÍVIDAS ──────────────────────────────────────────────────────────────────
 
 exports.saveDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
