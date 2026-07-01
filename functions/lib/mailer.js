@@ -463,6 +463,38 @@ function emailNovidadesJun2026v3(nome) {
   `);
 }
 
+// ─── Novidades Jul/2026 (v4) — Faturas + Jornada ─────────────────────────────
+
+function emailNovidadesJul2026(nome) {
+  const featureItem = (emoji, titulo, desc) =>
+    `<tr><td style="padding:12px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:32px;vertical-align:top;padding-top:2px;font-size:20px;">${emoji}</td>
+        <td style="padding-left:12px;">
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Atualizações no seu Dashboard — Julho 2026</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Três melhorias chegaram ao seu dashboard esta semana — no controle de cartão de crédito e na aba Minha Jornada.
+    </p>
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
+      ${featureItem('💳','Faturas no mês certo — o do pagamento','A despesa de cartão agora aparece no mês em que o valor sai da conta. Uma compra feita após a data de corte vai automaticamente para o mês seguinte, sem precisar ajustar nada.')}
+      ${featureItem('💸','Pagou parcial? O saldo vai para o próximo mês','Ao confirmar um pagamento parcial de fatura, o saldo restante é lançado como despesa automática no mês seguinte — para o seu planejamento não ficar descoberto.')}
+      ${featureItem('🗺️','Materiais dos encontros na Jornada','Documentos, links e entregáveis compartilhados em cada encontro agora aparecem diretamente na aba Minha Jornada do app.')}
+    </table>
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Acessar o Dashboard →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 // ─── Comunicado Técnico ───────────────────────────────────────────────────────
 
 function emailComunicadoTecnico(nome) {
@@ -794,6 +826,7 @@ module.exports = {
   emailNovidadesJun2026,
   emailNovidadesJun2026v3,
   emailNovidadesJun2026Completo,
+  emailNovidadesJul2026,
   emailJornadaDashboard,
   emailComunicadoTecnico,
   emailIR,

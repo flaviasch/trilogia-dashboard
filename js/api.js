@@ -942,6 +942,21 @@ export async function saveCategoriasMes(mes, ano, categorias) {
   return call('saveCategoriasMes')({ uid: uidAtual(), mes, ano, categorias });
 }
 
+/**
+ * Atualiza (ou remove, se limite <= 0) o limite de uma única categoria no mês.
+ * Faz merge no servidor (transaction) — seguro mesmo com abas/dispositivos
+ * diferentes editando limites ao mesmo tempo, ao contrário de saveCategoriasMes.
+ * @param {number} mes
+ * @param {number} ano
+ * @param {string} nome
+ * @param {number} limite
+ * @returns {Promise<Array<{nome, limite}>>} lista completa e atualizada
+ */
+export async function upsertCategoriaLimite(mes, ano, nome, limite) {
+  const res = await call('upsertCategoriaLimite')({ uid: uidAtual(), mes, ano, nome, limite });
+  return res?.categorias || [];
+}
+
 // ─── Categorias globais (legacy) ─────────────────────────────────────────────
 export async function getCategorias() {
   const res = await call('getCategorias')({ uid: uidAtual() });

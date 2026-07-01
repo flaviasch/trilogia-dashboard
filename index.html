@@ -1380,7 +1380,9 @@
         },
       ];
 
-      const totalDone = steps.filter(s => s.done).length;
+      const totalDone  = steps.filter(s => s.done).length;
+      const setupSteps = steps.filter(s => s.tag === 'setup');
+      const setupDone  = setupSteps.filter(s => s.done).length;
 
       document.getElementById('loadingOverlay').style.display = 'none';
 
@@ -1392,8 +1394,10 @@
         aceitarLGPDInline();
       } else {
         document.getElementById('mainContent').style.display = 'block';
-        if (totalDone < steps.length) {
-          renderSetupProgress(steps, totalDone);
+        // "Primeiro aporte" é recorrente por mês — não deve reabrir o card de setup,
+        // que é só para os 4 passos de configuração única.
+        if (setupDone < setupSteps.length) {
+          renderSetupProgress(setupSteps, setupDone);
           document.getElementById('setupProgress').style.display = 'block';
         }
         renderMissaoMes(data);

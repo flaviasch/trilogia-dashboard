@@ -1238,6 +1238,44 @@ exports.saveCategoriasMes = onCall(async (request) => {
   return { ok: true };
 });
 
+/**
+ * Atualiza (ou remove, se limite <= 0) o limite de UMA categoria no
+ * planejamento do mês, via transaction. Ao contrário de saveCategoriasMes
+ * (que sobrescreve a lista inteira com o que o cliente tinha em memória),
+ * esta função lê e funde no servidor — evita que uma aba/dispositivo com
+ * dados desatualizados apague edições feitas em outro lugar.
+ * Espera: { uid, mes, ano, nome, limite }
+ */
+exports.upsertCategoriaLimite = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, mes, ano, nome, limite } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (typeof nome !== 'string' || !nome || nome.length > 200) throw new HttpsError('invalid-argument', 'Nome de categoria inválido.');
+  if (typeof limite !== 'number' || limite < 0) throw new HttpsError('invalid-argument', 'Limite inválido.');
+
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  const ref = db.collection('mentoradas').doc(uid).collection('planejamento').doc(mesKey);
+
+  const categorias = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const atuais = snap.exists ? (snap.data().categorias || []) : [];
+    const idx = atuais.findIndex(c => c.nome === nome);
+    let novas;
+    if (limite > 0) {
+      novas = idx === -1
+        ? [...atuais, { nome, limite }]
+        : atuais.map((c, i) => i === idx ? { ...c, limite } : c);
+    } else {
+      novas = atuais.filter(c => c.nome !== nome);
+    }
+    tx.set(ref, { categorias: novas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    return novas;
+  });
+
+  return { ok: true, categorias };
+});
+
 // ─── CATEGORIAS GLOBAIS (legacy — mantido para compatibilidade) ───────────────
 exports.getCategorias = onCall(async (request) => {
   requireAuth(request);
@@ -3681,7 +3719,9 @@ exports.notifDia1 = onSchedule(
       }));
 
       // Perfil ausente → convite para cadastrar
-      if (!m.perfil?.perfil) {
+      // (savePerfil grava `perfil` como string simples e a data em `perfilData`,
+      // não como objeto aninhado — ver exports.savePerfil)
+      if (!m.perfil) {
         tarefas.push(sendEmail({
           to:      m.email,
           subject: 'Configure seu perfil de investidor',
@@ -3689,8 +3729,8 @@ exports.notifDia1 = onSchedule(
         }));
       }
       // Perfil desatualizado (> 180 dias) → aviso de renovação
-      else if (m.perfil?.dataAtualizacao) {
-        const [pA, pM, pD] = m.perfil.dataAtualizacao.split('-').map(Number);
+      else if (m.perfilData) {
+        const [pA, pM, pD] = m.perfilData.split('-').map(Number);
         const dias = Math.floor((agora - new Date(pA, pM - 1, pD)) / 86400000);
         if (dias > 180) {
           tarefas.push(sendEmail({

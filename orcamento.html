@@ -2113,7 +2113,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=21';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=22';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
 
@@ -3198,6 +3198,8 @@
       const totalFaturas  = _ehFuturo ? 0 : data.despesas.filter(d => d.cartao && d.fatura && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
       const totalPendente = data.despesas.filter(d => d.pendente && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
       const totalDespesa  = data.despesas.filter(d => !(d.pendente) && !d._faturaAberta).reduce((s, d) => s + d.valor, 0) - totalFaturas;
+      // Mesmo critério usado no total acima — reutilizado nos alertas de categoria (Resumo e Planejamento)
+      const contaComoRealizado = d => !d.pendente && !d._faturaAberta && !(!_ehFuturo && d.cartao && d.fatura);
       const sobra = saldoConta + totalReceita - totalDespesa;
       const sobraPct = (saldoConta + totalReceita) > 0 ? (sobra / (saldoConta + totalReceita)) * 100 : 0;
       const totalAp = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
@@ -3416,7 +3418,7 @@
       if (bannerAlertaEl) {
         const alertasResumo = categoriasMes
           .map(cat => {
-            const real = data.despesas.filter(d => d.categoria === cat.nome && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
+            const real = data.despesas.filter(d => d.categoria === cat.nome && contaComoRealizado(d)).reduce((s, d) => s + d.valor, 0);
             if (!cat.limite || real === 0) return null;
             const p = real / cat.limite * 100;
             if (p < 80) return null;
@@ -4018,10 +4020,17 @@
       const { mes, ano } = data.periodo;
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
 
+      // Mesmo critério do card "Despesa Total" do Resumo: exclui pendentes e
+      // fatura de cartão já fechada mas ainda não vencida (contam à parte, como
+      // "a vencer"), exceto em meses futuros, onde tudo é projeção.
+      const _agora    = new Date();
+      const _ehFuturo = (ano * 12 + mes) > (_agora.getFullYear() * 12 + _agora.getMonth() + 1);
+      const contaComoRealizado = d => !d.pendente && !d._faturaAberta && !(!_ehFuturo && d.cartao && d.fatura);
+
       // Agrega despesas por categoria
       const porCat = {};
       data.despesas.forEach(d => {
-        if (d._faturaAberta) return;
+        if (!contaComoRealizado(d)) return;
         porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
       });
 
@@ -4069,7 +4078,7 @@
 
       // Totais
       const totalPlan = cats.reduce((s, c) => s + (c.limite || 0), 0);
-      const totalReal = data.despesas.filter(d => !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
+      const totalReal = data.despesas.filter(contaComoRealizado).reduce((s, d) => s + d.valor, 0);
 
       // Linhas da tabela
       const linhas = todasCats.map(cat => {
@@ -4678,23 +4687,16 @@
 
       if (!nomeCat) { toast('Preencha o nome da categoria.', 'warning'); return; }
 
-      // Upsert na lista local por mês
       const { mes, ano } = currentData.periodo;
-      const idx = categoriasMes.findIndex(c => c.nome === nomeCat);
-      if (idx === -1) {
-        categoriasMes.push({ nome: nomeCat, limite });
-      } else {
-        categoriasMes[idx] = { ...categoriasMes[idx], limite };
-      }
-      // Remove entradas com limite 0 (significa remover)
-      if (limite === 0) categoriasMes = categoriasMes.filter(c => c.nome !== nomeCat || c.limite > 0);
 
       modalLimite.classList.add('hidden');
       editandoLimiteCat = null;
 
       setLoading(btn, true);
       try {
-        await saveCategoriasMes(mes, ano, categoriasMes);
+        // Merge feito no servidor (transaction) — evita que outra aba/dispositivo
+        // com dados desatualizados na memória sobrescreva esta edição.
+        categoriasMes = await upsertCategoriaLimite(mes, ano, nomeCat, limite);
         _invalPeriodo(mes, ano);
         // Re-renderiza as abas que dependem de limites
         render(currentData);

@@ -1159,8 +1159,8 @@
         return `${meses[parseInt(mes) - 1]}/${ano.slice(2)}`;
       };
       const fmtVal = v => v >= 1e6
-        ? `${(v/1e6).toFixed(1).replace('.',',')}M`
-        : v >= 1e3 ? `${(v/1e3).toFixed(0)}k` : brl(v);
+        ? `${(v/1e6).toFixed(3).replace('.',',')}M`
+        : v >= 1e3 ? `${(v/1e3).toFixed(1).replace('.',',')}k` : brl(v);
 
       const cols = ultimos.map(p => {
         const h     = Math.max(3, (Math.abs(p.pl) / maxPL) * maxBarH);
