@@ -2325,10 +2325,18 @@
     document.getElementById('tabBtnAnual')       ?.addEventListener('click', () => ativarTab('anual'));
 
     // Cards de Pendências e Alertas — levam pra onde o item já pode ser confirmado
-    document.getElementById('pendCardDespesas')?.addEventListener('click', () =>
-      document.getElementById('despesasList')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-    document.getElementById('pendCardReceitas')?.addEventListener('click', () =>
-      document.getElementById('receitasList')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    document.getElementById('pendCardDespesas')?.addEventListener('click', () => {
+      const h = document.getElementById('headerDespesas');
+      const b = document.getElementById('bodyDespesas');
+      if (h && b && !b.classList.contains('aberta')) { b.classList.add('aberta'); h.classList.add('aberta'); }
+      document.getElementById('secaoDespesas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.getElementById('pendCardReceitas')?.addEventListener('click', () => {
+      const h = document.getElementById('headerReceitas');
+      const b = document.getElementById('bodyReceitas');
+      if (h && b && !b.classList.contains('aberta')) { b.classList.add('aberta'); h.classList.add('aberta'); }
+      document.getElementById('secaoReceitas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     document.getElementById('pendCardFaturas')?.addEventListener('click', () => {
       ativarTab('faturas');
       document.querySelector('.tabs-bar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
