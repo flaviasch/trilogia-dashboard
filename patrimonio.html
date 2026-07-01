@@ -882,8 +882,9 @@
       renderLastImport();
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
-      // Grava (ou atualiza) o snapshot deste mês em background
-      snapshotHistorico();
+      // Snapshot do mês NÃO é gravado aqui — só ao editar/importar de fato
+      // (ver chamadas de snapshotHistorico() nos handlers de mutação abaixo).
+      // Só abrir a página pra olhar não deve sobrescrever o histórico do mês.
     }
 
     /** Grava snapshot do mês atual em background. */

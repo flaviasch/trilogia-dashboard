@@ -267,6 +267,17 @@ export async function upsertHistoricoPatrimonio(ativos, dividas) {
 }
 
 /**
+ * Corrige manualmente o snapshot de um mês específico (admin only, uso pontual).
+ * @param {string} uid
+ * @param {string} mesKey - formato YYYY-MM
+ * @param {number} ativos
+ * @param {number} dividas
+ */
+export async function corrigirHistoricoMes(uid, mesKey, ativos, dividas) {
+  return call('corrigirHistoricoMes')({ uid, mesKey, ativos, dividas });
+}
+
+/**
  * Parseia o CSV de dívidas gerado pelo Agente de Patrimônio.
  *
  * Formato esperado:

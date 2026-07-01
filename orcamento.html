@@ -2986,11 +2986,12 @@
       const mes = agora.getMonth() + 1;
       const ano = agora.getFullYear();
 
-      const [orcResult, resResult, perfilResult, catResult] = await Promise.allSettled([
+      const [orcResult, resResult, perfilResult, catResult, fatEstResult] = await Promise.allSettled([
         getOrcamento(mes, ano),
         getReservas(),
         getPerfil(),
         getCategoriasMes(mes, ano),
+        getFaturaEstados(),
       ]);
 
       if (orcResult.status === 'fulfilled') {
@@ -3012,9 +3013,10 @@
         currentData = { periodo: { mes, ano }, saldoConta: 0, receitas: [], despesas: [], aportes: [] };
       }
 
-      if (resResult.status === 'fulfilled')   reservas = resResult.value || [];
+      if (resResult.status === 'fulfilled')    reservas = resResult.value || [];
       if (perfilResult.status === 'fulfilled') perfilInvestidor = perfilResult.value?.perfil || null;
       if (catResult.status === 'fulfilled')    categoriasMes = catResult.value || [];
+      if (fatEstResult.status === 'fulfilled') _faturaEstados = fatEstResult.value || {};
 
       // Carrega recorrentes em paralelo (sem bloquear o render)
       carregarRecorrentes().then(() => verificarBannerFixas(currentData));
@@ -3192,14 +3194,40 @@
 
       const saldoConta = data.saldoConta || 0;
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
-      // Em meses futuros tudo é projeção; não separa cartão do total.
-      // Em meses atuais/passados, cartão com fatura só impacta o caixa no mês do vencimento.
+      // Em meses futuros tudo é projeção; não separa cartão do total (ver abaixo).
       const _ehFuturo = _periodoTotal > (_agora.getFullYear() * 12 + _agora.getMonth() + 1);
-      const totalFaturas  = _ehFuturo ? 0 : data.despesas.filter(d => d.cartao && d.fatura && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
+
+      // Fatura fechada só sensibiliza o caixa (Despesa Total/Sobra/Saldo Final) quando
+      // confirmada como paga na aba Faturas — total ou, no parcial, só a parte paga
+      // (o restante já vira uma despesa automática no mês seguinte). Até confirmar,
+      // fica em "a vencer". Em meses futuros tudo é projeção, sem essa separação.
+      const gruposFechadaCaixa = {}; // "cartaoId_fatura" → total do grupo
+      data.despesas.forEach(d => {
+        if (d.cartao && d.fatura && !d._faturaAberta) {
+          const key = `${d.cartaoId}_${d.fatura}`;
+          gruposFechadaCaixa[key] = (gruposFechadaCaixa[key] || 0) + d.valor;
+        }
+      });
+      let totalFaturas    = 0; // fatura fechada ainda não confirmada como paga ("a vencer")
+      let totalCartaoPago = 0; // fatura fechada já confirmada (total ou parte paga)
+      if (!_ehFuturo) {
+        Object.entries(gruposFechadaCaixa).forEach(([key, total]) => {
+          const fe = _faturaEstados[key];
+          const totalAjustado = fe?.ajusteTotal ?? total;
+          if (fe?.estado === 'paga_total') totalCartaoPago += totalAjustado;
+          else if (fe?.estado === 'paga_parcial') totalCartaoPago += fe.valorPago || 0;
+          else totalFaturas += totalAjustado;
+        });
+      }
+      const totalCartaoCaixa = _ehFuturo
+        ? Object.values(gruposFechadaCaixa).reduce((s, v) => s + v, 0)
+        : totalCartaoPago;
       const totalPendente = data.despesas.filter(d => d.pendente && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0);
-      const totalDespesa  = data.despesas.filter(d => !(d.pendente) && !d._faturaAberta).reduce((s, d) => s + d.valor, 0) - totalFaturas;
-      // Mesmo critério usado no total acima — reutilizado nos alertas de categoria (Resumo e Planejamento)
-      const contaComoRealizado = d => !d.pendente && !d._faturaAberta && !(!_ehFuturo && d.cartao && d.fatura);
+      const totalDespesa  = data.despesas.filter(d => !d.pendente && !d._faturaAberta && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0) + totalCartaoCaixa;
+      // Critério de "comprometido" — gasto que já aconteceu, pago ou não. Usado nos
+      // alertas de categoria (Resumo) e no Planejamento, que acompanham comportamento
+      // de gasto por categoria, não o caixa exato.
+      const contaComoComprometido = d => !d._faturaAberta;
       const sobra = saldoConta + totalReceita - totalDespesa;
       const sobraPct = (saldoConta + totalReceita) > 0 ? (sobra / (saldoConta + totalReceita)) * 100 : 0;
       const totalAp = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
@@ -3418,7 +3446,7 @@
       if (bannerAlertaEl) {
         const alertasResumo = categoriasMes
           .map(cat => {
-            const real = data.despesas.filter(d => d.categoria === cat.nome && contaComoRealizado(d)).reduce((s, d) => s + d.valor, 0);
+            const real = data.despesas.filter(d => d.categoria === cat.nome && contaComoComprometido(d)).reduce((s, d) => s + d.valor, 0);
             if (!cat.limite || real === 0) return null;
             const p = real / cat.limite * 100;
             if (p < 80) return null;
@@ -4020,17 +4048,14 @@
       const { mes, ano } = data.periodo;
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
 
-      // Mesmo critério do card "Despesa Total" do Resumo: exclui pendentes e
-      // fatura de cartão já fechada mas ainda não vencida (contam à parte, como
-      // "a vencer"), exceto em meses futuros, onde tudo é projeção.
-      const _agora    = new Date();
-      const _ehFuturo = (ano * 12 + mes) > (_agora.getFullYear() * 12 + _agora.getMonth() + 1);
-      const contaComoRealizado = d => !d.pendente && !d._faturaAberta && !(!_ehFuturo && d.cartao && d.fatura);
+      // Planejamento acompanha gasto comprometido por categoria (aconteceu ou não
+      // foi pago ainda), diferente do caixa exato do Resumo (Despesa Total/Sobra).
+      const contaComoComprometido = d => !d._faturaAberta;
 
       // Agrega despesas por categoria
       const porCat = {};
       data.despesas.forEach(d => {
-        if (!contaComoRealizado(d)) return;
+        if (!contaComoComprometido(d)) return;
         porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
       });
 
@@ -4078,7 +4103,7 @@
 
       // Totais
       const totalPlan = cats.reduce((s, c) => s + (c.limite || 0), 0);
-      const totalReal = data.despesas.filter(contaComoRealizado).reduce((s, d) => s + d.valor, 0);
+      const totalReal = data.despesas.filter(contaComoComprometido).reduce((s, d) => s + d.valor, 0);
 
       // Linhas da tabela
       const linhas = todasCats.map(cat => {
@@ -5473,8 +5498,10 @@
           estado: parcial ? 'paga_parcial' : 'paga_total',
           valorPago, rollover,
         };
+        if (parcial && rollover > 0) _invalPeriodo(nextMes, nextAno);
         fecharModalConfirmarPagamento();
         renderFaturas(currentData);
+        render(currentData); // atualiza Despesa Total/Sobra/Saldo Final no Resumo
         if (parcial && rollover > 0)
           toast(`Pagamento parcial confirmado. Saldo de ${brl(rollover)} lançado em ${MESES[nextMes - 1]}.`, 'success');
         else
@@ -5521,6 +5548,7 @@
         _faturaEstados[_afEstadoKey] = { ...(_faturaEstados[_afEstadoKey] || {}), ajusteTotal };
         fecharModalAjustarFatura();
         renderFaturas(currentData);
+        render(currentData); // atualiza Despesa Total/Sobra/Saldo Final no Resumo
         toast('Fatura ajustada.', 'success');
       } catch (e) {
         toast('Erro ao salvar: ' + e.message, 'error');

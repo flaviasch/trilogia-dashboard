@@ -1628,6 +1628,29 @@ exports.upsertHistoricoPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (r
   return { ok: true };
 });
 
+/**
+ * Corrige manualmente o snapshot histórico de um mês específico (admin only).
+ * Uso pontual: quando o auto-snapshot gravou um valor incorreto (ex: contaminado
+ * por edição feita antes do fim do mês) e precisa ser reconciliado à mão.
+ * Espera: { uid, mesKey (YYYY-MM), ativos, dividas }
+ */
+exports.corrigirHistoricoMes = onCall(async (request) => {
+  requireAdmin(request);
+  const { uid, mesKey, ativos, dividas } = request.data;
+
+  if (!uid || typeof uid !== 'string') throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+  if (!mesKey || !/^\d{4}-\d{2}$/.test(mesKey)) throw new HttpsError('invalid-argument', 'mesKey deve estar no formato YYYY-MM.');
+  if (typeof ativos !== 'number' || typeof dividas !== 'number') throw new HttpsError('invalid-argument', 'ativos e dividas devem ser números.');
+
+  const pl = ativos - dividas;
+  await db.collection('mentoradas').doc(uid).collection('historico').doc(mesKey).set({
+    data: mesKey, ativos, dividas, pl,
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true, pl };
+});
+
 // ─── DÍVIDAS ──────────────────────────────────────────────────────────────────
 
 exports.saveDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
