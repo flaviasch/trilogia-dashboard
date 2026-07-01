@@ -3665,11 +3665,12 @@
 
       function _vctoLabel(diaVencimento, diaCorte, mes, ano) {
         if (!diaVencimento || !ano) return '';
-        const offset = diaVencimento <= (diaCorte || 31) ? 1 : 0;
-        const mRaw = mes + offset;
-        const m = mRaw > 12 ? 1 : mRaw;
-        const a = mRaw > 12 ? ano + 1 : ano;
-        return `Vence ${String(diaVencimento).padStart(2,'0')}/${String(m).padStart(2,'0')}/${a}`;
+        // mes/ano aqui já é a chave da fatura (mês de débito/pagamento), calculada
+        // por sugerirFatura() — que já soma o mês extra quando diaVencimento <=
+        // diaCorte. Aplicar o mesmo deslocamento aqui de novo contava o mês em
+        // dobro (ex: Bradesco corte=30/venc=10 aparecia vencendo um mês depois
+        // do correto). Só formata o dia de vencimento dentro do mês da própria chave.
+        return `Vence ${String(diaVencimento).padStart(2,'0')}/${String(mes).padStart(2,'0')}/${ano}`;
       }
 
       // ── Constroí cards de faturas ABERTAS ─────────────────────────────────────
