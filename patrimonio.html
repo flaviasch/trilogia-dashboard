@@ -488,12 +488,12 @@
       Os dados podem ser adicionados manualmente ou importados via agente. O <strong style="color:var(--text-secondary)">Agente de Patrimônio</strong> gera dois arquivos separados: um CSV de patrimônio (ativos do IR ou posição da corretora) e um CSV de dívidas. Importe cada arquivo no cartão correspondente abaixo.
     </p>
 
-    <!-- Banner pós-retirada (visível apenas quando ?from=retirada) -->
+    <!-- Banner de atualização do extrato — texto varia conforme o motivo (retirada ou lembrete mensal) -->
     <div id="bannerRetirada" style="display:none;background:rgba(207,174,101,0.12);border:1px solid rgba(207,174,101,0.45);border-radius:12px;padding:16px 20px;margin-bottom:24px;display:flex;align-items:flex-start;gap:14px;">
-      <span style="font-size:22px;flex-shrink:0;">📊</span>
+      <span id="bannerRetiradaIcon" style="font-size:22px;flex-shrink:0;">📊</span>
       <div>
-        <div style="font-size:14px;font-weight:700;color:var(--gold);margin-bottom:4px;">Atualize o extrato da corretora</div>
-        <div style="font-size:13px;color:var(--text-muted);line-height:1.5;">Você realizou uma retirada de reserva. Importe a posição atualizada da corretora abaixo para manter o patrimônio correto.</div>
+        <div id="bannerRetiradaTitulo" style="font-size:14px;font-weight:700;color:var(--gold);margin-bottom:4px;">Atualize o extrato da corretora</div>
+        <div id="bannerRetiradaTexto" style="font-size:13px;color:var(--text-muted);line-height:1.5;">Você realizou uma retirada de reserva. Importe a posição atualizada da corretora abaixo para manter o patrimônio correto.</div>
       </div>
     </div>
 
@@ -686,10 +686,15 @@
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro,
     } from './js/api.js?v=19';
 
-    // Detecta se veio de uma retirada de reserva
+    // Banner de atualização do extrato: mensagem específica se veio de uma
+    // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se
+    // o extrato da corretora está desatualizado (>35 dias ou nunca importado).
     if (new URLSearchParams(window.location.search).get('from') === 'retirada') {
       const banner = document.getElementById('bannerRetirada');
       if (banner) banner.style.display = 'flex';
+      // Limpa o parâmetro da URL — sem isso, um recarregamento/revisita a essa
+      // mesma URL repetia o aviso mesmo sem retirada nenhuma ter acontecido.
+      history.replaceState({}, '', window.location.pathname);
       // Destaca o card de importação da corretora
       window.addEventListener('DOMContentLoaded', () => {
         const cardCorretora = document.getElementById('btnImportCorretora')?.closest('.import-card');
@@ -699,6 +704,21 @@
           cardCorretora.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       });
+    } else {
+      const lastImportIso = localStorage.getItem('lastImport_corretora');
+      const diasDesdeImport = lastImportIso
+        ? Math.floor((Date.now() - new Date(lastImportIso).getTime()) / 86_400_000)
+        : null;
+      if (diasDesdeImport === null || diasDesdeImport > 35) {
+        const banner = document.getElementById('bannerRetirada');
+        if (banner) {
+          document.getElementById('bannerRetiradaTitulo').textContent = 'Atualize seu extrato mensalmente';
+          document.getElementById('bannerRetiradaTexto').textContent = diasDesdeImport === null
+            ? 'Você ainda não importou a posição da corretora. Importe o extrato abaixo para acompanhar seu patrimônio real.'
+            : `Já se passaram ${diasDesdeImport} dias desde a última importação da corretora. Importe o extrato atualizado abaixo para manter o patrimônio em dia.`;
+          banner.style.display = 'flex';
+        }
+      }
     }
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
