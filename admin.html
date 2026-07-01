@@ -3606,6 +3606,13 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
             abrirModalPagamento(btn.dataset.cobEdit, btn.dataset.cobValor, btn.dataset.cobDesc, true, btn.dataset.cobData);
           });
         });
+        // Botões editar vencimento de parcela pendente
+        el.querySelectorAll('[data-cob-vencedit]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            abrirModalEditarVencimento(btn.dataset.cobVencedit, btn.dataset.cobVenc, btn.dataset.cobNome, () => carregarContratos(uid));
+          });
+        });
       } catch (err) {
         el.innerHTML = `<p style="font-size:13px;color:var(--negative)">Erro ao carregar contratos.</p>`;
       }
@@ -3852,12 +3859,21 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
             </td>
             <td style="padding:6px 8px;border-top:1px solid var(--border);text-align:right">
               ${!p.pago && c.status !== 'cancelado'
-                ? `<button class="btn-pagar"
-                     data-cob-id="${p.id}"
-                     data-cob-valor="${p.valor}"
-                     data-cob-desc="${PRODUTO_LABEL[c.produto] || c.produto} · ${fmtData(p.vencimento)}">
-                     Registrar pagamento
-                   </button>`
+                ? `<span style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;align-items:center">
+                     <button class="btn-edit-inline"
+                       data-cob-vencedit="${p.id}"
+                       data-cob-venc="${p.vencimento}"
+                       data-cob-nome="${p.nomeAluna || ''}"
+                       title="Editar vencimento">
+                       📅
+                     </button>
+                     <button class="btn-pagar"
+                       data-cob-id="${p.id}"
+                       data-cob-valor="${p.valor}"
+                       data-cob-desc="${PRODUTO_LABEL[c.produto] || c.produto} · ${fmtData(p.vencimento)}">
+                       Registrar pagamento
+                     </button>
+                   </span>`
                 : p.pago
                   ? `<span style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
                        <button class="btn-edit-inline"
@@ -3918,9 +3934,9 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
     // Modal editar vencimento
     let vencCobrancaId = null;
     let vencCallback   = null;
-    function abrirModalEditarVencimento(cobId, vencimentoAtual, nomeAluna) {
+    function abrirModalEditarVencimento(cobId, vencimentoAtual, nomeAluna, callback) {
       vencCobrancaId = cobId;
-      vencCallback   = renderFinanceiro;
+      vencCallback   = callback || renderFinanceiro;
       document.getElementById('modalVencDesc').textContent = `${nomeAluna} · vencimento atual: ${fmtData(vencimentoAtual)}`;
       document.getElementById('modalVencData').value = vencimentoAtual || '';
       document.getElementById('modalEditarVencimento').classList.remove('hidden');
