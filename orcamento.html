@@ -3591,9 +3591,6 @@
             ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">⏳ pendente</span>`
             : '';
           const pendenteRowStyle = isPendenteEfetivo(r) ? 'opacity:0.6;border-left:2px dashed var(--border);padding-left:6px;' : '';
-          const confirmarBtn = isPendenteEfetivo(r)
-            ? `<button class="btn-item" data-confirmar-pend-rec="${idxOriginal}" title="Confirmar recebimento" style="color:var(--positive);font-size:11px;white-space:nowrap;">✓</button>`
-            : '';
           return `
             <div class="item-row" style="${pendenteRowStyle}">
               <div>
@@ -3608,7 +3605,6 @@
               </div>
               <div class="item-value receita">${brl(r.valor)}</div>
               <div class="item-actions">
-                ${confirmarBtn}
                 <button class="btn-item" data-edit-rec="${idxOriginal}" title="Editar">${IC_EDIT}</button>
                 <button class="btn-item del" data-del-rec="${idxOriginal}" title="Excluir">${IC_DEL}</button>
               </div>
@@ -3624,8 +3620,6 @@
         btn.addEventListener('click', () => abrirModal('receita', +btn.dataset.editRec)));
       recList.querySelectorAll('[data-del-rec]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec)));
-      recList.querySelectorAll('[data-confirmar-pend-rec]').forEach(btn =>
-        btn.addEventListener('click', () => confirmarPendente('receita', +btn.dataset.confirmarPendRec)));
       document.getElementById('btnAddReceita').addEventListener('click', () => abrirModal('receita'));
 
       // ── Despesas — lista plana no Resumo ────────────────────────────────────
