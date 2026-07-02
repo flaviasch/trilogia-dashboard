@@ -6411,7 +6411,9 @@
       if (!pendentes.length) return;
 
       const faturaAtual = `${ano}-${String(mes).padStart(2,'0')}`;
-      const novos = [];
+      const novosNoMesAtual = [];
+      const novosPorOutraFatura = {};
+      const recorrentesRedirecionados = new Set();
       for (const r of pendentes) {
         const freq = r.frequencia || 'mensal';
         let diasDoMes;
@@ -6422,23 +6424,44 @@
         } else {
           diasDoMes = [r.dia];
         }
+        const cartaoObj = r.cartao ? _cartoes.find(c => c.id === r.cartaoId) : null;
         for (const d of diasDoMes) {
-          novos.push({
+          const dataStr = `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          const faturaCalc = (r.cartao && cartaoObj?.diaCorte)
+            ? sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1)
+            : faturaAtual;
+          const item = {
             categoria:    r.categoria,
             tipo:         'despesa',
             valor:        r.valor,
             descricao:    r.descricao || '',
-            data:         `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`,
+            data:         dataStr,
             cartao:       !!r.cartao,
-            fatura:       r.cartao ? faturaAtual : '',
+            fatura:       r.cartao ? faturaCalc : '',
             cartaoId:     r.cartaoId || '',
             origem:       'recorrente',
             recorrenteId: r.id,
-          });
+          };
+          if (!r.cartao || faturaCalc === faturaAtual) {
+            novosNoMesAtual.push(item);
+          } else {
+            (novosPorOutraFatura[faturaCalc] ||= []).push(item);
+            recorrentesRedirecionados.add(r.id);
+          }
         }
       }
-      currentData.despesas.push(...novos);
+      currentData.despesas.push(...novosNoMesAtual);
       await salvarEAtualizar();
+
+      for (const [faturaKey, itensNovos] of Object.entries(novosPorOutraFatura)) {
+        const [fAno, fMes] = faturaKey.split('-').map(Number);
+        const itensExistentes = await getOrcamento(fMes, fAno);
+        itensExistentes.push(...itensNovos);
+        await saveOrcamento(fMes, fAno, itensExistentes);
+        _invalPeriodo(fMes, fAno);
+      }
+      recorrentesRedirecionados.forEach(id => _fixasPuladas.add(id + '_' + mes + '_' + ano));
+      if (recorrentesRedirecionados.size) salvarFixasPuladas();
     }
 
     // Verifica recorrentes não lançadas e não puladas — exibe/oculta banner e indicador
@@ -6516,7 +6539,9 @@
       btn.disabled = true; btn.textContent = 'Lançando…';
       try {
         const faturaAtual = `${ano}-${String(mes).padStart(2,'0')}`;
-        const novos = [];
+        const novosNoMesAtual = [];
+        const novosPorOutraFatura = {}; // "YYYY-MM" (fatura diferente do mês visualizado) -> itens[]
+        const recorrentesRedirecionados = new Set();
 
         for (const r of _recorrentes.filter(r => selecionadas.has(r.id))) {
           const freq = r.frequencia || 'mensal';
@@ -6528,24 +6553,52 @@
           } else {
             diasDoMes = [r.dia];
           }
+          const cartaoObj = r.cartao ? _cartoes.find(c => c.id === r.cartaoId) : null;
           for (const d of diasDoMes) {
-            novos.push({
+            const dataStr = `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            // Fixa no cartão: a fatura depende do dia de corte, não do mês exibido
+            // (ex: corte já passado joga a cobrança pra fatura do mês seguinte).
+            const faturaCalc = (r.cartao && cartaoObj?.diaCorte)
+              ? sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1)
+              : faturaAtual;
+            const item = {
               categoria:    r.categoria,
               tipo:         'despesa',
               valor:        r.valor,
               descricao:    r.descricao || '',
-              data:         `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`,
+              data:         dataStr,
               cartao:       !!r.cartao,
-              fatura:       r.cartao ? faturaAtual : '',
+              fatura:       r.cartao ? faturaCalc : '',
               cartaoId:     r.cartaoId || '',
               origem:       'recorrente',
               recorrenteId: r.id,
-            });
+            };
+            if (!r.cartao || faturaCalc === faturaAtual) {
+              novosNoMesAtual.push(item);
+            } else {
+              (novosPorOutraFatura[faturaCalc] ||= []).push(item);
+              recorrentesRedirecionados.add(r.id);
+            }
           }
         }
 
-        currentData.despesas.push(...novos);
+        currentData.despesas.push(...novosNoMesAtual);
         await salvarEAtualizar();
+
+        for (const [faturaKey, itensNovos] of Object.entries(novosPorOutraFatura)) {
+          const [fAno, fMes] = faturaKey.split('-').map(Number);
+          const itensExistentes = await getOrcamento(fMes, fAno);
+          itensExistentes.push(...itensNovos);
+          await saveOrcamento(fMes, fAno, itensExistentes);
+          _invalPeriodo(fMes, fAno);
+        }
+
+        // Não pertencem ao mês exibido (foram pra outra fatura) — marca como
+        // tratadas aqui pra não ficarem pendentes indefinidamente neste mês.
+        recorrentesRedirecionados.forEach(id => _fixasPuladas.add(id + '_' + mes + '_' + ano));
+        if (recorrentesRedirecionados.size) salvarFixasPuladas();
+
+        const totalNovos = novosNoMesAtual.length + Object.values(novosPorOutraFatura).reduce((s, a) => s + a.length, 0);
 
         // Decrementa mesesRestantes nas despesas com prazo determinado
         const limitadas = _recorrentes.filter(r => selecionadas.has(r.id) && r.mesesRestantes != null);
@@ -6557,7 +6610,8 @@
 
         document.getElementById('modalSelecionarFixas').classList.add('hidden');
         verificarBannerFixas(currentData);
-        mostrarToast(`${novos.length} lançamento${novos.length > 1 ? 's' : ''} criado${novos.length > 1 ? 's' : ''}!`);
+        mostrarToast(`${totalNovos} lançamento${totalNovos > 1 ? 's' : ''} criado${totalNovos > 1 ? 's' : ''}!` +
+          (recorrentesRedirecionados.size ? ' Alguma(s) foram pra fatura de outro mês.' : ''));
       } finally {
         btn.disabled = false; btn.textContent = 'Lançar selecionadas';
       }
