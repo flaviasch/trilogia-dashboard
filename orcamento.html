@@ -2192,7 +2192,7 @@
       <div class="field-group">
         <label for="afValorReal">Valor real a pagar (R$)</label>
         <input type="text" inputmode="numeric" id="afValorReal" placeholder="ex: 1.500" />
-        <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">Use quando o débito no banco difere do calculado pelo sistema</span>
+        <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">Use quando o débito no banco difere do calculado pelo sistema — a diferença é lançada como um item de "Ajuste de fatura" (a débito ou a crédito)</span>
       </div>
       <div class="modal-actions">
         <button class="btn-cancel" id="afCancelar">Cancelar</button>
@@ -4075,6 +4075,8 @@
               ${_barraLimite(totalAberta, limite)}
               <div class="items-list" style="padding:0;margin-top:8px;">${_renderLinhas(abertaItens, cartaoObj)}</div>
               <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:6px 14px 0;width:calc(100% - 28px);">+ Adicionar a esta fatura</button>
+              ${totalAberta > 0 && abertaKey ? `<button class="btn-add-item" data-ajustar-fat="${cartaoId}_${abertaKey}" data-total-calculado="${totalAberta}" data-nome="${nomeCartao}" data-mes="${mesNome}"
+                style="margin:6px 14px 0;width:calc(100% - 28px);background:transparent;color:var(--text-muted);border-color:var(--border);">✎ Ajustar fatura</button>` : ''}
             </div>
           </div>`;
       }).join('');
@@ -5837,14 +5839,19 @@
     });
 
     // ── Modal ajustar fatura ──────────────────────────────────────────────────
-    let _afEstadoKey = null;
+    // Ajustar não sobrescreve um total "fantasma": lança um item real de
+    // "Ajuste de fatura" na própria fatura, com a diferença (a débito ou a
+    // crédito) entre o que foi calculado e o valor real informado. Assim o
+    // ajuste fica visível, editável e excluível como qualquer outro lançamento.
+    let _afEstadoKey       = null;
+    let _afTotalCalculado  = 0;
 
     function abrirModalAjustarFatura(estadoKey, totalCalculado, nomeCartao, mesFatura) {
-      _afEstadoKey = estadoKey;
+      _afEstadoKey      = estadoKey;
+      _afTotalCalculado = totalCalculado || 0;
       document.getElementById('afSub').textContent          = `${nomeCartao} · ${mesFatura}`;
       document.getElementById('afTotalCalculado').textContent = brl(totalCalculado);
-      const existente = _faturaEstados[estadoKey]?.ajusteTotal;
-      setMoney(document.getElementById('afValorReal'), existente ?? totalCalculado);
+      setMoney(document.getElementById('afValorReal'), totalCalculado);
       _lockBody();
       document.getElementById('modalAjustarFatura').classList.remove('hidden');
     }
@@ -5861,20 +5868,33 @@
 
     document.getElementById('afSalvar').addEventListener('click', async () => {
       if (!_afEstadoKey) return;
-      const btn        = document.getElementById('afSalvar');
-      const ajusteTotal = readMoney(document.getElementById('afValorReal'));
-      if (!ajusteTotal || ajusteTotal < 0) { toast('Preencha o valor real a pagar.', 'warning'); return; }
+      const btn       = document.getElementById('afSalvar');
+      const valorReal = readMoney(document.getElementById('afValorReal'));
+      if (valorReal < 0) { toast('Preencha o valor real a pagar.', 'warning'); return; }
+      const diferenca = Math.round((valorReal - _afTotalCalculado) * 100) / 100;
+      if (Math.abs(diferenca) < 0.01) { toast('Sem diferença a ajustar.', 'warning'); return; }
       const [cartaoId, faturaKey] = _afEstadoKey.split('_').reduce((acc, p, i, arr) =>
         i === arr.length - 1 ? [arr.slice(0, -1).join('_'), p] : acc, ['', '']);
 
       setLoading(btn, true);
       try {
-        await saveFaturaEstado(cartaoId, faturaKey, { ajusteTotal });
-        _faturaEstados[_afEstadoKey] = { ...(_faturaEstados[_afEstadoKey] || {}), ajusteTotal };
+        const hj = new Date();
+        currentData.despesas.push({
+          categoria:   'Ajuste de fatura',
+          tipo:        'despesa',
+          valor:       diferenca,
+          data:        `${hj.getFullYear()}-${String(hj.getMonth() + 1).padStart(2, '0')}-${String(hj.getDate()).padStart(2, '0')}`,
+          descricao:   diferenca > 0 ? 'Ajuste de fatura (cobrança a mais)' : 'Ajuste de fatura (crédito/estorno)',
+          cartao:      true,
+          fatura:      faturaKey,
+          cartaoId,
+          origem:      'ajuste',
+        });
+        await salvarEAtualizar();
         fecharModalAjustarFatura();
         renderFaturas(currentData);
         render(currentData); // atualiza Despesa Total/Sobra/Saldo Final no Resumo
-        toast('Fatura ajustada.', 'success');
+        toast('Ajuste lançado na fatura.', 'success');
       } catch (e) {
         toast('Erro ao salvar: ' + e.message, 'error');
       } finally { setLoading(btn, false); }
