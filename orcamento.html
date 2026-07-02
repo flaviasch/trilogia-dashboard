@@ -2444,6 +2444,23 @@
       return new Date(item.data + 'T00:00:00') > hoje;
     }
 
+    function _dataEhFutura(dataStr) {
+      if (!dataStr) return false;
+      const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+      return new Date(dataStr + 'T00:00:00') > hoje;
+    }
+
+    // Data futura já tira o lançamento do caixa sozinha — o toggle "pendente"
+    // só faz sentido (e só aparece) pra hoje/passado, onde a data não decide
+    // isso por si só.
+    function atualizarVisibilidadePendente() {
+      const fgPend = document.getElementById('fgPendenteToggle');
+      if (!fgPend) return;
+      const futura = _dataEhFutura(document.getElementById('mData')?.value);
+      fgPend.style.display = futura ? 'none' : '';
+      if (futura) document.getElementById('mPendente').checked = false;
+    }
+
     // ─── Classes por prazo da reserva ────────────────────────────────────────
     const CLASSES_LABEL = {
       pos:  'RF Pós (liquidez diária)',
@@ -2577,9 +2594,8 @@
           atualizarVctoCartao();
         }
         // Pendente
-        const fgPend = document.getElementById('fgPendenteToggle');
         document.getElementById('mPendente').checked = !!item.pendente;
-        if (fgPend) fgPend.style.display = '';
+        atualizarVisibilidadePendente();
         // Toggles recorrência: nunca mostrar ao editar
         if (fgToggles) fgToggles.style.display = 'none';
       } else {
@@ -2594,8 +2610,7 @@
         document.getElementById('mFatura').value = '';
         // Pendente: reset
         document.getElementById('mPendente').checked = false;
-        const fgPendNovo = document.getElementById('fgPendenteToggle');
-        if (fgPendNovo) fgPendNovo.style.display = '';
+        atualizarVisibilidadePendente();
         // Toggles recorrência: visíveis só para despesa nova
         if (fgToggles) fgToggles.style.display = tipo === 'despesa' ? '' : 'none';
         document.getElementById('mVirarFixa').checked       = false;
@@ -2708,6 +2723,7 @@
 
     document.getElementById('mData')?.addEventListener('change', () => {
       if (document.getElementById('mCartao').checked) calcularFaturaAutomatica();
+      atualizarVisibilidadePendente();
     });
 
     document.getElementById('btnGerenciarCartoes')?.addEventListener('click', () => abrirModalCartoes());
