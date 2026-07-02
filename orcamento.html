@@ -5357,6 +5357,12 @@
       mes--;
       if (mes < 1) { mes = 12; ano--; }
       currentData = await buscarPeriodo(mes, ano);
+      const agora = new Date();
+      const ehFuturo = (ano * 12 + mes) > (agora.getFullYear() * 12 + agora.getMonth() + 1);
+      if (ehFuturo) {
+        await autoLancarFixasFuturo(mes, ano);
+        currentData = await buscarPeriodo(mes, ano);
+      }
       render(currentData);
       verificarBannerFixas(currentData);
     });
@@ -6455,9 +6461,41 @@
       return esperados.filter(d => !ocupados.has(d));
     }
 
+    // Corrige lançamentos já gerados cujo cartão/débito ficou desatualizado em
+    // relação ao template da recorrente — ex: itens lançados quando a
+    // recorrente ainda não tinha cartão marcado, ou quando o cartão vinculado
+    // mudou depois. Só mexe em itens com recorrenteId (vínculo inequívoco).
+    function _reconciliarCartaoRecorrentes(data) {
+      let mudou = false;
+      data.despesas.forEach(d => {
+        if (!d.recorrenteId) return;
+        const r = _recorrentes.find(x => x.id === d.recorrenteId);
+        if (!r) return;
+        const cartaoEsperado = !!r.cartao;
+        const precisaCorrigir = d.cartao !== cartaoEsperado ||
+          (cartaoEsperado && d.cartaoId !== (r.cartaoId || '')) ||
+          (cartaoEsperado && !d.fatura);
+        if (!precisaCorrigir) return;
+        d.cartao   = cartaoEsperado;
+        d.cartaoId = cartaoEsperado ? (r.cartaoId || '') : '';
+        if (cartaoEsperado) {
+          const cartaoObj = _cartoes.find(c => c.id === r.cartaoId);
+          d.fatura = (cartaoObj?.diaCorte && d.data)
+            ? sugerirFatura(d.data, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1)
+            : (d.fatura || `${data.periodo.ano}-${String(data.periodo.mes).padStart(2, '0')}`);
+        } else {
+          d.fatura = '';
+        }
+        mudou = true;
+      });
+      return mudou;
+    }
+
     // Lança todas as fixas pendentes silenciosamente em meses futuros (sem modal/banner)
     async function autoLancarFixasFuturo(mes, ano) {
       if (!_recorrentes.length) return;
+
+      if (_reconciliarCartaoRecorrentes(currentData)) await salvarEAtualizar();
 
       const pendentes = _recorrentes
         .filter(r => r.ativo && !_fixasPuladas.has(r.id + '_' + mes + '_' + ano))
