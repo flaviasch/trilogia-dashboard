@@ -2114,6 +2114,15 @@
             style="width:100%;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;font-family:'Inter',sans-serif;box-sizing:border-box;" />
         </div>
         <div id="fgFixaFormaPagto" style="display:none;padding-bottom:8px;">
+          <div style="margin-bottom:10px;">
+            <label for="mFixaFrequencia" style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Frequência</label>
+            <select id="mFixaFrequencia" style="width:100%;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;font-family:'Inter',sans-serif;box-sizing:border-box;">
+              <option value="mensal">Mensal</option>
+              <option value="quinzenal">Quinzenal (a cada 14 dias)</option>
+              <option value="semanal">Semanal</option>
+            </select>
+            <span id="mFixaFrequenciaHint" style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;"></span>
+          </div>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--text-secondary);user-select:none;margin-bottom:6px;">
             <input type="checkbox" id="mFixaCartao" style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;" />
             💳 Cobrada no cartão de crédito (em vez de débito direto)
@@ -2620,6 +2629,7 @@
         document.getElementById('mFixaCartao').checked      = false;
         document.getElementById('fgFixaFormaPagto').style.display = 'none';
         document.getElementById('mFixaCartaoSelecionado').style.display = 'none';
+        document.getElementById('mFixaFrequencia').value    = 'mensal';
       }
 
       // Mostrar/ocultar opção de cartão conforme tipo (mobile)
@@ -2678,12 +2688,35 @@
     });
 
     // Toggle virar fixa / recorrência com prazo — mutuamente exclusivos
+    const NOMES_DIA_SEMANA = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+
+    // Deriva o "dia" da recorrência a partir da data já digitada no lançamento —
+    // evita pedir de novo algo que o usuário já informou.
+    function _calcFixaDia(frequencia, dataStr) {
+      const d = dataStr ? new Date(dataStr + 'T12:00:00') : new Date();
+      if (frequencia === 'semanal')   return d.getDay();
+      if (frequencia === 'quinzenal') return Math.min(d.getDate(), 14);
+      return Math.min(d.getDate(), 28);
+    }
+
+    function atualizarFixaFrequenciaHint() {
+      const hint = document.getElementById('mFixaFrequenciaHint');
+      if (!hint) return;
+      const freq = document.getElementById('mFixaFrequencia')?.value || 'mensal';
+      const dia  = _calcFixaDia(freq, document.getElementById('mData')?.value);
+      if (freq === 'semanal')        hint.textContent = `Repete toda ${NOMES_DIA_SEMANA[dia]}.`;
+      else if (freq === 'quinzenal') hint.textContent = `Repete nos dias ${dia} e ${dia + 14} de cada mês.`;
+      else                           hint.textContent = `Repete todo dia ${dia} de cada mês.`;
+    }
+
     function atualizarFixaFormaPagtoUI() {
       const ativo = document.getElementById('mVirarFixa')?.checked || document.getElementById('mRecorrenciaPrazo')?.checked;
       document.getElementById('fgFixaFormaPagto').style.display = ativo ? '' : 'none';
       if (!ativo) {
         document.getElementById('mFixaCartao').checked = false;
         document.getElementById('mFixaCartaoSelecionado').style.display = 'none';
+      } else {
+        atualizarFixaFrequenciaHint();
       }
     }
     document.getElementById('mVirarFixa')?.addEventListener('change', () => {
@@ -2706,6 +2739,7 @@
       document.getElementById('mFixaCartaoSelecionado').style.display = this.checked ? '' : 'none';
       if (this.checked) preencherSeletorCartoesFixa2(null);
     });
+    document.getElementById('mFixaFrequencia')?.addEventListener('change', atualizarFixaFrequenciaHint);
 
     document.getElementById('mCartao').addEventListener('change', () => {
       const checked = document.getElementById('mCartao').checked;
@@ -2724,6 +2758,7 @@
     document.getElementById('mData')?.addEventListener('change', () => {
       if (document.getElementById('mCartao').checked) calcularFaturaAutomatica();
       atualizarVisibilidadePendente();
+      atualizarFixaFrequenciaHint();
     });
 
     document.getElementById('btnGerenciarCartoes')?.addEventListener('click', () => abrirModalCartoes());
@@ -2792,8 +2827,10 @@
         toast('Informe quantos meses a recorrência deve durar.', 'warning');
         return;
       }
-      const fixaCartao   = (virarFixa || recorrPrazo) && document.getElementById('mFixaCartao')?.checked;
-      const fixaCartaoId = fixaCartao ? (document.getElementById('mFixaCartaoSelecionado')?.value || '') : '';
+      const fixaCartao     = (virarFixa || recorrPrazo) && document.getElementById('mFixaCartao')?.checked;
+      const fixaCartaoId   = fixaCartao ? (document.getElementById('mFixaCartaoSelecionado')?.value || '') : '';
+      const fixaFrequencia = document.getElementById('mFixaFrequencia')?.value || 'mensal';
+      const fixaDia        = _calcFixaDia(fixaFrequencia, data);
       if (fixaCartao && !fixaCartaoId) {
         toast('Selecione o cartão da despesa fixa.', 'warning');
         return;
@@ -2806,7 +2843,7 @@
         // Cadastra como recorrente se solicitado
         if (virarFixa || recorrPrazo) {
           await saveRecorrente({
-            categoria, valor, descricao, dia: 1, frequencia: 'mensal',
+            categoria, valor, descricao, dia: fixaDia, frequencia: fixaFrequencia,
             mesesRestantes: recorrPrazo ? mesesRecorr : null,
             ativo: true, cartao: !!fixaCartao, cartaoId: fixaCartaoId,
           });
