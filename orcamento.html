@@ -6439,14 +6439,16 @@
 
     // Dias esperados que ainda não têm lançamento no mês — cobre tanto itens já
     // linkados por recorrenteId quanto lançamentos manuais antigos sem o vínculo
-    // (mesma categoria + valor), pra não duplicar quando a recorrente foi criada
-    // antes do backfill automático existir.
+    // (mesma categoria), pra não duplicar quando a recorrente foi criada antes
+    // do backfill automático existir. Não usa valor no fallback: se o valor do
+    // lançamento já existente foi editado à mão, ele deixaria de "casar" com
+    // o valor atual do template e geraria um duplicado.
     function _diasFaltantesRecorrente(r, data) {
       const { mes, ano } = data.periodo;
       const esperados = _diasEsperadosRecorrente(r, mes, ano);
       const ocupados = new Set(
         data.despesas
-          .filter(d => d.recorrenteId === r.id || (!d.recorrenteId && d.categoria === r.categoria && d.valor === r.valor))
+          .filter(d => d.recorrenteId === r.id || (!d.recorrenteId && d.categoria === r.categoria))
           .map(d => parseInt((d.data || '').split('-')[2], 10))
           .filter(d => !isNaN(d))
       );
