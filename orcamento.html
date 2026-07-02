@@ -3508,11 +3508,11 @@
       });
       despesasPendentes.forEach(d => {
         if (!d.data) return;
-        eventosProjecao.push({ data: new Date(d.data + 'T00:00:00'), label: d.categoria, valor: -d.valor, tipo: 'despesa', idx: data.despesas.indexOf(d) });
+        eventosProjecao.push({ data: new Date(d.data + 'T00:00:00'), label: d.descricao || d.categoria, valor: -d.valor, tipo: 'despesa', idx: data.despesas.indexOf(d) });
       });
       receitasPendentes.forEach(r => {
         if (!r.data) return;
-        eventosProjecao.push({ data: new Date(r.data + 'T00:00:00'), label: r.categoria, valor: r.valor, tipo: 'receita', idx: data.receitas.indexOf(r) });
+        eventosProjecao.push({ data: new Date(r.data + 'T00:00:00'), label: r.descricao || r.categoria, valor: r.valor, tipo: 'receita', idx: data.receitas.indexOf(r) });
       });
       eventosProjecao.sort((a, b) => a.data - b.data);
 
