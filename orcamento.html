@@ -2131,20 +2131,6 @@
         </div>
       </div>
 
-      <!-- Pendente: para despesas e receitas -->
-      <div id="fgPendenteToggle" style="display:none;border-top:1px solid var(--border);margin-top:8px;padding-top:10px;">
-        <label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;cursor:pointer;user-select:none;gap:12px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span>⏳</span>
-            <div>
-              <div style="font-size:13px;color:var(--white);" id="mPendenteLabel">Lançamento pendente</div>
-              <div style="font-size:11px;color:var(--text-muted);">Previsto, mas ainda não aconteceu — não entra no saldo até confirmar</div>
-            </div>
-          </div>
-          <input type="checkbox" id="mPendente" style="width:17px;height:17px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;" />
-        </label>
-      </div>
-
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelarItem">Cancelar</button>
         <button class="btn-save" id="btnSalvarItem">Salvar</button>
@@ -2443,31 +2429,13 @@
       return p.length === 3 ? `${p[2]}/${p[1]}` : str;
     }
 
-    // Um lançamento é "pendente" quando marcado manualmente OU quando tem uma
-    // data futura (ainda não aconteceu) — nesse caso não precisa marcar o
-    // checkbox, a data futura já basta.
+    // Um lançamento é "pendente" (não sensibiliza o caixa ainda) só quando tem
+    // data futura. Hoje ou passado: já aconteceu, entra no saldo — se não for
+    // acontecer, o lançamento deve ser excluído, não fica marcado como pendente.
     function isPendenteEfetivo(item) {
-      if (item.pendente) return true;
       if (!item.data) return false;
       const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
       return new Date(item.data + 'T00:00:00') > hoje;
-    }
-
-    function _dataEhFutura(dataStr) {
-      if (!dataStr) return false;
-      const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-      return new Date(dataStr + 'T00:00:00') > hoje;
-    }
-
-    // Data futura já tira o lançamento do caixa sozinha — o toggle "pendente"
-    // só faz sentido (e só aparece) pra hoje/passado, onde a data não decide
-    // isso por si só.
-    function atualizarVisibilidadePendente() {
-      const fgPend = document.getElementById('fgPendenteToggle');
-      if (!fgPend) return;
-      const futura = _dataEhFutura(document.getElementById('mData')?.value);
-      fgPend.style.display = futura ? 'none' : '';
-      if (futura) document.getElementById('mPendente').checked = false;
     }
 
     // ─── Classes por prazo da reserva ────────────────────────────────────────
@@ -2602,9 +2570,6 @@
           preencherSeletorCartoes(item.cartaoId || null);
           atualizarVctoCartao();
         }
-        // Pendente
-        document.getElementById('mPendente').checked = !!item.pendente;
-        atualizarVisibilidadePendente();
         // Toggles recorrência: nunca mostrar ao editar
         if (fgToggles) fgToggles.style.display = 'none';
       } else {
@@ -2617,9 +2582,6 @@
         if (fgCartao) fgCartao.style.display = 'none';
         document.getElementById('fgCartaoOpcoes').style.display = 'none';
         document.getElementById('mFatura').value = '';
-        // Pendente: reset
-        document.getElementById('mPendente').checked = false;
-        atualizarVisibilidadePendente();
         // Toggles recorrência: visíveis só para despesa nova
         if (fgToggles) fgToggles.style.display = tipo === 'despesa' ? '' : 'none';
         document.getElementById('mVirarFixa').checked       = false;
@@ -2654,9 +2616,6 @@
         document.getElementById('fgCartaoOpcoes').style.display = 'none';
         document.getElementById('fgCartaoSection').style.display = 'none';
       }
-      // Pendente: disponível para despesa e receita
-      const mPendenteLabel = document.getElementById('mPendenteLabel');
-      if (mPendenteLabel) mPendenteLabel.textContent = isReceita ? 'Receita pendente' : 'Despesa pendente';
       // Toggles de recorrência: só para despesa nova (editandoIdx === null)
       const fgToggles = document.getElementById('fgRecorrenciaToggles');
       if (fgToggles && editandoIdx === null) {
@@ -2757,7 +2716,6 @@
 
     document.getElementById('mData')?.addEventListener('change', () => {
       if (document.getElementById('mCartao').checked) calcularFaturaAutomatica();
-      atualizarVisibilidadePendente();
       atualizarFixaFrequenciaHint();
     });
 
@@ -2776,14 +2734,13 @@
       const cartao    = document.getElementById('mCartao').checked;
       const fatura    = cartao ? document.getElementById('mFatura').value.trim() : '';
       const cartaoId  = cartao ? (document.getElementById('mCartaoSelecionado')?.value || '') : '';
-      const pendente  = document.getElementById('mPendente').checked;
 
       if (!categoria) { toast('Preencha a categoria.', 'warning'); return; }
       if (!data) { toast('Preencha a data do lançamento.', 'warning'); return; }
       if (cartao && !fatura) { toast('Selecione o mês da fatura.', 'warning'); return; }
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
 
-      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}), ...(pendente ? { pendente: true } : {}) };
+      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}) };
 
       if (cartao && fatura) {
         // Salva diretamente no mês da fatura (não no mês exibido)
