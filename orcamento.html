@@ -3271,7 +3271,7 @@
       let ptsOrcamento = 75; // neutro se sem limites
       if (catsComLimite.length > 0) {
         const estouradas = catsComLimite.filter(c => {
-          const gasto = data.despesas.filter(d => d.categoria === c.nome && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
+          const gasto = data.despesas.filter(d => d.categoria === c.nome).reduce((s, d) => s + d.valor, 0);
           return gasto > c.limite;
         }).length;
         if (estouradas === 0)      ptsOrcamento = 100;
@@ -3313,7 +3313,7 @@
         const totalPlan   = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
         const catsComLimite = (categoriasMes || []).filter(c => c.limite > 0);
         const nEstouradas = catsComLimite.filter(c => {
-          const gasto = data.despesas.filter(d => d.categoria === c.nome && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
+          const gasto = data.despesas.filter(d => d.categoria === c.nome).reduce((s, d) => s + d.valor, 0);
           return gasto > c.limite;
         }).length;
         const totalReceita = data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0);
@@ -3422,7 +3422,7 @@
       // Critério de "comprometido" — gasto que já aconteceu, pago ou não. Usado nos
       // alertas de categoria (Resumo) e no Planejamento, que acompanham comportamento
       // de gasto por categoria, não o caixa exato.
-      const contaComoComprometido = d => !d._faturaAberta && !d.pendente;
+      const contaComoComprometido = d => !d.pendente;
       const sobra = saldoConta + totalReceita - totalDespesa;
       const sobraPct = (saldoConta + totalReceita) > 0 ? (sobra / (saldoConta + totalReceita)) * 100 : 0;
       const totalAp = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
@@ -4377,7 +4377,7 @@
 
       // Planejamento acompanha gasto comprometido por categoria (aconteceu ou não
       // foi pago ainda), diferente do caixa exato do Resumo (Despesa Total/Sobra).
-      const contaComoComprometido = d => !d._faturaAberta && !d.pendente;
+      const contaComoComprometido = d => !d.pendente;
 
       // Agrega despesas por categoria
       const porCat = {};
@@ -4645,12 +4645,11 @@
       const el = document.getElementById('graficosContent');
       if (!el) return;
 
-      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !d.pendente).reduce((s, d) => s + d.valor, 0);
+      const totalDespesa = data.despesas.filter(d => !d.pendente).reduce((s, d) => s + d.valor, 0);
 
       // Agrega por categoria para a pizza
       const porCat = {};
-      data.despesas.forEach(d => {
-        if (d._faturaAberta) return;
+      data.despesas.filter(d => !d.pendente).forEach(d => {
         porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
       });
       const cats    = Object.keys(porCat).sort((a, b) => porCat[b] - porCat[a]);
@@ -4738,8 +4737,7 @@
         // Agrega por categoria para cada mês
         const dadosPorMes = resultados.map(data => {
           const r = {};
-          data.despesas.forEach(d => {
-            if (d._faturaAberta) return;
+          data.despesas.filter(d => !d.pendente).forEach(d => {
             r[d.categoria] = (r[d.categoria] || 0) + d.valor;
           });
           return r;
@@ -4790,10 +4788,10 @@
               .then(data => ({
                 mes:       m,
                 receita:   data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0),
-                despesa:   data.despesas.filter(d => !d._faturaAberta).reduce((s, d) => s + d.valor, 0),
+                despesa:   data.despesas.filter(d => !d.pendente).reduce((s, d) => s + d.valor, 0),
                 aporte:    data.aportes.reduce((s, a) => s + a.valor, 0),
                 temDados:  data.receitas.length > 0 || data.despesas.length > 0 || data.aportes.length > 0,
-                porCartao: data.despesas.filter(d => d.cartao && d.cartaoId && !d._faturaAberta)
+                porCartao: data.despesas.filter(d => d.cartao && d.cartaoId && !d.pendente)
                   .reduce((acc, d) => { acc[d.cartaoId] = (acc[d.cartaoId] || 0) + d.valor; return acc; }, {}),
               }))
               .catch(() => ({ mes: m, receita: 0, despesa: 0, aporte: 0, temDados: false, porCartao: {} }))
