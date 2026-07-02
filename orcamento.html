@@ -333,13 +333,12 @@
       border-bottom: 1px solid var(--border);
     }
     .projecao-row:last-child { border-bottom: none; }
-    .projecao-info { min-width: 0; }
+    .projecao-info { flex: 1; min-width: 0; }
     .projecao-data { font-size: 11px; color: var(--text-muted); }
-    .projecao-label { font-size: 13px; color: var(--white); margin-top: 1px; }
+    .projecao-label { font-size: 13px; color: var(--white); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .projecao-valores { text-align: right; flex-shrink: 0; }
     .projecao-acoes { display: flex; gap: 4px; flex-shrink: 0; }
     .projecao-filtro-aviso { font-size: 12px; color: var(--text-muted); padding: 10px 0; display: flex; align-items: center; gap: 8px; }
-    .projecao-hidden-nota { font-size: 11px; color: var(--text-muted); text-align: center; padding: 6px 0; font-style: italic; }
     .projecao-valor { font-size: 13px; font-weight: 600; }
     .projecao-saldo { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
     .resumo-pct {
@@ -3559,25 +3558,10 @@
         let saldoAcumulado = saldoFinal;
         const projecaoListaEl = document.getElementById('projecaoLista');
         // Saldo acumulado sempre considera TODOS os eventos em ordem, mesmo os
-        // escondidos pelo filtro — só a exibição da linha é filtrada. Pra não
-        // parecer um salto sem explicação, acumula o efeito dos eventos
-        // escondidos e mostra uma notinha antes da próxima linha visível.
-        let ocultosDelta = 0;
-        let ocultosCount = 0;
-        let algumaLinhaVisivel = false;
+        // escondidos pelo filtro — só a exibição da linha é filtrada.
         const linhasHtml = eventosProjecao.map(ev => {
           saldoAcumulado += ev.valor;
-          if (_projecaoFiltro && ev.tipo !== _projecaoFiltro) {
-            ocultosDelta += ev.valor;
-            ocultosCount++;
-            return '';
-          }
-          const notaOcultos = ocultosCount > 0
-            ? `<div class="projecao-hidden-nota">${ocultosCount === 1 ? '1 outro evento' : ocultosCount + ' outros eventos'} nesse intervalo: ${ocultosDelta >= 0 ? '+' : ''}${brl(ocultosDelta)}</div>`
-            : '';
-          ocultosDelta = 0;
-          ocultosCount = 0;
-          algumaLinhaVisivel = true;
+          if (_projecaoFiltro && ev.tipo !== _projecaoFiltro) return '';
           const cor = ev.valor >= 0 ? 'var(--positive)' : 'var(--negative)';
           const acaoHtml = ev.tipo === 'fatura'
             ? `<button class="btn-item" data-proj-fatura="${ev.acao.estadoKey}" data-proj-fatura-total="${ev.acao.total}" data-proj-fatura-nome="${escapeHtml(ev.acao.nomeCartao)}" data-proj-fatura-mes="${escapeHtml(ev.acao.mesFatura)}" title="Confirmar pagamento" style="color:var(--positive)">✓</button>`
@@ -3585,7 +3569,6 @@
                <button class="btn-item" data-proj-editar="${ev.tipo}:${ev.idx}" title="Editar">✎</button>
                <button class="btn-item" data-proj-excluir="${ev.tipo}:${ev.idx}" title="Excluir" style="color:var(--negative)">✕</button>`;
           return `
-            ${notaOcultos}
             <div class="projecao-row">
               <div class="projecao-info">
                 <div class="projecao-data">${formatData(`${ev.data.getFullYear()}-${String(ev.data.getMonth()+1).padStart(2,'0')}-${String(ev.data.getDate()).padStart(2,'0')}`)}</div>
@@ -3597,9 +3580,7 @@
               </div>
               <div class="projecao-acoes">${acaoHtml}</div>
             </div>`;
-        }).join('') + (algumaLinhaVisivel && ocultosCount > 0
-          ? `<div class="projecao-hidden-nota">${ocultosCount === 1 ? '1 outro evento' : ocultosCount + ' outros eventos'} depois da última linha: ${ocultosDelta >= 0 ? '+' : ''}${brl(ocultosDelta)}</div>`
-          : '');
+        }).join('');
         const filtroAvisoHtml = _projecaoFiltro
           ? `<div class="projecao-filtro-aviso">Mostrando só ${PROJECAO_FILTRO_LABEL[_projecaoFiltro] || _projecaoFiltro} <button id="btnLimparFiltroProjecao" style="background:none;border:none;color:var(--gold);text-decoration:underline;cursor:pointer;font-size:12px;padding:0;">Ver tudo</button></div>`
           : '';
