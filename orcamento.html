@@ -3206,8 +3206,11 @@
 
     // ─── Score de saúde financeira ───────────────────────────────────────────
     function calcularScore(data, reservasAtivas, cats) {
-      const totalReceita = data.receitas.filter(r => !isPendenteEfetivo(r)).reduce((s, r) => s + r.valor, 0);
-      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !isPendenteEfetivo(d)).reduce((s, d) => s + d.valor, 0);
+      // Usa comprometido (só o pendente marcado manualmente, não data futura):
+      // o score reflete o mês planejado, não deve cair só porque o salário
+      // ainda não caiu na conta no dia 1.
+      const totalReceita = data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0);
+      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !d.pendente).reduce((s, d) => s + d.valor, 0);
       const sobra        = totalReceita - totalDespesa;
       const totalAporte  = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
       const totalPlan    = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
@@ -3280,8 +3283,8 @@
           const gasto = data.despesas.filter(d => d.categoria === c.nome && !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
           return gasto > c.limite;
         }).length;
-        const totalReceita = data.receitas.filter(r => !isPendenteEfetivo(r)).reduce((s, r) => s + r.valor, 0);
-        const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !isPendenteEfetivo(d)).reduce((s, d) => s + d.valor, 0);
+        const totalReceita = data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0);
+        const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !d.pendente).reduce((s, d) => s + d.valor, 0);
         const sobraPct = totalReceita > 0 ? ((totalReceita - totalDespesa) / totalReceita * 100).toFixed(0) : 0;
 
         if (componentes.regularidade === 0) {
@@ -3386,7 +3389,7 @@
       // Critério de "comprometido" — gasto que já aconteceu, pago ou não. Usado nos
       // alertas de categoria (Resumo) e no Planejamento, que acompanham comportamento
       // de gasto por categoria, não o caixa exato.
-      const contaComoComprometido = d => !d._faturaAberta && !isPendenteEfetivo(d);
+      const contaComoComprometido = d => !d._faturaAberta && !d.pendente;
       const sobra = saldoConta + totalReceita - totalDespesa;
       const sobraPct = (saldoConta + totalReceita) > 0 ? (sobra / (saldoConta + totalReceita)) * 100 : 0;
       const totalAp = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
@@ -4335,11 +4338,11 @@
       if (!el) return;
 
       const { mes, ano } = data.periodo;
-      const totalReceita = data.receitas.filter(r => !isPendenteEfetivo(r)).reduce((s, r) => s + r.valor, 0);
+      const totalReceita = data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0);
 
       // Planejamento acompanha gasto comprometido por categoria (aconteceu ou não
       // foi pago ainda), diferente do caixa exato do Resumo (Despesa Total/Sobra).
-      const contaComoComprometido = d => !d._faturaAberta && !isPendenteEfetivo(d);
+      const contaComoComprometido = d => !d._faturaAberta && !d.pendente;
 
       // Agrega despesas por categoria
       const porCat = {};
@@ -4607,7 +4610,7 @@
       const el = document.getElementById('graficosContent');
       if (!el) return;
 
-      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !isPendenteEfetivo(d)).reduce((s, d) => s + d.valor, 0);
+      const totalDespesa = data.despesas.filter(d => !(d.cartao && d.fatura) && !d.pendente).reduce((s, d) => s + d.valor, 0);
 
       // Agrega por categoria para a pizza
       const porCat = {};
@@ -4751,7 +4754,7 @@
             buscarPeriodo(m, ano)
               .then(data => ({
                 mes:       m,
-                receita:   data.receitas.filter(r => !isPendenteEfetivo(r)).reduce((s, r) => s + r.valor, 0),
+                receita:   data.receitas.filter(r => !r.pendente).reduce((s, r) => s + r.valor, 0),
                 despesa:   data.despesas.filter(d => !d._faturaAberta).reduce((s, d) => s + d.valor, 0),
                 aporte:    data.aportes.reduce((s, a) => s + a.valor, 0),
                 temDados:  data.receitas.length > 0 || data.despesas.length > 0 || data.aportes.length > 0,
