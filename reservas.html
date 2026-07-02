@@ -594,6 +594,30 @@
     </div>
   </div>
 
+  <!-- Modal de alocação (patrimônio não coberto → reserva existente) -->
+  <div class="modal-overlay hidden" id="modalAlocar">
+    <div class="modal-card">
+      <h2 class="modal-title">Alocar patrimônio a uma reserva</h2>
+      <p class="modal-sub" id="alocarSub">—</p>
+
+      <div class="field-group">
+        <label for="alocarReserva">Reserva</label>
+        <select id="alocarReserva"></select>
+      </div>
+
+      <div class="field-group" id="fgAlocar">
+        <label for="alocarValor">Valor a alocar (R$)</label>
+        <input type="text" inputmode="numeric" id="alocarValor" placeholder="0" />
+        <span class="field-error-msg" id="alocarErro">Informe um valor válido.</span>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarAlocar">Cancelar</button>
+        <button class="btn-save" id="btnConfirmarAlocar">Alocar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal de retirada -->
   <div class="modal-overlay hidden" id="modalRetirada">
     <div class="modal-card">
@@ -1044,7 +1068,7 @@
       const pctCob = fin > 0 ? Math.min((acum / fin) * 100, 100) : 100;
       const absDiff = Math.abs(diff);
 
-      let tipo, titulo, msg;
+      let tipo, titulo, msg, acaoHtml = '';
 
       if (Math.abs(diff) < 1) {
         tipo   = 'ok';
@@ -1053,7 +1077,8 @@
       } else if (diff > 0) {
         tipo   = 'aviso';
         titulo = `⚠ ${brl(absDiff)} do patrimônio não estão em nenhuma reserva`;
-        msg    = `Crie uma nova reserva ou ajuste o acumulado de uma existente para cobrir os ${brl(absDiff)} restantes.`;
+        msg    = `Crie uma nova reserva ou aloque os ${brl(absDiff)} restantes numa existente.`;
+        acaoHtml = `<button class="btn-usar-saldo" id="btnAlocarCobertura" style="margin-top:10px;">Alocar em uma reserva</button>`;
       } else {
         tipo   = 'excesso';
         titulo = `⚠ Reservas excedem o patrimônio em ${brl(absDiff)}`;
@@ -1074,7 +1099,10 @@
             <div class="cobertura-fill" style="width:${pctCob}%"></div>
           </div>
           <div class="cobertura-msg">${msg}</div>
+          ${acaoHtml}
         </div>`;
+
+      document.getElementById('btnAlocarCobertura')?.addEventListener('click', () => abrirModalAlocar(absDiff));
     }
 
     function renderAll() {
@@ -1589,6 +1617,66 @@
       setLoading(btnSalvar, false);
       fecharModal();
       renderAll();
+    });
+
+    // ─── Alocação (patrimônio não coberto → reserva existente) ────────────────
+    const modalAlocar = document.getElementById('modalAlocar');
+    bindMoneyInput(document.getElementById('alocarValor'));
+
+    function abrirModalAlocar(sugestao) {
+      if (!reservas.length) {
+        toast('Crie uma reserva primeiro para poder alocar.', 'warning');
+        return;
+      }
+      document.getElementById('alocarSub').textContent = 'Escolha em qual reserva alocar o valor não coberto.';
+      const sel = document.getElementById('alocarReserva');
+      sel.innerHTML = reservas.map(r =>
+        `<option value="${r.id}">${r.nome} (${brl(r.acumulado)} de ${brl(r.meta)})</option>`
+      ).join('');
+      setMoney(document.getElementById('alocarValor'), sugestao);
+      document.getElementById('fgAlocar').classList.remove('has-error');
+      modalAlocar.classList.remove('hidden');
+    }
+
+    function fecharModalAlocar() {
+      modalAlocar.classList.add('hidden');
+    }
+
+    document.getElementById('btnCancelarAlocar').addEventListener('click', fecharModalAlocar);
+    modalAlocar.addEventListener('click', e => { if (e.target === modalAlocar) fecharModalAlocar(); });
+    document.getElementById('alocarValor').addEventListener('input', () =>
+      document.getElementById('fgAlocar').classList.remove('has-error'));
+
+    document.getElementById('btnConfirmarAlocar').addEventListener('click', async () => {
+      const id  = document.getElementById('alocarReserva').value;
+      const idx = reservas.findIndex(r => r.id === id);
+      if (idx === -1) return;
+
+      const valor  = readMoney(document.getElementById('alocarValor'));
+      const fg     = document.getElementById('fgAlocar');
+      const erroEl = document.getElementById('alocarErro');
+
+      if (!valor || valor <= 0) {
+        erroEl.textContent = 'Informe um valor válido.';
+        fg.classList.add('has-error');
+        return;
+      }
+
+      const btn = document.getElementById('btnConfirmarAlocar');
+      setLoading(btn, true);
+
+      const r = reservas[idx];
+      reservas[idx] = { ...r, acumulado: (r.acumulado || 0) + valor };
+
+      try {
+        await saveReserva(reservas[idx]);
+        fecharModalAlocar();
+        renderAll();
+        toast(`${brl(valor)} alocado em "${r.nome}".`, 'success');
+      } catch (err) {
+        toast(`Erro ao alocar: ${msgErro(err)}`, 'error');
+      }
+      setLoading(btn, false);
     });
 
     // ─── Retirada ─────────────────────────────
