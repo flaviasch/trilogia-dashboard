@@ -2113,6 +2113,13 @@
           <input type="number" id="mRecorrenciaMeses" min="1" max="60" placeholder="Quantos meses?"
             style="width:100%;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;font-family:'Inter',sans-serif;box-sizing:border-box;" />
         </div>
+        <div id="fgFixaFormaPagto" style="display:none;padding-bottom:8px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--text-secondary);user-select:none;margin-bottom:6px;">
+            <input type="checkbox" id="mFixaCartao" style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;" />
+            💳 Cobrada no cartão de crédito (em vez de débito direto)
+          </label>
+          <select id="mFixaCartaoSelecionado" style="display:none;width:100%;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;font-family:'Inter',sans-serif;box-sizing:border-box;"></select>
+        </div>
       </div>
 
       <!-- Pendente: para despesas e receitas -->
@@ -2595,6 +2602,9 @@
         document.getElementById('mRecorrenciaPrazo').checked = false;
         document.getElementById('fgRecorrenciaMeses').style.display = 'none';
         document.getElementById('mRecorrenciaMeses').value  = '';
+        document.getElementById('mFixaCartao').checked      = false;
+        document.getElementById('fgFixaFormaPagto').style.display = 'none';
+        document.getElementById('mFixaCartaoSelecionado').style.display = 'none';
       }
 
       // Mostrar/ocultar opção de cartão conforme tipo (mobile)
@@ -2630,6 +2640,9 @@
           document.getElementById('mVirarFixa').checked        = false;
           document.getElementById('mRecorrenciaPrazo').checked  = false;
           document.getElementById('fgRecorrenciaMeses').style.display = 'none';
+          document.getElementById('mFixaCartao').checked       = false;
+          document.getElementById('fgFixaFormaPagto').style.display = 'none';
+          document.getElementById('mFixaCartaoSelecionado').style.display = 'none';
         }
       }
     }
@@ -2650,11 +2663,20 @@
     });
 
     // Toggle virar fixa / recorrência com prazo — mutuamente exclusivos
+    function atualizarFixaFormaPagtoUI() {
+      const ativo = document.getElementById('mVirarFixa')?.checked || document.getElementById('mRecorrenciaPrazo')?.checked;
+      document.getElementById('fgFixaFormaPagto').style.display = ativo ? '' : 'none';
+      if (!ativo) {
+        document.getElementById('mFixaCartao').checked = false;
+        document.getElementById('mFixaCartaoSelecionado').style.display = 'none';
+      }
+    }
     document.getElementById('mVirarFixa')?.addEventListener('change', () => {
       if (document.getElementById('mVirarFixa').checked) {
         document.getElementById('mRecorrenciaPrazo').checked = false;
         document.getElementById('fgRecorrenciaMeses').style.display = 'none';
       }
+      atualizarFixaFormaPagtoUI();
     });
     document.getElementById('mRecorrenciaPrazo')?.addEventListener('change', () => {
       const on = document.getElementById('mRecorrenciaPrazo').checked;
@@ -2663,6 +2685,11 @@
         document.getElementById('mVirarFixa').checked = false;
         document.getElementById('mRecorrenciaMeses').focus();
       }
+      atualizarFixaFormaPagtoUI();
+    });
+    document.getElementById('mFixaCartao')?.addEventListener('change', function() {
+      document.getElementById('mFixaCartaoSelecionado').style.display = this.checked ? '' : 'none';
+      if (this.checked) preencherSeletorCartoesFixa2(null);
     });
 
     document.getElementById('mCartao').addEventListener('change', () => {
@@ -2749,6 +2776,12 @@
         toast('Informe quantos meses a recorrência deve durar.', 'warning');
         return;
       }
+      const fixaCartao   = (virarFixa || recorrPrazo) && document.getElementById('mFixaCartao')?.checked;
+      const fixaCartaoId = fixaCartao ? (document.getElementById('mFixaCartaoSelecionado')?.value || '') : '';
+      if (fixaCartao && !fixaCartaoId) {
+        toast('Selecione o cartão da despesa fixa.', 'warning');
+        return;
+      }
 
       fecharModal();
       setLoading(btnSalvarItem, true);
@@ -2759,7 +2792,7 @@
           await saveRecorrente({
             categoria, valor, descricao, dia: 1, frequencia: 'mensal',
             mesesRestantes: recorrPrazo ? mesesRecorr : null,
-            ativo: true, cartao: false, cartaoId: '',
+            ativo: true, cartao: !!fixaCartao, cartaoId: fixaCartaoId,
           });
           await carregarRecorrentes();
           toast(virarFixa
@@ -6119,6 +6152,15 @@
       ).join('');
     }
 
+    function preencherSeletorCartoesFixa2(cartaoIdSelecionado) {
+      const sel = document.getElementById('mFixaCartaoSelecionado');
+      if (!sel) return;
+      if (!_cartoes.length) { sel.innerHTML = '<option value="">Nenhum cartão cadastrado</option>'; return; }
+      sel.innerHTML = _cartoes.filter(c => c.ativo).map(c =>
+        `<option value="${c.id}" ${c.id === cartaoIdSelecionado ? 'selected' : ''}>${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`
+      ).join('');
+    }
+
     function preencherSeletorCartoes(cartaoIdSelecionado) {
       const sel = document.getElementById('mCartaoSelecionado');
       if (!sel) return;
@@ -6769,7 +6811,7 @@
       if ((escopo === 'proximos' || escopo === 'todos') && _editRecId) {
         const rec = _recorrentes.find(r => r.id === _editRecId);
         if (rec) {
-          await saveRecorrente({ id: _editRecId, categoria: rec.categoria, valor: novoValor, descricao: novaDesc, dia: rec.dia, ativo: rec.ativo });
+          await saveRecorrente({ ...rec, id: _editRecId, valor: novoValor, descricao: novaDesc });
           await carregarRecorrentes();
         }
       }

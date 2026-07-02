@@ -1042,8 +1042,16 @@ exports.saveRecorrente = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'categoria é obrigatória.');
   if (typeof recorrente.valor !== 'number' || recorrente.valor < 0 || recorrente.valor > 10_000_000)
     throw new HttpsError('invalid-argument', 'valor inválido.');
-  if (!Number.isInteger(recorrente.dia) || recorrente.dia < 1 || recorrente.dia > 28)
-    throw new HttpsError('invalid-argument', 'dia deve ser inteiro entre 1 e 28.');
+
+  const frequencia = ['semanal', 'quinzenal', 'mensal'].includes(recorrente.frequencia) ? recorrente.frequencia : 'mensal';
+  const minDia = frequencia === 'semanal' ? 0 : 1;
+  const maxDia = frequencia === 'quinzenal' ? 14 : 28;
+  if (!Number.isInteger(recorrente.dia) || recorrente.dia < minDia || recorrente.dia > maxDia)
+    throw new HttpsError('invalid-argument', 'dia inválido para a frequência informada.');
+
+  const cartao = recorrente.cartao === true;
+  const mesesRestantes = Number.isInteger(recorrente.mesesRestantes) && recorrente.mesesRestantes >= 0
+    ? recorrente.mesesRestantes : null;
 
   const col = db.collection('mentoradas').doc(uid).collection('recorrentes');
   const dados = {
@@ -1051,7 +1059,11 @@ exports.saveRecorrente = onCall(async (request) => {
     descricao:  (recorrente.descricao || '').trim().slice(0, 500),
     valor:      recorrente.valor,
     dia:        recorrente.dia,
+    frequencia,
+    mesesRestantes,
     ativo:      recorrente.ativo !== false,
+    cartao,
+    cartaoId:   cartao ? String(recorrente.cartaoId || '').slice(0, 200) : '',
   };
 
   if (recorrente.id) {
