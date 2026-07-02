@@ -6428,36 +6428,48 @@
       localStorage.setItem('fixas_puladas', JSON.stringify(toKeep));
     }
 
+    // Dias do mês em que uma recorrente deveria ter um lançamento, conforme a
+    // frequência — semanal/quinzenal têm mais de um por mês, diferente de mensal.
+    function _diasEsperadosRecorrente(r, mes, ano) {
+      const freq = r.frequencia || 'mensal';
+      if (freq === 'semanal')   return diasSemanaNoMes(ano, mes, r.dia);
+      if (freq === 'quinzenal') return [r.dia, r.dia + 14].filter(d => d >= 1 && d <= 31);
+      return [r.dia];
+    }
+
+    // Dias esperados que ainda não têm lançamento no mês — cobre tanto itens já
+    // linkados por recorrenteId quanto lançamentos manuais antigos sem o vínculo
+    // (mesma categoria + valor), pra não duplicar quando a recorrente foi criada
+    // antes do backfill automático existir.
+    function _diasFaltantesRecorrente(r, data) {
+      const { mes, ano } = data.periodo;
+      const esperados = _diasEsperadosRecorrente(r, mes, ano);
+      const ocupados = new Set(
+        data.despesas
+          .filter(d => d.recorrenteId === r.id || (!d.recorrenteId && d.categoria === r.categoria && d.valor === r.valor))
+          .map(d => parseInt((d.data || '').split('-')[2], 10))
+          .filter(d => !isNaN(d))
+      );
+      return esperados.filter(d => !ocupados.has(d));
+    }
+
     // Lança todas as fixas pendentes silenciosamente em meses futuros (sem modal/banner)
     async function autoLancarFixasFuturo(mes, ano) {
       if (!_recorrentes.length) return;
 
-      const jainseridos = new Set(currentData.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
-      const jaLancada = r => currentData.despesas.some(d => !d.recorrenteId && d.categoria === r.categoria && d.valor === r.valor);
-      const pendentes = _recorrentes.filter(r =>
-        r.ativo &&
-        !jainseridos.has(r.id) &&
-        !jaLancada(r) &&
-        !_fixasPuladas.has(r.id + '_' + mes + '_' + ano)
-      );
+      const pendentes = _recorrentes
+        .filter(r => r.ativo && !_fixasPuladas.has(r.id + '_' + mes + '_' + ano))
+        .map(r => ({ r, diasFaltantes: _diasFaltantesRecorrente(r, currentData) }))
+        .filter(({ diasFaltantes }) => diasFaltantes.length > 0);
       if (!pendentes.length) return;
 
       const faturaAtual = `${ano}-${String(mes).padStart(2,'0')}`;
       const novosNoMesAtual = [];
       const novosPorOutraFatura = {};
       const recorrentesRedirecionados = new Set();
-      for (const r of pendentes) {
-        const freq = r.frequencia || 'mensal';
-        let diasDoMes;
-        if (freq === 'semanal') {
-          diasDoMes = diasSemanaNoMes(ano, mes, r.dia);
-        } else if (freq === 'quinzenal') {
-          diasDoMes = [r.dia, r.dia + 14].filter(d => d >= 1 && d <= 31);
-        } else {
-          diasDoMes = [r.dia];
-        }
+      for (const { r, diasFaltantes } of pendentes) {
         const cartaoObj = r.cartao ? _cartoes.find(c => c.id === r.cartaoId) : null;
-        for (const d of diasDoMes) {
+        for (const d of diasFaltantes) {
           const dataStr = `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
           const faturaCalc = (r.cartao && cartaoObj?.diaCorte)
             ? sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1)
@@ -6500,21 +6512,10 @@
     function verificarBannerFixas(data) {
       const banner    = document.getElementById('bannerFixas');
       const indicador = document.getElementById('fixasPendentesIndicador');
-      // Detecção primária: por recorrenteId (lançadas via confirmarSelecaoFixas)
-      const jainseridos = new Set(data.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
-      // Detecção secundária: despesa com mesma categoria + valor no mês (lançada manualmente ou sem recorrenteId)
-      function jaLancadaNoMes(r) {
-        return data.despesas.some(d =>
-          !d.recorrenteId &&
-          d.categoria === r.categoria &&
-          d.valor === r.valor
-        );
-      }
       const pendentes = _recorrentes.filter(r =>
         r.ativo &&
-        !jainseridos.has(r.id) &&
-        !jaLancadaNoMes(r) &&
-        !_fixasPuladas.has(r.id + '_' + data.periodo.mes + '_' + data.periodo.ano)
+        !_fixasPuladas.has(r.id + '_' + data.periodo.mes + '_' + data.periodo.ano) &&
+        _diasFaltantesRecorrente(r, data).length > 0
       );
 
       // Indicador no card de despesas
@@ -6539,12 +6540,10 @@
     // Abre modal de seleção antes de lançar
     function abrirSelecaoFixas() {
       const { mes, ano } = currentData.periodo;
-      const jainseridos = new Set(currentData.despesas.filter(d => d.recorrenteId).map(d => d.recorrenteId));
       const pendentes = _recorrentes.filter(r =>
         r.ativo &&
-        !jainseridos.has(r.id) &&
-        !currentData.despesas.some(d => !d.recorrenteId && d.categoria === r.categoria && d.valor === r.valor) &&
-        !_fixasPuladas.has(r.id + '_' + mes + '_' + ano)
+        !_fixasPuladas.has(r.id + '_' + mes + '_' + ano) &&
+        _diasFaltantesRecorrente(r, currentData).length > 0
       );
       if (!pendentes.length) return;
       const lista = document.getElementById('listaSelecaoFixas');
@@ -6576,17 +6575,8 @@
         const recorrentesRedirecionados = new Set();
 
         for (const r of _recorrentes.filter(r => selecionadas.has(r.id))) {
-          const freq = r.frequencia || 'mensal';
-          let diasDoMes = [];
-          if (freq === 'semanal') {
-            diasDoMes = diasSemanaNoMes(ano, mes, r.dia);
-          } else if (freq === 'quinzenal') {
-            diasDoMes = [r.dia, r.dia + 14].filter(d => d >= 1 && d <= 31);
-          } else {
-            diasDoMes = [r.dia];
-          }
           const cartaoObj = r.cartao ? _cartoes.find(c => c.id === r.cartaoId) : null;
-          for (const d of diasDoMes) {
+          for (const d of _diasFaltantesRecorrente(r, currentData)) {
             const dataStr = `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             // Fixa no cartão: a fatura depende do dia de corte, não do mês exibido
             // (ex: corte já passado joga a cobrança pra fatura do mês seguinte).
