@@ -286,7 +286,7 @@
     .pendencias-section { margin-bottom: 40px; }
     .pendencias-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 16px;
     }
     .pendencia-card {
@@ -1382,6 +1382,12 @@
           </div>
           <div class="pendencia-value gold" id="pendFaturasValor">R$ 0</div>
         </div>
+        <div class="pendencia-card" id="pendCardSaldoFuturo" style="display:none;" title="Saldo Final de hoje já considerando despesas pendentes, receitas pendentes e faturas a vencer">
+          <div class="pendencia-label">
+            <span>📅 Saldo projetado futuro</span>
+          </div>
+          <div class="pendencia-value" id="pendSaldoFuturoValor">R$ 0</div>
+        </div>
       </div>
     </div>
 
@@ -2348,6 +2354,7 @@
     document.getElementById('pendCardDespesas')?.addEventListener('click', () => _abrirProjecaoFiltrada('despesa'));
     document.getElementById('pendCardReceitas')?.addEventListener('click', () => _abrirProjecaoFiltrada('receita'));
     document.getElementById('pendCardFaturas')?.addEventListener('click', () => _abrirProjecaoFiltrada('fatura'));
+    document.getElementById('pendCardSaldoFuturo')?.addEventListener('click', () => _abrirProjecaoFiltrada(null));
 
     // Abreviar labels no mobile para caber em 1 linha
     if (window.innerWidth <= 640) {
@@ -3517,6 +3524,19 @@
         document.getElementById('pendFaturasValor').textContent = brl(totalFaturas);
       } else {
         pendCardFat.style.display = 'none';
+      }
+
+      // Saldo Final de hoje já considerando o que ainda vai bater no caixa
+      // (mesma soma que o Saldo Projetado abaixo termina dando).
+      const pendCardSaldoFuturo = document.getElementById('pendCardSaldoFuturo');
+      if (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0) {
+        const saldoFuturo = saldoFinal + totalReceitaPendente - totalPendente - totalFaturas;
+        pendCardSaldoFuturo.style.display = '';
+        const elSaldoFuturo = document.getElementById('pendSaldoFuturoValor');
+        elSaldoFuturo.textContent = brl(saldoFuturo);
+        elSaldoFuturo.className = 'pendencia-value ' + (saldoFuturo >= 0 ? 'positive' : 'negative');
+      } else {
+        pendCardSaldoFuturo.style.display = 'none';
       }
 
       document.getElementById('pendenciasSection').style.display =
