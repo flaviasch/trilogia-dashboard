@@ -3590,18 +3590,19 @@
         if (fe?.estado === 'paga_total' || fe?.estado === 'paga_parcial') return;
         const [cartaoId, faturaKey] = key.split('_');
         const cartaoObj = _cartoes.find(c => c.id === cartaoId);
-        // Cartão sem dia de vencimento configurado ainda entra na conta (usa
-        // dia 1 como fallback, igual ao resto do código) — senão a fatura
-        // conta no card "Faturas a vencer" mas some da lista, sem explicação.
-        if (!cartaoObj || !faturaKey) return;
+        // Cartão sem dia de vencimento configurado, ou até já excluído, ainda
+        // entra na conta (usa fallback) — senão a fatura conta no card
+        // "Faturas a vencer" mas some da lista, sem explicação.
+        if (!faturaKey) return;
+        const nomeCartao = cartaoObj?.nome || 'Cartão';
         const [fAno, fMes] = faturaKey.split('-').map(Number);
         const totalAjustado = fe?.ajusteTotal ?? total;
         eventosProjecao.push({
-          data: new Date(fAno, fMes - 1, cartaoObj.diaVencimento || 1),
-          label: `${cartaoObj.nome} — fatura`,
+          data: new Date(fAno, fMes - 1, cartaoObj?.diaVencimento || 1),
+          label: `${nomeCartao} — fatura`,
           valor: -totalAjustado,
           tipo: 'fatura',
-          acao: { estadoKey: key, total: totalAjustado, nomeCartao: cartaoObj.nome, mesFatura: `${MESES[fMes - 1]} ${fAno}` },
+          acao: { estadoKey: key, total: totalAjustado, nomeCartao, mesFatura: `${MESES[fMes - 1]} ${fAno}` },
         });
       });
       despesasPendentes.forEach(d => {
