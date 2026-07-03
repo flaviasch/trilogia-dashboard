@@ -6577,6 +6577,25 @@
       return data.despesas.length !== antes;
     }
 
+    // Remove ocorrências geradas automaticamente cujo dia não bate mais com o
+    // dia atual do template da recorrente — ex: usuária mudou o dia de
+    // vencimento e a ocorrência antiga (dia velho) nunca mais vai "casar" com
+    // os dias esperados, ficando como duplicata órfã pra sempre. Só mexe em
+    // itens com recorrenteId (vínculo inequívoco).
+    function _removerOcorrenciasDiaDesatualizado(data) {
+      const { mes, ano } = data.periodo;
+      const antes = data.despesas.length;
+      data.despesas = data.despesas.filter(d => {
+        if (!d.recorrenteId) return true;
+        const r = _recorrentes.find(x => x.id === d.recorrenteId);
+        if (!r) return true;
+        const dia = parseInt((d.data || '').split('-')[2], 10);
+        if (isNaN(dia)) return true;
+        return _diasEsperadosRecorrente(r, mes, ano).includes(dia);
+      });
+      return data.despesas.length !== antes;
+    }
+
     // Despesas fixas no CARTÃO são lançadas automaticamente em cada fatura —
     // diferente das fixas em conta (débito), que ficam pendentes até
     // confirmação manual. Roda ao carregar/trocar de mês (não em todo render).
@@ -6588,6 +6607,12 @@
 
       let mudou = _removerDuplicatasRecorrentes(currentData);
       if (_reconciliarCartaoRecorrentes(currentData)) mudou = true;
+      // Só remove órfãos de dia desatualizado em mês atual/futuro — mês passado
+      // já fechou, e o registro histórico não deve mudar só porque o template
+      // da recorrente foi editado depois.
+      const hoje = new Date();
+      const ehPassado = ano < hoje.getFullYear() || (ano === hoje.getFullYear() && mes < hoje.getMonth() + 1);
+      if (!ehPassado && _removerOcorrenciasDiaDesatualizado(currentData)) mudou = true;
 
       const pendentes = _recorrentes
         .filter(r => r.ativo && r.cartao)
