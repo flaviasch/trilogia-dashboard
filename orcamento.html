@@ -1382,6 +1382,13 @@
           </div>
           <div class="pendencia-value gold" id="pendFaturasValor">R$ 0</div>
         </div>
+        <div class="pendencia-card" id="pendCardCartaoAberto" style="display:none;" title="Compras já feitas no cartão, ainda dentro da fatura em aberto (não fechou o ciclo)">
+          <div class="pendencia-label">
+            <span>🛒 Compras no cartão em aberto</span>
+            <span class="pendencia-badge" id="pendCartaoAbertoBadge">0</span>
+          </div>
+          <div class="pendencia-value gold" id="pendCartaoAbertoValor">R$ 0</div>
+        </div>
         <div class="pendencia-card" id="pendCardSaldoFuturo" style="display:none;" title="Saldo Final de hoje já considerando despesas pendentes, receitas pendentes e faturas a vencer">
           <div class="pendencia-label">
             <span>📅 Saldo projetado futuro</span>
@@ -2354,6 +2361,7 @@
     document.getElementById('pendCardDespesas')?.addEventListener('click', () => _abrirProjecaoFiltrada('despesa'));
     document.getElementById('pendCardReceitas')?.addEventListener('click', () => _abrirProjecaoFiltrada('receita'));
     document.getElementById('pendCardFaturas')?.addEventListener('click', () => _abrirProjecaoFiltrada('fatura'));
+    document.getElementById('pendCardCartaoAberto')?.addEventListener('click', () => ativarTab('faturas'));
     document.getElementById('pendCardSaldoFuturo')?.addEventListener('click', () => _abrirProjecaoFiltrada(null));
 
     // Abreviar labels no mobile para caber em 1 linha
@@ -3454,6 +3462,12 @@
       const totalCartaoCaixa = _ehFuturo
         ? Object.values(gruposFechadaCaixa).reduce((s, v) => s + v, 0)
         : totalCartaoPago;
+      // Compras já feitas mas ainda na fatura ABERTA (ciclo não fechou) — contam
+      // no Planejamento (comprometido) mas não aparecem em caixa, pendentes nem
+      // faturas a vencer (essa é só fatura fechada). Sem isso, sobra uma lacuna
+      // não explicada entre o total do Planejamento e a soma do Resumo.
+      const despesasCartaoAberto = data.despesas.filter(d => d.cartao && d._faturaAberta);
+      const totalCartaoAberto = despesasCartaoAberto.reduce((s, d) => s + d.valor, 0);
       const despesasPendentes = data.despesas.filter(d => isPendenteEfetivo(d) && !(d.cartao && d.fatura));
       const totalPendente = despesasPendentes.reduce((s, d) => s + d.valor, 0);
       const receitasPendentes = data.receitas.filter(r => isPendenteEfetivo(r));
@@ -3526,8 +3540,19 @@
         pendCardFat.style.display = 'none';
       }
 
+      const pendCardCartaoAberto = document.getElementById('pendCardCartaoAberto');
+      if (despesasCartaoAberto.length > 0) {
+        pendCardCartaoAberto.style.display = '';
+        document.getElementById('pendCartaoAbertoBadge').textContent = despesasCartaoAberto.length;
+        document.getElementById('pendCartaoAbertoValor').textContent = brl(totalCartaoAberto);
+      } else {
+        pendCardCartaoAberto.style.display = 'none';
+      }
+
       // Saldo Final de hoje já considerando o que ainda vai bater no caixa
-      // (mesma soma que o Saldo Projetado abaixo termina dando).
+      // (mesma soma que o Saldo Projetado abaixo termina dando). Não inclui
+      // fatura em aberto — o ciclo ainda não fechou, valor/data não estão
+      // definidos, por isso o Saldo Projetado também não antecipa isso.
       const pendCardSaldoFuturo = document.getElementById('pendCardSaldoFuturo');
       if (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0) {
         const saldoFuturo = saldoFinal + totalReceitaPendente - totalPendente - totalFaturas;
@@ -3540,7 +3565,7 @@
       }
 
       document.getElementById('pendenciasSection').style.display =
-        (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0) ? '' : 'none';
+        (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || despesasCartaoAberto.length > 0) ? '' : 'none';
 
       // ── Saldo Projetado ─────────────────────────────────────────────────────
       // Eventos conhecidos ainda não confirmados dentro do mês (faturas fechadas
