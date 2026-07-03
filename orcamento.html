@@ -1381,13 +1381,6 @@
           </div>
           <div class="pendencia-value gold" id="pendFaturasValor">R$ 0</div>
         </div>
-        <div class="pendencia-card" id="pendCardCartaoAberto" style="display:none;" title="Compras já feitas no cartão, ainda dentro da fatura em aberto (não fechou o ciclo)">
-          <div class="pendencia-label">
-            <span>🛒 Compras no cartão em aberto</span>
-            <span class="pendencia-badge" id="pendCartaoAbertoBadge">0</span>
-          </div>
-          <div class="pendencia-value gold" id="pendCartaoAbertoValor">R$ 0</div>
-        </div>
         <div class="pendencia-card" id="pendCardSaldoFuturo" style="display:none;" title="Saldo Final de hoje já considerando despesas pendentes, receitas pendentes e faturas a vencer">
           <div class="pendencia-label">
             <span>📅 Saldo projetado futuro</span>
@@ -2335,7 +2328,6 @@
     document.getElementById('pendCardDespesas')?.addEventListener('click', () => _abrirProjecaoFiltrada('despesa'));
     document.getElementById('pendCardReceitas')?.addEventListener('click', () => _abrirProjecaoFiltrada('receita'));
     document.getElementById('pendCardFaturas')?.addEventListener('click', () => _abrirProjecaoFiltrada('fatura'));
-    document.getElementById('pendCardCartaoAberto')?.addEventListener('click', () => ativarTab('faturas'));
     document.getElementById('pendCardSaldoFuturo')?.addEventListener('click', () => _abrirProjecaoFiltrada(null));
 
     // Abreviar labels no mobile para caber em 1 linha
@@ -3541,15 +3533,6 @@
         pendCardFat.style.display = 'none';
       }
 
-      const pendCardCartaoAberto = document.getElementById('pendCardCartaoAberto');
-      if (despesasCartaoAberto.length > 0) {
-        pendCardCartaoAberto.style.display = '';
-        document.getElementById('pendCartaoAbertoBadge').textContent = despesasCartaoAberto.length;
-        document.getElementById('pendCartaoAbertoValor').textContent = brl(totalCartaoAberto);
-      } else {
-        pendCardCartaoAberto.style.display = 'none';
-      }
-
       // Saldo Final de hoje já considerando o que ainda vai bater no caixa
       // (mesma soma que o Saldo Projetado abaixo termina dando). Não inclui
       // fatura em aberto — o ciclo ainda não fechou, valor/data não estão
@@ -3566,7 +3549,7 @@
       }
 
       document.getElementById('pendenciasSection').style.display =
-        (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || despesasCartaoAberto.length > 0 || fixasVirtuais.length > 0) ? '' : 'none';
+        (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || fixasVirtuais.length > 0) ? '' : 'none';
 
       // Diferença entre comprometido e a reconciliação de caixa — só no mês
       // atual (em mês futuro, despesas pendentes e caixa se sobrepõem de
