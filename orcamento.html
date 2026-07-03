@@ -4048,7 +4048,11 @@
 
       // Grupos por cartão
       const gruposAberta  = {}; // itens da fatura aberta (baseado em hoje)
-      const gruposFechada = {}; // itens do período visualizado que não são a fatura aberta
+      // "cartaoId_fatura" → itens desse grupo — separado por fatura (não só por
+      // cartão) pra bater com o Resumo (gruposFechadaCaixa usa a mesma chave).
+      // Se sobrar um lançamento órfão com fatura antiga, ele vira um card
+      // próprio em vez de ser fundido silenciosamente num card existente.
+      const gruposFechada = {};
       cartoesAtivos.forEach(c => {
         const key = _openKey[c.id];
         const pd  = key ? _periodoAberta[key] : null;
@@ -4059,15 +4063,22 @@
       });
       data.despesas.filter(d => d.cartao && d.cartaoId).forEach(d => {
         if (d.fatura !== _openKey[d.cartaoId]) {
-          if (!gruposFechada[d.cartaoId]) gruposFechada[d.cartaoId] = [];
-          gruposFechada[d.cartaoId].push(d);
+          const key = `${d.cartaoId}_${d.fatura || ''}`;
+          if (!gruposFechada[key]) gruposFechada[key] = [];
+          gruposFechada[key].push(d);
         }
+      });
+      const cartaoIdsDeFechada = new Set(Object.keys(gruposFechada).map(k => k.split('_')[0]));
+      const fechadaKeysPorCartao = {}; // cartaoId → [chaves cartaoId_fatura]
+      Object.keys(gruposFechada).forEach(key => {
+        const cartaoId = key.split('_')[0];
+        (fechadaKeysPorCartao[cartaoId] ||= []).push(key);
       });
 
       const todosIds = [...new Set([
         ...cartoesAtivos.map(c => c.id),
         ...Object.keys(gruposAberta),
-        ...Object.keys(gruposFechada),
+        ...cartaoIdsDeFechada,
       ])];
 
       const IC_E = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
@@ -4126,10 +4137,12 @@
         const nomeCartao  = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
         const limite      = cartaoObj?.limite || 0;
         const abertaItens = gruposAberta[cartaoId] || [];
-        const fechadaItens= gruposFechada[cartaoId] || [];
         const rollover    = (() => {
-          if (!fechadaItens.length) return 0;
-          return _faturaEstados[`${cartaoId}_${fechadaItens[0].fatura || ''}`]?.rollover || 0;
+          for (const key of fechadaKeysPorCartao[cartaoId] || []) {
+            const r = _faturaEstados[key]?.rollover;
+            if (r) return r;
+          }
+          return 0;
         })();
 
         const abertaKey = (() => {
@@ -4199,13 +4212,12 @@
       }).join('');
 
       // ── Constroí cards de faturas FECHADAS (a pagar este mês) ─────────────────
-      const idsFechadas = todosIds.filter(id => gruposFechada[id]?.length);
-      const cardsFechadas = idsFechadas.map(cartaoId => {
+      const idsFechadas = Object.keys(gruposFechada).filter(key => gruposFechada[key]?.length);
+      const cardsFechadas = idsFechadas.map(estadoKey => {
+        const [cartaoId, fechadaKey] = estadoKey.split('_');
         const cartaoObj    = _cartoes.find(c => c.id === cartaoId);
         const nomeCartao   = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
-        const fechadaItens = gruposFechada[cartaoId];
-        const fechadaKey   = fechadaItens[0].fatura || '';
-        const estadoKey    = `${cartaoId}_${fechadaKey}`;
+        const fechadaItens = gruposFechada[estadoKey];
         const fatEstado    = _faturaEstados[estadoKey] || {};
         const [fAno, fMes] = fechadaKey ? fechadaKey.split('-').map(Number) : [0, 0];
         const mesNome      = fAno ? `${MESES[fMes - 1]} ${fAno}` : '—';
@@ -4221,7 +4233,7 @@
           return `<span style="font-size:11px;background:rgba(248,113,113,0.15);color:#f87171;border-radius:20px;padding:2px 8px;font-weight:600;">💸 A pagar</span>`;
         })();
 
-        const cardKey  = `fe_${cartaoId}`;
+        const cardKey  = `fe_${estadoKey}`;
         const expanded = _faturasExpandidas.has(cardKey);
 
         const pagamentoInfo = fatEstado.estado === 'paga_parcial' && fatEstado.rollover
