@@ -6304,9 +6304,11 @@
       const sel = document.getElementById('fixaCartaoSelecionado');
       if (!sel) return;
       if (!_cartoes.length) { sel.innerHTML = '<option value="">Nenhum cartão cadastrado</option>'; return; }
-      sel.innerHTML = _cartoes.filter(c => c.ativo).map(c =>
-        `<option value="${c.id}" ${c.id === cartaoIdSelecionado ? 'selected' : ''}>${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`
-      ).join('');
+      const temSelecionado = _cartoes.some(c => c.id === cartaoIdSelecionado);
+      sel.innerHTML = (temSelecionado ? '' : '<option value="" selected disabled>Selecione o cartão</option>') +
+        _cartoes.filter(c => c.ativo).map(c =>
+          `<option value="${c.id}" ${c.id === cartaoIdSelecionado ? 'selected' : ''}>${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`
+        ).join('');
     }
 
     function preencherSeletorCartoesFixa2(cartaoIdSelecionado) {
@@ -6609,15 +6611,17 @@
       const faturaAtual = `${ano}-${String(mes).padStart(2, '0')}`;
       const novos = [];
       for (const { r, diasFaltantes } of pendentes) {
+        const cartaoObj = _cartoes.find(c => c.id === r.cartaoId);
         for (const d of diasFaltantes) {
+          const dataStr = `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
           novos.push({
             categoria:    r.categoria,
             tipo:         'despesa',
             valor:        r.valor,
             descricao:    r.descricao || '',
-            data:         `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+            data:         dataStr,
             cartao:       true,
-            fatura:       faturaAtual,
+            fatura:       cartaoObj?.diaCorte ? sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1) : faturaAtual,
             cartaoId:     r.cartaoId || '',
             origem:       'recorrente',
             recorrenteId: r.id,
@@ -6841,6 +6845,7 @@
 
       if (!categoria) return mostrarToast('Selecione uma categoria.');
       if (isNaN(valor) || valor < 0) return mostrarToast('Informe um valor válido.');
+      if (cartao && !cartaoId) return mostrarToast('Selecione o cartão.');
       if (frequencia === 'semanal') {
         if (isNaN(dia) || dia < 0 || dia > 6) return mostrarToast('Selecione o dia da semana.');
       } else if (frequencia === 'quinzenal') {
