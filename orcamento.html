@@ -337,7 +337,7 @@
     .projecao-data { font-size: 11px; color: var(--text-muted); }
     .projecao-label { font-size: 13px; color: var(--white); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .projecao-valores { text-align: right; flex-shrink: 0; }
-    .projecao-acoes { display: flex; gap: 4px; flex-shrink: 0; }
+    .projecao-acoes { display: flex; gap: 4px; flex-shrink: 0; justify-content: flex-end; min-width: 92px; }
     .projecao-filtro-aviso { font-size: 12px; color: var(--text-muted); padding: 10px 0; display: flex; align-items: center; gap: 8px; }
     .projecao-valor { font-size: 13px; font-weight: 600; }
     .projecao-saldo { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
@@ -1353,18 +1353,6 @@
           <div class="resumo-value" id="totalSaldoFinal" style="color:#4ade80;">—</div>
           <div class="resumo-sub" id="saldoFinalSub">saldo + receita − despesa − aporte</div>
         </div>
-      </div>
-    </div>
-
-    <!-- Alerta de reconciliação: soma dos lançamentos do mês (comprometido) deve
-         bater com caixa + pendentes + faturas a vencer + compras em aberto. Se
-         não bater, algo ficou fora de alguma categoria (item duplicado, cartão/
-         fatura desatualizados etc.) — avisa em vez de deixar passar em silêncio. -->
-    <div class="alertas-banner" id="reconciliacaoAlerta" style="display:none;margin-bottom:24px;">
-      <div class="alertas-banner-icon">⚠️</div>
-      <div>
-        <div class="alertas-banner-title">Diferença de <span id="reconciliacaoValor">R$ 0</span> não explicada este mês</div>
-        <div style="font-size:12px;color:var(--text-secondary);">A soma de tudo que está lançado não bate com caixa + pendentes + faturas + compras em aberto. Confira os lançamentos do mês (duplicados, cartão sem fatura, etc.) na aba Detalhe.</div>
       </div>
     </div>
 
@@ -2414,6 +2402,13 @@
     let perfilInvestidor = null;
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
     let _projecaoFiltro = null; // 'despesa' | 'receita' | 'fatura' | null (mostra tudo)
+
+    // Diferença entre o comprometido do mês (soma de tudo lançado) e a
+    // reconciliação de caixa (caixa + pendentes + faturas + compras em
+    // aberto), calculada no render() do Resumo. O Planejamento usa isso pra
+    // criar uma categoria "Lançamentos não identificados" e fazer o
+    // realizado bater com o fluxo de caixa, em vez de só avisar a diferença.
+    let _diffNaoIdentificadoMes = 0;
     let _tabAtiva = 'resumo';
     const _periodoCache = new Map(); // { '2026-5': { data, cats } }
     const _invalPeriodo = (m, a) => _periodoCache.delete(`${a}-${m}`);
@@ -3557,21 +3552,16 @@
       document.getElementById('pendenciasSection').style.display =
         (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || despesasCartaoAberto.length > 0) ? '' : 'none';
 
-      // Alerta de reconciliação — só no mês atual (em mês futuro, despesas
-      // pendentes e caixa se sobrepõem de propósito, não dá pra comparar 1:1).
-      const reconciliacaoAlerta = document.getElementById('reconciliacaoAlerta');
+      // Diferença entre comprometido e a reconciliação de caixa — só no mês
+      // atual (em mês futuro, despesas pendentes e caixa se sobrepõem de
+      // propósito, não dá pra comparar 1:1). O Planejamento usa isso pra
+      // criar a categoria "Lançamentos não identificados" (ver renderPlanejamento).
       if (!_ehFuturo) {
         const totalComprometidoMes = data.despesas.reduce((s, d) => s + d.valor, 0);
         const totalReconciliado = totalDespesa + totalPendente + totalFaturas + totalCartaoAberto;
-        const diffReconciliacao = totalComprometidoMes - totalReconciliado;
-        if (Math.abs(diffReconciliacao) > 1) {
-          reconciliacaoAlerta.style.display = '';
-          document.getElementById('reconciliacaoValor').textContent = brl(Math.abs(diffReconciliacao));
-        } else {
-          reconciliacaoAlerta.style.display = 'none';
-        }
+        _diffNaoIdentificadoMes = totalComprometidoMes - totalReconciliado;
       } else {
-        reconciliacaoAlerta.style.display = 'none';
+        _diffNaoIdentificadoMes = 0;
       }
 
       // ── Saldo Projetado ─────────────────────────────────────────────────────
@@ -4476,6 +4466,14 @@
         porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
       });
 
+      // O realizado tem que bater com a reconciliação de caixa (caixa +
+      // pendentes + faturas + compras em aberto, calculada no Resumo). Se não
+      // bater, em vez de sumir a diferença, ela vira uma categoria própria —
+      // assim o total do Planejamento sempre coincide com o fluxo de caixa.
+      const CATEGORIA_AJUSTE = 'Lançamentos não identificados — verificar';
+      const temAjuste = Math.abs(_diffNaoIdentificadoMes) > 1;
+      if (temAjuste) porCat[CATEGORIA_AJUSTE] = -_diffNaoIdentificadoMes;
+
       // Todas as categorias (union: despesas reais + categorias planejadas)
       const todasCats = [...new Set([
         ...Object.keys(porCat),
@@ -4520,7 +4518,8 @@
 
       // Totais
       const totalPlan = cats.reduce((s, c) => s + (c.limite || 0), 0);
-      const totalReal = data.despesas.filter(contaComoComprometido).reduce((s, d) => s + d.valor, 0);
+      const totalReal = data.despesas.filter(contaComoComprometido).reduce((s, d) => s + d.valor, 0)
+        + (temAjuste ? -_diffNaoIdentificadoMes : 0);
 
       // Linhas da tabela
       const linhas = todasCats.map(cat => {
