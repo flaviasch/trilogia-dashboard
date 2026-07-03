@@ -1357,6 +1357,18 @@
       </div>
     </div>
 
+    <!-- Alerta de reconciliação: soma dos lançamentos do mês (comprometido) deve
+         bater com caixa + pendentes + faturas a vencer + compras em aberto. Se
+         não bater, algo ficou fora de alguma categoria (item duplicado, cartão/
+         fatura desatualizados etc.) — avisa em vez de deixar passar em silêncio. -->
+    <div class="alertas-banner" id="reconciliacaoAlerta" style="display:none;margin-bottom:24px;">
+      <div class="alertas-banner-icon">⚠️</div>
+      <div>
+        <div class="alertas-banner-title">Diferença de <span id="reconciliacaoValor">R$ 0</span> não explicada este mês</div>
+        <div style="font-size:12px;color:var(--text-secondary);">A soma de tudo que está lançado não bate com caixa + pendentes + faturas + compras em aberto. Confira os lançamentos do mês (duplicados, cartão sem fatura, etc.) na aba Detalhe.</div>
+      </div>
+    </div>
+
     <!-- Pendências e Alertas -->
     <div class="pendencias-section" id="pendenciasSection" style="display:none;">
       <h2 style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:16px;">Pendências e Alertas</h2>
@@ -3566,6 +3578,23 @@
 
       document.getElementById('pendenciasSection').style.display =
         (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || despesasCartaoAberto.length > 0) ? '' : 'none';
+
+      // Alerta de reconciliação — só no mês atual (em mês futuro, despesas
+      // pendentes e caixa se sobrepõem de propósito, não dá pra comparar 1:1).
+      const reconciliacaoAlerta = document.getElementById('reconciliacaoAlerta');
+      if (!_ehFuturo) {
+        const totalComprometidoMes = data.despesas.reduce((s, d) => s + d.valor, 0);
+        const totalReconciliado = totalDespesa + totalPendente + totalFaturas + totalCartaoAberto;
+        const diffReconciliacao = totalComprometidoMes - totalReconciliado;
+        if (Math.abs(diffReconciliacao) > 1) {
+          reconciliacaoAlerta.style.display = '';
+          document.getElementById('reconciliacaoValor').textContent = brl(Math.abs(diffReconciliacao));
+        } else {
+          reconciliacaoAlerta.style.display = 'none';
+        }
+      } else {
+        reconciliacaoAlerta.style.display = 'none';
+      }
 
       // ── Saldo Projetado ─────────────────────────────────────────────────────
       // Eventos conhecidos ainda não confirmados dentro do mês (faturas fechadas
