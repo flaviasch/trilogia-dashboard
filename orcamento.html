@@ -3451,7 +3451,11 @@
       const totalPendente = despesasPendentes.reduce((s, d) => s + d.valor, 0);
       const receitasPendentes = data.receitas.filter(r => isPendenteEfetivo(r));
       const totalReceitaPendente = receitasPendentes.reduce((s, r) => s + r.valor, 0);
-      const totalDespesa  = data.despesas.filter(d => !isPendenteEfetivo(d) && !d._faturaAberta && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0) + totalCartaoCaixa;
+      // Em mês futuro, "pendente por data" não diz nada (tudo é futuro) — conta
+      // tudo, igual já acontece com o totalCartaoCaixa acima. Só no mês atual a
+      // distinção caixa (já sensibilizou) x pendente (ainda não) faz sentido.
+      const _contaComoCaixa = d => _ehFuturo || !isPendenteEfetivo(d);
+      const totalDespesa  = data.despesas.filter(d => _contaComoCaixa(d) && !d._faturaAberta && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0) + totalCartaoCaixa;
       // Critério de "comprometido" — tudo que está lançado, pago ou não, pendente
       // ou não: se está no sistema, vai acontecer (senão, o lançamento é excluído).
       // Usado nos alertas de categoria (Resumo) e no Planejamento.
@@ -3695,7 +3699,7 @@
       // Resumo: agrupa por categoria (detalhe item a item está na aba Detalhe)
       const despList = document.getElementById('despesasList');
       const _gruposResumo = {};
-      data.despesas.filter(d => !d._faturaAberta).forEach(d => {
+      data.despesas.filter(d => _contaComoCaixa(d) && !d._faturaAberta).forEach(d => {
         if (!_gruposResumo[d.categoria]) _gruposResumo[d.categoria] = { total: 0, n: 0 };
         _gruposResumo[d.categoria].total += d.valor;
         _gruposResumo[d.categoria].n++;
