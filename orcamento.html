@@ -1136,7 +1136,7 @@
     @media print {
       .navbar, .bottom-nav, .tabs-bar, .upload-banner, .breadcrumb,
       .aporte-strip, .btn-add-item, .item-actions, .btn-upload,
-      .suporte-btn, .suporte-popover, #bannerAlertasLimite,
+      .suporte-btn, .suporte-popover, #bannerFixas, #bannerAlertasLimite,
       .period-selector, #btnExportarPDF, #ritmoBox, .grafico-section,
       #buscaDetalhe, #btnLimparBusca, #btnGerenciarFixas { display: none !important; }
 
@@ -1333,6 +1333,7 @@
           <div class="resumo-label" style="display:flex;align-items:center;gap:5px;">Despesa Total<span title="Conta só o que já saiu (ou fatura confirmada como paga) do caixa. Para ver o total comprometido por categoria, veja Planejamento." style="cursor:help;opacity:0.6;font-size:11px;">ⓘ</span></div>
           <div class="resumo-value negative" id="totalDespesa">—</div>
           <div class="resumo-sub" id="pctDespesa">—</div>
+          <div id="fixasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;cursor:pointer;"></div>
           <div id="faturasPendentesIndicador" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;">💳 <span id="faturasPendentesValor"></span> a vencer</div>
           <div id="despesasPendentesIndicador" style="display:none;font-size:11px;color:var(--text-muted);margin-top:2px;">⏳ <span id="despesasPendentesValor"></span> pendente</div>
         </div>
@@ -1430,6 +1431,18 @@
       <!-- Banner alertas de limite de categoria -->
       <div id="bannerAlertasLimite" style="display:none;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25);border-radius:12px;padding:16px 20px;margin-bottom:16px;"></div>
 
+      <!-- Banner despesas fixas pendentes -->
+      <div id="bannerFixas" style="display:none;background:rgba(207,174,101,0.1);border:1px solid rgba(207,174,101,0.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <span id="bannerFixasTexto" style="font-size:13px;color:var(--gold);font-weight:600;"></span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button id="btnBannerLancarFixas" class="btn-primary" style="font-size:12px;padding:6px 14px;">Selecionar e lançar</button>
+            <button id="btnBannerPularMes" class="btn-secondary" style="font-size:12px;padding:6px 10px;" title="Não lançar este mês (as fixas continuam ativas nos próximos meses)">Pular este mês</button>
+            <button id="btnBannerGerenciarFixas" class="btn-secondary" style="font-size:12px;padding:6px 10px;">Gerenciar</button>
+            <button id="btnBannerDismissFixas" style="background:none;border:none;color:var(--text-secondary);font-size:18px;cursor:pointer;line-height:1;padding:0 2px;margin-left:auto;">×</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Modal importar notificação do cartão (SMS/push) -->
   <div id="modalSMS" class="modal-overlay hidden">
@@ -1688,6 +1701,19 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal seleção de fixas para lançar -->
+      <div id="modalSelecionarFixas" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width:460px;width:94%;">
+          <h3 style="font-family:'Playfair Display',serif;font-size:17px;margin:0 0 6px;">Selecionar despesas fixas</h3>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Desmarque as que não deseja lançar este mês.</p>
+          <div id="listaSelecaoFixas" style="margin-bottom:16px;max-height:260px;overflow-y:auto;"></div>
+          <div style="display:flex;gap:10px;">
+            <button id="btnConfirmarSelecaoFixas" class="btn-primary" style="flex:1;font-size:14px;">Lançar selecionadas</button>
+            <button id="btnCancelarSelecaoFixas" class="btn-secondary" style="font-size:14px;padding:10px 16px;">Cancelar</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Receitas (colapsável) -->
       <div class="section" id="secaoReceitas">
@@ -3236,12 +3262,8 @@
       if (catResult.status === 'fulfilled')    categoriasMes = catResult.value || [];
       if (fatEstResult.status === 'fulfilled') _faturaEstados = fatEstResult.value || {};
 
-      // Carrega recorrentes em paralelo (sem bloquear o render) e lança as
-      // fixas pendentes do mês automaticamente; re-renderiza só se algo mudou.
-      carregarRecorrentes().then(async () => {
-        const mudou = await autoLancarFixasPendentes(mes, ano);
-        if (mudou) render(currentData);
-      });
+      // Carrega recorrentes em paralelo (sem bloquear o render)
+      carregarRecorrentes().then(() => verificarBannerFixas(currentData));
 
       try {
         render(currentData);
@@ -5412,10 +5434,14 @@
       mes--;
       if (mes < 1) { mes = 12; ano--; }
       currentData = await buscarPeriodo(mes, ano);
-      if (await autoLancarFixasPendentes(mes, ano)) {
+      const agora = new Date();
+      const ehFuturo = (ano * 12 + mes) > (agora.getFullYear() * 12 + agora.getMonth() + 1);
+      if (ehFuturo) {
+        await autoLancarFixasFuturo(mes, ano);
         currentData = await buscarPeriodo(mes, ano);
       }
       render(currentData);
+      verificarBannerFixas(currentData);
     });
 
     document.getElementById('btnNext').addEventListener('click', async () => {
@@ -5427,11 +5453,14 @@
       mes++;
       if (mes > 12) { mes = 1; ano++; }
       currentData = await buscarPeriodo(mes, ano);
-      if (await autoLancarFixasPendentes(mes, ano)) {
+      const ehFuturo = (ano * 12 + mes) > (agora.getFullYear() * 12 + agora.getMonth() + 1);
+      if (ehFuturo) {
+        await autoLancarFixasFuturo(mes, ano);
         // Recarrega do backend para que _faturaAberta seja calculado corretamente
         currentData = await buscarPeriodo(mes, ano);
       }
       render(currentData);
+      verificarBannerFixas(currentData);
     });
 
     // ─── Upload CSV ───────────────────────────
@@ -5513,10 +5542,8 @@
 
           if (mesSalvar === mesAtual && anoSalvar === anoAtual) {
             currentData = await buscarPeriodo(mesAtual, anoAtual);
-            if (await autoLancarFixasPendentes(mesAtual, anoAtual)) {
-              currentData = await buscarPeriodo(mesAtual, anoAtual);
-            }
             render(currentData);
+            verificarBannerFixas(currentData);
             toast('Raio-X importado com sucesso!', 'success');
           } else {
             toast(`Raio-X importado para ${MESES[mesSalvar - 1]} de ${anoSalvar} ✓`, 'success');
@@ -6462,6 +6489,28 @@
 
     let _recorrentes = [];
 
+    // IDs de fixas puladas — persiste em localStorage para sobreviver a reloads
+    const _fixasPuladas = (() => {
+      const s = new Set();
+      try {
+        JSON.parse(localStorage.getItem('fixas_puladas') || '[]').forEach(k => s.add(k));
+      } catch {}
+      return s;
+    })();
+
+    function salvarFixasPuladas() {
+      // Mantém apenas mês atual + anterior para não crescer indefinidamente
+      const agora   = new Date();
+      const mesAtual = agora.getMonth() + 1, anoAtual = agora.getFullYear();
+      const prevMes  = mesAtual === 1 ? 12 : mesAtual - 1;
+      const prevAno  = mesAtual === 1 ? anoAtual - 1 : anoAtual;
+      const toKeep = [..._fixasPuladas].filter(k => {
+        const p = k.split('_'); const mes = +p[p.length - 2], ano = +p[p.length - 1];
+        return (mes === mesAtual && ano === anoAtual) || (mes === prevMes && ano === prevAno);
+      });
+      localStorage.setItem('fixas_puladas', JSON.stringify(toKeep));
+    }
+
     // Dias do mês em que uma recorrente deveria ter um lançamento, conforme a
     // frequência — semanal/quinzenal têm mais de um por mês, diferente de mensal.
     function _diasEsperadosRecorrente(r, mes, ano) {
@@ -6519,28 +6568,22 @@
       return mudou;
     }
 
-    // Lança automaticamente as fixas pendentes do mês (atual ou futuro) — sem
-    // banner nem confirmação manual. Se uma fixa não devia ter sido lançada,
-    // o jeito de corrigir é excluir o lançamento na lista, não "pular o mês".
-    // Retorna true se algo foi criado/corrigido (pra saber se precisa re-renderizar).
-    async function autoLancarFixasPendentes(mes, ano) {
-      if (!_recorrentes.length) return false;
+    // Lança todas as fixas pendentes silenciosamente em meses futuros (sem modal/banner)
+    async function autoLancarFixasFuturo(mes, ano) {
+      if (!_recorrentes.length) return;
 
-      const corrigiuCartao = _reconciliarCartaoRecorrentes(currentData);
+      if (_reconciliarCartaoRecorrentes(currentData)) await salvarEAtualizar();
 
       const pendentes = _recorrentes
-        .filter(r => r.ativo)
+        .filter(r => r.ativo && !_fixasPuladas.has(r.id + '_' + mes + '_' + ano))
         .map(r => ({ r, diasFaltantes: _diasFaltantesRecorrente(r, currentData) }))
         .filter(({ diasFaltantes }) => diasFaltantes.length > 0);
-
-      if (!pendentes.length) {
-        if (corrigiuCartao) await salvarEAtualizar();
-        return corrigiuCartao;
-      }
+      if (!pendentes.length) return;
 
       const faturaAtual = `${ano}-${String(mes).padStart(2,'0')}`;
       const novosNoMesAtual = [];
       const novosPorOutraFatura = {};
+      const recorrentesRedirecionados = new Set();
       for (const { r, diasFaltantes } of pendentes) {
         const cartaoObj = r.cartao ? _cartoes.find(c => c.id === r.cartaoId) : null;
         for (const d of diasFaltantes) {
@@ -6564,6 +6607,7 @@
             novosNoMesAtual.push(item);
           } else {
             (novosPorOutraFatura[faturaCalc] ||= []).push(item);
+            recorrentesRedirecionados.add(r.id);
           }
         }
       }
@@ -6577,8 +6621,160 @@
         await saveOrcamento(fMes, fAno, itensExistentes);
         _invalPeriodo(fMes, fAno);
       }
-      return true;
+      recorrentesRedirecionados.forEach(id => _fixasPuladas.add(id + '_' + mes + '_' + ano));
+      if (recorrentesRedirecionados.size) salvarFixasPuladas();
     }
+
+    // Verifica recorrentes não lançadas e não puladas — exibe/oculta banner e indicador
+    function verificarBannerFixas(data) {
+      const banner    = document.getElementById('bannerFixas');
+      const indicador = document.getElementById('fixasPendentesIndicador');
+      const pendentes = _recorrentes.filter(r =>
+        r.ativo &&
+        !_fixasPuladas.has(r.id + '_' + data.periodo.mes + '_' + data.periodo.ano) &&
+        _diasFaltantesRecorrente(r, data).length > 0
+      );
+
+      // Indicador no card de despesas
+      if (indicador) {
+        if (pendentes.length) {
+          indicador.textContent = `+ ${pendentes.length} fixa${pendentes.length > 1 ? 's' : ''} pendente${pendentes.length > 1 ? 's' : ''} 🔄`;
+          indicador.style.display = '';
+        } else {
+          indicador.style.display = 'none';
+        }
+      }
+
+      if (!banner) return;
+      if (!pendentes.length) { banner.style.display = 'none'; return; }
+      const n = pendentes.length;
+      const nomeMes = MESES[data.periodo.mes - 1];
+      document.getElementById('bannerFixasTexto').textContent =
+        `🔄 ${n} despesa${n > 1 ? 's fixas' : ' fixa'} pendente${n > 1 ? 's' : ''} em ${nomeMes}`;
+      banner.style.display = '';
+    }
+
+    // Abre modal de seleção antes de lançar
+    function abrirSelecaoFixas() {
+      const { mes, ano } = currentData.periodo;
+      const pendentes = _recorrentes.filter(r =>
+        r.ativo &&
+        !_fixasPuladas.has(r.id + '_' + mes + '_' + ano) &&
+        _diasFaltantesRecorrente(r, currentData).length > 0
+      );
+      if (!pendentes.length) return;
+      const lista = document.getElementById('listaSelecaoFixas');
+      lista.innerHTML = pendentes.map(r => `
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+          <input type="checkbox" checked value="${r.id}" style="width:16px;height:16px;accent-color:var(--gold);flex-shrink:0;">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;">${escapeHtml(r.descricao || r.categoria)}</div>
+            <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(r.categoria)} · dia ${r.dia}</div>
+          </div>
+          <span style="font-weight:700;color:var(--negative);">${brl(r.valor)}</span>
+        </label>`).join('');
+      document.getElementById('modalSelecionarFixas').classList.remove('hidden');
+    }
+
+    // Confirma e lança as fixas selecionadas
+    async function confirmarSelecaoFixas() {
+      const { mes, ano } = currentData.periodo;
+      const checks = document.querySelectorAll('#listaSelecaoFixas input[type=checkbox]');
+      const selecionadas = new Set([...checks].filter(c => c.checked).map(c => c.value));
+      if (!selecionadas.size) { mostrarToast('Selecione ao menos uma despesa.'); return; }
+
+      const btn = document.getElementById('btnConfirmarSelecaoFixas');
+      btn.disabled = true; btn.textContent = 'Lançando…';
+      try {
+        const faturaAtual = `${ano}-${String(mes).padStart(2,'0')}`;
+        const novosNoMesAtual = [];
+        const novosPorOutraFatura = {}; // "YYYY-MM" (fatura diferente do mês visualizado) -> itens[]
+        const recorrentesRedirecionados = new Set();
+
+        for (const r of _recorrentes.filter(r => selecionadas.has(r.id))) {
+          const cartaoObj = r.cartao ? _cartoes.find(c => c.id === r.cartaoId) : null;
+          for (const d of _diasFaltantesRecorrente(r, currentData)) {
+            const dataStr = `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            // Fixa no cartão: a fatura depende do dia de corte, não do mês exibido
+            // (ex: corte já passado joga a cobrança pra fatura do mês seguinte).
+            const faturaCalc = (r.cartao && cartaoObj?.diaCorte)
+              ? sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1)
+              : faturaAtual;
+            const item = {
+              categoria:    r.categoria,
+              tipo:         'despesa',
+              valor:        r.valor,
+              descricao:    r.descricao || '',
+              data:         dataStr,
+              cartao:       !!r.cartao,
+              fatura:       r.cartao ? faturaCalc : '',
+              cartaoId:     r.cartaoId || '',
+              origem:       'recorrente',
+              recorrenteId: r.id,
+            };
+            if (!r.cartao || faturaCalc === faturaAtual) {
+              novosNoMesAtual.push(item);
+            } else {
+              (novosPorOutraFatura[faturaCalc] ||= []).push(item);
+              recorrentesRedirecionados.add(r.id);
+            }
+          }
+        }
+
+        currentData.despesas.push(...novosNoMesAtual);
+        await salvarEAtualizar();
+
+        for (const [faturaKey, itensNovos] of Object.entries(novosPorOutraFatura)) {
+          const [fAno, fMes] = faturaKey.split('-').map(Number);
+          const itensExistentes = await getOrcamento(fMes, fAno);
+          itensExistentes.push(...itensNovos);
+          await saveOrcamento(fMes, fAno, itensExistentes);
+          _invalPeriodo(fMes, fAno);
+        }
+
+        // Não pertencem ao mês exibido (foram pra outra fatura) — marca como
+        // tratadas aqui pra não ficarem pendentes indefinidamente neste mês.
+        recorrentesRedirecionados.forEach(id => _fixasPuladas.add(id + '_' + mes + '_' + ano));
+        if (recorrentesRedirecionados.size) salvarFixasPuladas();
+
+        const totalNovos = novosNoMesAtual.length + Object.values(novosPorOutraFatura).reduce((s, a) => s + a.length, 0);
+
+        // Decrementa mesesRestantes nas despesas com prazo determinado
+        const limitadas = _recorrentes.filter(r => selecionadas.has(r.id) && r.mesesRestantes != null);
+        for (const r of limitadas) {
+          const novoMeses = r.mesesRestantes - 1;
+          await saveRecorrente({ ...r, mesesRestantes: novoMeses, ativo: novoMeses > 0 });
+        }
+        if (limitadas.length) await carregarRecorrentes();
+
+        document.getElementById('modalSelecionarFixas').classList.add('hidden');
+        verificarBannerFixas(currentData);
+        mostrarToast(`${totalNovos} lançamento${totalNovos > 1 ? 's' : ''} criado${totalNovos > 1 ? 's' : ''}!` +
+          (recorrentesRedirecionados.size ? ' Alguma(s) foram pra fatura de outro mês.' : ''));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Lançar selecionadas';
+      }
+    }
+
+    document.getElementById('btnBannerLancarFixas')?.addEventListener('click', abrirSelecaoFixas);
+    document.getElementById('fixasPendentesIndicador')?.addEventListener('click', () => abrirSelecaoFixas());
+    document.getElementById('btnBannerGerenciarFixas')?.addEventListener('click', abrirModalFixas);
+    document.getElementById('btnBannerPularMes')?.addEventListener('click', () => {
+      const { mes, ano } = currentData.periodo;
+      _recorrentes.filter(r => r.ativo).forEach(r => _fixasPuladas.add(r.id + '_' + mes + '_' + ano));
+      salvarFixasPuladas();
+      verificarBannerFixas(currentData);
+      mostrarToast('Fixas puladas este mês. Voltarão no próximo.');
+    });
+    document.getElementById('btnBannerDismissFixas')?.addEventListener('click', () => {
+      document.getElementById('bannerFixas').style.display = 'none';
+    });
+    document.getElementById('btnConfirmarSelecaoFixas')?.addEventListener('click', confirmarSelecaoFixas);
+    document.getElementById('btnCancelarSelecaoFixas')?.addEventListener('click', () =>
+      document.getElementById('modalSelecionarFixas').classList.add('hidden'));
+    document.getElementById('modalSelecionarFixas')?.addEventListener('click', e => {
+      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
 
     async function carregarRecorrentes() {
       try { _recorrentes = await getRecorrentes(); }
@@ -6845,7 +7041,7 @@
     // ─── Mover modais para fora das tab-panes ────────────────────────────────
     // Modais têm position:fixed, mas um pai com display:none os oculta mesmo assim.
     // Ao mover para body, ficam visíveis em qualquer aba ativa.
-    ['modalSMS','modalParcelamento','modalCartaoDespesa','modalCartoes'].forEach(id => {
+    ['modalSMS','modalParcelamento','modalCartaoDespesa','modalCartoes','modalSelecionarFixas'].forEach(id => {
       const el = document.getElementById(id);
       if (el) document.body.appendChild(el);
     });
