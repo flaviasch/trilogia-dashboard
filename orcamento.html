@@ -3428,6 +3428,14 @@
           gruposFechadaCaixa[key] = (gruposFechadaCaixa[key] || 0) + d.valor;
         }
       });
+      // Fatura com ajuste manual confirmado (ajusteTotal) não pode sumir só
+      // porque nenhum lançamento individual ficou com essa fatura — o ajuste é
+      // o valor real da conta física, independente de existir item detalhado.
+      Object.entries(_faturaEstados).forEach(([key, fe]) => {
+        if (fe?.estado === 'paga_total' || key in gruposFechadaCaixa) return;
+        const cartaoId = key.split('_')[0];
+        if (_cartoes.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixa[key] = 0;
+      });
       let totalFaturas    = 0; // fatura fechada ainda não confirmada como paga ("a vencer")
       let totalCartaoPago = 0; // fatura fechada já confirmada (total ou parte paga)
       if (!_ehFuturo) {
@@ -4062,6 +4070,14 @@
           gruposFechada[key].push(d);
         }
       });
+      // Fatura com ajuste manual confirmado (ajusteTotal) não pode sumir da lista
+      // só porque nenhum lançamento individual ficou com essa fatura — o ajuste
+      // é o valor real da conta física, independente de existir item detalhado.
+      Object.entries(_faturaEstados).forEach(([key, fe]) => {
+        if (fe?.estado === 'paga_total' || key in gruposFechada) return;
+        const cartaoId = key.split('_')[0];
+        if (cartoesAtivos.some(c => c.id === cartaoId)) gruposFechada[key] = [];
+      });
       const cartaoIdsDeFechada = new Set(Object.keys(gruposFechada).map(k => k.split('_')[0]));
       const fechadaKeysPorCartao = {}; // cartaoId → [chaves cartaoId_fatura]
       Object.keys(gruposFechada).forEach(key => {
@@ -4206,7 +4222,7 @@
       }).join('');
 
       // ── Constroí cards de faturas FECHADAS (a pagar este mês) ─────────────────
-      const idsFechadas = Object.keys(gruposFechada).filter(key => gruposFechada[key]?.length);
+      const idsFechadas = Object.keys(gruposFechada);
       const cardsFechadas = idsFechadas.map(estadoKey => {
         const [cartaoId, fechadaKey] = estadoKey.split('_');
         const cartaoObj    = _cartoes.find(c => c.id === cartaoId);
