@@ -6584,6 +6584,9 @@
     // Despesas fixas no CARTÃO são lançadas automaticamente em cada fatura —
     // diferente das fixas em conta (débito), que ficam pendentes até
     // confirmação manual. Roda ao carregar/trocar de mês (não em todo render).
+    // Sempre entra no mês exibido (não redireciona pelo dia de corte, ao
+    // contrário de um lançamento avulso de cartão) — a fixa é sobre "este mês
+    // tem esse gasto", não sobre em qual fatura ele tecnicamente cai.
     async function autoLancarFixasCartao(mes, ano) {
       if (!_recorrentes.length) return false;
 
@@ -6601,44 +6604,25 @@
       }
 
       const faturaAtual = `${ano}-${String(mes).padStart(2, '0')}`;
-      const novosNoMesAtual = [];
-      const novosPorOutraFatura = {};
+      const novos = [];
       for (const { r, diasFaltantes } of pendentes) {
-        const cartaoObj = _cartoes.find(c => c.id === r.cartaoId);
         for (const d of diasFaltantes) {
-          const dataStr = `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          const faturaCalc = cartaoObj?.diaCorte
-            ? sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1)
-            : faturaAtual;
-          const item = {
+          novos.push({
             categoria:    r.categoria,
             tipo:         'despesa',
             valor:        r.valor,
             descricao:    r.descricao || '',
-            data:         dataStr,
+            data:         `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
             cartao:       true,
-            fatura:       faturaCalc,
+            fatura:       faturaAtual,
             cartaoId:     r.cartaoId || '',
             origem:       'recorrente',
             recorrenteId: r.id,
-          };
-          if (faturaCalc === faturaAtual) {
-            novosNoMesAtual.push(item);
-          } else {
-            (novosPorOutraFatura[faturaCalc] ||= []).push(item);
-          }
+          });
         }
       }
-      currentData.despesas.push(...novosNoMesAtual);
+      currentData.despesas.push(...novos);
       await salvarEAtualizar();
-
-      for (const [faturaKey, itensNovos] of Object.entries(novosPorOutraFatura)) {
-        const [fAno, fMes] = faturaKey.split('-').map(Number);
-        const itensExistentes = await getOrcamento(fMes, fAno);
-        itensExistentes.push(...itensNovos);
-        await saveOrcamento(fMes, fAno, itensExistentes);
-        _invalPeriodo(fMes, fAno);
-      }
       return true;
     }
 
