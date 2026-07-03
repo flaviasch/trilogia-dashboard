@@ -4061,9 +4061,12 @@
           if (items.length) gruposAberta[c.id] = items;
         }
       });
-      data.despesas.filter(d => d.cartao && d.cartaoId).forEach(d => {
+      // Sem "&& d.cartaoId" — um item marcado cartão mas sem cartão vinculado
+      // (dado inconsistente) precisa aparecer aqui pra dar pra editar/excluir,
+      // senão fica contando no Resumo mas invisível na aba Faturas.
+      data.despesas.filter(d => d.cartao).forEach(d => {
         if (d.fatura !== _openKey[d.cartaoId]) {
-          const key = `${d.cartaoId}_${d.fatura || ''}`;
+          const key = `${d.cartaoId || ''}_${d.fatura || ''}`;
           if (!gruposFechada[key]) gruposFechada[key] = [];
           gruposFechada[key].push(d);
         }
