@@ -4650,6 +4650,7 @@
       // Linhas da tabela
       const linhas = todasCats.map(cat => {
         const plan  = cats.find(c => _normCat(c.nome) === _normCat(cat));
+        if (!plan) console.log('[debug renderPlanejamento] SEM MATCH para', JSON.stringify(cat), '| cats.length=', cats.length, '| nomes=', cats.map(c => c.nome));
         const limite = plan?.limite || 0;
         const real   = porCat[cat] || 0;
         const pct    = limite > 0 ? Math.min(real / limite * 100, 200) : 0;
