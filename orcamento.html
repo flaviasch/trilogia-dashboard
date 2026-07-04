@@ -5277,6 +5277,7 @@
         // (mesma fonte que um reload usaria), evitando a tela ficar com um
         // limite "não definido" que já está salvo (achado em 04/07/2026).
         categoriasMes = await getCategoriasMes(mes, ano);
+        console.log('[debug btnSalvarLimite]', 'nomeCat=', JSON.stringify(nomeCat), 'limite=', limite, 'categoriasMes.length=', categoriasMes.length, 'encontrado=', categoriasMes.find(c => _normCat(c.nome) === _normCat(nomeCat)));
         // Re-renderiza as abas que dependem de limites
         render(currentData);
         if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
