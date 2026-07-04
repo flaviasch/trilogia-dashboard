@@ -5277,7 +5277,6 @@
         // (mesma fonte que um reload usaria), evitando a tela ficar com um
         // limite "não definido" que já está salvo (achado em 04/07/2026).
         categoriasMes = await getCategoriasMes(mes, ano);
-        console.log('[debug btnSalvarLimite]', 'nomeCat=', JSON.stringify(nomeCat), 'limite=', limite, 'categoriasMes.length=', categoriasMes.length, 'encontrado=', categoriasMes.find(c => _normCat(c.nome) === _normCat(nomeCat)));
         // Re-renderiza as abas que dependem de limites
         render(currentData);
         if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
@@ -5547,7 +5546,14 @@
             nota: a.categoria !== 'Aporte efetivado' ? a.categoria : '',
           })),
         };
-        _periodoCache.set(key, { data, cats: catsLimpo });
+        // Buscas em segundo plano (afetaGlobal=false) nunca gravam no cache —
+        // senão uma resposta lenta e desatualizada (ex: histórico anual ainda
+        // buscando o mês atual desde o carregamento da página) pode sobrescrever
+        // um cache mais recente desse mesmo mês com dado antigo, e a próxima
+        // navegação de volta pra esse mês pegaria a versão errada (achado em
+        // 04/07/2026 — mesmo depois do fix de não sobrescrever categoriasMes
+        // diretamente, o cache ainda podia ficar poluído).
+        if (afetaGlobal) _periodoCache.set(key, { data, cats: catsLimpo });
         return data;
       } catch (err) {
         toast(msgErro(err), 'error');
