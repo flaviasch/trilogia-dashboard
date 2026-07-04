@@ -3322,7 +3322,7 @@
       let ptsOrcamento = 75; // neutro se sem limites
       if (catsComLimite.length > 0) {
         const estouradas = catsComLimite.filter(c => {
-          const gasto = data.despesas.filter(d => d.categoria === c.nome).reduce((s, d) => s + d.valor, 0);
+          const gasto = data.despesas.filter(d => _normCat(d.categoria) === _normCat(c.nome)).reduce((s, d) => s + d.valor, 0);
           return gasto > c.limite;
         }).length;
         if (estouradas === 0)      ptsOrcamento = 100;
@@ -3364,7 +3364,7 @@
         const totalPlan   = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
         const catsComLimite = (categoriasMes || []).filter(c => c.limite > 0);
         const nEstouradas = catsComLimite.filter(c => {
-          const gasto = data.despesas.filter(d => d.categoria === c.nome).reduce((s, d) => s + d.valor, 0);
+          const gasto = data.despesas.filter(d => _normCat(d.categoria) === _normCat(c.nome)).reduce((s, d) => s + d.valor, 0);
           return gasto > c.limite;
         }).length;
         const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
@@ -3800,17 +3800,24 @@
       // ── Despesas — lista plana no Resumo ────────────────────────────────────
       // Resumo: agrupa por categoria (detalhe item a item está na aba Detalhe)
       const despList = document.getElementById('despesasList');
-      const _gruposResumo = {};
+      const _gruposResumoNorm = {};
       data.despesas.filter(d => _contaComoCaixa(d) && !d._faturaAberta).forEach(d => {
-        if (!_gruposResumo[d.categoria]) _gruposResumo[d.categoria] = { total: 0, n: 0 };
-        _gruposResumo[d.categoria].total += d.valor;
-        _gruposResumo[d.categoria].n++;
+        const norm = _normCat(d.categoria);
+        if (!_gruposResumoNorm[norm]) _gruposResumoNorm[norm] = { total: 0, n: 0, labels: {} };
+        _gruposResumoNorm[norm].total += d.valor;
+        _gruposResumoNorm[norm].n++;
+        _gruposResumoNorm[norm].labels[d.categoria] = (_gruposResumoNorm[norm].labels[d.categoria] || 0) + 1;
+      });
+      const _gruposResumo = {};
+      Object.values(_gruposResumoNorm).forEach(g => {
+        const label = Object.entries(g.labels).sort((a, b) => b[1] - a[1])[0][0];
+        _gruposResumo[label] = g;
       });
       const _ordemResumo = Object.keys(_gruposResumo).sort((a, b) => _gruposResumo[b].total - _gruposResumo[a].total);
       despList.innerHTML = _ordemResumo.map(catNome => {
           const g = _gruposResumo[catNome];
           const pDesp = totalDespesa > 0 ? (g.total / totalDespesa) * 100 : 0;
-          const catPlan = categoriasMes.find(c => c.nome === catNome);
+          const catPlan = categoriasMes.find(c => _normCat(c.nome) === _normCat(catNome));
           const ultrapassou = catPlan?.limite > 0 && g.total > catPlan.limite;
           const sub = [
             `${g.n} lançamento${g.n > 1 ? 's' : ''}`,
@@ -3915,7 +3922,7 @@
       if (bannerAlertaEl) {
         const alertasResumo = categoriasMes
           .map(cat => {
-            const real = data.despesas.filter(d => d.categoria === cat.nome && contaComoComprometido(d)).reduce((s, d) => s + d.valor, 0);
+            const real = data.despesas.filter(d => _normCat(d.categoria) === _normCat(cat.nome) && contaComoComprometido(d)).reduce((s, d) => s + d.valor, 0);
             if (!cat.limite || real === 0) return null;
             const p = real / cat.limite * 100;
             if (p < 80) return null;
@@ -5243,8 +5250,13 @@
       try {
         // Merge feito no servidor (transaction) — evita que outra aba/dispositivo
         // com dados desatualizados na memória sobrescreva esta edição.
-        categoriasMes = await upsertCategoriaLimite(mes, ano, nomeCat, limite);
+        await upsertCategoriaLimite(mes, ano, nomeCat, limite);
         _invalPeriodo(mes, ano);
+        // Busca os limites de novo do banco em vez de confiar só no retorno da
+        // mutação — garante que a tela reflita exatamente o que foi persistido
+        // (mesma fonte que um reload usaria), evitando a tela ficar com um
+        // limite "não definido" que já está salvo (achado em 04/07/2026).
+        categoriasMes = await getCategoriasMes(mes, ano);
         // Re-renderiza as abas que dependem de limites
         render(currentData);
         if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
