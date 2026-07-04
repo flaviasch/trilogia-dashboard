@@ -2394,10 +2394,6 @@
     let reservas = [];
     let perfilInvestidor = null;
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
-    // Debug temporário (04/07/2026) — inspecionar o valor real em memória via
-    // console: window._debugCategoriasMes() e window._debugTabAtiva().
-    window._debugCategoriasMes = () => categoriasMes;
-    window._debugTabAtiva = () => _tabAtiva;
     let _projecaoFiltro = null; // 'despesa' | 'receita' | 'fatura' | null (mostra tudo)
 
     // Diferença entre o comprometido do mês (soma de tudo lançado) e a
@@ -2408,7 +2404,7 @@
     let _diffNaoIdentificadoMes = 0;
     let _tabAtiva = 'resumo';
     const _periodoCache = new Map(); // { '2026-5': { data, cats } }
-    const _invalPeriodo = (m, a) => { const _k = `${a}-${m}`; const _tinha = _periodoCache.has(_k); _periodoCache.delete(_k); console.log('[debug _invalPeriodo]', _k, 'tinha cache?', _tinha); };
+    const _invalPeriodo = (m, a) => _periodoCache.delete(`${a}-${m}`);
     let _pizzaInstance = null;
     let dadosMesAnterior = {}; // { categoria: total } — carregado ao abrir aba Detalhe
 
@@ -4081,7 +4077,7 @@
         if (!key) return;
         const [kAno, kMes] = key.split('-').map(Number);
         if (kMes === data.periodo.mes && kAno === data.periodo.ano) { _periodoAberta[key] = data; return; }
-        try { _periodoAberta[key] = await buscarPeriodo(kMes, kAno); } catch (_) { _periodoAberta[key] = { despesas: [] }; }
+        try { _periodoAberta[key] = await buscarPeriodo(kMes, kAno, false); } catch (_) { _periodoAberta[key] = { despesas: [] }; }
       }));
 
       // Grupos por cartão
@@ -4650,7 +4646,6 @@
       // Linhas da tabela
       const linhas = todasCats.map(cat => {
         const plan  = cats.find(c => _normCat(c.nome) === _normCat(cat));
-        if (!plan) console.log('[debug renderPlanejamento] SEM MATCH para', JSON.stringify(cat), '| cats.length=', cats.length, '| nomes=', cats.map(c => c.nome));
         const limite = plan?.limite || 0;
         const real   = porCat[cat] || 0;
         const pct    = limite > 0 ? Math.min(real / limite * 100, 200) : 0;
@@ -4959,7 +4954,7 @@
 
         const resultados = await Promise.all(
           meses3.map(({ mes: m, ano: a }) =>
-            buscarPeriodo(m, a).catch(() => ({ receitas: [], despesas: [], aportes: [], periodo: { mes: m, ano: a } }))
+            buscarPeriodo(m, a, false).catch(() => ({ receitas: [], despesas: [], aportes: [], periodo: { mes: m, ano: a } }))
           )
         );
 
@@ -5013,7 +5008,7 @@
       const [resultados, scoresHistorico] = await Promise.all([
         Promise.all(
           Array.from({ length: mesAtual }, (_, i) => i + 1).map(m =>
-            buscarPeriodo(m, ano)
+            buscarPeriodo(m, ano, false)
               .then(data => ({
                 mes:       m,
                 receita:   data.receitas.reduce((s, r) => s + r.valor, 0),
@@ -5371,7 +5366,7 @@
       const promises = [];
       for (let m = 1; m <= mesAtual; m++) {
         promises.push(
-          buscarPeriodo(m, ano)
+          buscarPeriodo(m, ano, false)
             .then(data => {
               const totalAp = data.aportes.reduce((s, a) => s + a.valor, 0);
               const temDados = data.receitas.length > 0 || data.despesas.length > 0 || totalAp > 0;
@@ -5519,12 +5514,17 @@
     }
 
     // ─── Navegação de período ─────────────────
-    async function buscarPeriodo(mes, ano) {
+    // afetaGlobal=false é usado por buscas em segundo plano (faturas abertas de
+    // outros meses, gráfico anual, histórico de aportes) — essas NUNCA devem
+    // sobrescrever `categoriasMes`/`currentData`, senão o último mês buscado em
+    // background "vence" e corrompe o que está sendo exibido (achado em
+    // 04/07/2026: navegar de mês disparava buscas de outros meses ao fundo pro
+    // Saldo Projetado, e a última delas ficava valendo pro mês em tela).
+    async function buscarPeriodo(mes, ano, afetaGlobal = true) {
       const key = `${ano}-${mes}`;
       const cached = _periodoCache.get(key);
       if (cached) {
-        console.log('[debug buscarPeriodo]', key, 'CACHE HIT, cats.length=', (cached.cats || []).length);
-        categoriasMes = cached.cats;
+        if (afetaGlobal) categoriasMes = cached.cats;
         return cached.data;
       }
       try {
@@ -5532,8 +5532,8 @@
           getOrcamento(mes, ano),
           getCategoriasMes(mes, ano),
         ]);
-        console.log('[debug buscarPeriodo]', key, 'CACHE MISS (fetch fresco), cats.length=', (cats || []).length);
-        categoriasMes = cats || [];
+        const catsLimpo = cats || [];
+        if (afetaGlobal) categoriasMes = catsLimpo;
         const _saldoItemB = itens.find(i => i.tipo === 'receita' && i.categoria === '__saldo_conta__');
         const data = {
           periodo:    { mes, ano },
@@ -5546,7 +5546,7 @@
             nota: a.categoria !== 'Aporte efetivado' ? a.categoria : '',
           })),
         };
-        _periodoCache.set(key, { data, cats: categoriasMes });
+        _periodoCache.set(key, { data, cats: catsLimpo });
         return data;
       } catch (err) {
         toast(msgErro(err), 'error');
@@ -5636,9 +5636,10 @@
           const anoSalvar = detectado?.ano ?? anoAtual;
 
           // Carrega dados do período alvo para preservar manuais/recorrentes/parcelamentos
+          // (afetaGlobal=false: mês alvo pode ser diferente do exibido na tela)
           const dadosAlvo = (mesSalvar === mesAtual && anoSalvar === anoAtual)
             ? currentData
-            : await buscarPeriodo(mesSalvar, anoSalvar);
+            : await buscarPeriodo(mesSalvar, anoSalvar, false);
 
           // Normaliza a categoria do CSV contra as já existentes no mês alvo —
           // evita criar "Alimentação"/"alimentação" como categorias diferentes
