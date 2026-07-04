@@ -3594,8 +3594,12 @@
         // Compras em fatura aberta ficam de fora dos dois lados da conta —
         // não são "comprometido" (Planejamento) nem entram na reconciliação
         // de caixa (correção em 04/07/2026, ver contaComoComprometido acima).
+        // totalFixasVirtuais entra como "pendente" — são despesas fixas em
+        // conta já conhecidas (recorrentes) mas ainda não lançadas de verdade
+        // neste mês; sem isso, "Despesas Pendentes" (que já soma essa parcela)
+        // não batia com o Realizado do Planejamento (achado em 04/07/2026).
         const totalComprometidoMes = data.despesas.filter(d => !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
-        const totalReconciliado = totalDespesa + totalPendente + totalFaturas;
+        const totalReconciliado = totalDespesa + totalPendente + totalFaturas + totalFixasVirtuais;
         _diffNaoIdentificadoMes = totalComprometidoMes - totalReconciliado;
       } else {
         _diffNaoIdentificadoMes = 0;
