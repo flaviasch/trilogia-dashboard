@@ -2199,7 +2199,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=22';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=23';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
 
@@ -5575,7 +5575,7 @@
 
           // Salva todos os itens do CSV normalmente (fixa entra como lançamento regular)
           const itens = [...itensCsv.map(({ fixa: _f, ...i }) => ({ ...i, origem: 'csv' })), ...preservar];
-          await saveOrcamento(mesSalvar, anoSalvar, itens);
+          await saveOrcamento(mesSalvar, anoSalvar, itens, true); // substituição intencional (novo CSV)
           _invalPeriodo(mesSalvar, anoSalvar);
 
           if (mesSalvar === mesAtual && anoSalvar === anoAtual) {
@@ -5628,7 +5628,7 @@
           vistos.add(chave);
           return true;
         });
-      if (!dryRun) await saveOrcamento(mes, ano, limpos);
+      if (!dryRun) await saveOrcamento(mes, ano, limpos, true); // substituição intencional (dedup)
       return { aplicado: !dryRun, totalAntes: itens.length, totalDepois: limpos.length, duplicadosRemovidos: duplicados.length, itensDuplicados: duplicados };
     };
 

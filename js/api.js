@@ -151,9 +151,13 @@ export async function getOrcamento(mes, ano) {
  * @param {number} mes
  * @param {number} ano
  * @param {Array<{categoria: string, tipo: 'receita'|'despesa', valor: number}>} itens
+ * @param {boolean} [permitirReducao] - confirma que uma redução grande da lista
+ *   (ou o desaparecimento de um tipo inteiro de lançamento) é intencional.
+ *   Só usar em substituições completas de propósito (import de CSV, dedup) —
+ *   deixar de fora em qualquer fluxo que só deveria adicionar/editar itens.
  */
-export async function saveOrcamento(mes, ano, itens) {
-  return call('saveOrcamento')({ uid: uidAtual(), mes, ano, itens });
+export async function saveOrcamento(mes, ano, itens, permitirReducao) {
+  return call('saveOrcamento')({ uid: uidAtual(), mes, ano, itens, ...(permitirReducao ? { permitirReducao: true } : {}) });
 }
 
 export async function atualizarRecorrenteEmTodos(recorrenteId, valor, descricao) {

@@ -727,7 +727,7 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
  */
 exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
-  const { uid, mes, ano, itens } = request.data;
+  const { uid, mes, ano, itens, permitirReducao } = request.data;
   requireSelfOrAdmin(request, uid);
   await checkRateLimit(uid, 'saveOrcamento', 30, 60_000); // 30/min
 
@@ -761,20 +761,63 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
   const col    = db.collection('mentoradas').doc(uid).collection('orcamento');
 
-  // Separa itens por mês de origem (_sourceMes/_sourceAno = campos opcionais vindos do frontend)
-  const itensPorOrigem = {}; // key → array de itens (sem os campos _source*)
+  // Separa itens por mês de origem (_sourceMes/_sourceAno = campos opcionais vindos do
+  // frontend) e remove campos ephemeral/computados pelo backend na leitura
+  // (_sourceMes, _sourceAno, _faturaAberta) — nunca devem ser persistidos de volta,
+  // senão "vazam" e o item passa a carregar um estado antigo/errado permanentemente
+  // (achado em 04/07/2026, mesma causa raiz do incidente de duplicação).
+  const itensPorOrigem = {}; // key → array de itens (sem os campos ephemeral)
   for (const it of itens) {
     const srcMes = it._sourceMes ?? mes;
     const srcAno = it._sourceAno ?? ano;
     const key    = `${srcAno}-${String(srcMes).padStart(2, '0')}`;
-    const { _sourceMes, _sourceAno, ...clean } = it;
+    const { _sourceMes, _sourceAno, _faturaAberta, ...clean } = it;
     if (!itensPorOrigem[key]) itensPorOrigem[key] = [];
     itensPorOrigem[key].push(clean);
   }
 
   // Para o mês atual: grava direto (substitui tudo — comportamento histórico)
   const itensMesAtual = itensPorOrigem[mesKey] || [];
-  await col.doc(mesKey).set({
+
+  // ── Histórico de versões + trava de encolhimento suspeito (04/07/2026) ──
+  // saveOrcamento sempre substitui a lista inteira do mês. Se algum fluxo do
+  // frontend rodar com um estado em memória desatualizado (ex: aba antiga,
+  // corrida entre sessões), ele apaga silenciosamente o que não está na lista
+  // enviada — foi exatamente assim que receitas e saldo em conta sumiram em
+  // 03/07/2026. Toda escrita agora guarda a versão anterior (recuperável) e
+  // bloqueia sobrescritas que fariam sumir um tipo inteiro de lançamento ou
+  // encolheriam a lista pela metade, a menos que o chamador confirme de
+  // propósito com permitirReducao=true (usado só por import de CSV e pela
+  // ferramenta de dedup, que são substituições intencionais).
+  const docRef    = col.doc(mesKey);
+  const antesSnap = await docRef.get();
+  const itensAntes = antesSnap.exists ? (antesSnap.data().itens || []) : [];
+
+  if (itensAntes.length > 0) {
+    await docRef.collection('versoes').add({
+      itens: itensAntes,
+      salvoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    // Mantém só as últimas ~30 versões por mês (poda progressiva, evita
+    // crescimento sem limite já que salvarEAtualizar roda a cada ação).
+    const antigasSnap = await docRef.collection('versoes').orderBy('salvoEm', 'desc').offset(30).limit(20).get();
+    antigasSnap.forEach(d => d.ref.delete().catch(() => {}));
+
+    if (!permitirReducao) {
+      const tiposPerdidos = ['receita', 'despesa', 'aporte'].filter(tipo =>
+        itensAntes.some(i => i.tipo === tipo) && !itensMesAtual.some(i => i.tipo === tipo)
+      );
+      const encolheuMuito = itensMesAtual.length < itensAntes.length * 0.5;
+      if (tiposPerdidos.length > 0 || encolheuMuito) {
+        throw new HttpsError('failed-precondition',
+          `Salvamento bloqueado por segurança: iria de ${itensAntes.length} para ${itensMesAtual.length} itens` +
+          (tiposPerdidos.length ? ` e apagaria todos os lançamentos de ${tiposPerdidos.join(', ')}` : '') +
+          '. Recarregue a página e tente de novo — se o problema persistir, isso pode indicar dados desatualizados na tela.');
+      }
+    }
+  }
+
+  await docRef.set({
     uid, mes, ano, itens: itensMesAtual,
     atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
   });
