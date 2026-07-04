@@ -1311,7 +1311,7 @@ exports.getCategoriasMes = onCall(async (request) => {
  */
 exports.saveCategoriasMes = onCall(async (request) => {
   requireAuth(request);
-  const { uid, mes, ano, categorias } = request.data;
+  const { uid, mes, ano, categorias, permitirReducao } = request.data;
   requireSelfOrAdmin(request, uid);
 
   if (!Array.isArray(categorias)) throw new HttpsError('invalid-argument', 'categorias deve ser um array.');
@@ -1321,11 +1321,31 @@ exports.saveCategoriasMes = onCall(async (request) => {
     if (c.limite != null && (typeof c.limite !== 'number' || c.limite < 0)) throw new HttpsError('invalid-argument', 'Limite inválido.');
   }
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
-  await db.collection('mentoradas').doc(uid)
-    .collection('planejamento').doc(mesKey).set({
-      categorias,
-      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  const ref = db.collection('mentoradas').doc(uid).collection('planejamento').doc(mesKey);
+
+  // Histórico de versão + trava de encolhimento suspeito (mesma proteção do
+  // saveOrcamento) — achado em 04/07/2026: "Copiar de mês anterior" substituía
+  // a lista inteira e apagava categorias que só existiam no mês atual.
+  const antesSnap = await ref.get();
+  const categoriasAntes = antesSnap.exists ? (antesSnap.data().categorias || []) : [];
+  if (categoriasAntes.length > 0) {
+    await ref.collection('versoes').add({
+      categorias: categoriasAntes,
+      salvoEm: admin.firestore.FieldValue.serverTimestamp(),
     });
+    const antigasSnap = await ref.collection('versoes').orderBy('salvoEm', 'desc').offset(30).limit(20).get();
+    antigasSnap.forEach(d => d.ref.delete().catch(() => {}));
+
+    if (!permitirReducao && categorias.length < categoriasAntes.length * 0.5) {
+      throw new HttpsError('failed-precondition',
+        `Salvamento bloqueado por segurança: iria de ${categoriasAntes.length} para ${categorias.length} categorias. Recarregue a página e tente de novo.`);
+    }
+  }
+
+  await ref.set({
+    categorias,
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
   return { ok: true };
 });
 

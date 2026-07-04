@@ -4834,16 +4834,29 @@
       btn.disabled = true;
       btn.textContent = '⏳ Copiando...';
       try {
-        const cats = await getCategoriasMes(mesPrev, anoPrev);
-        if (!cats || cats.length === 0) {
+        const catsPrev = await getCategoriasMes(mesPrev, anoPrev);
+        if (!catsPrev || catsPrev.length === 0) {
           toast(`Nenhum planejamento encontrado em ${nomeMesCurto(mesPrev, anoPrev)}.`, 'info');
           return;
         }
-        await saveCategoriasMes(mes, ano, cats);
+        // Mescla com as categorias já existentes neste mês — nunca sobrescreve.
+        // Antes substituía a lista inteira, apagando limites recém-definidos que
+        // só existiam no mês atual (achado em 04/07/2026: "Ajuste de fatura" e
+        // "Despesas financeiras" sumiram depois de clicar aqui).
+        const atuais = await getCategoriasMes(mes, ano);
+        const mesclado = [...atuais];
+        let adicionadas = 0;
+        catsPrev.forEach(cPrev => {
+          const jaExiste = mesclado.some(c => _normCat(c.nome) === _normCat(cPrev.nome));
+          if (!jaExiste) { mesclado.push(cPrev); adicionadas++; }
+        });
+        await saveCategoriasMes(mes, ano, mesclado);
         _invalPeriodo(mes, ano);
-        categoriasMes = cats;
+        categoriasMes = mesclado;
         renderPlanejamento(currentData, categoriasMes);
-        toast(`Planejamento de ${nomeMesCurto(mesPrev, anoPrev)} copiado!`, 'success');
+        toast(adicionadas > 0
+          ? `${adicionadas} categoria${adicionadas > 1 ? 's' : ''} de ${nomeMesCurto(mesPrev, anoPrev)} adicionada${adicionadas > 1 ? 's' : ''} — as que você já tinha em ${nomeMesCurto(mes, ano)} foram mantidas.`
+          : `Você já tem todas as categorias de ${nomeMesCurto(mesPrev, anoPrev)} — nada novo pra adicionar.`, 'success', 6000);
       } catch (err) {
         toast('Erro ao copiar planejamento.', 'error');
       } finally {
