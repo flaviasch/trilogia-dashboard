@@ -5619,13 +5619,15 @@
       const itens = await getOrcamento(mes, ano);
       const vistos = new Set();
       const duplicados = [];
-      const limpos = itens.filter(it => {
-        if (it.tipo === 'aporte') return true;
-        const chave = JSON.stringify([it.tipo, it.categoria, it.descricao, it.valor, it.data, it.cartaoId || '', it.fatura || '', it.recorrenteId || '']);
-        if (vistos.has(chave)) { duplicados.push(it); return false; }
-        vistos.add(chave);
-        return true;
-      });
+      const limpos = itens
+        .filter(it => it._sourceMes == null) // nunca reenvia itens emprestados de outro mês
+        .filter(it => {
+          if (it.tipo === 'aporte') return true;
+          const chave = JSON.stringify([it.tipo, it.categoria, it.descricao, it.valor, it.data, it.cartaoId || '', it.fatura || '', it.recorrenteId || '']);
+          if (vistos.has(chave)) { duplicados.push(it); return false; }
+          vistos.add(chave);
+          return true;
+        });
       if (!dryRun) await saveOrcamento(mes, ano, limpos);
       return { aplicado: !dryRun, totalAntes: itens.length, totalDepois: limpos.length, duplicadosRemovidos: duplicados.length, itensDuplicados: duplicados };
     };
