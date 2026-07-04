@@ -2750,7 +2750,14 @@
           itensFatura.push(novoItem);
           await saveOrcamento(fatMes, fatAno, itensFatura);
           _invalPeriodo(fatMes, fatAno);
-          toast(`💳 Salvo na fatura de ${MESES[fatMes - 1]} — visualize navegando para aquele mês.`, 'success', 5000);
+          const { mes: mesVisAtual, ano: anoVisAtual } = currentData.periodo;
+          if (fatMes === mesVisAtual && fatAno === anoVisAtual) {
+            currentData = await buscarPeriodo(fatMes, fatAno);
+            render(currentData);
+            toast('💳 Lançamento salvo na fatura.', 'success');
+          } else {
+            toast(`💳 Salvo na fatura de ${MESES[fatMes - 1]} — visualize navegando para aquele mês.`, 'success', 5000);
+          }
         } catch (err) {
           toast('Erro ao salvar na fatura.', 'error');
         } finally {
