@@ -2394,6 +2394,10 @@
     let reservas = [];
     let perfilInvestidor = null;
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
+    // Debug temporário (04/07/2026) — inspecionar o valor real em memória via
+    // console: window._debugCategoriasMes() e window._debugTabAtiva().
+    window._debugCategoriasMes = () => categoriasMes;
+    window._debugTabAtiva = () => _tabAtiva;
     let _projecaoFiltro = null; // 'despesa' | 'receita' | 'fatura' | null (mostra tudo)
 
     // Diferença entre o comprometido do mês (soma de tudo lançado) e a
@@ -3473,12 +3477,6 @@
       const totalCartaoCaixa = _ehFuturo
         ? Object.values(gruposFechadaCaixa).reduce((s, v) => s + v, 0)
         : totalCartaoPago;
-      // Compras já feitas mas ainda na fatura ABERTA (ciclo não fechou) — contam
-      // no Planejamento (comprometido) mas não aparecem em caixa, pendentes nem
-      // faturas a vencer (essa é só fatura fechada). Sem isso, sobra uma lacuna
-      // não explicada entre o total do Planejamento e a soma do Resumo.
-      const despesasCartaoAberto = data.despesas.filter(d => d.cartao && d._faturaAberta);
-      const totalCartaoAberto = despesasCartaoAberto.reduce((s, d) => s + d.valor, 0);
       const despesasPendentes = data.despesas.filter(d => isPendenteEfetivo(d) && !(d.cartao && d.fatura));
       const totalPendente = despesasPendentes.reduce((s, d) => s + d.valor, 0);
       // Despesas fixas em CONTA (débito, não cartão) ainda não lançadas neste
@@ -3503,10 +3501,14 @@
       // distinção caixa (já sensibilizou) x pendente (ainda não) faz sentido.
       const _contaComoCaixa = d => _ehFuturo || !isPendenteEfetivo(d);
       const totalDespesa  = data.despesas.filter(d => _contaComoCaixa(d) && !d._faturaAberta && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0) + totalCartaoCaixa;
-      // Critério de "comprometido" — tudo que está lançado, pago ou não, pendente
-      // ou não: se está no sistema, vai acontecer (senão, o lançamento é excluído).
+      // Critério de "comprometido" — despesas já efetivadas + pendentes + faturas
+      // fechadas aguardando pagamento. Compras na fatura ABERTA (ciclo em curso,
+      // ainda pode receber mais compras e nem fechou) ficam de fora — só contam
+      // quando a fatura fechar (acham correção em 04/07/2026: estavam inflando
+      // o "Realizado" do Planejamento, gerando "Lançamentos não identificados"
+      // maior do que deveria).
       // Usado nos alertas de categoria (Resumo) e no Planejamento.
-      const contaComoComprometido = () => true;
+      const contaComoComprometido = d => !d._faturaAberta;
       const sobra = saldoConta + totalReceita - totalDespesa;
       const sobraPct = (saldoConta + totalReceita) > 0 ? (sobra / (saldoConta + totalReceita)) * 100 : 0;
       const totalAp = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
@@ -3589,8 +3591,11 @@
       // propósito, não dá pra comparar 1:1). O Planejamento usa isso pra
       // criar a categoria "Lançamentos não identificados" (ver renderPlanejamento).
       if (!_ehFuturo) {
-        const totalComprometidoMes = data.despesas.reduce((s, d) => s + d.valor, 0);
-        const totalReconciliado = totalDespesa + totalPendente + totalFaturas + totalCartaoAberto;
+        // Compras em fatura aberta ficam de fora dos dois lados da conta —
+        // não são "comprometido" (Planejamento) nem entram na reconciliação
+        // de caixa (correção em 04/07/2026, ver contaComoComprometido acima).
+        const totalComprometidoMes = data.despesas.filter(d => !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
+        const totalReconciliado = totalDespesa + totalPendente + totalFaturas;
         _diffNaoIdentificadoMes = totalComprometidoMes - totalReconciliado;
       } else {
         _diffNaoIdentificadoMes = 0;
@@ -4553,10 +4558,12 @@
       const { mes, ano } = data.periodo;
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
 
-      // Planejamento acompanha gasto comprometido por categoria: tudo que está
-      // lançado vai acontecer (senão seria excluído, não deixado "pendente"),
-      // diferente do caixa exato do Resumo (Despesa Total/Sobra).
-      const contaComoComprometido = () => true;
+      // Planejamento acompanha gasto comprometido por categoria: efetivado +
+      // pendente + fatura fechada aguardando pagamento — sem contar compras na
+      // fatura ABERTA (ciclo em curso, ainda não fechou), que só entram quando
+      // a fatura fechar (correção 04/07/2026, mesmo critério de contaComoComprometido
+      // em render()).
+      const contaComoComprometido = d => !d._faturaAberta;
 
       // Agrega despesas por categoria NORMALIZADA — "Alimentação"/"alimentação"
       // contam juntas; o rótulo exibido é a grafia mais usada no grupo.
