@@ -1381,13 +1381,6 @@
           </div>
           <div class="pendencia-value gold" id="pendFaturasValor">R$ 0</div>
         </div>
-        <div class="pendencia-card" id="pendCardCartaoAberto" style="display:none;" title="Compras já feitas no cartão, ainda dentro da fatura em aberto (não fechou o ciclo)">
-          <div class="pendencia-label">
-            <span>🛒 Compras no cartão em aberto</span>
-            <span class="pendencia-badge" id="pendCartaoAbertoBadge">0</span>
-          </div>
-          <div class="pendencia-value gold" id="pendCartaoAbertoValor">R$ 0</div>
-        </div>
         <div class="pendencia-card" id="pendCardSaldoFuturo" style="display:none;" title="Saldo Final de hoje já considerando despesas pendentes, receitas pendentes e faturas a vencer">
           <div class="pendencia-label">
             <span>📅 Saldo projetado futuro</span>
@@ -2335,7 +2328,6 @@
     document.getElementById('pendCardDespesas')?.addEventListener('click', () => _abrirProjecaoFiltrada('despesa'));
     document.getElementById('pendCardReceitas')?.addEventListener('click', () => _abrirProjecaoFiltrada('receita'));
     document.getElementById('pendCardFaturas')?.addEventListener('click', () => _abrirProjecaoFiltrada('fatura'));
-    document.getElementById('pendCardCartaoAberto')?.addEventListener('click', () => ativarTab('faturas'));
     document.getElementById('pendCardSaldoFuturo')?.addEventListener('click', () => _abrirProjecaoFiltrada(null));
 
     // Abreviar labels no mobile para caber em 1 linha
@@ -3436,6 +3428,14 @@
           gruposFechadaCaixa[key] = (gruposFechadaCaixa[key] || 0) + d.valor;
         }
       });
+      // Fatura com ajuste manual confirmado (ajusteTotal) não pode sumir só
+      // porque nenhum lançamento individual ficou com essa fatura — o ajuste é
+      // o valor real da conta física, independente de existir item detalhado.
+      Object.entries(_faturaEstados).forEach(([key, fe]) => {
+        if (fe?.estado === 'paga_total' || key in gruposFechadaCaixa) return;
+        const cartaoId = key.split('_')[0];
+        if (_cartoes.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixa[key] = 0;
+      });
       let totalFaturas    = 0; // fatura fechada ainda não confirmada como paga ("a vencer")
       let totalCartaoPago = 0; // fatura fechada já confirmada (total ou parte paga)
       if (!_ehFuturo) {
@@ -3465,8 +3465,10 @@
       // lançadas automaticamente em cada fatura (ver autoLancarFixasCartao),
       // então não entram aqui.
       const fixasVirtuais = [];
+      const _puladas = _getFixasPuladas();
       (_recorrentes || []).filter(r => r.ativo && !r.cartao).forEach(r => {
         _diasFaltantesRecorrente(r, data).forEach(dia => {
+          if (_puladas.includes(_chaveFixaPulada(r.id, data.periodo.ano, data.periodo.mes, dia))) return;
           fixasVirtuais.push({ recorrenteId: r.id, categoria: r.categoria, descricao: r.descricao || '', valor: r.valor, dia });
         });
       });
@@ -3541,15 +3543,6 @@
         pendCardFat.style.display = 'none';
       }
 
-      const pendCardCartaoAberto = document.getElementById('pendCardCartaoAberto');
-      if (despesasCartaoAberto.length > 0) {
-        pendCardCartaoAberto.style.display = '';
-        document.getElementById('pendCartaoAbertoBadge').textContent = despesasCartaoAberto.length;
-        document.getElementById('pendCartaoAbertoValor').textContent = brl(totalCartaoAberto);
-      } else {
-        pendCardCartaoAberto.style.display = 'none';
-      }
-
       // Saldo Final de hoje já considerando o que ainda vai bater no caixa
       // (mesma soma que o Saldo Projetado abaixo termina dando). Não inclui
       // fatura em aberto — o ciclo ainda não fechou, valor/data não estão
@@ -3566,7 +3559,7 @@
       }
 
       document.getElementById('pendenciasSection').style.display =
-        (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || despesasCartaoAberto.length > 0 || fixasVirtuais.length > 0) ? '' : 'none';
+        (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || fixasVirtuais.length > 0) ? '' : 'none';
 
       // Diferença entre comprometido e a reconciliação de caixa — só no mês
       // atual (em mês futuro, despesas pendentes e caixa se sobrepõem de
@@ -3643,7 +3636,8 @@
           const acaoHtml = ev.tipo === 'fatura'
             ? `<button class="btn-item" data-proj-fatura="${ev.acao.estadoKey}" data-proj-fatura-total="${ev.acao.total}" data-proj-fatura-nome="${escapeHtml(ev.acao.nomeCartao)}" data-proj-fatura-mes="${escapeHtml(ev.acao.mesFatura)}" title="Confirmar pagamento" style="color:var(--positive)">✓</button>`
             : ev.virtual
-            ? `<button class="btn-item" data-proj-materializar="${ev.recorrenteId}:${ev.dia}" title="Lançar essa despesa fixa" style="color:var(--positive)">✓</button>`
+            ? `<button class="btn-item" data-proj-materializar="${ev.recorrenteId}:${ev.dia}" title="Lançar essa despesa fixa" style="color:var(--positive)">✓</button>
+               <button class="btn-item" data-proj-pular="${ev.recorrenteId}:${ev.dia}" title="Pular este mês (a recorrência continua ativa)" style="color:var(--text-muted)">⏭</button>`
             : `<button class="btn-item" data-proj-confirmar="${ev.tipo}:${ev.idx}" title="Confirmar" style="color:var(--positive)">✓</button>
                <button class="btn-item" data-proj-editar="${ev.tipo}:${ev.idx}" title="Editar">✎</button>
                <button class="btn-item" data-proj-excluir="${ev.tipo}:${ev.idx}" title="Excluir" style="color:var(--negative)">✕</button>`;
@@ -3694,6 +3688,11 @@
           btn.addEventListener('click', () => {
             const [recorrenteId, dia] = btn.dataset.projMaterializar.split(':');
             materializarFixaPendente(recorrenteId, +dia);
+          }));
+        projecaoListaEl.querySelectorAll('[data-proj-pular]').forEach(btn =>
+          btn.addEventListener('click', () => {
+            const [recorrenteId, dia] = btn.dataset.projPular.split(':');
+            pularFixaMes(recorrenteId, +dia);
           }));
       }
 
@@ -4071,6 +4070,14 @@
           gruposFechada[key].push(d);
         }
       });
+      // Fatura com ajuste manual confirmado (ajusteTotal) não pode sumir da lista
+      // só porque nenhum lançamento individual ficou com essa fatura — o ajuste
+      // é o valor real da conta física, independente de existir item detalhado.
+      Object.entries(_faturaEstados).forEach(([key, fe]) => {
+        if (fe?.estado === 'paga_total' || key in gruposFechada) return;
+        const cartaoId = key.split('_')[0];
+        if (cartoesAtivos.some(c => c.id === cartaoId)) gruposFechada[key] = [];
+      });
       const cartaoIdsDeFechada = new Set(Object.keys(gruposFechada).map(k => k.split('_')[0]));
       const fechadaKeysPorCartao = {}; // cartaoId → [chaves cartaoId_fatura]
       Object.keys(gruposFechada).forEach(key => {
@@ -4215,7 +4222,7 @@
       }).join('');
 
       // ── Constroí cards de faturas FECHADAS (a pagar este mês) ─────────────────
-      const idsFechadas = Object.keys(gruposFechada).filter(key => gruposFechada[key]?.length);
+      const idsFechadas = Object.keys(gruposFechada);
       const cardsFechadas = idsFechadas.map(estadoKey => {
         const [cartaoId, fechadaKey] = estadoKey.split('_');
         const cartaoObj    = _cartoes.find(c => c.id === cartaoId);
@@ -6304,9 +6311,11 @@
       const sel = document.getElementById('fixaCartaoSelecionado');
       if (!sel) return;
       if (!_cartoes.length) { sel.innerHTML = '<option value="">Nenhum cartão cadastrado</option>'; return; }
-      sel.innerHTML = _cartoes.filter(c => c.ativo).map(c =>
-        `<option value="${c.id}" ${c.id === cartaoIdSelecionado ? 'selected' : ''}>${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`
-      ).join('');
+      const temSelecionado = _cartoes.some(c => c.id === cartaoIdSelecionado);
+      sel.innerHTML = (temSelecionado ? '' : '<option value="" selected disabled>Selecione o cartão</option>') +
+        _cartoes.filter(c => c.ativo).map(c =>
+          `<option value="${c.id}" ${c.id === cartaoIdSelecionado ? 'selected' : ''}>${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`
+        ).join('');
     }
 
     function preencherSeletorCartoesFixa2(cartaoIdSelecionado) {
@@ -6584,6 +6593,25 @@
       return data.despesas.length !== antes;
     }
 
+    // Remove ocorrências geradas automaticamente cujo dia não bate mais com o
+    // dia atual do template da recorrente — ex: usuária mudou o dia de
+    // vencimento e a ocorrência antiga (dia velho) nunca mais vai "casar" com
+    // os dias esperados, ficando como duplicata órfã pra sempre. Só mexe em
+    // itens com recorrenteId (vínculo inequívoco).
+    function _removerOcorrenciasDiaDesatualizado(data) {
+      const { mes, ano } = data.periodo;
+      const antes = data.despesas.length;
+      data.despesas = data.despesas.filter(d => {
+        if (!d.recorrenteId) return true;
+        const r = _recorrentes.find(x => x.id === d.recorrenteId);
+        if (!r) return true;
+        const dia = parseInt((d.data || '').split('-')[2], 10);
+        if (isNaN(dia)) return true;
+        return _diasEsperadosRecorrente(r, mes, ano).includes(dia);
+      });
+      return data.despesas.length !== antes;
+    }
+
     // Despesas fixas no CARTÃO são lançadas automaticamente em cada fatura —
     // diferente das fixas em conta (débito), que ficam pendentes até
     // confirmação manual. Roda ao carregar/trocar de mês (não em todo render).
@@ -6591,10 +6619,22 @@
     // contrário de um lançamento avulso de cartão) — a fixa é sobre "este mês
     // tem esse gasto", não sobre em qual fatura ele tecnicamente cai.
     async function autoLancarFixasCartao(mes, ano) {
+      // Desligado temporariamente (03/07/2026) — a geração/limpeza automática
+      // estava causando duplicação de lançamentos em produção. Reativar só após
+      // investigar com calma numa sessão dedicada. Até lá, despesas fixas no
+      // cartão não são lançadas automaticamente (segue funcionando lançar à mão).
+      return false;
+      // eslint-disable-next-line no-unreachable
       if (!_recorrentes.length) return false;
 
       let mudou = _removerDuplicatasRecorrentes(currentData);
       if (_reconciliarCartaoRecorrentes(currentData)) mudou = true;
+      // Só remove órfãos de dia desatualizado em mês atual/futuro — mês passado
+      // já fechou, e o registro histórico não deve mudar só porque o template
+      // da recorrente foi editado depois.
+      const hoje = new Date();
+      const ehPassado = ano < hoje.getFullYear() || (ano === hoje.getFullYear() && mes < hoje.getMonth() + 1);
+      if (!ehPassado && _removerOcorrenciasDiaDesatualizado(currentData)) mudou = true;
 
       const pendentes = _recorrentes
         .filter(r => r.ativo && r.cartao)
@@ -6609,15 +6649,17 @@
       const faturaAtual = `${ano}-${String(mes).padStart(2, '0')}`;
       const novos = [];
       for (const { r, diasFaltantes } of pendentes) {
+        const cartaoObj = _cartoes.find(c => c.id === r.cartaoId);
         for (const d of diasFaltantes) {
+          const dataStr = `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
           novos.push({
             categoria:    r.categoria,
             tipo:         'despesa',
             valor:        r.valor,
             descricao:    r.descricao || '',
-            data:         `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+            data:         dataStr,
             cartao:       true,
-            fatura:       faturaAtual,
+            fatura:       cartaoObj?.diaCorte ? sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1) : faturaAtual,
             cartaoId:     r.cartaoId || '',
             origem:       'recorrente',
             recorrenteId: r.id,
@@ -6627,6 +6669,38 @@
       currentData.despesas.push(...novos);
       await salvarEAtualizar();
       return true;
+    }
+
+    // Ignora uma ocorrência específica de despesa fixa em CONTA neste mês, sem
+    // cancelar a recorrência (que continua valendo nos próximos meses).
+    // Persistido em localStorage — não é dado da mentorada, só preferência de UI.
+    function _chaveFixaPulada(recorrenteId, ano, mes, dia) {
+      return `${recorrenteId}_${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+    }
+
+    function _getFixasPuladas() {
+      try { return JSON.parse(localStorage.getItem('_fixasPuladas') || '[]'); }
+      catch (_) { return []; }
+    }
+
+    function _addFixaPulada(chave) {
+      const atuais = _getFixasPuladas();
+      if (!atuais.includes(chave)) atuais.push(chave);
+      // Mantém só mês atual + anterior, pra não crescer pra sempre no localStorage.
+      const hoje = new Date();
+      const mesesValidos = [0, -1].map(offset => {
+        const d = new Date(hoje.getFullYear(), hoje.getMonth() + offset, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      });
+      const filtradas = atuais.filter(c => mesesValidos.some(m => c.includes(`_${m}-`)));
+      localStorage.setItem('_fixasPuladas', JSON.stringify(filtradas));
+    }
+
+    function pularFixaMes(recorrenteId, dia) {
+      const { mes, ano } = currentData.periodo;
+      _addFixaPulada(_chaveFixaPulada(recorrenteId, ano, mes, dia));
+      render(currentData);
+      toast('Despesa fixa ignorada este mês.', 'success');
     }
 
     // Lança uma única ocorrência de uma recorrente em CONTA (débito) — uma
@@ -6841,6 +6915,7 @@
 
       if (!categoria) return mostrarToast('Selecione uma categoria.');
       if (isNaN(valor) || valor < 0) return mostrarToast('Informe um valor válido.');
+      if (cartao && !cartaoId) return mostrarToast('Selecione o cartão.');
       if (frequencia === 'semanal') {
         if (isNaN(dia) || dia < 0 || dia > 6) return mostrarToast('Selecione o dia da semana.');
       } else if (frequencia === 'quinzenal') {
