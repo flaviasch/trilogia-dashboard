@@ -2408,7 +2408,7 @@
     let _diffNaoIdentificadoMes = 0;
     let _tabAtiva = 'resumo';
     const _periodoCache = new Map(); // { '2026-5': { data, cats } }
-    const _invalPeriodo = (m, a) => _periodoCache.delete(`${a}-${m}`);
+    const _invalPeriodo = (m, a) => { const _k = `${a}-${m}`; const _tinha = _periodoCache.has(_k); _periodoCache.delete(_k); console.log('[debug _invalPeriodo]', _k, 'tinha cache?', _tinha); };
     let _pizzaInstance = null;
     let dadosMesAnterior = {}; // { categoria: total } — carregado ao abrir aba Detalhe
 
@@ -5522,6 +5522,7 @@
       const key = `${ano}-${mes}`;
       const cached = _periodoCache.get(key);
       if (cached) {
+        console.log('[debug buscarPeriodo]', key, 'CACHE HIT, cats.length=', (cached.cats || []).length);
         categoriasMes = cached.cats;
         return cached.data;
       }
@@ -5530,6 +5531,7 @@
           getOrcamento(mes, ano),
           getCategoriasMes(mes, ano),
         ]);
+        console.log('[debug buscarPeriodo]', key, 'CACHE MISS (fetch fresco), cats.length=', (cats || []).length);
         categoriasMes = cats || [];
         const _saldoItemB = itens.find(i => i.tipo === 'receita' && i.categoria === '__saldo_conta__');
         const data = {
