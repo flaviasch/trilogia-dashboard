@@ -1176,8 +1176,19 @@
         getPatrimonio(),
       ]).then(([orcData, patData]) => {
         // Atualiza cards de orçamento
-        const receita = (orcData || []).filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
-        const despesa = (orcData || []).filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
+        // Despesa aqui é caixa real do mês — exclui lançamentos com data futura
+        // (ainda não aconteceram), itens da fatura de cartão ainda em aberto e
+        // itens de cartão com fatura (essas só contam quando a fatura é paga,
+        // fluxo tratado em orcamento.html). Sem esse filtro, o card somava TUDO
+        // que está lançado (inclusive ajustes de fatura e compras futuras),
+        // inflando muito o valor mostrado aqui vs. o Resumo do orçamento
+        // (achado em 04/07/2026).
+        const _hojeF2 = new Date(); _hojeF2.setHours(0, 0, 0, 0);
+        const _pendenteF2 = i => i.data && new Date(i.data + 'T00:00:00') > _hojeF2;
+        // Receita exclui o item sentinela de saldo em conta (não é renda) e
+        // fontes com data futura ainda não recebidas.
+        const receita = (orcData || []).filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__' && !_pendenteF2(i)).reduce((s, i) => s + i.valor, 0);
+        const despesa = (orcData || []).filter(i => i.tipo === 'despesa' && !_pendenteF2(i) && !i._faturaAberta && !(i.cartao && i.fatura)).reduce((s, i) => s + i.valor, 0);
         const aporte  = (orcData || []).filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0);
         const sobra   = receita - despesa;
         const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
