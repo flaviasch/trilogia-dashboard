@@ -2860,7 +2860,12 @@
       const itens = [
         ...(currentData.saldoConta > 0 ? [{ categoria: '__saldo_conta__', tipo: 'receita', valor: currentData.saldoConta, data: '', descricao: 'Saldo em conta', cartao: false, fatura: '', origem: 'manual' }] : []),
         ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: r.origem || 'manual', ...(r.pendente ? { pendente: true } : {}) })),
-        ...currentData.despesas.map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d._sourceMes != null ? { _sourceMes: d._sourceMes, _sourceAno: d._sourceAno } : {}), ...(d.pendente ? { pendente: true } : {}) })),
+        // Itens "emprestados" de outro mês (_sourceMes) NUNCA são reenviados daqui —
+        // reenviá-los alimentava um merge no backend que estava duplicando essas
+        // despesas a cada salvamento (achado em 04/07/2026). Esses itens só devem
+        // ser tocados pelos fluxos dedicados que já sabem gravar no mês certo
+        // (ex: confirmar pagamento de fatura, ajustar fatura).
+        ...currentData.despesas.filter(d => d._sourceMes == null).map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.pendente ? { pendente: true } : {}) })),
         ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
       ];
       try {
@@ -5597,6 +5602,12 @@
     window.toggleDespesas   = toggleDespesas;
     window.copiarMesAnterior = copiarMesAnterior;
     window.editarLimitePlan = editarLimitePlan;
+
+    // Debug temporário — checar duplicação nova no Bradesco
+    window._debugRaw = async (mes, ano) => {
+      const itens = await getOrcamento(mes, ano);
+      return itens.filter(i => i.tipo === 'despesa' && i.cartao);
+    };
 
     // ─── PARSE SMS / NOTIFICAÇÃO DE CARTÃO ───────────────────────────────────
 
