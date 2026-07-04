@@ -2743,7 +2743,10 @@
             listaOrigem.splice(editandoIdxCaptura.idx, 1);
             await salvarEAtualizar();
           }
-          const itensFatura = await getOrcamento(fatMes, fatAno);
+          // Nunca reenvia itens "emprestados" de outro mês (_sourceMes) — eles não
+          // pertencem a este mês, e reenviá-los alimenta o merge no backend que
+          // causava duplicação (achado em 04/07/2026).
+          const itensFatura = (await getOrcamento(fatMes, fatAno)).filter(i => i._sourceMes == null);
           itensFatura.push(novoItem);
           await saveOrcamento(fatMes, fatAno, itensFatura);
           _invalPeriodo(fatMes, fatAno);
@@ -5566,7 +5569,7 @@
               .filter(r => r.origem === 'manual')
               .map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: 'manual' })),
             ...dadosAlvo.despesas
-              .filter(d => d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento')
+              .filter(d => d._sourceMes == null && (d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento'))
               .map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.parcelamentoId ? { parcelamentoId: d.parcelamentoId, parcelaAtual: d.parcelaAtual, parcelasTotal: d.parcelasTotal } : {}) })),
           ];
 
@@ -5607,6 +5610,24 @@
     window._debugRaw = async (mes, ano) => {
       const itens = await getOrcamento(mes, ano);
       return itens.filter(i => i.tipo === 'despesa' && i.cartao);
+    };
+
+    // Limpeza agressiva por assinatura completa do item (cobre duplicatas
+    // manuais, que não têm recorrenteId). dryRun=true por padrão — só mostra
+    // o que seria removido. Chame de novo com false pra aplicar.
+    window._debugDedupTotal = async (mes, ano, dryRun = true) => {
+      const itens = await getOrcamento(mes, ano);
+      const vistos = new Set();
+      const duplicados = [];
+      const limpos = itens.filter(it => {
+        if (it.tipo === 'aporte') return true;
+        const chave = JSON.stringify([it.tipo, it.categoria, it.descricao, it.valor, it.data, it.cartaoId || '', it.fatura || '', it.recorrenteId || '']);
+        if (vistos.has(chave)) { duplicados.push(it); return false; }
+        vistos.add(chave);
+        return true;
+      });
+      if (!dryRun) await saveOrcamento(mes, ano, limpos);
+      return { aplicado: !dryRun, totalAntes: itens.length, totalDepois: limpos.length, duplicadosRemovidos: duplicados.length, itensDuplicados: duplicados };
     };
 
     // ─── PARSE SMS / NOTIFICAÇÃO DE CARTÃO ───────────────────────────────────
@@ -6214,7 +6235,7 @@
             const instMes     = (totalMeses % 12) + 1;
             const instAno     = fatAno + Math.floor(totalMeses / 12);
             const instFatura  = `${instAno}-${String(instMes).padStart(2, '0')}`;
-            const itensMes    = await getOrcamento(instMes, instAno);
+            const itensMes    = (await getOrcamento(instMes, instAno)).filter(i => i._sourceMes == null);
             itensMes.push({
               categoria, descricao, tipo: 'despesa',
               valor: valorParcela, data,
@@ -6232,7 +6253,7 @@
           mostrarToast(`💳 ${nParcelas}× ${brl(valorParcela)} — de ${MESES[fatMes-1]} até ${MESES[ultimoMesIdx]}/${ultimoAno}`, 'success', 6000);
         } else {
           // Parcela única
-          const itensFatura = await getOrcamento(fatMes, fatAno);
+          const itensFatura = (await getOrcamento(fatMes, fatAno)).filter(i => i._sourceMes == null);
           itensFatura.push({ categoria, descricao, tipo: 'despesa', valor, data, cartao: true, cartaoId, fatura, origem: 'manual' });
           await saveOrcamento(fatMes, fatAno, itensFatura);
           _invalPeriodo(fatMes, fatAno);
@@ -6747,7 +6768,7 @@
       } else {
         // Fixa no cartão cuja fatura, pelo dia de corte, cai em outro mês.
         const [fAno, fMes] = faturaCalc.split('-').map(Number);
-        const itensExistentes = await getOrcamento(fMes, fAno);
+        const itensExistentes = (await getOrcamento(fMes, fAno)).filter(i => i._sourceMes == null);
         itensExistentes.push(item);
         await saveOrcamento(fMes, fAno, itensExistentes);
         _invalPeriodo(fMes, fAno);
