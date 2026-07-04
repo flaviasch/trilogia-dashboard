@@ -633,6 +633,13 @@ function _resolverCategoria(cat) {
     : cat;
 }
 
+// Chave normalizada de categoria (minúscula, sem acento, sem espaços nas
+// pontas) — usada só pra COMPARAR/AGRUPAR categorias, nunca reescreve o
+// texto salvo de um lançamento existente. Mesma lógica do cliente (orcamento.html).
+function _normCat(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+}
+
 // Retorna o mês de pagamento de um item de fatura no formato YYYY-MM.
 // Convenção: fatura = mês do débito na conta, então o mês de pagamento = a própria fatura.
 function _mesPagamento(fatura) {
@@ -1344,14 +1351,17 @@ exports.upsertCategoriaLimite = onCall(async (request) => {
   const categorias = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const atuais = snap.exists ? (snap.data().categorias || []) : [];
-    const idx = atuais.findIndex(c => c.nome === nome);
+    // Compara por nome normalizado (maiúscula/minúscula e acento não geram
+    // entrada duplicada) — evita que "Alimentação" e "alimentação" acabem
+    // com limites diferentes e nenhum deles bata com o total exibido.
+    const idx = atuais.findIndex(c => _normCat(c.nome) === _normCat(nome));
     let novas;
     if (limite > 0) {
       novas = idx === -1
         ? [...atuais, { nome, limite }]
-        : atuais.map((c, i) => i === idx ? { ...c, limite } : c);
+        : atuais.map((c, i) => i === idx ? { ...c, nome, limite } : c);
     } else {
-      novas = atuais.filter(c => c.nome !== nome);
+      novas = atuais.filter(c => _normCat(c.nome) !== _normCat(nome));
     }
     tx.set(ref, { categorias: novas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
     return novas;

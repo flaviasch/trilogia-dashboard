@@ -2291,7 +2291,8 @@
           .then(itens => {
             dadosMesAnterior = {};
             itens.filter(i => i.tipo === 'despesa').forEach(d => {
-              dadosMesAnterior[d.categoria] = (dadosMesAnterior[d.categoria] || 0) + d.valor;
+              const norm = _normCat(d.categoria);
+              dadosMesAnterior[norm] = (dadosMesAnterior[norm] || 0) + d.valor;
             });
             renderDespesasGrupos(currentData, currentData.despesas.filter(d=>!(d.cartao&&d.fatura)).reduce((s,d)=>s+d.valor,0));
           })
@@ -2424,6 +2425,13 @@
       if (!item.data) return false;
       const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
       return new Date(item.data + 'T00:00:00') > hoje;
+    }
+
+    // Chave normalizada de categoria (minúscula, sem acento, sem espaços nas
+    // pontas) — usada só pra AGRUPAR/COMPARAR categorias na tela e no CSV.
+    // Nunca reescreve o texto já salvo de um lançamento existente.
+    function _normCat(s) {
+      return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
     }
 
     // ─── Classes por prazo da reserva ────────────────────────────────────────
@@ -4360,17 +4368,26 @@
       const despList = document.getElementById('detalheContent');
       const termoBusca = (document.getElementById('buscaDetalhe')?.value || '').toLowerCase().trim();
 
-      // Agrupa mantendo ordem de inserção; depois ordena por total desc
-      const ordem  = [];
-      const grupos = {};
+      // Agrupa por categoria NORMALIZADA — "Alimentação"/"alimentação" contam
+      // juntas; usa a grafia mais frequente do grupo como rótulo de exibição.
+      const gruposNorm = {}; // normKey -> { items, total, totalCaixa, totalPendente, labels: {label:count} }
       data.despesas.forEach((d, idx) => {
         if (d._faturaAberta) return; // itens da fatura aberta só aparecem na aba Faturas
-        const cat = d.categoria;
-        if (!grupos[cat]) { grupos[cat] = { items: [], total: 0, totalCaixa: 0, totalPendente: 0 }; ordem.push(cat); }
-        grupos[cat].items.push({ ...d, _idx: idx });
-        grupos[cat].total += d.valor;
-        if (!(d.cartao && d.fatura) && !isPendenteEfetivo(d)) grupos[cat].totalCaixa += d.valor;
-        if (isPendenteEfetivo(d) && !(d.cartao && d.fatura)) grupos[cat].totalPendente += d.valor;
+        const norm = _normCat(d.categoria);
+        if (!gruposNorm[norm]) gruposNorm[norm] = { items: [], total: 0, totalCaixa: 0, totalPendente: 0, labels: {} };
+        const g = gruposNorm[norm];
+        g.items.push({ ...d, _idx: idx });
+        g.total += d.valor;
+        g.labels[d.categoria] = (g.labels[d.categoria] || 0) + 1;
+        if (!(d.cartao && d.fatura) && !isPendenteEfetivo(d)) g.totalCaixa += d.valor;
+        if (isPendenteEfetivo(d) && !(d.cartao && d.fatura)) g.totalPendente += d.valor;
+      });
+      const ordem  = [];
+      const grupos = {};
+      Object.values(gruposNorm).forEach(g => {
+        const label = Object.entries(g.labels).sort((a, b) => b[1] - a[1])[0][0];
+        grupos[label] = g;
+        ordem.push(label);
       });
       ordem.sort((a, b) => grupos[b].total - grupos[a].total);
 
@@ -4389,7 +4406,7 @@
           : grupo.items;
         if (itemsFiltrados.length === 0) return ''; // oculta grupo vazio na busca
 
-        const catObj = categoriasMes.find(c => c.nome === catNome);
+        const catObj = categoriasMes.find(c => _normCat(c.nome) === _normCat(catNome));
         const limite = catObj?.limite || 0;
 
         // Barra de limite (usa só despesas à vista — fatura ainda não saiu do caixa)
@@ -4466,7 +4483,7 @@
 
         // Delta vs mês anterior (compara só o que saiu do caixa)
         let deltaHTML = '';
-        const totalAnterior = dadosMesAnterior[catNome] || 0;
+        const totalAnterior = dadosMesAnterior[_normCat(catNome)] || 0;
         if (totalAnterior > 0) {
           const delta    = grupo.totalCaixa - totalAnterior;
           const cor      = delta > 0 ? 'var(--negative)' : 'var(--positive)';
@@ -4534,11 +4551,15 @@
       // diferente do caixa exato do Resumo (Despesa Total/Sobra).
       const contaComoComprometido = () => true;
 
-      // Agrega despesas por categoria
-      const porCat = {};
+      // Agrega despesas por categoria NORMALIZADA — "Alimentação"/"alimentação"
+      // contam juntas; o rótulo exibido é a grafia mais usada no grupo.
+      const gruposPorNorm = {}; // normKey -> { total, labels: {label: count} }
       data.despesas.forEach(d => {
         if (!contaComoComprometido(d)) return;
-        porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
+        const norm = _normCat(d.categoria);
+        if (!gruposPorNorm[norm]) gruposPorNorm[norm] = { total: 0, labels: {} };
+        gruposPorNorm[norm].total += d.valor;
+        gruposPorNorm[norm].labels[d.categoria] = (gruposPorNorm[norm].labels[d.categoria] || 0) + 1;
       });
 
       // O realizado tem que bater com a reconciliação de caixa (caixa +
@@ -4547,22 +4568,34 @@
       // assim o total do Planejamento sempre coincide com o fluxo de caixa.
       const CATEGORIA_AJUSTE = 'Lançamentos não identificados — verificar';
       const temAjuste = Math.abs(_diffNaoIdentificadoMes) > 1;
-      if (temAjuste) porCat[CATEGORIA_AJUSTE] = -_diffNaoIdentificadoMes;
+      if (temAjuste) {
+        gruposPorNorm[_normCat(CATEGORIA_AJUSTE)] = { total: -_diffNaoIdentificadoMes, labels: { [CATEGORIA_AJUSTE]: 1 } };
+      }
 
-      // Todas as categorias (union: despesas reais + categorias planejadas)
-      const todasCats = [...new Set([
-        ...Object.keys(porCat),
-        ...cats.map(c => c.nome),
-      ])].sort((a, b) => (porCat[b] || 0) - (porCat[a] || 0));
+      // Inclui categorias com limite definido que ainda não têm despesa neste mês
+      cats.forEach(c => {
+        const norm = _normCat(c.nome);
+        if (!gruposPorNorm[norm]) gruposPorNorm[norm] = { total: 0, labels: {} };
+        gruposPorNorm[norm].labels[c.nome] = (gruposPorNorm[norm].labels[c.nome] || 0) + 1;
+      });
+
+      // Escolhe o rótulo mais frequente de cada grupo pra exibir; porCat fica
+      // indexado por esse rótulo (mantém a interface usada daqui pra baixo).
+      const porCat = {};
+      const todasCats = Object.values(gruposPorNorm).map(g => {
+        const label = Object.entries(g.labels).sort((a, b) => b[1] - a[1])[0][0];
+        porCat[label] = g.total;
+        return label;
+      }).sort((a, b) => (porCat[b] || 0) - (porCat[a] || 0));
 
       // Alertas: categorias >= 80% do limite
       const alertas = todasCats.filter(cat => {
-        const plan = cats.find(c => c.nome === cat);
+        const plan = cats.find(c => _normCat(c.nome) === _normCat(cat));
         if (!plan?.limite) return false;
         const pct = (porCat[cat] || 0) / plan.limite * 100;
         return pct >= 80;
       }).map(cat => {
-        const plan = cats.find(c => c.nome === cat);
+        const plan = cats.find(c => _normCat(c.nome) === _normCat(cat));
         const real = porCat[cat] || 0;
         const p = Math.round(real / plan.limite * 100);
         return { cat, real, limite: plan.limite, pct: p };
@@ -4598,7 +4631,7 @@
 
       // Linhas da tabela
       const linhas = todasCats.map(cat => {
-        const plan  = cats.find(c => c.nome === cat);
+        const plan  = cats.find(c => _normCat(c.nome) === _normCat(cat));
         const limite = plan?.limite || 0;
         const real   = porCat[cat] || 0;
         const pct    = limite > 0 ? Math.min(real / limite * 100, 200) : 0;
@@ -5167,7 +5200,7 @@
 
     function abrirModalLimite(cat) {
       editandoLimiteCat = cat || null;
-      const catObj      = categoriasMes.find(c => c.nome === cat);
+      const catObj      = categoriasMes.find(c => _normCat(c.nome) === _normCat(cat));
       const limiteAtual = catObj?.limite || 0;
       document.getElementById('modalLimiteSub').textContent = cat ? `Categoria: ${cat}` : 'Nova categoria';
       if (!cat) {
@@ -5556,8 +5589,6 @@
       reader.onload = async (ev) => {
         try {
           const itensCsv = parsearCsvRaioX(ev.target.result);
-          // Despesas marcadas como fixas no CSV — serão propostas como recorrentes
-          const fixasDetectadas = itensCsv.filter(i => i.fixa && i.tipo === 'despesa');
 
           // Detecta mês alvo pelas datas do CSV; usa período atual se não encontrar
           const detectado = detectarMesCsv(itensCsv);
@@ -5570,6 +5601,22 @@
             ? currentData
             : await buscarPeriodo(mesSalvar, anoSalvar);
 
+          // Normaliza a categoria do CSV contra as já existentes no mês alvo —
+          // evita criar "Alimentação"/"alimentação" como categorias diferentes
+          // só porque vieram de fontes com grafia distinta.
+          const catCanonicaPorNorm = {};
+          [...dadosAlvo.despesas, ...dadosAlvo.receitas].forEach(item => {
+            const norm = _normCat(item.categoria);
+            if (!catCanonicaPorNorm[norm]) catCanonicaPorNorm[norm] = item.categoria;
+          });
+          const itensCsvNormalizado = itensCsv.map(i => {
+            const canonica = catCanonicaPorNorm[_normCat(i.categoria)];
+            return canonica && canonica !== i.categoria ? { ...i, categoria: canonica } : i;
+          });
+
+          // Despesas marcadas como fixas no CSV — serão propostas como recorrentes
+          const fixasDetectadas = itensCsvNormalizado.filter(i => i.fixa && i.tipo === 'despesa');
+
           // Preserva recorrentes, parcelamentos e lançamentos manuais — CSV não sobrescreve
           const preservar = [
             ...dadosAlvo.receitas
@@ -5581,7 +5628,7 @@
           ];
 
           // Salva todos os itens do CSV normalmente (fixa entra como lançamento regular)
-          const itens = [...itensCsv.map(({ fixa: _f, ...i }) => ({ ...i, origem: 'csv' })), ...preservar];
+          const itens = [...itensCsvNormalizado.map(({ fixa: _f, ...i }) => ({ ...i, origem: 'csv' })), ...preservar];
           await saveOrcamento(mesSalvar, anoSalvar, itens, true); // substituição intencional (novo CSV)
           _invalPeriodo(mesSalvar, anoSalvar);
 
