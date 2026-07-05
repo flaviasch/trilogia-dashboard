@@ -29,6 +29,12 @@ jobs:
         with:
           node-version: 22
 
+      - name: Configurar Java 21 (exigido pelo emulador do Firestore)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
       - name: Instalar dependências das Cloud Functions
         working-directory: functions
         run: npm ci
