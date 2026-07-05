@@ -18,6 +18,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  functions-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependências das Cloud Functions
+        working-directory: functions
+        run: npm ci
+
+      - name: Rodar testes (helpers puros + integração via emulador do Firestore)
+        working-directory: functions
+        run: npm test
+
   deploy:
     runs-on: ubuntu-latest
     environment:

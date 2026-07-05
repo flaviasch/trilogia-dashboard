@@ -18,6 +18,9 @@
   "scripts": {
     "deploy": "firebase deploy --only functions",
     "serve": "firebase emulators:start --only functions,firestore",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test:unit": "node --test test/helpers.test.js",
+    "test:integration": "node --test test/upsertCategoriaLimite.test.js test/saveOrcamento.test.js test/saveCategoriasMes.test.js test/getOrcamento.test.js",
+    "test": "npm run test:unit && cd .. && firebase emulators:exec --only firestore --project demo-test \"cd functions && npm run test:integration\""
   }
 }

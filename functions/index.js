@@ -5653,3 +5653,7 @@ exports.backupFirestore = onSchedule(
 exports.healthCheck = onRequest({ cors: false }, (req, res) => {
   res.json({ ok: true, ts: new Date().toISOString() });
 });
+
+// Expõe helpers internos puros só para teste (node:test) — não muda
+// comportamento de produção, nenhum desses precisa de secrets ou Firestore.
+exports._test = { _normCat, _resolverCategoria, _sugerirFatura, _mesPagamento };
