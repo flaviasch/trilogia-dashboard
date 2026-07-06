@@ -2818,6 +2818,10 @@
               categoria, valor, descricao, dia: fixaDiaOM, frequencia: fixaFrequenciaOM,
               mesesRestantes: recorrPrazoOM ? mesesRecorrOM : null,
               ativo: true, cartao: !!fixaCartaoOM, cartaoId: fixaCartaoIdOM,
+              // A recorrência só vale a partir do mês da data escolhida —
+              // senão aparecia retroativamente em meses anteriores também
+              // (achado em 06/07/2026).
+              mesInicio: itemMesData, anoInicio: itemAnoData,
             });
             await carregarRecorrentes();
             if (fixaFrequenciaOM !== 'mensal') {
@@ -2883,6 +2887,10 @@
             categoria, valor, descricao, dia: fixaDia, frequencia: fixaFrequencia,
             mesesRestantes: recorrPrazo ? mesesRecorr : null,
             ativo: true, cartao: !!fixaCartao, cartaoId: fixaCartaoId,
+            // A recorrência só vale a partir do mês da data escolhida — senão
+            // aparecia retroativamente em meses anteriores também (achado em
+            // 06/07/2026).
+            mesInicio: itemMesData, anoInicio: itemAnoData,
           });
           await carregarRecorrentes();
 
@@ -6830,6 +6838,15 @@
     // Dias do mês em que uma recorrente deveria ter um lançamento, conforme a
     // frequência — semanal/quinzenal têm mais de um por mês, diferente de mensal.
     function _diasEsperadosRecorrente(r, mes, ano) {
+      // Recorrentes antigas (sem mesInicio/anoInicio) não têm gate — mantém o
+      // comportamento anterior. Recorrentes novas só valem a partir do mês em
+      // que foram criadas (ou do mês da data escolhida no modal); meses
+      // anteriores a isso não geram ocorrência nenhuma (achado em 06/07/2026:
+      // uma despesa fixa criada "a partir de agosto" aparecia também em julho).
+      if (r.anoInicio != null && r.mesInicio != null) {
+        const antesDoInicio = ano < r.anoInicio || (ano === r.anoInicio && mes < r.mesInicio);
+        if (antesDoInicio) return [];
+      }
       const freq = r.frequencia || 'mensal';
       if (freq === 'semanal')   return diasSemanaNoMes(ano, mes, r.dia);
       if (freq === 'quinzenal') return [r.dia, r.dia + 14].filter(d => d >= 1 && d <= 31);

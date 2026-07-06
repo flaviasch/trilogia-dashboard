@@ -1128,10 +1128,23 @@ exports.saveRecorrente = onCall(async (request) => {
   };
 
   if (recorrente.id) {
+    // mesInicio/anoInicio nunca mudam numa edição — só valem na criação, senão
+    // editar valor/descrição empurraria o início da recorrência pra frente.
     await col.doc(recorrente.id).update(dados);
     return { id: recorrente.id };
   } else {
-    const ref = await col.add({ ...dados, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    // Recorrente só vale a partir do mês em que foi criada — sem isso, uma
+    // despesa fixa cadastrada hoje aparecia retroativamente em meses
+    // passados também (achado em 06/07/2026). Se o cliente informar
+    // mesInicio/anoInicio explícitos (ex: criada a partir de uma data
+    // futura escolhida no modal de lançamento), usa esses; senão usa o mês
+    // corrente do servidor.
+    const hoje = new Date();
+    const mesInicio = Number.isInteger(recorrente.mesInicio) && recorrente.mesInicio >= 1 && recorrente.mesInicio <= 12
+      ? recorrente.mesInicio : hoje.getMonth() + 1;
+    const anoInicio = Number.isInteger(recorrente.anoInicio) && recorrente.anoInicio >= 2020 && recorrente.anoInicio <= 2100
+      ? recorrente.anoInicio : hoje.getFullYear();
+    const ref = await col.add({ ...dados, mesInicio, anoInicio, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
     return { id: ref.id };
   }
 });
