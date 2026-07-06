@@ -7010,13 +7010,19 @@
     function _addFixaPulada(chave) {
       const atuais = _getFixasPuladas();
       if (!atuais.includes(chave)) atuais.push(chave);
-      // Mantém só mês atual + anterior, pra não crescer pra sempre no localStorage.
+      // Poda só entradas de meses BEM antigos (2+ meses atrás), sem limite pra
+      // frente — o filtro antigo mantinha só mês atual + anterior e descartava
+      // na hora qualquer "pular" de um mês futuro (ex: despesa fixa criada pra
+      // começar daqui a alguns meses), fazendo o botão parecer que não fazia
+      // nada (achado em 06/07/2026).
       const hoje = new Date();
-      const mesesValidos = [0, -1].map(offset => {
-        const d = new Date(hoje.getFullYear(), hoje.getMonth() + offset, 1);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const limiteAntigo = new Date(hoje.getFullYear(), hoje.getMonth() - 2, 1);
+      const filtradas = atuais.filter(c => {
+        const m = c.match(/_(\d{4})-(\d{2})-\d{2}$/);
+        if (!m) return true; // formato inesperado, mantém por segurança
+        const d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, 1);
+        return d >= limiteAntigo;
       });
-      const filtradas = atuais.filter(c => mesesValidos.some(m => c.includes(`_${m}-`)));
       localStorage.setItem('_fixasPuladas', JSON.stringify(filtradas));
     }
 
