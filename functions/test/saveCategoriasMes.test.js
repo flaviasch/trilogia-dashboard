@@ -27,7 +27,7 @@ test('saveCategoriasMes', async (t) => {
     // Simula "Copiar de Jun" mandando só 5 categorias (substituição, não mescla)
     await assert.rejects(
       fns.saveCategoriasMes.run({ data: { uid, mes: MES, ano: ANO, categorias: doze.slice(0, 5) }, auth: auth(uid) }),
-      /failed-precondition/
+      { code: 'failed-precondition' }
     );
 
     const snap = await db.collection('mentoradas').doc(uid).collection('planejamento').doc('2026-07').get();
@@ -60,7 +60,7 @@ test('saveCategoriasMes', async (t) => {
     const uid = uidTeste();
     await assert.rejects(
       fns.saveCategoriasMes.run({ data: { uid, mes: MES, ano: ANO, categorias: [{ nome: 'X', limite: -1 }] }, auth: auth(uid) }),
-      /invalid-argument/
+      { code: 'invalid-argument' }
     );
   });
 });

@@ -50,7 +50,7 @@ test('upsertCategoriaLimite', async (t) => {
     const uid = uidTeste();
     await assert.rejects(
       fns.upsertCategoriaLimite.run({ data: { uid, mes: MES, ano: ANO, nome: '', limite: 100 }, auth: auth(uid) }),
-      /invalid-argument/
+      { code: 'invalid-argument' }
     );
   });
 
@@ -58,7 +58,7 @@ test('upsertCategoriaLimite', async (t) => {
     const uid = uidTeste();
     await assert.rejects(
       fns.upsertCategoriaLimite.run({ data: { uid, mes: MES, ano: ANO, nome: 'Outros', limite: -50 }, auth: auth(uid) }),
-      /invalid-argument/
+      { code: 'invalid-argument' }
     );
   });
 
@@ -66,7 +66,7 @@ test('upsertCategoriaLimite', async (t) => {
     const uid = uidTeste();
     await assert.rejects(
       fns.upsertCategoriaLimite.run({ data: { uid, mes: MES, ano: ANO, nome: 'Outros', limite: 100 } }),
-      /unauthenticated/
+      { code: 'unauthenticated' }
     );
   });
 
@@ -78,7 +78,7 @@ test('upsertCategoriaLimite', async (t) => {
         data: { uid: uidAlvo, mes: MES, ano: ANO, nome: 'Outros', limite: 100 },
         auth: auth(uidAtacante, false),
       }),
-      /permission-denied/
+      { code: 'permission-denied' }
     );
   });
 });

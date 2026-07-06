@@ -40,7 +40,7 @@ test('saveOrcamento', async (t) => {
         data: { uid, mes: MES, ano: ANO, itens: [despesa('Moradia', 1680), despesa('Outros', 378), despesa('Saúde', 2530)] },
         auth: auth(uid),
       }),
-      /failed-precondition/
+      { code: 'failed-precondition' }
     );
 
     // Confirma que o dado original permanece intacto no Firestore
@@ -55,7 +55,7 @@ test('saveOrcamento', async (t) => {
 
     await assert.rejects(
       fns.saveOrcamento.run({ data: { uid, mes: MES, ano: ANO, itens: muitos.slice(0, 3) }, auth: auth(uid) }),
-      /failed-precondition/
+      { code: 'failed-precondition' }
     );
   });
 
@@ -104,7 +104,7 @@ test('saveOrcamento', async (t) => {
     const uid = uidTeste();
     await assert.rejects(
       fns.saveOrcamento.run({ data: { uid, mes: MES, ano: ANO, itens: [{ categoria: 'X', tipo: 'invalido', valor: 10 }] }, auth: auth(uid) }),
-      /invalid-argument/
+      { code: 'invalid-argument' }
     );
   });
 
@@ -112,7 +112,7 @@ test('saveOrcamento', async (t) => {
     const uid = uidTeste();
     await assert.rejects(
       fns.saveOrcamento.run({ data: { uid, mes: MES, ano: ANO, itens: [despesa('X', -10)] }, auth: auth(uid) }),
-      /invalid-argument/
+      { code: 'invalid-argument' }
     );
   });
 });
