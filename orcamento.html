@@ -4397,6 +4397,12 @@
         if (!(d.cartao && d.fatura) && !isPendenteEfetivo(d)) g.totalCaixa += d.valor;
         if (isPendenteEfetivo(d) && !(d.cartao && d.fatura)) g.totalPendente += d.valor;
       });
+      // Achado em 06/07/2026: o rodapé usava o totalDespesa (só caixa) recebido
+      // por parâmetro, mas cada categoria já decompõe e soma caixa + fatura +
+      // pendente (ver grupo.total acima e faturaGrupoHTML/pendenteGrupoHTML
+      // abaixo) — o rodapé precisa bater com a soma do que está listado na
+      // tela, senão parece que a aba "não traz todas as despesas".
+      const totalListadoDetalhe = Object.values(gruposNorm).reduce((s, g) => s + g.total, 0);
       const ordem  = [];
       const grupos = {};
       Object.values(gruposNorm).forEach(g => {
@@ -4537,7 +4543,7 @@
       despList.innerHTML = gruposHTML + `
         <div class="total-row">
           <span class="total-label">Total despesas</span>
-          <span class="total-value despesa">${brl(totalDespesa)}</span>
+          <span class="total-value despesa">${brl(totalListadoDetalhe)}</span>
         </div>
         <button class="btn-add-item" id="btnAddDespesa">+ Nova categoria de despesa</button>`;
 
