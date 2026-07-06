@@ -720,10 +720,21 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const itensMes = todosItensMes
     .filter(item => !_ehCicloAberto(item));
 
-  // Itens do mês anterior: só fatura com pagamento neste mês
+  // Itens do mês anterior: só fatura com pagamento neste mês. Se a fatura
+  // emprestada for a mesma que está aberta hoje pra aquele cartão, marca
+  // _faturaAberta também — senão o item fica escondido da aba Detalhe quando
+  // visto pelo mês nativo (fatura aberta não aparece lá, só na aba Faturas),
+  // mas aparecia normalmente quando emprestado pro mês seguinte, dando a
+  // impressão de duplicata (mesma fatura, uma "sumida" outra "visível") —
+  // achado em 05/07/2026.
   const itensPrev = normalizar(prevSnap.exists ? prevSnap.data().itens : [])
     .filter(item => item.cartao && item.fatura && _mp(item) === mesKey)
-    .map(item => ({ ...item, _sourceMes: prevMes, _sourceAno: prevAno }));
+    .map(item => ({
+      ...item,
+      _sourceMes: prevMes,
+      _sourceAno: prevAno,
+      ...(_ehCicloAberto(item) ? { _faturaAberta: true } : {}),
+    }));
 
   return [...itensMes, ...itensPrev, ...itensFaturaAberta];
 });

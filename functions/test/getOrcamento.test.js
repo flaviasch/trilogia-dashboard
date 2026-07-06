@@ -87,6 +87,36 @@ test('getOrcamento — classificação de fatura aberta/fechada', async (t) => {
     assert.equal(itens[0]._sourceAno, prevAno);
   });
 
+  await t.test('achado 05/07/2026: item emprestado do mês anterior vem marcado _faturaAberta se essa fatura for a que está aberta hoje', async () => {
+    const uid = uidTeste();
+    const cartaoId = 'cartao-teste-2';
+    const diaCorte = 30, diaVencimento = 10; // mesmo padrão do Bradesco (ver status_dashboard.md)
+    await db.collection('mentoradas').doc(uid).collection('cartoes').doc(cartaoId)
+      .set({ nome: 'Cartão Teste 2', diaCorte, diaVencimento, ativo: true });
+
+    const openKey = _sugerirFatura(hojeStr(), diaCorte, diaVencimento);
+    const [openAno, openMes] = openKey.split('-').map(Number);
+
+    const hoje = new Date();
+    const mesAtual = hoje.getMonth() + 1, anoAtual = hoje.getFullYear();
+
+    // Compra feita neste mês, com fatura = openKey (é a que está aberta hoje pra esse cartão)
+    await db.collection('mentoradas').doc(uid).collection('orcamento').doc(mesKeyDe(anoAtual, mesAtual)).set({
+      itens: [
+        { categoria: 'Pessoal', tipo: 'despesa', valor: 600, cartao: true, cartaoId, fatura: openKey, data: mesKeyDe(anoAtual, mesAtual) + '-28' },
+      ],
+    });
+
+    // Consultando o mês da própria fatura aberta, o item vem emprestado —
+    // sem o fix, ele apareceria "solto" (sem _faturaAberta), dando a
+    // impressão de duplicata quando comparado com a mesma fatura vista a
+    // partir do mês nativo (onde fica corretamente escondida da aba Detalhe).
+    const itens = await fns.getOrcamento.run({ data: { uid, mes: openMes, ano: openAno }, auth: auth(uid) });
+    assert.equal(itens.length, 1);
+    assert.equal(itens[0]._sourceMes, mesAtual);
+    assert.equal(itens[0]._faturaAberta, true, 'item emprestado cuja fatura é a aberta hoje deve vir marcado _faturaAberta');
+  });
+
   await t.test('traduz categoria numérica (código do CSV do Raio-X) pro nome legível', async () => {
     const uid = uidTeste();
     const hoje = new Date();
