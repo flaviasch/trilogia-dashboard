@@ -4385,11 +4385,11 @@
 
       // Agrupa por categoria NORMALIZADA — "Alimentação"/"alimentação" contam
       // juntas; usa a grafia mais frequente do grupo como rótulo de exibição.
-      const gruposNorm = {}; // normKey -> { items, total, totalCaixa, totalPendente, labels: {label:count} }
+      const gruposNorm = {}; // normKey -> { items, total, totalCaixa, totalPendente, totalVirtual, labels: {label:count} }
       data.despesas.forEach((d, idx) => {
         if (d._faturaAberta) return; // itens da fatura aberta só aparecem na aba Faturas
         const norm = _normCat(d.categoria);
-        if (!gruposNorm[norm]) gruposNorm[norm] = { items: [], total: 0, totalCaixa: 0, totalPendente: 0, labels: {} };
+        if (!gruposNorm[norm]) gruposNorm[norm] = { items: [], total: 0, totalCaixa: 0, totalPendente: 0, totalVirtual: 0, labels: {} };
         const g = gruposNorm[norm];
         g.items.push({ ...d, _idx: idx });
         g.total += d.valor;
@@ -4397,11 +4397,32 @@
         if (!(d.cartao && d.fatura) && !isPendenteEfetivo(d)) g.totalCaixa += d.valor;
         if (isPendenteEfetivo(d) && !(d.cartao && d.fatura)) g.totalPendente += d.valor;
       });
+      // Despesas fixas em CONTA ainda não lançadas neste mês (mesmo cálculo do
+      // Saldo Projetado) também entram aqui como itens virtuais — sem isso, o
+      // Realizado do Planejamento incluía esse valor só como "Lançamentos não
+      // identificados" (categoria de ajuste), enquanto a aba Detalhe não
+      // mostrava de onde vinha (achado em 06/07/2026, Flávia: "esses
+      // lançamentos de planejamento podem estar em detalhes também").
+      const _puladasDetalhe = _getFixasPuladas();
+      (_recorrentes || []).filter(r => r.ativo && !r.cartao).forEach(r => {
+        _diasFaltantesRecorrente(r, data).forEach(dia => {
+          if (_puladasDetalhe.includes(_chaveFixaPulada(r.id, data.periodo.ano, data.periodo.mes, dia))) return;
+          const norm = _normCat(r.categoria);
+          if (!gruposNorm[norm]) gruposNorm[norm] = { items: [], total: 0, totalCaixa: 0, totalPendente: 0, totalVirtual: 0, labels: {} };
+          const g = gruposNorm[norm];
+          const dataStr = `${data.periodo.ano}-${String(data.periodo.mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+          g.items.push({ categoria: r.categoria, descricao: r.descricao || '', valor: r.valor, data: dataStr, virtual: true, recorrenteId: r.id, dia });
+          g.total += r.valor;
+          g.totalVirtual += r.valor;
+          g.labels[r.categoria] = (g.labels[r.categoria] || 0) + 1;
+        });
+      });
       // Achado em 06/07/2026: o rodapé usava o totalDespesa (só caixa) recebido
       // por parâmetro, mas cada categoria já decompõe e soma caixa + fatura +
-      // pendente (ver grupo.total acima e faturaGrupoHTML/pendenteGrupoHTML
-      // abaixo) — o rodapé precisa bater com a soma do que está listado na
-      // tela, senão parece que a aba "não traz todas as despesas".
+      // pendente + virtual (ver grupo.total acima e faturaGrupoHTML/
+      // pendenteGrupoHTML/virtualGrupoHTML abaixo) — o rodapé precisa bater
+      // com a soma do que está listado na tela, senão parece que a aba "não
+      // traz todas as despesas".
       const totalListadoDetalhe = Object.values(gruposNorm).reduce((s, g) => s + g.total, 0);
       const ordem  = [];
       const grupos = {};
@@ -4466,9 +4487,9 @@
           const parcelaTag = item.origem === 'parcelamento' && item.parcelaAtual && item.parcelasTotal
             ? `<span class="badge-parcela" style="font-size:10px;background:rgba(99,179,237,0.15);color:#63b3ed;border-radius:3px;padding:1px 5px;margin-left:4px" title="Lançamento parcelado">💳 ${item.parcelaAtual}/${item.parcelasTotal}</span>`
             : '';
-          const editAttr = item.recorrenteId
+          const editAttr = item.virtual ? '' : (item.recorrenteId
             ? `data-edit-rec="${item._idx}" data-rec-id="${item.recorrenteId}"`
-            : `data-edit-desp="${item._idx}"`;
+            : `data-edit-desp="${item._idx}"`);
           const cancelarParcelaBtn = item.origem === 'parcelamento' && item.parcelamentoId
             ? `<button class="btn-item" data-cancelar-parcela="${escapeHtml(item.parcelamentoId)}" title="Cancelar parcelas restantes" style="color:#f87171;">✕</button>`
             : '';
@@ -4476,17 +4497,27 @@
           // decide quando ela conta (aberta/fechada/paga), então marcar como
           // pendente por data é enganoso e o botão "confirmar" não faz sentido
           // (não existe ação de confirmar um lançamento de cartão avulso).
-          const _pendenteRelevante = !item.cartao && isPendenteEfetivo(item);
+          const _pendenteRelevante = !item.virtual && !item.cartao && isPendenteEfetivo(item);
           const pendenteTag = _pendenteRelevante
             ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">⏳ pendente</span>`
             : '';
-          const pendenteRowStyle = _pendenteRelevante ? 'opacity:0.6;border-left:2px dashed var(--border);padding-left:6px;' : '';
+          // Fixa em conta ainda não lançada — não existe como lançamento de
+          // verdade ainda (ver materializarFixaPendente), por isso tem ações
+          // próprias (lançar/pular) em vez de editar/excluir.
+          const virtualTag = item.virtual
+            ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">🔜 a lançar</span>`
+            : '';
+          const pendenteRowStyle = (_pendenteRelevante || item.virtual) ? 'opacity:0.6;border-left:2px dashed var(--border);padding-left:6px;' : '';
           const confirmarBtn = _pendenteRelevante
             ? `<button class="btn-item" data-confirmar-pend="${item._idx}" title="Confirmar lançamento" style="color:var(--positive);font-size:11px;white-space:nowrap;">✓</button>`
             : '';
+          const virtualActionsHTML = item.virtual
+            ? `<button class="btn-item" data-materializar-virtual="${item.recorrenteId}:${item.dia}" title="Lançar essa despesa fixa" style="color:var(--positive);font-size:11px;white-space:nowrap;">✓ Lançar</button>
+               <button class="btn-item" data-pular-virtual="${item.recorrenteId}:${item.dia}" title="Pular este mês (a recorrência continua ativa)" style="color:var(--text-muted);">⏭</button>`
+            : '';
           const dataTagFinal = item.data
-            ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}${faturaTag}${recTag}${parcelaTag}${pendenteTag}</div>`
-            : (faturaTag || recTag || parcelaTag || pendenteTag) ? `<div class="item-fonte">${faturaTag}${recTag}${parcelaTag}${pendenteTag}</div>` : '';
+            ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}${faturaTag}${recTag}${parcelaTag}${pendenteTag}${virtualTag}</div>`
+            : (faturaTag || recTag || parcelaTag || pendenteTag || virtualTag) ? `<div class="item-fonte">${faturaTag}${recTag}${parcelaTag}${pendenteTag}${virtualTag}</div>` : '';
           return `
             <div class="item-row" style="${pendenteRowStyle}">
               <div>
@@ -4496,10 +4527,12 @@
               <div></div>
               <div class="item-value despesa">${brl(item.valor)}</div>
               <div class="item-actions">
+                ${item.virtual ? virtualActionsHTML : `
                 ${confirmarBtn}
                 ${item.origem !== 'parcelamento' ? `<button class="btn-item" ${editAttr} title="Editar">${IC_E}</button>` : ''}
                 ${cancelarParcelaBtn}
                 <button class="btn-item del" data-del-desp="${item._idx}" title="Excluir">${IC_D}</button>
+                `}
               </div>
             </div>`;
         }).join('');
@@ -4518,12 +4551,15 @@
           deltaHTML = `<span style="font-size:11px;color:${cor};font-weight:600;white-space:nowrap;">${sinal}${brl(delta)} (${pctDelta}%)</span>`;
         }
 
-        const faturaGrupo = grupo.total - grupo.totalCaixa - grupo.totalPendente;
+        const faturaGrupo = grupo.total - grupo.totalCaixa - grupo.totalPendente - grupo.totalVirtual;
         const faturaGrupoHTML = faturaGrupo > 0
           ? `<span style="font-size:11px;color:var(--gold);white-space:nowrap;margin-left:2px">+💳 ${brl(faturaGrupo)}</span>`
           : '';
         const pendenteGrupoHTML = grupo.totalPendente > 0
           ? `<span style="font-size:11px;color:var(--text-muted);white-space:nowrap;margin-left:2px">+⏳ ${brl(grupo.totalPendente)}</span>`
+          : '';
+        const virtualGrupoHTML = grupo.totalVirtual > 0
+          ? `<span style="font-size:11px;color:var(--text-muted);white-space:nowrap;margin-left:2px" title="Despesas fixas ainda não lançadas neste mês">+🔜 ${brl(grupo.totalVirtual)}</span>`
           : '';
 
         return `
@@ -4532,7 +4568,7 @@
               <span class="cat-group-nome">${escapeHtml(catNome)}</span>
               ${limiteHTML}
               ${deltaHTML}
-              <span class="cat-group-total">${brl(grupo.totalCaixa)}${faturaGrupoHTML}${pendenteGrupoHTML}</span>
+              <span class="cat-group-total">${brl(grupo.totalCaixa)}${faturaGrupoHTML}${pendenteGrupoHTML}${virtualGrupoHTML}</span>
               <button class="${btnLimClass}" data-cat="${escapeHtml(catNome)}">${btnLimText}</button>
             </div>
             <div class="items-list">${itemsHTML}</div>
@@ -4557,6 +4593,16 @@
         btn.addEventListener('click', () => confirmarPendente('despesa', +btn.dataset.confirmarPend)));
       despList.querySelectorAll('[data-cancelar-parcela]').forEach(btn =>
         btn.addEventListener('click', () => cancelarParcelamentoUI(btn.dataset.cancelarParcela)));
+      despList.querySelectorAll('[data-materializar-virtual]').forEach(btn =>
+        btn.addEventListener('click', () => {
+          const [recorrenteId, dia] = btn.dataset.materializarVirtual.split(':');
+          materializarFixaPendente(recorrenteId, +dia);
+        }));
+      despList.querySelectorAll('[data-pular-virtual]').forEach(btn =>
+        btn.addEventListener('click', () => {
+          const [recorrenteId, dia] = btn.dataset.pularVirtual.split(':');
+          pularFixaMes(recorrenteId, +dia);
+        }));
       despList.querySelectorAll('.btn-set-limite').forEach(btn =>
         btn.addEventListener('click', (e) => { e.stopPropagation(); abrirModalLimite(btn.dataset.cat); }));
       despList.querySelectorAll('.cat-add-btn').forEach(btn =>
