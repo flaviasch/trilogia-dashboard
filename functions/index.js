@@ -50,6 +50,7 @@ const {
   emailNovidadesJun2026v3,
   emailNovidadesJun2026Completo,
   emailNovidadesJul2026,
+  emailBalancoJul2026,
   emailJornadaDashboard,
   emailIR,
   emailReenvioAcesso,
@@ -4124,6 +4125,31 @@ exports.anunciarNovidadesJul2026 = onCall({ secrets: SECRETS_EMAIL }, async (req
   }
   await db.collection('config').doc('comunicados').set(
     { novidadesJul2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+exports.anunciarBalancoJul2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Detalhe, Planejamento e despesas fixas — mais precisos',
+        html:    emailBalancoJul2026(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarBalancoJul2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { balancoJul2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };

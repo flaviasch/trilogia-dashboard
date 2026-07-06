@@ -495,6 +495,56 @@ function emailNovidadesJul2026(nome) {
   `);
 }
 
+// ─── Balanço de Julho/2026 — Detalhe, Planejamento e despesas fixas ─────────
+
+function emailBalancoJul2026(nome) {
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  const secao = (titulo) =>
+    `<tr><td style="padding:18px 0 6px;">
+      <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Detalhe, Planejamento e despesas fixas — mais precisos</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Revisamos a aba Detalhe do orçamento a fundo esta semana. Agora ela mostra tudo o que compõe o seu mês — e bate certinho com o Planejamento e com a tela inicial:
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('📊 Aba Detalhe — o quadro completo')}
+      ${item('🧾','Todas as despesas num só lugar','Já lançadas, pendentes, faturas a vencer e até as despesas fixas que ainda não foram lançadas neste mês — tudo aparece na aba Detalhe agora.')}
+      ${item('✅','Total bate com o Planejamento','O total da aba Detalhe agora é exatamente igual ao Realizado do Planejamento — sem mais diferenças entre as duas telas.')}
+      ${item('🏠','Tela inicial consistente','O card de Despesa na tela inicial passou a usar o mesmo critério do Detalhe — o número que você vê ao abrir o app agora é o mesmo em qualquer lugar do dashboard.')}
+
+      ${secao('🔄 Despesas fixas — mais previsíveis')}
+      ${item('📅','Só valem a partir do mês certo','Uma despesa fixa nova passa a contar a partir do mês que você escolher — ela não aparece mais retroativamente em meses anteriores.')}
+      ${item('⏭️','"Pular este mês" funciona em qualquer mês','Corrigimos um problema em que pular uma ocorrência de despesa fixa num mês futuro não tinha efeito.')}
+      ${item('🗓️','Lançamento vai pro mês certo','Ao registrar algo com data de outro mês (ex: já pensando no próximo), o lançamento agora é salvo no mês da data escolhida, não no mês que você estava vendo na tela.')}
+
+      ${secao('📈 Saldo Projetado')}
+      ${item('🔮','Mais preciso','O Saldo Projetado Futuro agora também desconta as despesas fixas ainda não lançadas, refletindo melhor o que realmente vai sair da conta.')}
+
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">
+      Ver o orçamento →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 // ─── Comunicado Técnico ───────────────────────────────────────────────────────
 
 function emailComunicadoTecnico(nome) {
@@ -827,6 +877,7 @@ module.exports = {
   emailNovidadesJun2026v3,
   emailNovidadesJun2026Completo,
   emailNovidadesJul2026,
+  emailBalancoJul2026,
   emailJornadaDashboard,
   emailComunicadoTecnico,
   emailIR,

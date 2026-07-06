@@ -1681,6 +1681,22 @@
         });
       }
 
+      // ⓪-f Balanço de Julho — Detalhe/Planejamento/despesas fixas mais precisos
+      if (!localStorage.getItem('notif_balanco_jul2026')) {
+        notifs.unshift({ id: 'balanco-jul2026', type: 'novidades', key: 'notif_balanco_jul2026', icon: '📊', _expansivel: true,
+          titulo: 'Detalhe, Planejamento e despesas fixas — mais precisos',
+          desc: 'A aba Detalhe agora mostra tudo (inclusive fixas ainda não lançadas) e bate com o Planejamento e com a tela inicial; despesas fixas só valem a partir do mês certo; Saldo Projetado mais preciso.',
+          cta: { label: 'Ver orçamento', href: 'orcamento.html' },
+          itens: [
+            { emoji: '🧾', titulo: 'Todas as despesas num só lugar', desc: 'Já lançadas, pendentes, faturas a vencer e despesas fixas ainda não lançadas — tudo na aba Detalhe.' },
+            { emoji: '✅', titulo: 'Total bate com o Planejamento', desc: 'O total da aba Detalhe agora é igual ao Realizado do Planejamento e ao card de Despesa da tela inicial.' },
+            { emoji: '📅', titulo: 'Despesas fixas só a partir do mês certo', desc: 'Uma despesa fixa nova não aparece mais retroativamente em meses anteriores ao que você escolheu.' },
+            { emoji: '⏭️', titulo: '"Pular este mês" funciona em qualquer mês', desc: 'Corrigido um problema em que pular uma despesa fixa num mês futuro não tinha efeito.' },
+            { emoji: '🔮', titulo: 'Saldo Projetado mais preciso', desc: 'Agora também desconta as despesas fixas ainda não lançadas.' },
+          ],
+        });
+      }
+
       // ① Perfil de investidor — ausente ou > 180 dias sem atualizar
       const perfilKey = `notif_perfil_${mesKey}`;
       if (!localStorage.getItem(perfilKey)) {
