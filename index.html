@@ -1177,16 +1177,19 @@
       ]).then(([orcData, patData]) => {
         // Atualiza cards de orçamento — receita e despesa usam o MESMO critério
         // (achado em 06/07/2026: usar critérios diferentes pra cada uma deixava
-        // a comparação enganosa, ex: receita projetada do mês inteiro vs.
-        // despesa só do que já virou caixa). Nenhuma das duas exclui por data
-        // futura — ambas já são lançadas com a data prevista (salário do dia
-        // 10, aluguel fixo, etc), então isso é "orçamento do mês", não caixa
-        // exato. Despesa ainda exclui itens de cartão (fatura aberta ou com
-        // fatura definida) — esses são tratados à parte na aba Faturas do
-        // orcamento.html, e foi a inclusão deles (ex: "Ajuste de fatura") que
-        // inflava demais o card originalmente (achado em 04/07/2026).
+        // a comparação enganosa). Nenhuma das duas exclui por data futura —
+        // ambas já são lançadas com a data prevista (salário do dia 10, aluguel
+        // fixo, etc), então isso é "orçamento comprometido do mês", não caixa
+        // exato. Despesa exclui só a fatura de cartão ainda ABERTA (ciclo em
+        // curso, pode receber mais compras, valor não fechado) — faturas
+        // FECHADAS aguardando pagamento contam normalmente, são despesa
+        // comprometida do mês como qualquer outra (achado em 06/07/2026,
+        // Flávia: "tem as faturas pendentes também, precisam ser
+        // consideradas"). Isso é diferente do "Despesa Total" (caixa) do
+        // Resumo em orcamento.html, que só conta fatura já confirmada como
+        // paga — aqui é a visão "comprometido", igual ao Planejamento.
         const receita = (orcData || []).filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').reduce((s, i) => s + i.valor, 0);
-        const despesa = (orcData || []).filter(i => i.tipo === 'despesa' && !i._faturaAberta && !(i.cartao && i.fatura)).reduce((s, i) => s + i.valor, 0);
+        const despesa = (orcData || []).filter(i => i.tipo === 'despesa' && !i._faturaAberta).reduce((s, i) => s + i.valor, 0);
         const aporte  = (orcData || []).filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0);
         const sobra   = receita - despesa;
         const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
