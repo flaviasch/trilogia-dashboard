@@ -86,9 +86,13 @@ test('saveOrcamento', async (t) => {
 
   await t.test('achado 04/07/2026: nunca persiste _sourceMes, _sourceAno ou _faturaAberta de volta', async () => {
     const uid = uidTeste();
+    // _sourceMes/_sourceAno apontando pro MESMO mês/ano do save — testa que os
+    // campos ephemeral são removidos sem também mudar de "balde" (mês de
+    // origem diferente do mês atual iria pro merge de "outros meses", não
+    // testaria o que queremos aqui).
     const itemComVazamento = {
       ...despesa('Assinaturas', 60),
-      _sourceMes: 6, _sourceAno: 2026, // simula item "emprestado" que o frontend não deveria reenviar aqui
+      _sourceMes: MES, _sourceAno: ANO,
       _faturaAberta: true, // simula campo computado na leitura que não deveria voltar pro banco
     };
     await fns.saveOrcamento.run({ data: { uid, mes: MES, ano: ANO, itens: [itemComVazamento] }, auth: auth(uid) });
