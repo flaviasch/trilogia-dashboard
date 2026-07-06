@@ -538,6 +538,15 @@ function emailBalancoJul2026(nome) {
 
     </table>
 
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:20px 0;background:#FBF8F1;border:1px solid #E8D9B5;border-radius:10px;">
+      <tr><td style="padding:16px 18px;">
+        <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#CFAE65;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">🔜 O QUE VEM POR AÍ</p>
+        <p style="margin:0;font-size:13px;color:#0D2B45;line-height:1.6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+          Estamos trabalhando para permitir <strong>múltiplas contas correntes</strong> dentro do orçamento — pra você acompanhar cada conta separadamente, tudo no mesmo lugar.
+        </p>
+      </td></tr>
+    </table>
+
     <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">
       Ver o orçamento →
     </a>
