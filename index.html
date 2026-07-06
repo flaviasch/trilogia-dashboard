@@ -1185,9 +1185,13 @@
         // (achado em 04/07/2026).
         const _hojeF2 = new Date(); _hojeF2.setHours(0, 0, 0, 0);
         const _pendenteF2 = i => i.data && new Date(i.data + 'T00:00:00') > _hojeF2;
-        // Receita exclui o item sentinela de saldo em conta (não é renda) e
-        // fontes com data futura ainda não recebidas.
-        const receita = (orcData || []).filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__' && !_pendenteF2(i)).reduce((s, i) => s + i.valor, 0);
+        // Receita exclui só o item sentinela de saldo em conta (não é renda) —
+        // ao contrário da despesa, NÃO exclui data futura: receita já é
+        // planejada/esperada assim que lançada (ex: salário do dia 10), e
+        // excluir por data fazia a home mostrar R$0 de receita e quebrar a
+        // checagem "orçamento configurado" do onboarding no início de cada
+        // mês (achado em 06/07/2026).
+        const receita = (orcData || []).filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').reduce((s, i) => s + i.valor, 0);
         const despesa = (orcData || []).filter(i => i.tipo === 'despesa' && !_pendenteF2(i) && !i._faturaAberta && !(i.cartao && i.fatura)).reduce((s, i) => s + i.valor, 0);
         const aporte  = (orcData || []).filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0);
         const sobra   = receita - despesa;
