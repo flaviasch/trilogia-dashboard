@@ -3646,8 +3646,15 @@
       // fatura em aberto — o ciclo ainda não fechou, valor/data não estão
       // definidos, por isso o Saldo Projetado também não antecipa isso.
       const pendCardSaldoFuturo = document.getElementById('pendCardSaldoFuturo');
-      if (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0) {
-        const saldoFuturo = saldoFinal + totalReceitaPendente - totalPendente - totalFaturas;
+      if (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || totalFixasVirtuais > 0) {
+        // totalFixasVirtuais entra aqui também — o card "Despesas Pendentes"
+        // ao lado já soma totalPendente + totalFixasVirtuais (achado
+        // 04/07/2026); sem incluir aqui também, o Saldo Projetado ficava
+        // maior do que devia (achado em 06/07/2026, Flávia: "fórmula: saldo
+        // inicial - despesa total - despesas pendentes + receitas pendentes
+        // - faturas a vencer" — usando o valor de despesas pendentes que já
+        // inclui as fixas).
+        const saldoFuturo = saldoFinal + totalReceitaPendente - totalPendente - totalFaturas - totalFixasVirtuais;
         pendCardSaldoFuturo.style.display = '';
         const elSaldoFuturo = document.getElementById('pendSaldoFuturoValor');
         elSaldoFuturo.textContent = brl(saldoFuturo);
