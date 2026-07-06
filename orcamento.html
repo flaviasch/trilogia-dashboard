@@ -3528,7 +3528,10 @@
       else { fatInd.style.display = 'none'; }
       const pendInd = document.getElementById('despesasPendentesIndicador');
       const pendVal = document.getElementById('despesasPendentesValor');
-      if (totalPendente > 0) { pendInd.style.display = ''; pendVal.textContent = brl(totalPendente); }
+      // Mesmo critério do card "Despesas Pendentes" abaixo (totalPendente +
+      // totalFixasVirtuais) — achado em 06/07/2026: essa nota ainda somava só
+      // totalPendente, batendo diferente do card novo (achado 04/07/2026).
+      if (totalPendente + totalFixasVirtuais > 0) { pendInd.style.display = ''; pendVal.textContent = brl(totalPendente + totalFixasVirtuais); }
       else { pendInd.style.display = 'none'; }
 
       // ── Pendências e Alertas ────────────────────────────────────────────────
