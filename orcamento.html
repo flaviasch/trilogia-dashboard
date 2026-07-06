@@ -2402,6 +2402,7 @@
     // criar uma categoria "Lançamentos não identificados" e fazer o
     // realizado bater com o fluxo de caixa, em vez de só avisar a diferença.
     let _diffNaoIdentificadoMes = 0;
+    const CATEGORIA_AJUSTE = 'Lançamentos não identificados — verificar';
     let _tabAtiva = 'resumo';
     const _periodoCache = new Map(); // { '2026-5': { data, cats } }
     const _invalPeriodo = (m, a) => _periodoCache.delete(`${a}-${m}`);
@@ -4417,6 +4418,26 @@
           g.labels[r.categoria] = (g.labels[r.categoria] || 0) + 1;
         });
       });
+      // Mesmo ajuste do Planejamento (ver renderPlanejamento) — a diferença
+      // entre o comprometido real e a reconciliação de caixa que não foi
+      // possível explicar. _diffNaoIdentificadoMes já teria "absorvido" as
+      // fixas virtuais acima (por isso subtrai o que elas já somaram aqui),
+      // senão o valor entraria contado duas vezes — achado em 06/07/2026,
+      // Flávia: "a soma de detalhes deveria ser a mesma do realizado no
+      // planejamento... pode criar um lançamento pra ajustar e deixar igual".
+      const _totalVirtualSomado = Object.values(gruposNorm).reduce((s, g) => s + g.totalVirtual, 0);
+      const _ajusteDetalhe = -_diffNaoIdentificadoMes - _totalVirtualSomado;
+      if (Math.abs(_ajusteDetalhe) > 1) {
+        const normAjuste = _normCat(CATEGORIA_AJUSTE);
+        gruposNorm[normAjuste] = {
+          items: [{ categoria: CATEGORIA_AJUSTE, descricao: '', valor: _ajusteDetalhe, ajuste: true }],
+          // totalCaixa = total aqui (não 0) pra não passar pelo cálculo de
+          // faturaGrupo/pendenteGrupo no cabeçalho e mostrar ícone de
+          // cartão/pendente errado nessa categoria de ajuste.
+          total: _ajusteDetalhe, totalCaixa: _ajusteDetalhe, totalPendente: 0, totalVirtual: 0,
+          labels: { [CATEGORIA_AJUSTE]: 1 },
+        };
+      }
       // Achado em 06/07/2026: o rodapé usava o totalDespesa (só caixa) recebido
       // por parâmetro, mas cada categoria já decompõe e soma caixa + fatura +
       // pendente + virtual (ver grupo.total acima e faturaGrupoHTML/
@@ -4466,6 +4487,18 @@
         }
 
         const itemsHTML = itemsFiltrados.map(item => {
+          if (item.ajuste) {
+            return `
+              <div class="item-row" style="opacity:0.6;border-left:2px dashed var(--negative);padding-left:6px;">
+                <div>
+                  <div class="item-categoria">${escapeHtml(item.categoria)}</div>
+                  <div class="item-fonte">Diferença entre o comprometido do mês e a reconciliação de caixa — confira faturas com ajuste manual e despesas fixas</div>
+                </div>
+                <div></div>
+                <div class="item-value despesa">${brl(item.valor)}</div>
+                <div class="item-actions"></div>
+              </div>`;
+          }
           const primary = item.descricao
             ? escapeHtml(item.descricao)
             : escapeHtml(item.categoria);
@@ -4640,7 +4673,6 @@
       // pendentes + faturas + compras em aberto, calculada no Resumo). Se não
       // bater, em vez de sumir a diferença, ela vira uma categoria própria —
       // assim o total do Planejamento sempre coincide com o fluxo de caixa.
-      const CATEGORIA_AJUSTE = 'Lançamentos não identificados — verificar';
       const temAjuste = Math.abs(_diffNaoIdentificadoMes) > 1;
       if (temAjuste) {
         gruposPorNorm[_normCat(CATEGORIA_AJUSTE)] = { total: -_diffNaoIdentificadoMes, labels: { [CATEGORIA_AJUSTE]: 1 } };
