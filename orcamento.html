@@ -2775,6 +2775,79 @@
         return;
       }
 
+      // Despesa/receita normal (não-cartão) com data em um mês diferente do
+      // mês em tela — salva direto no mês da data escolhida, igual já
+      // acontece com cartão via fatura acima. Sem isso, o lançamento ficava
+      // gravado no mês em tela em vez do mês da data (achado em 06/07/2026,
+      // ao criar uma despesa fixa com "virar fixa" e data de um mês
+      // diferente do mês visualizado).
+      const [itemAnoData, itemMesData, itemDiaData] = data.split('-').map(Number);
+      const mesDiferente = !cartao && (itemMesData !== currentData.periodo.mes || itemAnoData !== currentData.periodo.ano);
+      if (mesDiferente) {
+        const editandoIdxCaptura = editandoIdx;
+        const virarFixaOM       = editandoIdxCaptura === null && document.getElementById('mVirarFixa')?.checked;
+        const recorrPrazoOM     = editandoIdxCaptura === null && document.getElementById('mRecorrenciaPrazo')?.checked;
+        const mesesRecorrOM     = recorrPrazoOM ? parseInt(document.getElementById('mRecorrenciaMeses')?.value) : null;
+        if (recorrPrazoOM && (!mesesRecorrOM || mesesRecorrOM < 1)) {
+          toast('Informe quantos meses a recorrência deve durar.', 'warning');
+          return;
+        }
+        const fixaCartaoOM     = (virarFixaOM || recorrPrazoOM) && document.getElementById('mFixaCartao')?.checked;
+        const fixaCartaoIdOM   = fixaCartaoOM ? (document.getElementById('mFixaCartaoSelecionado')?.value || '') : '';
+        const fixaFrequenciaOM = document.getElementById('mFixaFrequencia')?.value || 'mensal';
+        const fixaDiaOM        = _calcFixaDia(fixaFrequenciaOM, data);
+        if (fixaCartaoOM && !fixaCartaoIdOM) {
+          toast('Selecione o cartão da despesa fixa.', 'warning');
+          return;
+        }
+
+        fecharModal();
+        setLoading(btnSalvarItem, true);
+        try {
+          // Se é edição, remove o item original do mês em tela antes de salvar no mês certo
+          if (editandoIdxCaptura !== null && editandoIdxCaptura.tipo === tipo) {
+            const listaOrigem = tipo === 'receita' ? currentData.receitas : currentData.despesas;
+            listaOrigem.splice(editandoIdxCaptura.idx, 1);
+            await salvarEAtualizar();
+          }
+          const itensOutroMes = (await getOrcamento(itemMesData, itemAnoData)).filter(i => i._sourceMes == null);
+          itensOutroMes.push(novoItem);
+
+          if (virarFixaOM || recorrPrazoOM) {
+            const { id: novoRecId } = await saveRecorrente({
+              categoria, valor, descricao, dia: fixaDiaOM, frequencia: fixaFrequenciaOM,
+              mesesRestantes: recorrPrazoOM ? mesesRecorrOM : null,
+              ativo: true, cartao: !!fixaCartaoOM, cartaoId: fixaCartaoIdOM,
+            });
+            await carregarRecorrentes();
+            if (fixaFrequenciaOM !== 'mensal') {
+              const diasDoMesOM = fixaFrequenciaOM === 'semanal'
+                ? diasSemanaNoMes(itemAnoData, itemMesData, fixaDiaOM)
+                : [fixaDiaOM, fixaDiaOM + 14].filter(dd => dd >= 1 && dd <= 31);
+              const outrosDiasOM = diasDoMesOM.filter(dd => dd !== itemDiaData);
+              if (outrosDiasOM.length) {
+                novoItem.recorrenteId = novoRecId;
+                itensOutroMes.push(...outrosDiasOM.map(dd => ({
+                  categoria, tipo, valor, descricao,
+                  data: `${itemAnoData}-${String(itemMesData).padStart(2, '0')}-${String(dd).padStart(2, '0')}`,
+                  cartao: !!fixaCartaoOM,
+                  fatura: fixaCartaoOM ? `${itemAnoData}-${String(itemMesData).padStart(2, '0')}` : '',
+                  cartaoId: fixaCartaoIdOM, origem: 'recorrente', recorrenteId: novoRecId,
+                })));
+              }
+            }
+          }
+          await saveOrcamento(itemMesData, itemAnoData, itensOutroMes);
+          _invalPeriodo(itemMesData, itemAnoData);
+          toast(`Salvo em ${MESES[itemMesData - 1]}/${itemAnoData} — visualize navegando para aquele mês.`, 'success', 5000);
+        } catch (err) {
+          toast('Erro ao salvar.', 'error');
+        } finally {
+          setLoading(btnSalvarItem, false);
+        }
+        return;
+      }
+
       // Despesa normal: salva no mês atual
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
       if (editandoIdx !== null && editandoIdx.tipo === tipo) {
