@@ -1339,8 +1339,9 @@ exports.getCategoriasMes = onCall(async (request) => {
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
   const snap = await db.collection('mentoradas').doc(uid)
     .collection('planejamento').doc(mesKey).get();
-  if (!snap.exists) return { categorias: [] };
-  return { categorias: snap.data().categorias || [] };
+  if (!snap.exists) return { categorias: [], renda: null, percentual: null };
+  const data = snap.data();
+  return { categorias: data.categorias || [], renda: data.renda ?? null, percentual: data.percentual ?? null };
 });
 
 /**
@@ -1428,6 +1429,33 @@ exports.upsertCategoriaLimite = onCall(async (request) => {
   });
 
   return { ok: true, categorias };
+});
+
+/**
+ * Atualiza renda planejada + percentual planejado do mês, sem tocar em
+ * `categorias` — mesmo padrão de merge via transaction do upsertCategoriaLimite,
+ * pra não sobrescrever categorias salvas em outra aba/dispositivo.
+ * Espera: { uid, mes, ano, renda, percentual }
+ */
+exports.savePlanejamentoMeta = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, mes, ano, renda, percentual } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'savePlanejamentoMeta', 20, 60_000); // 20/min
+
+  if (typeof renda !== 'number' || renda < 0) throw new HttpsError('invalid-argument', 'Renda inválida.');
+  if (typeof percentual !== 'number' || percentual < 0 || percentual > 100) throw new HttpsError('invalid-argument', 'Percentual inválido.');
+
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  const ref = db.collection('mentoradas').doc(uid).collection('planejamento').doc(mesKey);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const atuais = snap.exists ? snap.data() : {};
+    tx.set(ref, { ...atuais, renda, percentual, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+  });
+
+  return { ok: true };
 });
 
 // ─── CATEGORIAS GLOBAIS (legacy — mantido para compatibilidade) ───────────────

@@ -977,6 +977,30 @@ export async function upsertCategoriaLimite(mes, ano, nome, limite) {
   return res?.categorias || [];
 }
 
+/**
+ * Retorna a renda planejada e o percentual planejado do mês (parte do mesmo
+ * documento de planejamento, não sobrepõe getCategoriasMes).
+ * @param {number} mes
+ * @param {number} ano
+ * @returns {Promise<{renda: number|null, percentual: number|null}>}
+ */
+export async function getPlanejamentoMeta(mes, ano) {
+  const res = await call('getCategoriasMes')({ uid: uidAtual(), mes, ano });
+  return { renda: res?.renda ?? null, percentual: res?.percentual ?? null };
+}
+
+/**
+ * Salva a renda planejada e o percentual planejado do mês. Faz merge no
+ * servidor (transaction) — não toca em `categorias`.
+ * @param {number} mes
+ * @param {number} ano
+ * @param {number} renda
+ * @param {number} percentual
+ */
+export async function savePlanejamentoMeta(mes, ano, renda, percentual) {
+  return call('savePlanejamentoMeta')({ uid: uidAtual(), mes, ano, renda, percentual });
+}
+
 // ─── Categorias globais (legacy) ─────────────────────────────────────────────
 export async function getCategorias() {
   const res = await call('getCategorias')({ uid: uidAtual() });

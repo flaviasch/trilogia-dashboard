@@ -2196,16 +2196,36 @@
     </div>
   </div>
 
+  <!-- Modal renda + % planejado -->
+  <div class="modal-overlay hidden" id="modalRendaPlan">
+    <div class="modal-card">
+      <h2 class="modal-title">Renda e % planejado</h2>
+      <p class="modal-sub">Define o total planejado do mês (renda × %). O que sobrar sem categoria vira "Não planejado".</p>
+      <div class="field-group">
+        <label for="mRendaValor">Renda mensal (R$)</label>
+        <input type="text" inputmode="numeric" id="mRendaValor" placeholder="ex: 10.000" />
+      </div>
+      <div class="field-group">
+        <label for="mPercentualValor">Percentual planejado para gastar (%)</label>
+        <input type="number" inputmode="numeric" id="mPercentualValor" min="0" max="100" step="1" placeholder="ex: 70" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarRendaPlan">Cancelar</button>
+        <button class="btn-save" id="btnSalvarRendaPlan">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=25';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=26';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
       isPendenteEfetivo, normCat, diasSemanaNoMes, diasEsperadosRecorrente, diasFaltantesRecorrente,
       getFixasPuladas, chaveFixaPulada, addFixaPulada,
-      calcularAgregadosOrcamento, calcularAjuste, CATEGORIA_AJUSTE,
+      calcularAgregadosOrcamento, calcularAjuste, calcularNaoPlanejado, CATEGORIA_AJUSTE,
     } from './js/orcamento-calc.js';
 
     // Alias de compatibilidade — funções mais antigas usavam mostrarToast
@@ -2399,6 +2419,8 @@
     let reservas = [];
     let perfilInvestidor = null;
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
+    let planejamentoMeta = { renda: null, percentual: null }; // renda + % planejado do mês atual
+    let _naoPlanExpandido = false; // estado do "Não planejado" (expandir/colapsar) no Planejamento
     let _projecaoFiltro = null; // 'despesa' | 'receita' | 'fatura' | null (mostra tudo)
 
     // Diferença entre o comprometido do mês (soma de tudo lançado) e a
@@ -3295,12 +3317,13 @@
       const mes = agora.getMonth() + 1;
       const ano = agora.getFullYear();
 
-      const [orcResult, resResult, perfilResult, catResult, fatEstResult] = await Promise.allSettled([
+      const [orcResult, resResult, perfilResult, catResult, fatEstResult, planMetaResult] = await Promise.allSettled([
         getOrcamento(mes, ano),
         getReservas(),
         getPerfil(),
         getCategoriasMes(mes, ano),
         getFaturaEstados(),
+        getPlanejamentoMeta(mes, ano),
       ]);
 
       if (orcResult.status === 'fulfilled') {
@@ -3326,6 +3349,7 @@
       if (perfilResult.status === 'fulfilled') perfilInvestidor = perfilResult.value?.perfil || null;
       if (catResult.status === 'fulfilled')    categoriasMes = catResult.value || [];
       if (fatEstResult.status === 'fulfilled') _faturaEstados = fatEstResult.value || {};
+      if (planMetaResult.status === 'fulfilled') planejamentoMeta = planMetaResult.value || { renda: null, percentual: null };
 
       // Carrega recorrentes em paralelo (sem bloquear o render). Fixas no
       // cartão são lançadas automaticamente em cada fatura; fixas em conta
@@ -4684,11 +4708,15 @@
       const contaComoComprometido = d => !d._faturaAberta;
 
       // Agrega despesas por categoria NORMALIZADA — "Alimentação"/"alimentação"
-      // contam juntas; o rótulo exibido é a grafia mais usada no grupo.
+      // contam juntas; o rótulo exibido é a grafia mais usada no grupo. Só
+      // categorias COM limite definido ganham linha própria — sem limite vai
+      // pra "Não planejado" (ver naoPlan mais abaixo).
+      const catsComLimiteNorm = new Set(cats.filter(c => c.limite > 0).map(c => normCat(c.nome)));
       const gruposPorNorm = {}; // normKey -> { total, labels: {label: count} }
       data.despesas.forEach(d => {
         if (!contaComoComprometido(d)) return;
         const norm = normCat(d.categoria);
+        if (!catsComLimiteNorm.has(norm)) return;
         if (!gruposPorNorm[norm]) gruposPorNorm[norm] = { total: 0, labels: {} };
         gruposPorNorm[norm].total += d.valor;
         gruposPorNorm[norm].labels[d.categoria] = (gruposPorNorm[norm].labels[d.categoria] || 0) + 1;
@@ -4704,11 +4732,32 @@
       }
 
       // Inclui categorias com limite definido que ainda não têm despesa neste mês
-      cats.forEach(c => {
+      cats.filter(c => c.limite > 0).forEach(c => {
         const norm = normCat(c.nome);
         if (!gruposPorNorm[norm]) gruposPorNorm[norm] = { total: 0, labels: {} };
         gruposPorNorm[norm].labels[c.nome] = (gruposPorNorm[norm].labels[c.nome] || 0) + 1;
       });
+
+      // "Não planejado" — categorias sem limite definido, resumidas numa
+      // linha só (folga do orçamento + gasto fora do plano). CATEGORIA_AJUSTE
+      // é outra coisa (reconciliação de caixa) e fica de fora, com linha própria.
+      const naoPlan = calcularNaoPlanejado({
+        renda: planejamentoMeta.renda,
+        percentual: planejamentoMeta.percentual,
+        categorias: cats,
+        despesas: data.despesas.filter(d => normCat(d.categoria) !== normCat(CATEGORIA_AJUSTE)),
+      });
+      const _gruposNaoPlanNorm = {};
+      naoPlan.itensNaoPlanejado.forEach(d => {
+        const norm = normCat(d.categoria);
+        if (!_gruposNaoPlanNorm[norm]) _gruposNaoPlanNorm[norm] = { total: 0, labels: {} };
+        _gruposNaoPlanNorm[norm].total += d.valor;
+        _gruposNaoPlanNorm[norm].labels[d.categoria] = (_gruposNaoPlanNorm[norm].labels[d.categoria] || 0) + 1;
+      });
+      const _detalheNaoPlanItens = Object.values(_gruposNaoPlanNorm).map(g => ({
+        label: Object.entries(g.labels).sort((a, b) => b[1] - a[1])[0][0],
+        total: g.total,
+      })).sort((a, b) => b.total - a.total);
 
       // Escolhe o rótulo mais frequente de cada grupo pra exibir; porCat fica
       // indexado por esse rótulo (mantém a interface usada daqui pra baixo).
@@ -4755,8 +4804,12 @@
           </div>`;
       }
 
-      // Totais
-      const totalPlan = cats.reduce((s, c) => s + (c.limite || 0), 0);
+      // Totais — quando renda+% estão definidos, o planejado do mês é a meta
+      // (renda × %), não só a soma dos limites por categoria (que pode ser
+      // menor, deixando folga pro "Não planejado").
+      const totalPlan = naoPlan.totalPlanejado != null
+        ? naoPlan.totalPlanejado
+        : cats.reduce((s, c) => s + (c.limite || 0), 0);
       const totalReal = data.despesas.filter(contaComoComprometido).reduce((s, d) => s + d.valor, 0)
         + (temAjuste ? _valorAjustePlanejamento : 0);
 
@@ -4793,6 +4846,46 @@
           <td style="padding-right:20px;text-align:center"><span class="plan-status">${emoji}</span>${pctLabel}</td>
         </tr>`;
       }).join('');
+
+      // Linha "Não planejado" — só aparece se houver algo relevante pra mostrar
+      // (gasto fora do plano, ou folga não distribuída quando a meta existe).
+      const naoPlanRelevante = naoPlan.itensNaoPlanejado.length > 0
+        || (naoPlan.temMeta && (naoPlan.folga > 0 || naoPlan.sobreAlocado));
+      let linhaNaoPlan = '';
+      if (naoPlanRelevante) {
+        const limiteNP = naoPlan.temMeta ? naoPlan.folga : 0;
+        const realNP   = naoPlan.realNaoPlanejado;
+        const pctNP    = limiteNP > 0 ? Math.min(realNP / limiteNP * 100, 200) : (realNP > 0 ? 200 : 0);
+        const corNP    = !naoPlan.temMeta ? 'var(--text-muted)' : pctNP > 100 ? 'var(--negative)' : pctNP > 80 ? '#f59e0b' : 'var(--positive)';
+        const emojiNP  = !naoPlan.temMeta ? '⚪' : pctNP > 100 ? '🔴' : pctNP > 80 ? '🟡' : limiteNP > 0 ? '🟢' : (realNP > 0 ? '🔴' : '⚪');
+        const chevronNP = `<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="transform:rotate(${_naoPlanExpandido ? '180' : '0'}deg);transition:transform .15s;margin-left:6px;vertical-align:middle"><polyline points="4,6 8,10 12,6"/></svg>`;
+        const planCellNP = naoPlan.temMeta
+          ? `<div class="plan-plan-wrap" style="flex-direction:column;align-items:flex-end;gap:0">
+               <span class="plan-valor-plan">${brl(limiteNP)}</span>
+               ${naoPlan.sobreAlocado ? `<span style="font-size:10px;color:#f59e0b">categorias somam mais que o planejado</span>` : ''}
+             </div>`
+          : `<button class="btn-edit-plan" style="opacity:1;width:auto;padding:0 8px" onclick="event.stopPropagation();abrirModalRendaPlan()" title="Definir renda">+ definir renda</button>`;
+        linhaNaoPlan = `
+          <tr class="plan-row" style="cursor:pointer" onclick="toggleNaoPlanejado()">
+            <td class="plan-cat" style="padding-left:20px">Não planejado${chevronNP}</td>
+            <td>${planCellNP}</td>
+            <td><span style="font-weight:600;${realNP > 0 ? `color:${corNP}` : ''}">${brl(realNP)}</span></td>
+            <td style="min-width:140px">${limiteNP > 0 || realNP > 0
+              ? `<div class="plan-bar-wrap"><div class="plan-bar-track"><div class="plan-bar-fill" style="width:${Math.min(pctNP,100).toFixed(1)}%;background:${corNP}"></div></div><span class="plan-pct-text" style="color:${corNP}">${limiteNP > 0 ? pctNP.toFixed(0) + '%' : '—'}</span></div>`
+              : `<div class="plan-bar-wrap"><span style="color:var(--text-muted);font-size:12px">—</span></div>`}</td>
+            <td style="padding-right:20px;text-align:center"><span class="plan-status">${emojiNP}</span></td>
+          </tr>
+          <tr class="plan-row-detalhe"${_naoPlanExpandido ? '' : ' style="display:none"'}>
+            <td colspan="5" style="padding:4px 20px 14px 36px;background:rgba(255,255,255,.015)">
+              ${_detalheNaoPlanItens.map(it => `
+                <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:var(--text-secondary);border-bottom:1px solid rgba(255,255,255,.05)">
+                  <span>${escapeHtml(it.label)}</span>
+                  <span style="font-weight:600">${brl(it.total)}</span>
+                </div>`).join('') || `<div style="font-size:12px;color:var(--text-muted);padding:6px 0">Nenhuma despesa fora do plano este mês.</div>`}
+            </td>
+          </tr>`;
+      }
+      const corpoTabela = linhas + linhaNaoPlan;
 
       const totalPctGlobal = totalPlan > 0 ? Math.round(totalReal / totalPlan * 100) : 0;
       const totalCorGlobal = totalPctGlobal > 100 ? 'var(--negative)' : totalPctGlobal > 80 ? '#f59e0b' : 'var(--positive)';
@@ -4894,6 +4987,15 @@
             Copiar de ${nomeMesCurto(mes > 1 ? mes - 1 : 12, mes > 1 ? ano : ano - 1)}
           </button>
         </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:16px;flex-wrap:wrap;">
+          <span class="plan-desc">${naoPlan.temMeta
+            ? `Planejado do mês: <strong style="color:var(--white)">${brl(naoPlan.totalPlanejado)}</strong> (${brl(planejamentoMeta.renda)} × ${planejamentoMeta.percentual}%)`
+            : 'Defina a renda e o percentual planejado pra calcular o total do mês.'}</span>
+          <button class="btn-copiar-mes" onclick="abrirModalRendaPlan()">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>
+            ${naoPlan.temMeta ? 'Editar renda/%' : 'Definir renda/%'}
+          </button>
+        </div>
         ${alertasHTML}
         <div class="plan-table-wrap">
           <table class="plan-table">
@@ -4906,7 +5008,7 @@
                 <th style="padding-right:20px;text-align:center">Status</th>
               </tr>
             </thead>
-            <tbody>${linhas || `<tr><td colspan="5" class="plan-nenhum">Nenhuma despesa lançada este mês.<br>Importe o CSV ou adicione manualmente na aba Resumo.</td></tr>`}</tbody>
+            <tbody>${corpoTabela || `<tr><td colspan="5" class="plan-nenhum">Nenhuma despesa lançada este mês.<br>Importe o CSV ou adicione manualmente na aba Resumo.</td></tr>`}</tbody>
             <tfoot>
               <tr class="plan-total-row">
                 <td style="padding-left:20px;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em">Total</td>
@@ -4941,6 +5043,12 @@
       // Abre o modal de limite (já existente) com a categoria
       abrirModalLimite(cat);
     }
+
+    function toggleNaoPlanejado() {
+      _naoPlanExpandido = !_naoPlanExpandido;
+      renderPlanejamento(currentData, categoriasMes);
+    }
+    window.toggleNaoPlanejado = toggleNaoPlanejado;
 
     async function copiarMesAnterior() {
       const { mes, ano } = currentData.periodo;
@@ -5420,6 +5528,46 @@
       }
     });
 
+    // ─── Renda + % planejado ──────────────────────────────────────────────────
+    const modalRendaPlan = document.getElementById('modalRendaPlan');
+    bindMoneyInput(document.getElementById('mRendaValor'));
+
+    function abrirModalRendaPlan() {
+      if (planejamentoMeta.renda != null) setMoney(document.getElementById('mRendaValor'), planejamentoMeta.renda);
+      else document.getElementById('mRendaValor').value = '';
+      document.getElementById('mPercentualValor').value = planejamentoMeta.percentual ?? '';
+      modalRendaPlan.classList.remove('hidden');
+      setTimeout(() => document.getElementById('mRendaValor').focus(), 80);
+    }
+    window.abrirModalRendaPlan = abrirModalRendaPlan;
+
+    document.getElementById('btnCancelarRendaPlan').addEventListener('click', () => modalRendaPlan.classList.add('hidden'));
+    modalRendaPlan.addEventListener('click', e => { if (e.target === modalRendaPlan) modalRendaPlan.classList.add('hidden'); });
+
+    document.getElementById('btnSalvarRendaPlan').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarRendaPlan');
+      const renda = readMoney(document.getElementById('mRendaValor'));
+      const percentual = parseFloat(document.getElementById('mPercentualValor').value);
+
+      if (!(renda > 0)) { toast('Preencha a renda mensal.', 'warning'); return; }
+      if (isNaN(percentual) || percentual < 0 || percentual > 100) { toast('Percentual deve estar entre 0 e 100.', 'warning'); return; }
+
+      const { mes, ano } = currentData.periodo;
+      modalRendaPlan.classList.add('hidden');
+      setLoading(btn, true);
+      try {
+        await savePlanejamentoMeta(mes, ano, renda, percentual);
+        _invalPeriodo(mes, ano);
+        planejamentoMeta = { renda, percentual };
+        if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
+        toast(`Planejado: ${brl(renda * percentual / 100)} (${percentual}% de ${brl(renda)}).`, 'success');
+      } catch (err) {
+        toast('Erro ao salvar. Tente novamente.', 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
     // ─── Editar / excluir aporte ─────────────────────────────────────────────
     let editandoAporteIdx = null;
     const modalAporteEdit = document.getElementById('modalAporteEdit');
@@ -5654,16 +5802,18 @@
       const key = `${ano}-${mes}`;
       const cached = _periodoCache.get(key);
       if (cached) {
-        if (afetaGlobal) categoriasMes = cached.cats;
+        if (afetaGlobal) { categoriasMes = cached.cats; planejamentoMeta = cached.planMeta; }
         return cached.data;
       }
       try {
-        const [itens, cats] = await Promise.all([
+        const [itens, cats, planMeta] = await Promise.all([
           getOrcamento(mes, ano),
           getCategoriasMes(mes, ano),
+          getPlanejamentoMeta(mes, ano),
         ]);
         const catsLimpo = cats || [];
-        if (afetaGlobal) categoriasMes = catsLimpo;
+        const planMetaLimpo = planMeta || { renda: null, percentual: null };
+        if (afetaGlobal) { categoriasMes = catsLimpo; planejamentoMeta = planMetaLimpo; }
         const _saldoItemB = itens.find(i => i.tipo === 'receita' && i.categoria === '__saldo_conta__');
         const data = {
           periodo:    { mes, ano },
@@ -5683,7 +5833,7 @@
         // navegação de volta pra esse mês pegaria a versão errada (achado em
         // 04/07/2026 — mesmo depois do fix de não sobrescrever categoriasMes
         // diretamente, o cache ainda podia ficar poluído).
-        if (afetaGlobal) _periodoCache.set(key, { data, cats: catsLimpo });
+        if (afetaGlobal) _periodoCache.set(key, { data, cats: catsLimpo, planMeta: planMetaLimpo });
         return data;
       } catch (err) {
         toast(msgErro(err), 'error');

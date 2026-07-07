@@ -27,6 +27,7 @@ import {
   addFixaPulada,
   calcularAgregadosOrcamento,
   calcularAjuste,
+  calcularNaoPlanejado,
   CATEGORIA_AJUSTE,
 } from '../orcamento-calc.js';
 
@@ -252,5 +253,72 @@ test('calcularAjuste', async (t) => {
   });
   await t.test('CATEGORIA_AJUSTE é a mesma string usada em Detalhe e Planejamento', () => {
     assert.equal(CATEGORIA_AJUSTE, 'Lançamentos não identificados — verificar');
+  });
+});
+
+test('calcularNaoPlanejado', async (t) => {
+  await t.test('sem renda/percentual definidos, totalPlanejado e folga são null', () => {
+    const r = calcularNaoPlanejado({ categorias: [{ nome: 'Moradia', limite: 2000 }], despesas: [] });
+    assert.equal(r.temMeta, false);
+    assert.equal(r.totalPlanejado, null);
+    assert.equal(r.folga, null);
+    assert.equal(r.sobreAlocado, false);
+  });
+
+  await t.test('folga = total planejado - soma dos limites das categorias', () => {
+    const r = calcularNaoPlanejado({
+      renda: 10000, percentual: 70,
+      categorias: [{ nome: 'Moradia', limite: 4000 }, { nome: 'Alimentação', limite: 2000 }],
+      despesas: [],
+    });
+    assert.equal(r.totalPlanejado, 7000);
+    assert.equal(r.somaLimites, 6000);
+    assert.equal(r.folga, 1000);
+    assert.equal(r.sobreAlocado, false);
+  });
+
+  await t.test('soma de limites acima do planejado: folga clampa em 0 e sinaliza sobreAlocado', () => {
+    const r = calcularNaoPlanejado({
+      renda: 10000, percentual: 70,
+      categorias: [{ nome: 'Moradia', limite: 5000 }, { nome: 'Alimentação', limite: 3000 }],
+      despesas: [],
+    });
+    assert.equal(r.totalPlanejado, 7000);
+    assert.equal(r.somaLimites, 8000);
+    assert.equal(r.folga, 0);
+    assert.equal(r.sobreAlocado, true);
+  });
+
+  await t.test('real = despesas em categorias sem limite definido', () => {
+    const r = calcularNaoPlanejado({
+      renda: 10000, percentual: 70,
+      categorias: [{ nome: 'Moradia', limite: 4000 }],
+      despesas: [
+        { categoria: 'Moradia', valor: 1500 },       // tem limite → fora
+        { categoria: 'Lazer', valor: 300 },           // sem limite → dentro
+        { categoria: 'Assinaturas', valor: 80 },      // sem limite → dentro
+      ],
+    });
+    assert.equal(r.realNaoPlanejado, 380);
+    assert.equal(r.itensNaoPlanejado.length, 2);
+  });
+
+  await t.test('categoria sem limite é case/acento-insensível (normCat)', () => {
+    const r = calcularNaoPlanejado({
+      categorias: [{ nome: 'alimentação', limite: 500 }],
+      despesas: [{ categoria: 'Alimentação', valor: 100 }],
+    });
+    assert.equal(r.realNaoPlanejado, 0);
+  });
+
+  await t.test('exclui despesas da fatura em aberto (mesmo critério do resto do Planejamento)', () => {
+    const r = calcularNaoPlanejado({
+      categorias: [],
+      despesas: [
+        { categoria: 'Lazer', valor: 200, _faturaAberta: true },
+        { categoria: 'Lazer', valor: 50 },
+      ],
+    });
+    assert.equal(r.realNaoPlanejado, 50);
   });
 });

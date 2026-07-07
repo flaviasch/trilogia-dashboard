@@ -257,6 +257,41 @@ export function calcularAgregadosOrcamento({
 }
 
 /**
+ * Categoria calculada "Não planejado" do Planejamento — junta duas coisas
+ * distintas num único número: (1) a folga do orçamento planejado que não foi
+ * distribuída em nenhuma categoria (renda × % planejado − soma dos limites),
+ * e (2) o gasto real que caiu em categorias sem limite definido (fora do
+ * plano). Não confundir com CATEGORIA_AJUSTE (calcularAjuste) — aquela é
+ * reconciliação de caixa, essa é sobra/gasto de categorização.
+ *
+ * @param {object} args
+ * @param {number|null} [args.renda] - renda planejada do mês; null se ainda não definida
+ * @param {number|null} [args.percentual] - percentual planejado pra gastar (0-100); null se ainda não definido
+ * @param {{nome:string, limite:number}[]} [args.categorias]
+ * @param {object[]} [args.despesas] - mesmo array usado em calcularAgregadosOrcamento
+ * @returns {{
+ *   temMeta: boolean, totalPlanejado: number|null, somaLimites: number,
+ *   folga: number|null, sobreAlocado: boolean,
+ *   itensNaoPlanejado: object[], realNaoPlanejado: number,
+ * }}
+ */
+export function calcularNaoPlanejado({ renda = null, percentual = null, categorias = [], despesas = [] }) {
+  const temMeta = renda != null && percentual != null;
+  const totalPlanejado = temMeta ? renda * (percentual / 100) : null;
+  const somaLimites = (categorias || []).reduce((s, c) => s + (c.limite || 0), 0);
+  const folga = temMeta ? Math.max(0, totalPlanejado - somaLimites) : null;
+  const sobreAlocado = temMeta && somaLimites > totalPlanejado;
+
+  // Compras em aberto (_faturaAberta) ficam fora — mesmo critério
+  // "comprometido" usado pelas demais categorias do Planejamento.
+  const catsComLimite = new Set((categorias || []).filter(c => c.limite > 0).map(c => normCat(c.nome)));
+  const itensNaoPlanejado = (despesas || []).filter(d => !d._faturaAberta && !catsComLimite.has(normCat(d.categoria)));
+  const realNaoPlanejado = itensNaoPlanejado.reduce((s, d) => s + d.valor, 0);
+
+  return { temMeta, totalPlanejado, somaLimites, folga, sobreAlocado, itensNaoPlanejado, realNaoPlanejado };
+}
+
+/**
  * Categoria de ajuste "Lançamentos não identificados" — mesma peça que
  * Detalhe e Planejamento injetam quando diffNaoIdentificadoMes é relevante
  * (>1 em módulo). Centralizado aqui pra não divergir entre as duas telas.
