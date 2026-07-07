@@ -3538,6 +3538,10 @@
       // maior do que deveria).
       // Usado nos alertas de categoria (Resumo) e no Planejamento.
       const contaComoComprometido = d => !d._faturaAberta;
+      // Em mês futuro, "pendente por data" não diz nada (tudo é futuro) — conta
+      // tudo. Só no mês atual a distinção caixa (já sensibilizou) x pendente
+      // (ainda não) faz sentido. Usado na lista de despesas do Resumo.
+      const _contaComoCaixa = d => _ehFuturo || !isPendenteEfetivo(d);
 
       // Banner de importação: compacto se já há dados no mês
       const temDados = data.receitas.length > 0 || data.despesas.length > 0;
