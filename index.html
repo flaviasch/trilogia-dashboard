@@ -872,6 +872,7 @@
     import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=25';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
+    import { calcularAgregadosOrcamento } from './js/orcamento-calc.js';
     import {
       onAuthStateChanged,
       signOut,
@@ -1169,52 +1170,6 @@
       document.getElementById('loadingOverlay').style.display = 'none';
       _applyDashboard(data, user, viewAsUid);
 
-      // ── Helpers de comprometido/fixas virtuais — mesmo cálculo do Resumo em
-      // orcamento.html, portado aqui pra Despesa da home bater 100% com o
-      // total da aba Detalhe/Realizado do Planejamento (achado em 06/07/2026,
-      // Flávia: "tem que bater com Detalhe/Planejamento, incluindo as fixas
-      // ainda não lançadas e o ajuste de lançamentos não identificados").
-      function _isPendenteEfetivo(item) {
-        if (!item.data) return false;
-        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-        return new Date(item.data + 'T00:00:00') > hoje;
-      }
-      function _diasSemanaNoMes(ano, mes, diaSemana) {
-        const dias = [];
-        const total = new Date(ano, mes, 0).getDate();
-        for (let d = 1; d <= total; d++) {
-          if (new Date(ano, mes - 1, d).getDay() === diaSemana) dias.push(d);
-        }
-        return dias;
-      }
-      function _diasEsperadosRecorrenteF2(r, mes, ano) {
-        if (r.anoInicio != null && r.mesInicio != null) {
-          const antesDoInicio = ano < r.anoInicio || (ano === r.anoInicio && mes < r.mesInicio);
-          if (antesDoInicio) return [];
-        }
-        const freq = r.frequencia || 'mensal';
-        if (freq === 'semanal')   return _diasSemanaNoMes(ano, mes, r.dia);
-        if (freq === 'quinzenal') return [r.dia, r.dia + 14].filter(d => d >= 1 && d <= 31);
-        return [r.dia];
-      }
-      function _diasFaltantesRecorrenteF2(r, despesasArr, mes, ano) {
-        const esperados = _diasEsperadosRecorrenteF2(r, mes, ano);
-        const ocupados = new Set(
-          despesasArr
-            .filter(d => d.recorrenteId === r.id || (!d.recorrenteId && d.categoria === r.categoria))
-            .map(d => parseInt((d.data || '').split('-')[2], 10))
-            .filter(d => !isNaN(d))
-        );
-        return esperados.filter(d => !ocupados.has(d));
-      }
-      function _getFixasPuladasF2() {
-        try { return JSON.parse(localStorage.getItem('_fixasPuladas') || '[]'); }
-        catch (_) { return []; }
-      }
-      function _chaveFixaPuladaF2(recorrenteId, ano, mes, dia) {
-        return `${recorrenteId}_${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-      }
-
       // Fase 2: carrega orçamento e patrimônio em background e atualiza os cards
       const { mes, ano } = data.orcamento;
       Promise.all([
@@ -1224,62 +1179,22 @@
         getCartoes(),
         getFaturaEstados(),
       ]).then(([orcData, patData, recorrentes, cartoes, faturaEstados]) => {
-        // Atualiza cards de orçamento — receita e despesa usam o MESMO critério
-        // (achado em 06/07/2026: usar critérios diferentes pra cada uma deixava
-        // a comparação enganosa). Nenhuma das duas exclui por data futura —
-        // ambas já são lançadas com a data prevista (salário do dia 10, aluguel
-        // fixo, etc), então isso é "orçamento comprometido do mês", não caixa
-        // exato.
-        const receita = (orcData || []).filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').reduce((s, i) => s + i.valor, 0);
-        const aporte  = (orcData || []).filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0);
-
-        // Despesa: mesmo total "comprometido" da aba Detalhe/Realizado do
-        // Planejamento em orcamento.html — efetivadas + pendentes + faturas a
-        // vencer + despesas fixas ainda não lançadas + ajuste de lançamentos
-        // não identificados (achado em 06/07/2026, Flávia: "tem que bater com
-        // Detalhe/Planejamento").
-        const despesasArr = (orcData || []).filter(i => i.tipo === 'despesa');
-        const _cartoesF2 = cartoes || [];
-        const _faturaEstadosF2 = faturaEstados || {};
-        const gruposFechadaCaixaF2 = {};
-        despesasArr.forEach(d => {
-          if (d.cartao && d.fatura && !d._faturaAberta) {
-            const key = `${d.cartaoId}_${d.fatura}`;
-            gruposFechadaCaixaF2[key] = (gruposFechadaCaixaF2[key] || 0) + d.valor;
-          }
+        // Mesmo cálculo do Resumo em orcamento.html (js/orcamento-calc.js) —
+        // Despesa/Receita da home batem 100% com Detalhe/Realizado do
+        // Planejamento (achado em 06/07/2026, Flávia: "tem que bater com
+        // Detalhe/Planejamento, incluindo as fixas ainda não lançadas e o
+        // ajuste de lançamentos não identificados").
+        const orcDataArr = orcData || [];
+        const dataOrc = {
+          periodo: { mes, ano },
+          saldoConta: 0, // não afeta receita/despesa comprometida
+          receitas: orcDataArr.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__'),
+          despesas: orcDataArr.filter(i => i.tipo === 'despesa'),
+          aportes: orcDataArr.filter(i => i.tipo === 'aporte'),
+        };
+        const { receitaComprometida: receita, despesaComprometida: despesa, totalAp: aporte } = calcularAgregadosOrcamento({
+          data: dataOrc, cartoes: cartoes || [], faturaEstados: faturaEstados || {}, recorrentes: recorrentes || [],
         });
-        Object.entries(_faturaEstadosF2).forEach(([key, fe]) => {
-          if (fe?.estado === 'paga_total' || key in gruposFechadaCaixaF2) return;
-          const cartaoId = key.split('_')[0];
-          if (_cartoesF2.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixaF2[key] = 0;
-        });
-        let totalFaturasF2 = 0, totalCartaoPagoF2 = 0;
-        Object.entries(gruposFechadaCaixaF2).forEach(([key, total]) => {
-          const fe = _faturaEstadosF2[key];
-          const totalAjustado = fe?.ajusteTotal ?? total;
-          if (fe?.estado === 'paga_total') totalCartaoPagoF2 += totalAjustado;
-          else if (fe?.estado === 'paga_parcial') totalCartaoPagoF2 += fe.valorPago || 0;
-          else totalFaturasF2 += totalAjustado;
-        });
-
-        const despesasPendentesF2 = despesasArr.filter(d => _isPendenteEfetivo(d) && !(d.cartao && d.fatura));
-        const totalPendenteF2 = despesasPendentesF2.reduce((s, d) => s + d.valor, 0);
-
-        const _puladasF2 = _getFixasPuladasF2();
-        let totalFixasVirtuaisF2 = 0;
-        (recorrentes || []).filter(r => r.ativo && !r.cartao).forEach(r => {
-          _diasFaltantesRecorrenteF2(r, despesasArr, mes, ano).forEach(dia => {
-            if (_puladasF2.includes(_chaveFixaPuladaF2(r.id, ano, mes, dia))) return;
-            totalFixasVirtuaisF2 += r.valor;
-          });
-        });
-
-        const totalDespesaCaixaF2 = despesasArr.filter(d => !_isPendenteEfetivo(d) && !d._faturaAberta && !(d.cartao && d.fatura)).reduce((s, d) => s + d.valor, 0) + totalCartaoPagoF2;
-        // totalDespesaCaixa + pendente + faturas + fixasVirtuais == o total
-        // final da aba Detalhe (que já soma o comprometido real + fixas
-        // virtuais + a categoria de ajuste "Lançamentos não identificados") —
-        // por isso não precisa recomputar o comprometido nem o diff aqui.
-        const despesa = totalDespesaCaixaF2 + totalPendenteF2 + totalFaturasF2 + totalFixasVirtuaisF2;
         const sobra   = receita - despesa;
         const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
 

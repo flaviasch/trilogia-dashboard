@@ -43,6 +43,9 @@ jobs:
         working-directory: functions
         run: npm test
 
+      - name: Rodar testes do módulo compartilhado de orçamento (frontend)
+        run: node --test js/test/*.test.mjs
+
   deploy:
     runs-on: ubuntu-latest
     environment:
