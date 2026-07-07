@@ -187,7 +187,7 @@ dashboard/
 **`updateMentorada`** — atualiza campos permitidos: `status`, `nota`, `perfil`, `inicio`, `produto`, `valorMensal`, `formaPagamento`, `dataExpiracao`, `mentoriaEncerrada`, `assinaturaDashboard`
 **`bloquearMentorada`** — desabilita no Firebase Auth + status: inativa
 **`reativarMentorada`** — reabilita no Firebase Auth + status: ativa
-**`deletarMentorada`** — remove conta Auth + documento Firestore (planilha Sheets permanece no Drive)
+**`deletarMentorada`** — remove conta Auth, documento Firestore (incluindo subcoleções), cobranças e contratos; apaga a planilha do Drive e arquiva a página no Notion (LGPD, direito de apagamento); grava audit log com TTL de 5 anos em `mentoradas_deletadas`
 **`reenviarAcesso`** — gera novo link de redefinição de senha + envia e-mail
 **`criarPlanilha`** — provisiona planilha para mentorada que ainda não tem sheetId
 **`bootstrapAdmin`** — auto-configura custom claim `admin: true` para a conta master (flaviasch@gmail.com)
@@ -226,6 +226,7 @@ dashboard/
 
 **`kiwifyWebhook`** (`onRequest`, POST)
 - URL: `https://southamerica-east1-trilogia-dashboard.cloudfunctions.net/kiwifyWebhook`
+- **Autenticado via HMAC-SHA256** (`X-Kiwify-Signature`, secret `KIWIFY_WEBHOOK_SECRET`) — requisição sem assinatura válida é rejeitada com 401 (ver `functions/index.js`, linhas ~3273-3304)
 - Configurado no Kiwify: Compra aprovada + Assinatura cancelada + Assinatura em atraso
 - Campo do evento no payload: `body.webhook_event_type` (PascalCase Kiwify), fallback para `body.event` / `body.type`
 - E-mail do cliente: `body.Customer.email` → `body.Order.Customer.email` → `body.Subscription.Customer.email`
@@ -401,7 +402,7 @@ const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
 |---|---|---|
 | Google Sheets API | CRUD das planilhas das mentoradas | `GOOGLE_SERVICE_ACCOUNT_JSON` |
 | Google Drive API | Criar planilha no Drive da Flávia | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DRIVE_FOLDER_ID` |
-| Kiwify | Webhook de pagamentos/cancelamentos | (sem autenticação por token ainda) |
+| Kiwify | Webhook de pagamentos/cancelamentos | `KIWIFY_WEBHOOK_SECRET` (verificação HMAC-SHA256) |
 | Notion API | Leitura do CRM de encontros | `NOTION_TOKEN` |
 | Gmail (via OAuth) | Envio de e-mails transacionais | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` |
 

@@ -3310,7 +3310,6 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
   const crypto = require('crypto');
   const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
 
-  // Tenta HMAC primeiro (mais seguro); fallback para comparação direta (token estático legado)
   const assinaturaEsperada = crypto
     .createHmac('sha256', kiwifySecret)
     .update(rawBody)
