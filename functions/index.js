@@ -5650,8 +5650,16 @@ exports.syncDiagnosticoWebhook = onRequest({ secrets: [sDiagSecret] }, async (re
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
-  const secret = req.body?.secret;
-  if (secret !== sDiagSecret.value()) {
+  // Comparação timing-safe (mesmo padrão do kiwifyWebhook) — evita vazar,
+  // por tempo de resposta, quantos caracteres do secret o chamador acertou.
+  // Hash os dois lados antes de comparar: assim os buffers têm sempre o
+  // mesmo tamanho (32 bytes), sem precisar ramificar por tamanho do input.
+  const crypto = require('crypto');
+  const secret = String(req.body?.secret || '');
+  const secretEsperado = sDiagSecret.value();
+  const hashRecebido  = crypto.createHash('sha256').update(secret).digest();
+  const hashEsperado  = crypto.createHash('sha256').update(secretEsperado).digest();
+  if (!crypto.timingSafeEqual(hashRecebido, hashEsperado)) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
