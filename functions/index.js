@@ -2374,7 +2374,11 @@ exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, s
     }
   }
 
-  // Audit log LGPD
+  // Audit log LGPD — mesmo TTL de 5 anos usado em _lgpd_log (achado na
+  // auditoria de segurança de 06/07/2026: esse log guardava nome/e-mail de
+  // quem pediu exclusão sem nenhum prazo de retenção definido).
+  const expireAtDeletada = new Date();
+  expireAtDeletada.setFullYear(expireAtDeletada.getFullYear() + 5);
   try {
     await db.collection('mentoradas_deletadas').doc(uid).set({
       nome:            docData.nome            || null,
@@ -2386,6 +2390,7 @@ exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, s
       planilhaApagada,
       deletadoEm:      admin.firestore.FieldValue.serverTimestamp(),
       deletadoPor:     request.auth?.uid       || 'admin',
+      expireAt:        expireAtDeletada,
     });
   } catch (err) {
     // Não bloqueia a deleção — apenas registra o problema
