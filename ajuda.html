@@ -332,6 +332,16 @@
       </div>
 
       <div class="faq-item">
+        <p class="faq-q">O que é o botão "Importar SMS"?</p>
+        <p class="faq-a">É uma forma rápida de registrar uma compra sem abrir o formulário completo: copie o texto da notificação do banco ou do cartão (ou compartilhe direto do app, no Android) e cole no dashboard. O sistema tenta identificar valor, data e categoria automaticamente e coloca o lançamento numa fila pendente — você confirma ou ajusta antes de salvar.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Como funciona um lançamento parcelado?</p>
+        <p class="faq-a">Ao lançar uma compra parcelada, você informa o valor total e o número de parcelas — o dashboard divide automaticamente e cria uma despesa em cada mês, a partir do mês de início escolhido. Se precisar cancelar, o botão de cancelar parcelamento remove só as parcelas futuras; as que já passaram continuam no histórico.</p>
+      </div>
+
+      <div class="faq-item">
         <p class="faq-q">Por que a Despesa Total do Resumo às vezes é diferente do Detalhe e do Planejamento?</p>
         <p class="faq-a">O Resumo mostra o caixa real: uma fatura de cartão só conta depois que você confirma o pagamento na aba Faturas. Já a aba Detalhe, o Planejamento e a tela inicial acompanham o gasto comprometido: somam tudo que está previsto ou lançado naquela categoria, pago ou não — incluindo despesas fixas ainda não lançadas. As duas visões existem de propósito: uma responde "quanto já saiu da conta", a outra "quanto esse mês vai custar no total".</p>
       </div>
@@ -347,15 +357,40 @@
       </div>
 
       <div class="faq-item">
+        <p class="faq-q">O que é o "dia de corte" de um cartão?</p>
+        <p class="faq-a">É o dia do mês em que a fatura fecha. Uma compra feita antes do corte entra na fatura que já está em andamento; uma compra feita depois do corte só entra na fatura do ciclo seguinte. É esse dia que o dashboard usa para decidir automaticamente em qual fatura cada lançamento de cartão vai cair — você cadastra o dia de corte de cada cartão na tela de Cartões.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">O que faz o botão "Copiar de [mês]" no Planejamento?</p>
+        <p class="faq-a">Traz os limites de categoria que você já definiu no mês anterior pro mês atual — só adiciona as categorias que ainda não existem no mês em tela, nunca substitui ou apaga um limite que você já tinha ajustado ali.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">O que é o banner de alerta de limite que aparece no Resumo?</p>
+        <p class="faq-a">Aparece automaticamente quando uma categoria com limite definido no Planejamento chega a 80% do valor previsto (ou passa de 100%). É um aviso pra olhar aquela categoria antes que o gasto do mês saia do planejado.</p>
+      </div>
+
+      <div class="faq-item">
         <p class="faq-q">O que é o Saldo Projetado?</p>
         <p class="faq-a">É a lista das faturas e pendências que ainda vão impactar o caixa este mês, em ordem de data, mostrando como o saldo vai se mexer conforme cada uma acontecer.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">O que mostra a aba Anual do orçamento?</p>
+        <p class="faq-a">Uma visão consolidada do ano: KPIs totais, um gráfico comparando receita, despesa e sobra mês a mês, e uma tabela com o Score de Saúde Financeira de cada mês — útil pra ver a evolução ao longo do tempo, não só o mês corrente.</p>
       </div>
 
       <p class="steps-title" style="margin-top:32px;margin-bottom:14px;">patrimônio</p>
 
       <div class="faq-item">
         <p class="faq-q">O que é o Score de saúde financeira?</p>
-        <p class="faq-a">Uma nota de 0 a 100, recalculada todo mês, que junta quatro fatores: quanto sobrou da receita, se você fez o aporte planejado, se ficou dentro do orçamento por categoria, e se tem o hábito de registrar os lançamentos com regularidade.</p>
+        <p class="faq-a">Uma nota de 0 a 100, recalculada todo mês, que combina quatro fatores com pesos diferentes:<br><br>
+          <strong>Sobra (30%)</strong> — quanto da sua receita sobrou depois das despesas. Quanto maior o percentual de sobra, mais pontos.<br>
+          <strong>Aporte (35%)</strong> — se você executou o aporte planejado nas suas reservas naquele mês. Aporte de 100% do planejado dá pontuação máxima.<br>
+          <strong>Orçamento (25%)</strong> — quantas categorias com limite definido no Planejamento ficaram dentro do previsto. Cada categoria que estourou o limite derruba a nota; se nenhuma categoria tem limite cadastrado, esse fator fica neutro.<br>
+          <strong>Uso (10%)</strong> — se você registrou algum lançamento naquele mês. Sem nenhum lançamento, esse fator zera.<br><br>
+          Cada fator é pontuado de 0 a 100 e a nota final é a média ponderada dos quatro — por isso manter o Planejamento com os limites de categoria atualizados pesa bastante no resultado.</p>
       </div>
 
       <div class="faq-item">
