@@ -3835,7 +3835,7 @@
       // Resumo: agrupa por categoria (detalhe item a item está na aba Detalhe)
       const despList = document.getElementById('despesasList');
       const _gruposResumoNorm = {};
-      data.despesas.filter(d => _contaComoCaixa(d) && !d._faturaAberta).forEach(d => {
+      data.despesas.filter(d => _contaComoCaixa(d) && !d._faturaAberta && !(d.cartao && d.fatura)).forEach(d => {
         const norm = normCat(d.categoria);
         if (!_gruposResumoNorm[norm]) _gruposResumoNorm[norm] = { total: 0, n: 0, labels: {} };
         _gruposResumoNorm[norm].total += d.valor;
