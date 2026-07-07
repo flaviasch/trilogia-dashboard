@@ -551,15 +551,24 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
   const aporteMes  = orcItens.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0);
   const sobraMes   = receitaMes - despesaMes;
 
-  // Score calculado ao vivo — mesma fórmula do orcamento.html
+  // Se o orcamento.html já salvou um score pro mês atual (via salvarScoreMes,
+  // usando a fórmula completa com fatura aberta/fechada e despesas fixas
+  // virtuais — ver js/orcamento-calc.js), usa esse valor. Só recalcula aqui
+  // com a fórmula simplificada (sem essas nuances) quando ainda não existe
+  // nada salvo pro mês — evita a home sobrescrever com um número divergente
+  // do que a aba Orçamento mostra (achado em 07/07/2026).
   const cats = planSnap?.exists ? (planSnap.data().categorias || []) : [];
-  const scoreCalculado    = orcItens.length > 0 ? calcularScoreMes(orcItens, reservas, cats) : null;
-  const scoreChaveCalculado = scoreCalculado != null ? mesAtual : null;
-
-  // Persiste score calculado no doc (fire-and-forget) para histórico
-  if (scoreCalculado != null) {
-    docSnap.ref.update({ scoreMes: scoreCalculado, scoreChave: scoreChaveCalculado })
-      .catch(e => console.warn(`[getDashboardHome] Falha ao salvar score: ${e.message}`));
+  let scoreCalculado, scoreChaveCalculado;
+  if (scoreChave === mesAtual && scoreMes != null) {
+    scoreCalculado = scoreMes;
+    scoreChaveCalculado = scoreChave;
+  } else {
+    scoreCalculado = orcItens.length > 0 ? calcularScoreMes(orcItens, reservas, cats) : null;
+    scoreChaveCalculado = scoreCalculado != null ? mesAtual : null;
+    if (scoreCalculado != null) {
+      docSnap.ref.update({ scoreMes: scoreCalculado, scoreChave: scoreChaveCalculado })
+        .catch(e => console.warn(`[getDashboardHome] Falha ao salvar score: ${e.message}`));
+    }
   }
 
   // Registra acesso em background (fire-and-forget)
