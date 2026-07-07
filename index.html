@@ -1115,7 +1115,7 @@
             const cached = parsed._exp && parsed._exp > Date.now() ? parsed._d : null;
             if (cached) {
               document.getElementById('loadingOverlay').style.display = 'none';
-              _applyDashboard(cached, user, viewAsUid);
+              _applyDashboard(cached, user, viewAsUid, true);
               _hadCache = true;
             } else {
               localStorage.removeItem(_ck); // expirado — limpa
@@ -1247,8 +1247,11 @@
       return true;   // sucesso
     }
 
-    function _applyDashboard(data, user, viewAsUid) {
+    function _applyDashboard(data, user, viewAsUid, fromCache = false) {
       if (data.apenasClube && !viewAsUid) {
+        // Decisão de acesso nunca vem do cache local (pode estar desatualizada
+        // até 1h) — só redireciona quando confirmado pela chamada fresca à API.
+        if (fromCache) return;
         localStorage.setItem('clubeAccess', '1');
         localStorage.setItem('clubeOnlyMode', '1');
         window.location.replace('clube.html');
