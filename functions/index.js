@@ -908,6 +908,7 @@ exports.saveFaturaEstado = onCall({ secrets: [] }, async (request) => {
   const { uid, cartaoId, faturaKey, ajusteTotal, estado, valorPago, rollover,
           nomeCartao, nextMesKey } = request.data;
   requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveFaturaEstado', 20, 60_000); // 20/min
 
   if (!cartaoId || typeof cartaoId !== 'string')
     throw new HttpsError('invalid-argument', 'cartaoId é obrigatório.');
@@ -968,6 +969,7 @@ exports.saveParcelamento = onCall({ secrets: SECRETS_SHEETS }, async (request) =
   const auth = requireAuth(request);
   const { uid, categoria, descricao, valorTotal, nParcelas, mesInicio, anoInicio } = request.data;
   requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveParcelamento', 10, 60_000); // 10/min
 
   if (!categoria || !valorTotal || !nParcelas || !mesInicio || !anoInicio) {
     throw new HttpsError('invalid-argument', 'categoria, valorTotal, nParcelas, mesInicio e anoInicio são obrigatórios.');
@@ -1099,6 +1101,7 @@ exports.saveRecorrente = onCall(async (request) => {
   requireAuth(request);
   const { uid, recorrente } = request.data;
   requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveRecorrente', 20, 60_000); // 20/min
 
   if (!recorrente?.categoria || typeof recorrente.categoria !== 'string')
     throw new HttpsError('invalid-argument', 'categoria é obrigatória.');
@@ -1218,6 +1221,7 @@ exports.saveCartao = onCall(async (request) => {
   requireAuth(request);
   const { uid, cartao } = request.data;
   requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveCartao', 10, 60_000); // 10/min
 
   if (!cartao?.nome || typeof cartao.nome !== 'string')
     throw new HttpsError('invalid-argument', 'nome é obrigatório.');
@@ -1338,6 +1342,7 @@ exports.saveCategoriasMes = onCall(async (request) => {
   requireAuth(request);
   const { uid, mes, ano, categorias, permitirReducao } = request.data;
   requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveCategoriasMes', 20, 60_000); // 20/min
 
   if (!Array.isArray(categorias)) throw new HttpsError('invalid-argument', 'categorias deve ser um array.');
   if (categorias.length > 100) throw new HttpsError('invalid-argument', 'Máximo de 100 categorias por mês.');
@@ -1386,6 +1391,7 @@ exports.upsertCategoriaLimite = onCall(async (request) => {
   requireAuth(request);
   const { uid, mes, ano, nome, limite } = request.data;
   requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'upsertCategoriaLimite', 20, 60_000); // 20/min
 
   if (typeof nome !== 'string' || !nome || nome.length > 200) throw new HttpsError('invalid-argument', 'Nome de categoria inválido.');
   if (typeof limite !== 'number' || limite < 0) throw new HttpsError('invalid-argument', 'Limite inválido.');
