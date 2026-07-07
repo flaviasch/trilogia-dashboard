@@ -6778,7 +6778,10 @@
       const pop = document.getElementById('suportePopover');
       if (!btn || !pop) return;
       btn.addEventListener('click', e => { e.stopPropagation(); pop.classList.toggle('hidden'); });
-      document.addEventListener('click', () => pop.classList.add('hidden'));
+      // Fecha só em clique fora do popover — fechar em qualquer clique (inclusive
+      // nos próprios links) cancelava a navegação no iOS Safari, deixando só o
+      // botão de e-mail (mailto:, que não depende de navegação de página) funcionar.
+      document.addEventListener('click', e => { if (!pop.contains(e.target)) pop.classList.add('hidden'); });
     })();
 
     // ─── DESPESAS FIXAS (Recorrentes) ────────────────────────────────────────
