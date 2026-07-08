@@ -3450,8 +3450,15 @@
       const catsComLimite = cats.filter(c => c.limite > 0);
       let ptsOrcamento = 75; // neutro se sem limites
       if (catsComLimite.length > 0) {
+        // Mesmo critério "comprometido" do Planejamento: exclui compras na
+        // fatura ABERTA (ciclo em curso, ainda não fechou) — sem isso o score
+        // contava como "estourada" categoria que só parecia passar do limite
+        // por causa de compras de cartão que nem fecharam ainda (achado
+        // 07/07/2026, divergência entre Score e aba Planejamento).
         const estouradas = catsComLimite.filter(c => {
-          const gasto = data.despesas.filter(d => normCat(d.categoria) === normCat(c.nome)).reduce((s, d) => s + d.valor, 0);
+          const gasto = data.despesas
+            .filter(d => !d._faturaAberta && normCat(d.categoria) === normCat(c.nome))
+            .reduce((s, d) => s + d.valor, 0);
           return gasto > c.limite;
         }).length;
         if (estouradas === 0)      ptsOrcamento = 100;
