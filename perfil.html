@@ -431,6 +431,7 @@
     import { getPerfil, savePerfil, getReservas, exportarMeusDados, setViewAsUid, registrarEvento, msgErro } from './js/api.js?v=25';
     import { toast, setLoading } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
+    import { ALOCACAO_PERFIL, mesesAte } from './js/investidor-calc.js';
     import {
       onAuthStateChanged,
       signOut
@@ -467,40 +468,23 @@
     });
 
     // ─── Perfis ──────────────────────────────
+    // Alocação vem de js/investidor-calc.js — mesma tabela usada em
+    // reservas.html, nunca mais duas cópias podendo divergir.
     const PERFIS = {
       conservador: {
         nome: 'Conservador',
         desc: 'Foco total em preservação de capital e estabilidade. Carteira defensiva, com proteção contra inflação e mínima exposição a volatilidade.',
-        alocacao: [
-          { label: 'RF Pós',      pct: 70,  cor: '#60a5fa' },
-          { label: 'RF Inflação', pct: 25,  cor: '#34d399' },
-          { label: 'RF Pré',      pct:  5,  cor: '#a78bfa' },
-        ]
+        alocacao: ALOCACAO_PERFIL.conservador,
       },
       moderado: {
         nome: 'Moderado',
         desc: 'Equilíbrio entre segurança e crescimento. Base sólida em renda fixa com diversificação real para ganho de capital no médio e longo prazo.',
-        alocacao: [
-          { label: 'RF Pós',         pct: 52.5, cor: '#60a5fa' },
-          { label: 'RF Inflação',    pct: 25,   cor: '#34d399' },
-          { label: 'RF Pré',         pct:  5,   cor: '#a78bfa' },
-          { label: 'Multimercado',   pct:  7.5, cor: '#fb7185' },
-          { label: 'Renda Variável', pct:  5,   cor: '#f59e0b' },
-          { label: 'Internacional',  pct:  5,   cor: '#22d3ee' },
-        ]
+        alocacao: ALOCACAO_PERFIL.moderado,
       },
       arrojado: {
         nome: 'Arrojado',
         desc: 'Foco em crescimento patrimonial no longo prazo. Maior exposição a risco e volatilidade, com diversificação global e potencial de retorno mais elevado.',
-        alocacao: [
-          { label: 'RF Pós',         pct: 20,  cor: '#60a5fa' },
-          { label: 'RF Inflação',    pct: 25,  cor: '#34d399' },
-          { label: 'RF Pré',         pct:  5,  cor: '#a78bfa' },
-          { label: 'Multimercado',   pct: 15,  cor: '#fb7185' },
-          { label: 'Renda Variável', pct: 15,  cor: '#f59e0b' },
-          { label: 'Internacional',  pct: 15,  cor: '#22d3ee' },
-          { label: 'Alternativos',   pct:  5,  cor: '#c084fc' },
-        ]
+        alocacao: ALOCACAO_PERFIL.arrojado,
       }
     };
 
@@ -606,11 +590,8 @@
     }
 
     // ─── Helpers de alocação ──────────────────
-    function calcMeses(dataMeta) {
-      if (!dataMeta) return null;
-      const [dAno, dMes] = dataMeta.split('-').map(Number);
-      return Math.round((new Date(dAno, dMes - 1, 1) - new Date()) / (1000 * 60 * 60 * 24 * 30));
-    }
+    // mesesAte vem de js/investidor-calc.js — mesmo cálculo de reservas.html
+    // (aritmética de mês-calendário, não aproximação por dias).
 
     function miniBar(alocacao) {
       const segs = alocacao.map(a =>
@@ -625,7 +606,7 @@
     function renderImpactoReservas(reservas, oldPerfilKey, newPerfilKey) {
       const box    = document.getElementById('impactoBox');
       const lista  = document.getElementById('impactoLista');
-      const longos = reservas.filter(r => { const m = calcMeses(r.dataMeta); return m !== null && m > 120; });
+      const longos = reservas.filter(r => { const m = mesesAte(r.dataMeta); return m !== null && m > 120; });
 
       if (!longos.length) { box.style.display = 'none'; return; }
 
@@ -639,7 +620,7 @@
       const newNome   = PERFIS[newPerfilKey].nome;
 
       lista.innerHTML = longos.map(r => {
-        const meses  = calcMeses(r.dataMeta);
+        const meses  = mesesAte(r.dataMeta);
         const anos   = Math.round(meses / 12);
         const dataFmt = r.dataMeta
           ? new Date(r.dataMeta + '-01T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })

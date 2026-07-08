@@ -759,6 +759,7 @@
     import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid, registrarEvento, msgErro } from './js/api.js?v=25';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
+    import { ALOCACAO_PERFIL, ALOCACAO_CURTO_PRAZO, ALOCACAO_MEDIO_PRAZO, mesesAte, mesesEntre } from './js/investidor-calc.js';
     import {
       onAuthStateChanged,
       signOut
@@ -820,21 +821,8 @@
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
     const pct = (v, t) => t > 0 ? Math.min((v / t) * 100, 100) : 0;
 
-    function mesesAte(dataStr) {
-      if (!dataStr) return null;
-      const hoje = new Date();
-      const [ano, mes] = dataStr.split('-').map(Number);
-      const alvo = new Date(ano, mes - 1, 1);
-      return Math.max(0, (alvo.getFullYear() - hoje.getFullYear()) * 12 + (alvo.getMonth() - hoje.getMonth()));
-    }
-
-    /** Calcula meses entre dois AAAA-MM */
-    function mesesEntre(dataIni, dataFim) {
-      if (!dataIni || !dataFim) return null;
-      const [a1, m1] = dataIni.split('-').map(Number);
-      const [a2, m2] = dataFim.split('-').map(Number);
-      return Math.max(0, (a2 - a1) * 12 + (m2 - m1));
-    }
+    // mesesAte/mesesEntre vêm de js/investidor-calc.js — mesmo cálculo usado
+    // em perfil.html (aritmética de mês-calendário).
 
     /** Retorna verdadeiro se o nome indica reserva de emergência */
     function ehSempreLiquido(nome) {
@@ -864,32 +852,8 @@
       return 'Muito longo prazo (> 10 anos)';
     }
 
-    // ─── Alocação por perfil de investidor ──────
-    // (mesma tabela da página perfil.html)
-    const ALOCACAO_PERFIL = {
-      conservador: [
-        { label: 'RF Pós',      pct: 70,   cor: '#60a5fa' },
-        { label: 'RF Inflação', pct: 25,   cor: '#34d399' },
-        { label: 'RF Pré',      pct:  5,   cor: '#a78bfa' },
-      ],
-      moderado: [
-        { label: 'RF Pós',         pct: 52.5, cor: '#60a5fa' },
-        { label: 'RF Inflação',    pct: 25,   cor: '#34d399' },
-        { label: 'RF Pré',         pct:  5,   cor: '#a78bfa' },
-        { label: 'Multimercado',   pct:  7.5, cor: '#fb7185' },
-        { label: 'Renda Variável', pct:  5,   cor: '#f59e0b' },
-        { label: 'Internacional',  pct:  5,   cor: '#22d3ee' },
-      ],
-      arrojado: [
-        { label: 'RF Pós',         pct: 20,  cor: '#60a5fa' },
-        { label: 'RF Inflação',    pct: 25,  cor: '#34d399' },
-        { label: 'RF Pré',         pct:  5,  cor: '#a78bfa' },
-        { label: 'Multimercado',   pct: 15,  cor: '#fb7185' },
-        { label: 'Renda Variável', pct: 15,  cor: '#f59e0b' },
-        { label: 'Internacional',  pct: 15,  cor: '#22d3ee' },
-        { label: 'Alternativos',   pct:  5,  cor: '#c084fc' },
-      ],
-    };
+    // ALOCACAO_PERFIL vem de js/investidor-calc.js — mesma tabela da página
+    // perfil.html, nunca mais duas cópias podendo divergir.
 
     let perfilInvestidor = null;  // preenchido no init()
     let patrimonioAtual  = [];   // ativos consolidados de getPatrimonio()
@@ -1307,17 +1271,10 @@
     function alocacaoPorPrazo(meses) {
       // Prazo indefinido ou ≤ 12 meses: única classe, sem diversificação
       if (meses === null || meses <= 12) {
-        return { itens: [{ label: 'RF Pós', pct: 100, cor: '#60a5fa' }], temComparativo: false };
+        return { itens: ALOCACAO_CURTO_PRAZO, temComparativo: false };
       }
       if (meses <= 48) {
-        return {
-          itens: [
-            { label: 'RF Pós',      pct: 70, cor: '#60a5fa' },
-            { label: 'RF Inflação', pct: 25, cor: '#34d399' },
-            { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
-          ],
-          temComparativo: true,
-        };
+        return { itens: ALOCACAO_MEDIO_PRAZO, temComparativo: true };
       }
       // Longo prazo (4-10 anos) e muito longo prazo (> 10 anos):
       // usa perfil do investidor se disponível
@@ -1330,19 +1287,13 @@
      * Como distribuir o acumulado de uma reserva para subtraí-la do portfólio.
      * - ≤ 12 meses  → 100% RF Pós
      * - 13–48 meses → 70% RF Pós / 25% RF Inflação / 5% RF Pré
-     * - Demais      → proporcional ao portfólio atual (neutro — preserva percentuais)
+     * - Demais      → proporcional ao portfólio atual (neutro — preserva percentuais;
+     *   propositalmente diferente de alocacaoPorPrazo, que usa o perfil do investidor
+     *   pra SUGERIR, enquanto aqui é só contabilidade de quanto já está "ocupado")
      */
     function alocacaoParaSubtracao(meses, portfolioMap) {
-      if (meses !== null && meses <= 12) {
-        return [{ label: 'RF Pós', pct: 100 }];
-      }
-      if (meses !== null && meses <= 48) {
-        return [
-          { label: 'RF Pós',      pct: 70 },
-          { label: 'RF Inflação', pct: 25 },
-          { label: 'RF Pré',      pct:  5 },
-        ];
-      }
+      if (meses !== null && meses <= 12) return ALOCACAO_CURTO_PRAZO;
+      if (meses !== null && meses <= 48) return ALOCACAO_MEDIO_PRAZO;
       // 49-120 meses ("orientação da mentora"), > 120 meses ou prazo indefinido:
       // distribui proporcional ao portfólio atual → não distorce os percentuais
       const total = Object.values(portfolioMap).reduce((s, v) => s + v, 0);
