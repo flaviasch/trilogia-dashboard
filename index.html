@@ -388,6 +388,12 @@
     }
     .welcome-title span { color: var(--gold); }
     .welcome-sub { font-size: 15px; color: var(--text-secondary); line-height: 1.6; max-width: 500px; }
+    .welcome-order-note {
+      margin-top: 16px; max-width: 560px; font-size: 13px; line-height: 1.6;
+      color: rgba(255,255,255,0.75); background: rgba(207,174,101,0.06);
+      border: 1px solid rgba(207,174,101,0.2); border-radius: 10px; padding: 12px 16px;
+    }
+    .welcome-order-note strong { color: var(--gold); }
     .welcome-steps {
       display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
     }
@@ -440,6 +446,12 @@
     }
     .setup-progress-titulo { font-size: 12px; font-weight: 600; color: var(--gold); text-transform: uppercase; letter-spacing: 0.07em; }
     .setup-progress-pct { font-size: 12px; color: var(--text-muted); }
+    .setup-info-link {
+      background: none; border: none; padding: 0; margin: 0;
+      font-size: 12px; color: var(--gold); cursor: pointer;
+      font-family: 'Inter', sans-serif; text-decoration: underline; text-underline-offset: 2px;
+    }
+    .setup-info-link:hover { color: var(--gold-light); }
     .setup-track {
       background: rgba(255,255,255,0.07); border-radius: 6px; height: 4px; margin-bottom: 16px; overflow: hidden;
     }
@@ -703,6 +715,7 @@
       <div class="welcome-hero">
         <h1 class="welcome-title">Bem-vinda ao <span>Trilogia Dashboard</span></h1>
         <p class="welcome-sub">5 passos para começar. Leva menos de 15 minutos — e você sai daqui com uma visão clara da sua vida financeira.</p>
+        <p class="welcome-order-note">💡 Siga a ordem abaixo — cada passo destrava o próximo. Por exemplo, só dá pra registrar um <strong>aporte</strong> (passo 5) depois de criar pelo menos uma <strong>reserva</strong> (passo 3): é nela que o aporte fica guardado.</p>
       </div>
       <div class="welcome-steps" id="welcomeSteps">
         <!-- preenchido por JS -->
@@ -730,7 +743,10 @@
       <div class="setup-progress">
         <div class="setup-progress-header">
           <span class="setup-progress-titulo">Sua jornada de configuração</span>
-          <span class="setup-progress-pct" id="setupPct"></span>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <button type="button" id="btnOnboardingInfo" class="setup-info-link">Por que essa ordem? ℹ️</button>
+            <span class="setup-progress-pct" id="setupPct"></span>
+          </div>
         </div>
         <div class="setup-track">
           <div class="setup-fill" id="setupFill" style="width:0%"></div>
@@ -877,6 +893,8 @@
       onAuthStateChanged,
       signOut,
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    let _ultimosSteps = []; // último cálculo de checkOnboarding, usado pelo modal "Por que essa ordem?"
 
     // ─── Auth guard ───────────────────────────────
     onAuthStateChanged(auth, (user) => {
@@ -1398,6 +1416,7 @@
           tag: 'acao',
         },
       ];
+      _ultimosSteps = steps;
 
       const totalDone  = steps.filter(s => s.done).length;
       const setupSteps = steps.filter(s => s.tag === 'setup');
@@ -1457,6 +1476,28 @@
           pelo prazo da mentoria ativa + 12 meses. Nunca compartilhados com terceiros.
         </p>`;
     }
+
+    // Modal "Por que essa ordem?" — acessível a qualquer momento enquanto o
+    // setup não estiver 100% completo, não só na primeira visita (achado
+    // 07/07/2026: quem começa fora de ordem nunca via a welcomeScreen de novo).
+    function abrirOnboardingInfo() {
+      const el = document.getElementById('onboardingInfoSteps');
+      el.innerHTML = _ultimosSteps.map(s => `
+        <div class="step-card${s.done ? ' done' : ''}" style="padding:14px 16px;">
+          <div class="step-top">
+            <div class="step-num">${s.done ? '✓' : s.num}</div>
+            <div class="step-info">
+              <div class="step-titulo">${s.titulo}</div>
+              <div class="step-desc">${s.desc}</div>
+            </div>
+          </div>
+        </div>`).join('');
+      document.getElementById('modalOnboardingInfo').classList.remove('hidden');
+    }
+    document.getElementById('btnOnboardingInfo')?.addEventListener('click', abrirOnboardingInfo);
+    document.getElementById('btnFecharOnboardingInfo')?.addEventListener('click', () => {
+      document.getElementById('modalOnboardingInfo').classList.add('hidden');
+    });
 
     // Aceita LGPD silenciosamente durante o onboarding (sem modal)
     function aceitarLGPDInline() {
@@ -1798,6 +1839,21 @@
       document.addEventListener('click', e => { if (!pop.contains(e.target)) pop.classList.add('hidden'); });
     })();
   </script>
+
+  <!-- Modal: por que seguir a ordem do onboarding -->
+  <div class="modal-lgpd-overlay hidden" id="modalOnboardingInfo">
+    <div class="modal-lgpd-card">
+      <div class="modal-lgpd-titulo">Por que seguir essa ordem</div>
+      <div class="modal-lgpd-texto">
+        Cada passo destrava o próximo — pular a ordem pode travar alguma ação mais na frente.
+        Por exemplo: o <strong>aporte</strong> (passo 5) só pode ser registrado depois de criar
+        pelo menos uma <strong>reserva</strong> (passo 3), porque é nela que o valor do aporte
+        fica guardado. Seguir na ordem evita esses tropeços.
+      </div>
+      <div id="onboardingInfoSteps" class="welcome-steps" style="grid-template-columns:1fr;gap:10px;margin-bottom:20px;"></div>
+      <button class="btn-aceitar-lgpd" id="btnFecharOnboardingInfo">Entendi</button>
+    </div>
+  </div>
 
   <!-- Modal LGPD -->
   <div class="modal-lgpd-overlay hidden" id="modalLGPD">

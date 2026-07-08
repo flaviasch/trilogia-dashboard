@@ -747,6 +747,11 @@
       transition: background 0.2s; flex-shrink: 0;
     }
     .aporte-strip-btn:hover { background: var(--gold-light); }
+    .aporte-strip-btn:disabled:hover { background: var(--gold); }
+    .aporte-strip-hint {
+      flex-basis: 100%; font-size: 13px; color: var(--text-secondary); line-height: 1.5;
+    }
+    .aporte-strip-hint a { color: var(--gold); font-weight: 600; text-decoration: none; }
 
     /* ─── Bottom nav (mobile) ──────────────────── */
     .bottom-nav {
@@ -1724,6 +1729,7 @@
       <!-- Strip: registrar aporte -->
       <div class="aporte-strip">
         <div class="aporte-strip-label">Registrar aporte</div>
+        <div id="aporteStripHint" class="aporte-strip-hint" style="display:none;"></div>
         <div class="aporte-strip-row">
           <input type="text" inputmode="numeric" class="aporte-strip-input"
                  id="aporteEfetivadoInput" placeholder="Valor (R$)" />
@@ -3003,6 +3009,26 @@
     let valorAportePendente  = null;
     let alocacoesPendentes   = []; // [{ reservaId, valor }]
 
+    // Sem reserva cadastrada, o aporte não tem onde ser guardado — em vez de
+    // deixar clicar e só avisar depois (toast fácil de não notar, achado no
+    // feedback da Juliana Valerio em 07/07/2026), desabilita o campo e mostra
+    // o motivo com link direto pra resolver.
+    function renderAporteStrip() {
+      const hintEl = document.getElementById('aporteStripHint');
+      const btnEl  = document.getElementById('btnSalvarAporte');
+      const inpEl  = document.getElementById('aporteEfetivadoInput');
+      if (!hintEl || !btnEl) return;
+      const semReserva = !reservas || reservas.length === 0;
+      hintEl.style.display = semReserva ? '' : 'none';
+      hintEl.innerHTML = semReserva
+        ? `Pra registrar um aporte, primeiro crie uma reserva — é nela que o valor fica guardado. <a href="reservas.html">Ir cadastrar reserva →</a>`
+        : '';
+      btnEl.disabled = semReserva;
+      btnEl.style.opacity = semReserva ? '0.4' : '';
+      btnEl.style.cursor  = semReserva ? 'not-allowed' : '';
+      if (inpEl) inpEl.disabled = semReserva;
+    }
+
     // ── Passo 1: modal de reservas ────────────────────────────────────────────
     function abrirModalReservas(valor) {
       if (!reservas || reservas.length === 0) {
@@ -3971,6 +3997,8 @@
       } else {
         ritmoBoxEl.innerHTML = '';
       }
+
+      renderAporteStrip();
 
       // ── Score de saúde financeira ─────────────────────────────────────────
       renderScore(data);
