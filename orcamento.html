@@ -1827,7 +1827,7 @@
       <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
         Cadastre aqui suas contas fixas — elas serão lançadas automaticamente no dia 1º de cada mês.
       </p>
-      <div id="listaFixas" style="margin-bottom:16px;"></div>
+      <div id="listaFixas" style="margin-bottom:16px;max-height:320px;overflow-y:auto;"></div>
       <button id="btnAddFixa" class="btn-primary" style="width:100%;font-size:14px;">+ Adicionar despesa fixa</button>
 
       <!-- Formulário inline de nova/editar recorrente -->
@@ -3528,9 +3528,9 @@
       document.getElementById('periodoLabel').textContent =
         `${MESES[data.periodo.mes - 1]} de ${data.periodo.ano}`;
 
-      // Permite navegar até 2 meses à frente (para ver faturas de cartão futuras)
+      // Permite navegar até 12 meses à frente (para ver faturas de cartão futuras)
       const _agora   = new Date();
-      const _limiteTotal = (_agora.getFullYear() * 12 + _agora.getMonth() + 1) + 2;
+      const _limiteTotal = (_agora.getFullYear() * 12 + _agora.getMonth() + 1) + 12;
       const _periodoTotal = data.periodo.ano * 12 + data.periodo.mes;
       const _noLimite = _periodoTotal > _limiteTotal;
       const _btnNext = document.getElementById('btnNext');
