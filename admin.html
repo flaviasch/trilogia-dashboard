@@ -2235,8 +2235,10 @@
         else if (dias <= 7)   motivos.push({ icon: '⏳', texto: `Acesso expira em ${dias} dia${dias !== 1 ? 's' : ''}` });
       }
 
-      // Perfil de investidor não preenchido (onboarding incompleto)
-      if (!m.perfil) motivos.push({ icon: '📋', texto: 'Perfil de investidor não preenchido' });
+      // Onboarding incompleto (perfil, patrimônio, reservas ou orçamento do mês faltando)
+      if (m.setupPassosFeitos != null && m.setupPassosFeitos < 4) {
+        motivos.push({ icon: '🚧', texto: `Onboarding incompleto (${m.setupPassosFeitos}/4 passos)` });
+      }
 
       // Marcada manualmente como alerta
       if (m.status === 'alerta') motivos.push({ icon: '⚠️', texto: 'Marcada com atenção' });
@@ -2905,7 +2907,9 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       // Alertas
       const alertas = [];
       if (num(m.sobra) < 0)     alertas.push({ icon: '🔴', texto: 'Despesas maiores que receita este mês.' });
-      if (!m.perfil)             alertas.push({ icon: '⚠️', texto: 'Perfil de investidor não preenchido.' });
+      if (m.setupPassosFeitos != null && m.setupPassosFeitos < 4) {
+        alertas.push({ icon: '🚧', texto: `Onboarding incompleto (${m.setupPassosFeitos}/4 passos) — perfil, patrimônio, reservas ou orçamento do mês faltando.` });
+      }
       if (m.status === 'alerta') alertas.push({ icon: '⚠️', texto: 'Mentorada marcada com alerta. Verificar situação.' });
       if (m.dataExpiracao) {
         const d = new Date(String(m.dataExpiracao).slice(0, 10) + 'T00:00:00');

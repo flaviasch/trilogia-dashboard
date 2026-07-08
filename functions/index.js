@@ -2106,7 +2106,33 @@ exports.getMentoradas = onCall({}, async (request) => {
   requireAdmin(request);
 
   const snap = await db.collection('mentoradas').orderBy('nome').get();
-  return snap.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+  const agora = new Date();
+  const mesAtualKey = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+
+  // setupPassosFeitos (0-4): mesma checagem do onboarding que a mentorada vê
+  // em index.html (perfil, patrimônio, reservas, orçamento do mês) — usado
+  // pro alerta "Onboarding incompleto" no admin, pra sinalizar quem começou
+  // fora de ordem e pode travar numa ação sem saber o motivo (achado no
+  // feedback da Juliana Valerio, 07/07/2026). Calculado ao vivo aqui, não
+  // cacheado no doc, pra não repetir o bug de divergência do scoreMes.
+  return Promise.all(snap.docs.map(async (doc) => {
+    const m = { uid: doc.id, ...doc.data() };
+    if (m.status === 'inativa') return m;
+
+    const [resSnap, orcSnap, patSnap] = await Promise.all([
+      doc.ref.collection('reservas').limit(1).get().catch(() => null),
+      doc.ref.collection('orcamento').doc(mesAtualKey).get().catch(() => null),
+      doc.ref.collection('patrimonio').doc('dados').get().catch(() => null),
+    ]);
+
+    const temPerfil     = !!m.perfil;
+    const temPatrimonio = !!(patSnap?.exists && ((patSnap.data().ir || []).length > 0 || (patSnap.data().corretora || []).length > 0));
+    const temReservas   = !!(resSnap && !resSnap.empty);
+    const temOrcamento  = (orcSnap?.exists ? (orcSnap.data().itens || []) : []).some(i => i.tipo === 'receita' && i.valor > 0);
+
+    const setupPassosFeitos = [temPerfil, temPatrimonio, temReservas, temOrcamento].filter(Boolean).length;
+    return { ...m, setupPassosFeitos };
+  }));
 });
 
 /**
