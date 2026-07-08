@@ -2216,6 +2216,12 @@
     function num(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; }
 
     // ─── Alertas computados ───────────────────────────────────────────────────────
+    // Fonte única de verdade — usada tanto na lista (badges + KPI + filtro
+    // "Com alerta") quanto no painel de detalhe. Antes eram dois blocos
+    // separados com critérios diferentes (lista não via sobra negativa nem
+    // planilha ausente; detalhe não via cobrança vencida) — uma mentorada
+    // podia aparecer "sem alerta" num lugar e "com alerta" no outro
+    // (achado em 07/07/2026, ver [[project_dashboard]]).
     function motivosAlerta(m) {
       if (m.status === 'inativa') return [];
       const uid  = m.uid || m.id;
@@ -2225,23 +2231,29 @@
       // Cobrança vencida (não paga, vencimento < hoje)
       const vencida = cobrancasDoMes.find(c =>
         c.uidMentorada === uid && !c.pago && c.vencimento < hoje);
-      if (vencida) motivos.push({ icon: '💸', texto: `Cobrança vencida (${fmtDataSimples(vencida.vencimento)})` });
+      if (vencida) motivos.push({ icon: '💸', texto: `Cobrança vencida (${fmtDataSimples(vencida.vencimento)})`, textoDetalhe: `Cobrança vencida em ${fmtDataSimples(vencida.vencimento)}.` });
+
+      // Despesas maiores que receita no mês (sobra cacheada pelo getDashboard)
+      if (num(m.sobra) < 0) motivos.push({ icon: '🔴', texto: 'Sobra negativa este mês', textoDetalhe: 'Despesas maiores que receita este mês.' });
+
+      // Sem planilha configurada — dashboard da aluna não funciona sem ela
+      if (!m.sheetId) motivos.push({ icon: '📊', texto: 'Planilha não configurada', textoDetalhe: 'Planilha não configurada — o dashboard da aluna não funciona sem ela.' });
 
       // Acesso expirado ou expirando em ≤ 7 dias
       if (m.dataExpiracao) {
         const d    = new Date(String(m.dataExpiracao).slice(0, 10) + 'T00:00:00');
         const dias = Math.round((d - new Date()) / 86_400_000);
-        if      (dias < 0)    motivos.push({ icon: '🔴', texto: 'Acesso expirado' });
-        else if (dias <= 7)   motivos.push({ icon: '⏳', texto: `Acesso expira em ${dias} dia${dias !== 1 ? 's' : ''}` });
+        if      (dias < 0)    motivos.push({ icon: '🔴', texto: 'Acesso expirado', textoDetalhe: 'Acesso expirado.' });
+        else if (dias <= 7)   motivos.push({ icon: '⏳', texto: `Acesso expira em ${dias} dia${dias !== 1 ? 's' : ''}`, textoDetalhe: `Acesso expira em ${dias} dia${dias !== 1 ? 's' : ''}.` });
       }
 
       // Onboarding incompleto (perfil, patrimônio, reservas ou orçamento do mês faltando)
       if (m.setupPassosFeitos != null && m.setupPassosFeitos < 4) {
-        motivos.push({ icon: '🚧', texto: `Onboarding incompleto (${m.setupPassosFeitos}/4 passos)` });
+        motivos.push({ icon: '🚧', texto: `Onboarding incompleto (${m.setupPassosFeitos}/4 passos)`, textoDetalhe: `Onboarding incompleto (${m.setupPassosFeitos}/4 passos) — perfil, patrimônio, reservas ou orçamento do mês faltando.` });
       }
 
       // Marcada manualmente como alerta
-      if (m.status === 'alerta') motivos.push({ icon: '⚠️', texto: 'Marcada com atenção' });
+      if (m.status === 'alerta') motivos.push({ icon: '⚠️', texto: 'Marcada com atenção', textoDetalhe: 'Mentorada marcada com alerta. Verificar situação.' });
 
       return motivos;
     }
@@ -2904,27 +2916,16 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       document.getElementById('expDisplay').style.display = '';
       document.getElementById('expEdit').style.display    = 'none';
 
-      // Alertas
-      const alertas = [];
-      if (num(m.sobra) < 0)     alertas.push({ icon: '🔴', texto: 'Despesas maiores que receita este mês.' });
-      if (m.setupPassosFeitos != null && m.setupPassosFeitos < 4) {
-        alertas.push({ icon: '🚧', texto: `Onboarding incompleto (${m.setupPassosFeitos}/4 passos) — perfil, patrimônio, reservas ou orçamento do mês faltando.` });
-      }
-      if (m.status === 'alerta') alertas.push({ icon: '⚠️', texto: 'Mentorada marcada com alerta. Verificar situação.' });
-      if (m.dataExpiracao) {
-        const d = new Date(String(m.dataExpiracao).slice(0, 10) + 'T00:00:00');
-        const dias = Math.round((d - new Date()) / 86_400_000);
-        if (dias < 0)       alertas.push({ icon: '🔴', texto: 'Acesso expirado.' });
-        else if (dias <= 7) alertas.push({ icon: '⚠️', texto: `Acesso expira em ${dias} dia${dias !== 1 ? 's' : ''}.` });
-      }
-      if (!m.sheetId)            alertas.push({ icon: '📊', texto: 'Planilha não configurada — o dashboard da aluna não funciona sem ela.' });
-      if (alertas.length === 0) alertas.push({ icon: '✅', texto: 'Nenhum alerta ativo para esta mentorada.' });
+      // Alertas — mesma fonte de verdade da lista (motivosAlerta), pra nunca
+      // divergir entre "quantos alertas essa mentorada tem" na lista e aqui.
+      const alertas = motivosAlerta(m);
+      if (alertas.length === 0) alertas.push({ icon: '✅', textoDetalhe: 'Nenhum alerta ativo para esta mentorada.' });
 
       const alertasEl = document.getElementById('detAlertas');
       if (alertasEl) alertasEl.innerHTML = alertas.map(a => `
         <div class="alerta-item">
           <span class="alerta-icon">${a.icon}</span>
-          <span class="alerta-texto">${a.texto}</span>
+          <span class="alerta-texto">${a.textoDetalhe || a.texto}</span>
         </div>`).join('');
 
       // Oculta botão até contratos carregarem
