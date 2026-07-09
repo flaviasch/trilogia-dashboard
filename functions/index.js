@@ -1473,6 +1473,96 @@ exports.savePlanejamentoMeta = onCall(async (request) => {
   return { ok: true };
 });
 
+// ─── CONTAS CORRENTES (múltiplas contas) ─────────────────────────────────────
+// Coleção: mentoradas/{uid}/contas/{contaId}. A conta "principal" nunca
+// precisa de documento próprio — é sintetizada em getContas() quando não
+// existe override salvo, pra quem nunca mexer nisso continuar exatamente
+// como está hoje (saldoConta único, sem nenhuma configuração extra).
+const CONTA_PRINCIPAL_ID = 'principal';
+const CONTA_PRINCIPAL_PADRAO = { id: CONTA_PRINCIPAL_ID, nome: 'Conta principal', ativa: true, principal: true };
+const MAX_CONTAS = 10;
+
+/**
+ * Lista as contas da mentorada, sempre incluindo a principal (sintetizada
+ * se não houver override salvo). Ordena: principal primeiro, depois por nome.
+ */
+exports.getContas = onCall(async (request) => {
+  requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const snap = await db.collection('mentoradas').doc(uid).collection('contas').get();
+  const porId = {};
+  snap.docs.forEach(d => { porId[d.id] = { ...d.data(), id: d.id }; });
+
+  const principal = { ...CONTA_PRINCIPAL_PADRAO, ...(porId[CONTA_PRINCIPAL_ID] || {}), id: CONTA_PRINCIPAL_ID, principal: true };
+  delete porId[CONTA_PRINCIPAL_ID];
+
+  const secundarias = Object.values(porId)
+    .map(c => ({ ...c, principal: false }))
+    .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+
+  return { contas: [principal, ...secundarias] };
+});
+
+/**
+ * Cria ou atualiza (rename/reativar) uma conta. Espera: { uid, id?, nome, ativa? }.
+ * Sem id → cria nova. Com id (inclusive 'principal') → atualiza/renomeia.
+ */
+exports.saveConta = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, id, nome, ativa } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveConta', 20, 60_000); // 20/min
+
+  const nomeLimpo = String(nome || '').trim();
+  if (!nomeLimpo || nomeLimpo.length > 100) throw new HttpsError('invalid-argument', 'Nome da conta inválido.');
+
+  const colRef = db.collection('mentoradas').doc(uid).collection('contas');
+
+  if (!id) {
+    // Exclui a principal da contagem (pode ter documento próprio se já foi
+    // renomeada) — o limite é sobre contas SECUNDÁRIAS, a principal não conta.
+    const countSnap = await colRef.count().get();
+    const totalSecundarias = countSnap.data().count - (await colRef.doc(CONTA_PRINCIPAL_ID).get()).exists;
+    if (totalSecundarias >= MAX_CONTAS - 1) {
+      throw new HttpsError('failed-precondition', `Limite de ${MAX_CONTAS - 1} contas secundárias atingido.`);
+    }
+    const novaRef = colRef.doc();
+    await novaRef.set({ nome: nomeLimpo, ativa: true, criadaEm: admin.firestore.FieldValue.serverTimestamp() });
+    return { id: novaRef.id, nome: nomeLimpo, ativa: true, principal: false };
+  }
+
+  const ref = colRef.doc(String(id));
+  const snap = await ref.get();
+  await ref.set({
+    nome: nomeLimpo,
+    ...(ativa != null ? { ativa: !!ativa } : {}),
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    ...(snap.exists ? {} : { criadaEm: admin.firestore.FieldValue.serverTimestamp() }),
+  }, { merge: true });
+
+  return { id: String(id), nome: nomeLimpo, ativa: ativa != null ? !!ativa : true, principal: id === CONTA_PRINCIPAL_ID };
+});
+
+/**
+ * Arquiva (ativa:false) ou reativa uma conta secundária — nunca a principal,
+ * que é a base pra todo lançamento sem contaId explícito.
+ */
+exports.arquivarConta = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, id, ativa } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'arquivarConta', 20, 60_000); // 20/min
+
+  if (!id || id === CONTA_PRINCIPAL_ID) throw new HttpsError('invalid-argument', 'A conta principal não pode ser arquivada.');
+
+  await db.collection('mentoradas').doc(uid).collection('contas').doc(String(id))
+    .set({ ativa: !!ativa, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+
+  return { ok: true };
+});
+
 // ─── CATEGORIAS GLOBAIS (legacy — mantido para compatibilidade) ───────────────
 exports.getCategorias = onCall(async (request) => {
   requireAuth(request);
