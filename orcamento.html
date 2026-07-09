@@ -1262,6 +1262,13 @@
     <div class="page-header">
       <h1 class="page-title">Orçamento</h1>
       <div style="display:flex;align-items:center;gap:12px;">
+        <button id="btnSeletorConta" onclick="window._abrirModalContas()"
+          style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:13px;color:var(--text-muted);cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;display:flex;align-items:center;gap:6px;"
+          onmouseover="this.style.borderColor='rgba(207,174,101,0.4)';this.style.color='var(--gold)'"
+          onmouseout="this.style.borderColor='';this.style.color=''">
+          <span id="labelSeletorConta">🏦 Contas</span>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4,6 8,10 12,6"/></svg>
+        </button>
         <button id="btnExportarPDF"
           style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:13px;color:var(--text-muted);cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;"
           onmouseover="this.style.borderColor='rgba(207,174,101,0.4)';this.style.color='var(--gold)'"
@@ -2222,16 +2229,37 @@
     </div>
   </div>
 
+  <!-- Modal Contas -->
+  <div class="modal-overlay hidden" id="modalContas">
+    <div class="modal-card">
+      <h2 class="modal-title">Contas</h2>
+      <p class="modal-sub">Escolha a visão, ou renomeie/arquive uma conta.</p>
+      <div id="listaContas" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;max-height:320px;overflow-y:auto;"></div>
+      <div class="field-group" id="novaContaForm" style="display:none;">
+        <label for="novaContaNome">Nome da nova conta</label>
+        <input type="text" id="novaContaNome" placeholder="ex: Poupança conjunta" maxlength="100" />
+        <div class="modal-actions" style="margin-top:8px;">
+          <button class="btn-cancel" onclick="window._cancelarNovaConta()">Cancelar</button>
+          <button class="btn-save" onclick="window._salvarNovaConta()">Adicionar</button>
+        </div>
+      </div>
+      <button class="btn-add-item" id="btnNovaContaToggle" onclick="window._abrirNovaConta()">+ Nova conta</button>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnFecharContas">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=27';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=28';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
       isPendenteEfetivo, normCat, diasSemanaNoMes, diasEsperadosRecorrente, diasFaltantesRecorrente,
       getFixasPuladas, chaveFixaPulada, addFixaPulada,
-      calcularAgregadosOrcamento, calcularAjuste, calcularNaoPlanejado, CATEGORIA_AJUSTE,
+      calcularAgregadosOrcamento, calcularAjuste, calcularNaoPlanejado, pertenceAConta, CONTA_PRINCIPAL_ID, CATEGORIA_AJUSTE,
     } from './js/orcamento-calc.js';
 
     // Alias de compatibilidade — funções mais antigas usavam mostrarToast
@@ -2432,6 +2460,8 @@
     // buscar o mês anterior de novo quando ele já está carregado na sessão.
     let _ultimoSaldoFinal = null;
     let _projecaoFiltro = null; // 'despesa' | 'receita' | 'fatura' | null (mostra tudo)
+    let _contas = []; // [{ id, nome, ativa, principal }] — sempre inclui a principal
+    let _contaAtivaId = null; // null = consolidado (todas as contas); senão, id de uma conta específica
 
     // Diferença entre o comprometido do mês (soma de tudo lançado) e a
     // reconciliação de caixa (caixa + pendentes + faturas + compras em
@@ -3110,6 +3140,10 @@
 
     // ─── Saldo em Conta — edição inline ──────────────────────────────────────
     window._editarSaldoConta = () => {
+      if (!_contaAtivaId && _contas.length > 1) {
+        toast('Escolha uma conta específica em "Contas" pra editar o saldo dela.', 'info');
+        return;
+      }
       document.getElementById('saldoContaDisplay').style.display = 'none';
       document.getElementById('saldoContaSub').style.display = 'none';
       const inp = document.getElementById('saldoContaInput');
@@ -3129,7 +3163,7 @@
       // Grava na coleção de saldo por conta — não mexe no array de itens do
       // orçamento (o saldo em conta não é mais lançado como item sentinela).
       const { mes, ano } = currentData.periodo;
-      try { await saveSaldoConta(mes, ano, 'principal', valor); }
+      try { await saveSaldoConta(mes, ano, _contaAtivaId || CONTA_PRINCIPAL_ID, valor); }
       catch (e) { toast(msgErro(e), 'error'); }
     };
     window._cancelarSaldoConta = () => {
@@ -3354,13 +3388,14 @@
       const mes = agora.getMonth() + 1;
       const ano = agora.getFullYear();
 
-      const [orcResult, resResult, perfilResult, catResult, fatEstResult, planMetaResult] = await Promise.allSettled([
+      const [orcResult, resResult, perfilResult, catResult, fatEstResult, planMetaResult, contasResult] = await Promise.allSettled([
         getOrcamento(mes, ano),
         getReservas(),
         getPerfil(),
         getCategoriasMes(mes, ano),
         getFaturaEstados(),
         getPlanejamentoMeta(mes, ano),
+        getContas(),
       ]);
 
       if (orcResult.status === 'fulfilled') {
@@ -3387,6 +3422,8 @@
       if (catResult.status === 'fulfilled')    categoriasMes = catResult.value || [];
       if (fatEstResult.status === 'fulfilled') _faturaEstados = fatEstResult.value || {};
       if (planMetaResult.status === 'fulfilled') planejamentoMeta = planMetaResult.value || { renda: null, percentual: null };
+      if (contasResult.status === 'fulfilled') _contas = contasResult.value || [];
+      atualizarLabelSeletorConta();
 
       // Carrega recorrentes em paralelo (sem bloquear o render). Fixas no
       // cartão são lançadas automaticamente em cada fatura; fixas em conta
@@ -3408,7 +3445,7 @@
       // sem sessão anterior nesse carregamento inicial (página acabou de
       // abrir), então resolverSaldoConta faz o salto único pro mês anterior
       // se precisar. Só re-renderiza se o valor realmente mudou.
-      resolverSaldoConta(currentData).then(mudou => { if (mudou) render(currentData); }).catch(() => {});
+      resolverSaldoContaAtiva(currentData).then(mudou => { if (mudou) render(currentData); }).catch(() => {});
 
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
@@ -3441,7 +3478,7 @@
       // em 07/07/2026: a versão antiga excluía TODA despesa de cartão, não só
       // a fatura em aberto, subestimando o gasto real do mês).
       const { receitaComprometida: totalReceita, despesaComprometida: totalDespesa } =
-        calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes });
+        calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, contaId: _contaAtivaId });
       const sobra        = totalReceita - totalDespesa;
       const totalAporte  = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
       const totalPlan    = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
@@ -3522,7 +3559,7 @@
           return gasto > c.limite;
         }).length;
         const { receitaComprometida: totalReceita, despesaComprometida: totalDespesa } =
-          calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes });
+          calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, contaId: _contaAtivaId });
         const sobraPct = totalReceita > 0 ? ((totalReceita - totalDespesa) / totalReceita * 100).toFixed(0) : 0;
 
         if (componentes.regularidade === 0) {
@@ -3593,7 +3630,7 @@
       // eliminar a duplicação que causou vários bugs de inconsistência entre
       // telas em 06-07/07/2026) — ver js/orcamento-calc.js.
       const agregados = calcularAgregadosOrcamento({
-        data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, agora: _agora,
+        data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, agora: _agora, contaId: _contaAtivaId,
       });
       const {
         saldoConta, totalReceita, ehFuturo: _ehFuturo,
@@ -3625,8 +3662,18 @@
       const temDados = data.receitas.length > 0 || data.despesas.length > 0;
       document.getElementById('uploadBanner')?.classList.toggle('compacto', temDados);
 
-      // Saldo em Conta card
+      // Saldo em Conta card — editar só faz sentido numa conta específica (ou
+      // consolidado quando só existe a principal, onde os dois são a mesma coisa).
       document.getElementById('totalSaldoConta').textContent = brl(saldoConta);
+      const _podeEditarSaldo = _contaAtivaId || _contas.length <= 1;
+      const _btnEditarSaldoEl = document.getElementById('btnEditarSaldo');
+      if (_btnEditarSaldoEl) {
+        _btnEditarSaldoEl.style.display = _podeEditarSaldo ? '' : 'none';
+      }
+      const _saldoContaSubEl = document.getElementById('saldoContaSub');
+      if (_saldoContaSubEl && document.getElementById('saldoContaForm')?.style.display !== '') {
+        _saldoContaSubEl.textContent = _podeEditarSaldo ? 'saldo inicial do mês' : 'soma de todas as contas';
+      }
 
       // Resumo
       document.getElementById('totalReceita').textContent = brl(totalReceita);
@@ -5300,15 +5347,15 @@
                 // Mesmo critério "comprometido" do Detalhe/Planejamento/home
                 // (achado em 07/07/2026: a versão antiga somava despesa sem
                 // excluir a fatura em ABERTO, inflando o total do mês corrente).
-                const { receitaComprometida, despesaComprometida } =
-                  calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes });
+                const { receitaComprometida, despesaComprometida, totalAp } =
+                  calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, contaId: _contaAtivaId });
                 return {
                   mes:       m,
                   receita:   receitaComprometida,
                   despesa:   despesaComprometida,
-                  aporte:    data.aportes.reduce((s, a) => s + a.valor, 0),
+                  aporte:    totalAp,
                   temDados:  data.receitas.length > 0 || data.despesas.length > 0 || data.aportes.length > 0,
-                  porCartao: data.despesas.filter(d => d.cartao && d.cartaoId && !d._faturaAberta)
+                  porCartao: data.despesas.filter(d => d.cartao && d.cartaoId && !d._faturaAberta && pertenceAConta(d, _contaAtivaId))
                     .reduce((acc, d) => { acc[d.cartaoId] = (acc[d.cartaoId] || 0) + d.valor; return acc; }, {}),
                 };
               })
@@ -5624,6 +5671,149 @@
       }
     });
 
+    // ─── Contas correntes (múltiplas contas) ─────────────────────────────────
+    let _renomeandoContaId = null;
+
+    function atualizarLabelSeletorConta() {
+      const el = document.getElementById('labelSeletorConta');
+      if (!el) return;
+      if (!_contaAtivaId) {
+        el.textContent = _contas.length > 1 ? '🏦 Consolidado' : '🏦 Contas';
+      } else {
+        const c = _contas.find(x => x.id === _contaAtivaId);
+        el.textContent = `🏦 ${c ? c.nome : 'Conta'}`;
+      }
+    }
+
+    function renderListaContas() {
+      const el = document.getElementById('listaContas');
+      if (!el) return;
+      const linhaConsolidado = `
+        <div class="item-row" style="padding:10px 12px;border-radius:8px;background:${!_contaAtivaId ? 'rgba(207,174,101,0.1)' : 'transparent'};border:1px solid ${!_contaAtivaId ? 'var(--border-gold)' : 'var(--border)'};cursor:pointer;" onclick="window._trocarConta(null)">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-weight:600;${!_contaAtivaId ? 'color:var(--gold)' : ''}">Consolidado</span>
+            <span style="font-size:11px;color:var(--text-muted)">todas as contas</span>
+          </div>
+        </div>`;
+      const linhasContas = _contas.map(c => {
+        const ativa = _contaAtivaId === c.id;
+        const arquivada = c.ativa === false;
+        if (_renomeandoContaId === c.id) {
+          return `
+            <div class="item-row" style="padding:10px 12px;border-radius:8px;border:1px solid var(--border-gold);">
+              <input id="renomeInput_${c.id}" type="text" value="${escapeHtml(c.nome)}" maxlength="100"
+                style="width:100%;background:rgba(255,255,255,.07);border:1px solid var(--border-gold);border-radius:6px;padding:6px 10px;font-size:13px;color:var(--white);font-family:'Inter',sans-serif;outline:none;margin-bottom:6px;" />
+              <div style="display:flex;gap:6px;">
+                <button class="btn-save" style="flex:1;padding:5px;font-size:12px;" onclick="window._salvarRenomearConta('${c.id}')">Salvar</button>
+                <button class="btn-cancel" style="flex:1;padding:5px;font-size:12px;" onclick="window._cancelarRenomearConta()">Cancelar</button>
+              </div>
+            </div>`;
+        }
+        return `
+          <div class="item-row" style="padding:10px 12px;border-radius:8px;background:${ativa ? 'rgba(207,174,101,0.1)' : 'transparent'};border:1px solid ${ativa ? 'var(--border-gold)' : 'var(--border)'};${arquivada ? 'opacity:.5' : ''}">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+              <span style="cursor:pointer;flex:1;font-weight:600;${ativa ? 'color:var(--gold)' : ''}" onclick="window._trocarConta('${c.id}')">
+                ${escapeHtml(c.nome)}${c.principal ? ' <span style="font-size:10px;color:var(--text-muted);font-weight:400">· principal</span>' : ''}${arquivada ? ' <span style="font-size:10px;color:var(--text-muted);font-weight:400">· arquivada</span>' : ''}
+              </span>
+              <button class="btn-edit-plan" style="opacity:1" onclick="window._renomearConta('${c.id}')" title="Renomear">✎</button>
+              ${!c.principal ? `<button class="btn-edit-plan" style="opacity:1" onclick="window._toggleArquivarConta('${c.id}', ${arquivada})" title="${arquivada ? 'Reativar' : 'Arquivar'}">${arquivada ? '↺' : '🗄'}</button>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+      el.innerHTML = linhaConsolidado + linhasContas;
+    }
+
+    window._abrirModalContas = () => {
+      _renomeandoContaId = null;
+      renderListaContas();
+      document.getElementById('novaContaForm').style.display = 'none';
+      document.getElementById('btnNovaContaToggle').style.display = '';
+      document.getElementById('modalContas').classList.remove('hidden');
+    };
+    document.getElementById('btnFecharContas').addEventListener('click', () => {
+      document.getElementById('modalContas').classList.add('hidden');
+    });
+    document.getElementById('modalContas').addEventListener('click', e => {
+      if (e.target.id === 'modalContas') document.getElementById('modalContas').classList.add('hidden');
+    });
+
+    window._abrirNovaConta = () => {
+      document.getElementById('novaContaForm').style.display = '';
+      document.getElementById('btnNovaContaToggle').style.display = 'none';
+      const inp = document.getElementById('novaContaNome');
+      inp.value = '';
+      inp.focus();
+    };
+    window._cancelarNovaConta = () => {
+      document.getElementById('novaContaForm').style.display = 'none';
+      document.getElementById('btnNovaContaToggle').style.display = '';
+    };
+    window._salvarNovaConta = async () => {
+      const nome = document.getElementById('novaContaNome').value.trim();
+      if (!nome) { toast('Digite um nome pra conta.', 'warning'); return; }
+      try {
+        await saveConta({ nome });
+        _contas = await getContas();
+        window._cancelarNovaConta();
+        renderListaContas();
+        atualizarLabelSeletorConta();
+        toast(`Conta "${nome}" criada.`, 'success');
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      }
+    };
+
+    window._renomearConta = (id) => {
+      _renomeandoContaId = id;
+      renderListaContas();
+      const inp = document.getElementById(`renomeInput_${id}`);
+      if (inp) { inp.focus(); inp.select(); }
+    };
+    window._cancelarRenomearConta = () => {
+      _renomeandoContaId = null;
+      renderListaContas();
+    };
+    window._salvarRenomearConta = async (id) => {
+      const inp = document.getElementById(`renomeInput_${id}`);
+      const nome = inp?.value.trim();
+      if (!nome) { toast('Digite um nome pra conta.', 'warning'); return; }
+      try {
+        await saveConta({ id, nome });
+        _contas = await getContas();
+        _renomeandoContaId = null;
+        renderListaContas();
+        atualizarLabelSeletorConta();
+        toast('Conta renomeada.', 'success');
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      }
+    };
+
+    window._toggleArquivarConta = async (id, novaAtiva) => {
+      try {
+        await arquivarConta(id, novaAtiva);
+        _contas = await getContas();
+        if (!novaAtiva && _contaAtivaId === id) await trocarContaAtiva(null); // era a conta em tela — volta pro consolidado
+        renderListaContas();
+        toast(novaAtiva ? 'Conta reativada.' : 'Conta arquivada.', 'success');
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      }
+    };
+
+    /** Troca a visão ativa (conta específica ou consolidado) e recalcula tudo. */
+    async function trocarContaAtiva(novoId) {
+      const sessaoAnterior = { ...currentData.periodo, contaId: _contaAtivaId, saldoFinal: _ultimoSaldoFinal };
+      _contaAtivaId = novoId;
+      atualizarLabelSeletorConta();
+      render(currentData);
+      if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
+    }
+    window._trocarConta = async (id) => {
+      document.getElementById('modalContas').classList.add('hidden');
+      await trocarContaAtiva(id || null);
+    };
+
     // ─── Editar / excluir aporte ─────────────────────────────────────────────
     let editandoAporteIdx = null;
     const modalAporteEdit = document.getElementById('modalAporteEdit');
@@ -5898,64 +6088,79 @@
     }
 
     /**
-     * Resolve o saldo inicial (conta principal) do mês em `data`, na ordem:
+     * Resolve o saldo inicial de UMA conta (`contaAlvo`) no mês de `data`, na ordem:
      * 1) valor já salvo em saldosConta pro mês — inclusive se for 0 (explícito);
-     * 2) item-sentinela legado "__saldo_conta__" (dado de antes dessa coleção
-     *    existir — buscarPeriodo já extraiu pra data.saldoConta) — migra;
-     * 3) carryover do Saldo Final do mês anterior. Nunca recursivo: um único
-     *    salto pra trás; se o mês anterior também não tiver saldo resolvido,
-     *    assume 0 como base dele em vez de continuar buscando mais pra trás.
-     * Muta `data.saldoConta` in-place (atualiza o cache de _periodoCache junto,
-     * que guarda a mesma referência) e persiste o valor resolvido.
+     * 2) item-sentinela legado "__saldo_conta__" (só existe pra conta principal —
+     *    buscarPeriodo já extraiu pra data.saldoConta) — migra;
+     * 3) carryover do Saldo Final do mês anterior, calculado só com os itens
+     *    dessa conta (contaId). Nunca recursivo: um único salto pra trás; se o
+     *    mês anterior também não tiver saldo resolvido, assume 0 como base dele.
      *
-     * `sessaoAnterior`, se informado ({ mes, ano, saldoFinal }), evita
-     * rebuscar o mês anterior quando ele é exatamente o que estava em tela
-     * antes desta navegação — precisa ser capturado pelo chamador ANTES de
-     * chamar render() do novo mês, senão _ultimoSaldoFinal já foi
-     * sobrescrito com o saldoFinal do mês novo (não do anterior).
+     * `sessaoAnterior`, se informado ({ mes, ano, saldoFinal }), evita rebuscar
+     * o mês anterior quando ele é exatamente o que estava em tela antes desta
+     * navegação — precisa ser capturado pelo chamador ANTES de chamar render()
+     * do novo mês, senão _ultimoSaldoFinal já foi sobrescrito com o saldoFinal
+     * do mês novo (não do anterior). Só vale pra `contaAtivaId` (a conta em
+     * tela na sessão anterior), não pra outras contas de uma visão consolidada.
      *
-     * @returns {Promise<boolean>} true se o valor mudou (vale re-renderizar)
+     * @returns {Promise<number>} valor resolvido (não muta nada, só retorna)
      */
-    async function resolverSaldoConta(data, sessaoAnterior = null) {
+    async function resolverSaldoContaId(data, contaAlvo, sessaoAnterior = null) {
       const { mes, ano } = data.periodo;
-      const valorAntes = data.saldoConta;
       let saldos = {};
       try { saldos = await getSaldosConta(mes, ano); } catch (_) { /* segue pro fallback */ }
 
-      if ('principal' in saldos) {
-        data.saldoConta = saldos.principal;
-        return data.saldoConta !== valorAntes;
-      }
+      if (contaAlvo in saldos) return saldos[contaAlvo];
 
-      if (data.saldoConta) {
+      if (contaAlvo === CONTA_PRINCIPAL_ID && data.saldoConta) {
         // Sentinela legado com valor real — migra pra saldosConta.
-        saveSaldoConta(mes, ano, 'principal', data.saldoConta).catch(() => {});
-        return false; // valor em tela já está certo, só persistindo em segundo plano
+        saveSaldoConta(mes, ano, contaAlvo, data.saldoConta).catch(() => {});
+        return data.saldoConta;
       }
 
       const mesPrev = mes > 1 ? mes - 1 : 12;
       const anoPrev = mes > 1 ? ano : ano - 1;
       let saldoFinalPrev = 0;
       try {
-        if (sessaoAnterior?.mes === mesPrev && sessaoAnterior?.ano === anoPrev && sessaoAnterior?.saldoFinal != null) {
+        if (sessaoAnterior?.mes === mesPrev && sessaoAnterior?.ano === anoPrev
+            && sessaoAnterior?.contaId === contaAlvo && sessaoAnterior?.saldoFinal != null) {
           saldoFinalPrev = sessaoAnterior.saldoFinal; // mês anterior já estava em tela — reaproveita
         } else {
           const dataPrev   = await buscarPeriodo(mesPrev, anoPrev, false);
           const saldosPrev = await getSaldosConta(mesPrev, anoPrev).catch(() => ({}));
-          const baseAnterior = 'principal' in saldosPrev ? saldosPrev.principal : (dataPrev.saldoConta || 0);
+          const baseAnterior = contaAlvo in saldosPrev ? saldosPrev[contaAlvo]
+            : (contaAlvo === CONTA_PRINCIPAL_ID ? (dataPrev.saldoConta || 0) : 0);
           saldoFinalPrev = calcularAgregadosOrcamento({
-            data: { ...dataPrev, saldoConta: baseAnterior }, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes,
+            data: { ...dataPrev, saldoConta: baseAnterior }, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, contaId: contaAlvo,
           }).saldoFinal;
         }
       } catch (_) { saldoFinalPrev = 0; }
 
-      data.saldoConta = saldoFinalPrev;
-      saveSaldoConta(mes, ano, 'principal', saldoFinalPrev).catch(() => {});
+      saveSaldoConta(mes, ano, contaAlvo, saldoFinalPrev).catch(() => {});
+      return saldoFinalPrev;
+    }
+
+    /**
+     * Resolve `data.saldoConta` pra visão ativa (`_contaAtivaId`): uma conta
+     * específica, ou o consolidado (soma de todas as contas conhecidas) quando
+     * `_contaAtivaId` é null. Muta `data.saldoConta` in-place (atualiza o cache
+     * de _periodoCache junto, que guarda a mesma referência).
+     * @returns {Promise<boolean>} true se o valor mudou (vale re-renderizar)
+     */
+    async function resolverSaldoContaAtiva(data, sessaoAnterior = null) {
+      const valorAntes = data.saldoConta;
+      if (_contaAtivaId) {
+        data.saldoConta = await resolverSaldoContaId(data, _contaAtivaId, sessaoAnterior);
+      } else {
+        const contasParaSomar = _contas.length ? _contas : [{ id: CONTA_PRINCIPAL_ID }];
+        const valores = await Promise.all(contasParaSomar.map(c => resolverSaldoContaId(data, c.id, sessaoAnterior)));
+        data.saldoConta = valores.reduce((s, v) => s + v, 0);
+      }
       return data.saldoConta !== valorAntes;
     }
 
     document.getElementById('btnPrev').addEventListener('click', async () => {
-      const sessaoAnterior = { ...currentData.periodo, saldoFinal: _ultimoSaldoFinal };
+      const sessaoAnterior = { ...currentData.periodo, contaId: _contaAtivaId, saldoFinal: _ultimoSaldoFinal };
       let { mes, ano } = currentData.periodo;
       mes--;
       if (mes < 1) { mes = 12; ano--; }
@@ -5964,11 +6169,11 @@
         currentData = await buscarPeriodo(mes, ano);
       }
       render(currentData);
-      if (await resolverSaldoConta(currentData, sessaoAnterior)) render(currentData);
+      if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
     });
 
     document.getElementById('btnNext').addEventListener('click', async () => {
-      const sessaoAnterior = { ...currentData.periodo, saldoFinal: _ultimoSaldoFinal };
+      const sessaoAnterior = { ...currentData.periodo, contaId: _contaAtivaId, saldoFinal: _ultimoSaldoFinal };
       let { mes, ano } = currentData.periodo;
       const agora = new Date();
       const limiteTotal  = (agora.getFullYear() * 12 + agora.getMonth() + 1) + 2;
@@ -5981,7 +6186,7 @@
         currentData = await buscarPeriodo(mes, ano);
       }
       render(currentData);
-      if (await resolverSaldoConta(currentData, sessaoAnterior)) render(currentData);
+      if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
     });
 
     // ─── Upload CSV ───────────────────────────
