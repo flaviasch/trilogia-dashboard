@@ -1026,6 +1026,11 @@ export async function arquivarConta(id, ativa) {
   return call('arquivarConta')({ uid: uidAtual(), id, ativa });
 }
 
+/** Exclui uma conta secundária permanentemente (nunca a principal). */
+export async function deletarConta(id) {
+  return call('deletarConta')({ uid: uidAtual(), id });
+}
+
 /**
  * Saldo inicial de cada conta num mês.
  * @returns {Promise<{[contaId: string]: number}>}

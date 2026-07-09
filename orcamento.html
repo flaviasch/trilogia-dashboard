@@ -2234,7 +2234,7 @@
         <input type="text" id="novaContaNome" placeholder="ex: Poupança conjunta" maxlength="100" />
         <div class="modal-actions" style="margin-top:8px;">
           <button class="btn-cancel" onclick="window._cancelarNovaConta()">Cancelar</button>
-          <button class="btn-save" onclick="window._salvarNovaConta()">Adicionar</button>
+          <button class="btn-save" id="btnSalvarNovaConta" onclick="window._salvarNovaConta()">Adicionar</button>
         </div>
       </div>
       <button class="btn-add-item" id="btnNovaContaToggle" onclick="window._abrirNovaConta()">+ Nova conta</button>
@@ -2247,7 +2247,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=28';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=29';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -5698,7 +5698,7 @@
               <input id="renomeInput_${c.id}" type="text" value="${escapeHtml(c.nome)}" maxlength="100"
                 style="width:100%;background:rgba(255,255,255,.07);border:1px solid var(--border-gold);border-radius:6px;padding:6px 10px;font-size:13px;color:var(--white);font-family:'Inter',sans-serif;outline:none;margin-bottom:6px;" />
               <div style="display:flex;gap:6px;">
-                <button class="btn-save" style="flex:1;padding:5px;font-size:12px;" onclick="window._salvarRenomearConta('${c.id}')">Salvar</button>
+                <button class="btn-save" id="btnSalvarRenome_${c.id}" style="flex:1;padding:5px;font-size:12px;" onclick="window._salvarRenomearConta('${c.id}')">Salvar</button>
                 <button class="btn-cancel" style="flex:1;padding:5px;font-size:12px;" onclick="window._cancelarRenomearConta()">Cancelar</button>
               </div>
             </div>`;
@@ -5710,7 +5710,8 @@
                 ${escapeHtml(c.nome)}${c.principal ? ' <span style="font-size:10px;color:var(--text-muted);font-weight:400">· principal</span>' : ''}${arquivada ? ' <span style="font-size:10px;color:var(--text-muted);font-weight:400">· arquivada</span>' : ''}
               </span>
               <button class="btn-edit-plan" style="opacity:1" onclick="window._renomearConta('${c.id}')" title="Renomear">✎</button>
-              ${!c.principal ? `<button class="btn-edit-plan" style="opacity:1" onclick="window._toggleArquivarConta('${c.id}', ${arquivada})" title="${arquivada ? 'Reativar' : 'Arquivar'}">${arquivada ? '↺' : '🗄'}</button>` : ''}
+              ${!c.principal ? `<button class="btn-edit-plan" id="btnArquivar_${c.id}" style="opacity:1" onclick="window._toggleArquivarConta('${c.id}', ${arquivada})" title="${arquivada ? 'Reativar' : 'Arquivar'}">${arquivada ? '↺' : '🗄'}</button>` : ''}
+              ${!c.principal ? `<button class="btn-edit-plan" style="opacity:1" onclick="window._excluirConta('${c.id}', '${escapeHtml(c.nome).replace(/'/g, "&#39;")}')" title="Excluir">🗑</button>` : ''}
             </div>
           </div>`;
       }).join('');
@@ -5745,6 +5746,8 @@
     window._salvarNovaConta = async () => {
       const nome = document.getElementById('novaContaNome').value.trim();
       if (!nome) { toast('Digite um nome pra conta.', 'warning'); return; }
+      const btn = document.getElementById('btnSalvarNovaConta');
+      setLoading(btn, true);
       try {
         await saveConta({ nome });
         _contas = await getContas();
@@ -5754,6 +5757,8 @@
         toast(`Conta "${nome}" criada.`, 'success');
       } catch (err) {
         toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
       }
     };
 
@@ -5771,6 +5776,8 @@
       const inp = document.getElementById(`renomeInput_${id}`);
       const nome = inp?.value.trim();
       if (!nome) { toast('Digite um nome pra conta.', 'warning'); return; }
+      const btn = document.getElementById(`btnSalvarRenome_${id}`);
+      setLoading(btn, true);
       try {
         await saveConta({ id, nome });
         _contas = await getContas();
@@ -5780,16 +5787,33 @@
         toast('Conta renomeada.', 'success');
       } catch (err) {
         toast(msgErro(err), 'error');
+        setLoading(btn, false);
       }
     };
 
     window._toggleArquivarConta = async (id, novaAtiva) => {
+      const btn = document.getElementById(`btnArquivar_${id}`);
+      if (btn) btn.disabled = true;
       try {
         await arquivarConta(id, novaAtiva);
         _contas = await getContas();
         if (!novaAtiva && _contaAtivaId === id) await trocarContaAtiva(null); // era a conta em tela — volta pro consolidado
         renderListaContas();
         toast(novaAtiva ? 'Conta reativada.' : 'Conta arquivada.', 'success');
+      } catch (err) {
+        toast(msgErro(err), 'error');
+        if (btn) btn.disabled = false;
+      }
+    };
+
+    window._excluirConta = async (id, nome) => {
+      if (!(await confirmDelete(`Excluir a conta "${nome}" permanentemente?`))) return;
+      try {
+        await deletarConta(id);
+        _contas = await getContas();
+        if (_contaAtivaId === id) await trocarContaAtiva(null); // era a conta em tela — volta pro consolidado
+        renderListaContas();
+        toast('Conta excluída.', 'success');
       } catch (err) {
         toast(msgErro(err), 'error');
       }

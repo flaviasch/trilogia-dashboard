@@ -1563,6 +1563,25 @@ exports.arquivarConta = onCall(async (request) => {
   return { ok: true };
 });
 
+/**
+ * Exclui uma conta secundária permanentemente — nunca a principal. Não há
+ * lançamento vinculado a excluir junto: despesas/receitas/cartões ainda não
+ * têm campo contaId na interface (isso chega numa fase futura), então uma
+ * conta secundária hoje só carrega nome + saldo inicial por mês.
+ */
+exports.deletarConta = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, id } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'deletarConta', 20, 60_000); // 20/min
+
+  if (!id || id === CONTA_PRINCIPAL_ID) throw new HttpsError('invalid-argument', 'A conta principal não pode ser excluída.');
+
+  await db.collection('mentoradas').doc(uid).collection('contas').doc(String(id)).delete();
+
+  return { ok: true };
+});
+
 // ─── SALDO INICIAL POR CONTA E MÊS ────────────────────────────────────────────
 // Coleção: mentoradas/{uid}/saldosConta/{YYYY-MM} = { [contaId]: valor }.
 // Substitui o item-sentinela "__saldo_conta__" (que vivia dentro do array de

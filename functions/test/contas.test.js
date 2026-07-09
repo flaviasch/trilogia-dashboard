@@ -93,3 +93,34 @@ test('arquivarConta', async (t) => {
     );
   });
 });
+
+test('deletarConta', async (t) => {
+  await t.test('exclui uma conta secundária permanentemente', async () => {
+    const uid = uidTeste();
+    const criada = await fns.saveConta.run({ data: { uid, nome: 'Duplicata' }, auth: auth(uid) });
+
+    await fns.deletarConta.run({ data: { uid, id: criada.id }, auth: auth(uid) });
+
+    const { contas } = await fns.getContas.run({ data: { uid }, auth: auth(uid) });
+    assert.equal(contas.length, 1, 'só deve sobrar a principal');
+    assert.equal(contas.find(c => c.id === criada.id), undefined);
+  });
+
+  await t.test('rejeita excluir a conta principal', async () => {
+    const uid = uidTeste();
+    await assert.rejects(
+      fns.deletarConta.run({ data: { uid, id: 'principal' }, auth: auth(uid) }),
+      { code: 'invalid-argument' }
+    );
+  });
+
+  await t.test('rejeita mentorada tentando excluir conta de outra uid', async () => {
+    const uidAlvo = uidTeste();
+    const uidAtacante = uidTeste();
+    const criada = await fns.saveConta.run({ data: { uid: uidAlvo, nome: 'Alvo' }, auth: auth(uidAlvo) });
+    await assert.rejects(
+      fns.deletarConta.run({ data: { uid: uidAlvo, id: criada.id }, auth: auth(uidAtacante, false) }),
+      { code: 'permission-denied' }
+    );
+  });
+});
