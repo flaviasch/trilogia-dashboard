@@ -1555,15 +1555,11 @@
         setLoading(btnSaveDivida, false);
       }
 
-      const totalAtivos  = ativos.reduce((s, a) => s + a.valor, 0);
-      const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
-      const pl = totalAtivos - totalDividas;
-
-      document.getElementById('totalDividas').textContent = brl(totalDividas);
-      document.getElementById('totalPL').textContent      = brl(pl);
-      document.getElementById('subDividas').textContent   = `${dividas.length} dívida${dividas.length !== 1 ? 's' : ''}`;
-      document.getElementById('totalDividasHeader').textContent = brl(totalDividas);
-      renderDividas(dividas, totalDividas);
+      // render() recalcula tudo e já chama renderDividas() internamente
+      // (inclui PL/subPL, que dependem de dívida e antes ficavam de fora
+      // aqui) — mesma função que deletarDivida já usa, evita a tela mostrar
+      // números parcialmente desatualizados.
+      render(ativos, dividas);
       // Sem snapshot aqui de propósito — mesmo critério da edição manual de ativo.
 
       fecharModalDivida();
