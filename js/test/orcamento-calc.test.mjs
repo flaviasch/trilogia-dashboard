@@ -28,6 +28,8 @@ import {
   calcularAgregadosOrcamento,
   calcularAjuste,
   calcularNaoPlanejado,
+  pertenceAConta,
+  CONTA_PRINCIPAL_ID,
   CATEGORIA_AJUSTE,
 } from '../orcamento-calc.js';
 
@@ -234,6 +236,65 @@ test('calcularAgregadosOrcamento', async (t) => {
     const data = { periodo: { mes: 12, ano: 2026 }, saldoConta: 0, receitas: [], despesas: [], aportes: [] };
     const r = calcularAgregadosOrcamento({ data, agora: HOJE });
     assert.equal(r.diffNaoIdentificadoMes, 0);
+  });
+
+  // Fase C de múltiplas contas correntes: filtro opcional por contaId.
+  await t.test('NÃO-REGRESSÃO: sem contaId, itens com contaId variado somam tudo igual a antes desse parâmetro existir', () => {
+    const data = periodo([
+      { categoria: 'Moradia', valor: 500, data: '2026-07-01', cartao: false },
+      { categoria: 'Lazer', valor: 200, data: '2026-07-01', cartao: false, contaId: 'principal' },
+      { categoria: 'Mercado', valor: 300, data: '2026-07-01', cartao: false, contaId: 'conta-secundaria' },
+    ]);
+    const semFiltro = calcularAgregadosOrcamento({ data, agora: HOJE });
+    const semNenhumContaId = calcularAgregadosOrcamento({
+      data: periodo([{ categoria: 'X', valor: 1000, data: '2026-07-01', cartao: false }]),
+      agora: HOJE,
+    });
+    assert.equal(semFiltro.despesaCaixa, 1000, 'consolida despesas de todas as contas, mesmo as sem contaId');
+    assert.equal(semNenhumContaId.despesaCaixa, 1000, 'baseline idêntico ao comportamento anterior à Fase C');
+  });
+
+  await t.test('com contaId, só entram itens dessa conta — item sem contaId conta como "principal"', () => {
+    const data = periodo([
+      { categoria: 'Moradia', valor: 500, data: '2026-07-01', cartao: false }, // sem contaId = principal
+      { categoria: 'Lazer', valor: 200, data: '2026-07-01', cartao: false, contaId: 'principal' },
+      { categoria: 'Mercado', valor: 300, data: '2026-07-01', cartao: false, contaId: 'conta-secundaria' },
+    ]);
+    const principal = calcularAgregadosOrcamento({ data, agora: HOJE, contaId: 'principal' });
+    const secundaria = calcularAgregadosOrcamento({ data, agora: HOJE, contaId: 'conta-secundaria' });
+    assert.equal(principal.despesaCaixa, 700);
+    assert.equal(secundaria.despesaCaixa, 300);
+  });
+
+  await t.test('cartão de outra conta não vaza total via ajusteTotal de faturaEstados', () => {
+    const data = periodo([]);
+    const cartoes = [
+      { id: 'c-principal', ativo: true }, // sem contaId = principal
+      { id: 'c-secundaria', ativo: true, contaId: 'conta-secundaria' },
+    ];
+    const faturaEstados = {
+      'c-principal_2026-07': { ajusteTotal: 400 },
+      'c-secundaria_2026-07': { ajusteTotal: 900 },
+    };
+    const principal = calcularAgregadosOrcamento({ data, cartoes, faturaEstados, agora: HOJE, contaId: 'principal' });
+    assert.equal(principal.totalFaturas, 400, 'não deve incluir o ajuste de 900 da conta secundária');
+  });
+});
+
+test('pertenceAConta', async (t) => {
+  await t.test('sem contaId de filtro (null/undefined), sempre pertence — visão consolidada', () => {
+    assert.equal(pertenceAConta({ contaId: 'x' }, null), true);
+    assert.equal(pertenceAConta({}, undefined), true);
+  });
+
+  await t.test('item sem contaId conta como a conta principal', () => {
+    assert.equal(pertenceAConta({}, CONTA_PRINCIPAL_ID), true);
+    assert.equal(pertenceAConta({}, 'outra-conta'), false);
+  });
+
+  await t.test('item com contaId explícito só bate com o mesmo filtro', () => {
+    assert.equal(pertenceAConta({ contaId: 'conta-a' }, 'conta-a'), true);
+    assert.equal(pertenceAConta({ contaId: 'conta-a' }, 'conta-b'), false);
   });
 });
 

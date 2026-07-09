@@ -117,6 +117,21 @@ export function addFixaPulada(chave) {
   return filtradas;
 }
 
+// ─── Múltiplas contas ──────────────────────────────────────────────────────────
+
+/** Id reservado da conta principal — implícito quando o item não tem `contaId`. */
+export const CONTA_PRINCIPAL_ID = 'principal';
+
+/**
+ * Um item (despesa/receita/aporte/cartão) pertence à conta filtrada quando:
+ * sem filtro (contaId null/undefined) → sempre true (visão consolidada);
+ * com filtro → item.contaId (ou 'principal' se ausente) bate com o filtro.
+ */
+export function pertenceAConta(item, contaId) {
+  if (contaId == null) return true;
+  return (item.contaId || CONTA_PRINCIPAL_ID) === contaId;
+}
+
 // ─── Agregação principal ───────────────────────────────────────────────────────
 
 /**
@@ -131,6 +146,9 @@ export function addFixaPulada(chave) {
  * @param {object[]} [args.recorrentes] - lista de despesas fixas ({ id, ativo, cartao, categoria, valor, dia, frequencia, mesInicio, anoInicio })
  * @param {string[]} [args.fixasPuladas] - se omitido, lê getFixasPuladas() internamente
  * @param {Date} [args.agora] - injetável pra testes; default new Date()
+ * @param {string|null} [args.contaId] - filtra por conta (via pertenceAConta);
+ *   default null = consolidado, soma todas as contas (comportamento de sempre,
+ *   inclusive pra dado antigo sem nenhum item com contaId).
  *
  * @returns {{
  *   ehFuturo: boolean, saldoConta: number, totalReceita: number,
@@ -150,7 +168,22 @@ export function calcularAgregadosOrcamento({
   recorrentes = [],
   fixasPuladas = null,
   agora = new Date(),
+  contaId = null,
 }) {
+  // Filtro por conta aplicado uma única vez, antes de qualquer cálculo — sem
+  // contaId (default) é um no-op (pertenceAConta sempre retorna true), então
+  // o resultado consolidado continua idêntico ao de antes desse parâmetro
+  // existir. Com contaId, cartões de outra conta também ficam de fora (senão
+  // um ajuste manual de fatura de outra conta vazaria pro total filtrado).
+  data = {
+    ...data,
+    receitas: data.receitas.filter(r => pertenceAConta(r, contaId)),
+    despesas: data.despesas.filter(d => pertenceAConta(d, contaId)),
+    aportes: (data.aportes || []).filter(a => pertenceAConta(a, contaId)),
+  };
+  cartoes = cartoes.filter(c => pertenceAConta(c, contaId));
+  recorrentes = (recorrentes || []).filter(r => pertenceAConta(r, contaId));
+
   const { mes, ano } = data.periodo;
   const periodoTotal = ano * 12 + mes;
   const agoraTotal   = agora.getFullYear() * 12 + agora.getMonth() + 1;
