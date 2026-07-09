@@ -255,7 +255,20 @@ async function sendPushToAtivas(payload) {
 /**
  * Calcula o score de saúde financeira (0–100) a partir dos itens do orçamento,
  * das reservas e das categorias com limite planejado.
- * Mesma fórmula do orcamento.html — mantê-las sincronizadas.
+ *
+ * Fallback usado só por getDashboardHome, quando ainda não existe score salvo
+ * pro mês (salvarScoreMes, chamado por orcamento.html com a fórmula completa
+ * — js/orcamento-calc.js). Deploy do Cloud Functions empacota só a pasta
+ * functions/ (ver firebase.json), então não dá pra importar js/orcamento-calc.js
+ * direto daqui — por isso essa cópia existe.
+ *
+ * Diferença conhecida e intencional: esta versão NÃO exclui compras na
+ * fatura de cartão em ABERTO (getDashboardHome não lê a coleção de cartões,
+ * pra ficar leve) — orcamento.html exclui. Na prática o score fica um pouco
+ * mais pessimista aqui até a mentorada abrir a aba Orçamento uma vez no mês
+ * (o que salva o score correto e sobrescreve este). Pesos/faixas de pontos
+ * abaixo devem continuar batendo com calcularScore() em orcamento.html —
+ * cobertos por testes em functions/test/score.test.js.
  */
 function calcularScoreMes(orcItens, reservas, cats) {
   const receita      = orcItens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
@@ -288,7 +301,9 @@ function calcularScoreMes(orcItens, reservas, cats) {
   if (catsComLimite.length > 0) {
     const despesasArr = orcItens.filter(i => i.tipo === 'despesa');
     const estouradas = catsComLimite.filter(c => {
-      const gasto = despesasArr.filter(d => d.categoria === c.nome).reduce((s, d) => s + d.valor, 0);
+      // _normCat (case/acento-insensível) — mesmo critério de orcamento.html;
+      // comparação exata deixava "Alimentação"/"alimentação" contarem separado.
+      const gasto = despesasArr.filter(d => _normCat(d.categoria) === _normCat(c.nome)).reduce((s, d) => s + d.valor, 0);
       return gasto > c.limite;
     }).length;
     if      (estouradas === 0) ptsOrcamento = 100;
@@ -5787,4 +5802,4 @@ exports.healthCheck = onRequest({ cors: false }, (req, res) => {
 
 // Expõe helpers internos puros só para teste (node:test) — não muda
 // comportamento de produção, nenhum desses precisa de secrets ou Firestore.
-exports._test = { _normCat, _resolverCategoria, _sugerirFatura, _mesPagamento };
+exports._test = { _normCat, _resolverCategoria, _sugerirFatura, _mesPagamento, calcularScoreMes };
