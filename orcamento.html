@@ -1300,7 +1300,7 @@
       <button id="btnLancarNoCartao" class="btn-acao" style="display:none;">💳 Lançar no cartão</button>
       <button id="btnGerenciarFixasTop" class="btn-acao">⚙️ Despesas fixas</button>
       <button id="btnGerenciarCartoesTop" class="btn-acao">💳 Cartões</button>
-      <button id="btnSeletorConta" class="btn-acao" onclick="window._abrirModalContas()"><span id="labelSeletorConta">🏦 Contas</span></button>
+      <button id="btnSeletorConta" class="btn-acao" onclick="window._abrirModalContas()">🏦 Contas</button>
     </div>
 
     <!-- Score de saúde financeira -->
@@ -3417,7 +3417,6 @@
       if (fatEstResult.status === 'fulfilled') _faturaEstados = fatEstResult.value || {};
       if (planMetaResult.status === 'fulfilled') planejamentoMeta = planMetaResult.value || { renda: null, percentual: null };
       if (contasResult.status === 'fulfilled') _contas = contasResult.value || [];
-      atualizarLabelSeletorConta();
 
       // Carrega recorrentes em paralelo (sem bloquear o render). Fixas no
       // cartão são lançadas automaticamente em cada fatura; fixas em conta
@@ -5667,17 +5666,8 @@
 
     // ─── Contas correntes (múltiplas contas) ─────────────────────────────────
     let _renomeandoContaId = null;
-
-    function atualizarLabelSeletorConta() {
-      const el = document.getElementById('labelSeletorConta');
-      if (!el) return;
-      if (!_contaAtivaId) {
-        el.textContent = _contas.length > 1 ? '🏦 Consolidado' : '🏦 Contas';
-      } else {
-        const c = _contas.find(x => x.id === _contaAtivaId);
-        el.textContent = `🏦 ${c ? c.nome : 'Conta'}`;
-      }
-    }
+    // Texto do botão "🏦 Contas" fica sempre fixo — igual ao botão "💳
+    // Cartões" ao lado. A conta ativa aparece dentro do modal, não no rótulo.
 
     function renderListaContas() {
       const el = document.getElementById('listaContas');
@@ -5753,7 +5743,6 @@
         _contas = await getContas();
         window._cancelarNovaConta();
         renderListaContas();
-        atualizarLabelSeletorConta();
         toast(`Conta "${nome}" criada.`, 'success');
       } catch (err) {
         toast(msgErro(err), 'error');
@@ -5783,7 +5772,6 @@
         _contas = await getContas();
         _renomeandoContaId = null;
         renderListaContas();
-        atualizarLabelSeletorConta();
         toast('Conta renomeada.', 'success');
       } catch (err) {
         toast(msgErro(err), 'error');
@@ -5823,7 +5811,6 @@
     async function trocarContaAtiva(novoId) {
       const sessaoAnterior = { ...currentData.periodo, contaId: _contaAtivaId, saldoFinal: _ultimoSaldoFinal };
       _contaAtivaId = novoId;
-      atualizarLabelSeletorConta();
       render(currentData);
       if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
     }
