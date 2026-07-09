@@ -1001,6 +1001,45 @@ export async function savePlanejamentoMeta(mes, ano, renda, percentual) {
   return call('savePlanejamentoMeta')({ uid: uidAtual(), mes, ano, renda, percentual });
 }
 
+// ─── Contas correntes (múltiplas contas) ─────────────────────────────────────
+
+/**
+ * Lista as contas da mentorada — sempre inclui a principal (mesmo sem
+ * nenhuma conta cadastrada, ela vem sintetizada pelo backend).
+ * @returns {Promise<Array<{id, nome, ativa, principal}>>}
+ */
+export async function getContas() {
+  const res = await call('getContas')({ uid: uidAtual() });
+  return res?.contas || [];
+}
+
+/**
+ * Cria (sem id) ou atualiza/renomeia (com id) uma conta.
+ * @param {{id?: string, nome: string, ativa?: boolean}} conta
+ */
+export async function saveConta(conta) {
+  return call('saveConta')({ uid: uidAtual(), ...conta });
+}
+
+/** Arquiva ou reativa uma conta secundária (nunca a principal). */
+export async function arquivarConta(id, ativa) {
+  return call('arquivarConta')({ uid: uidAtual(), id, ativa });
+}
+
+/**
+ * Saldo inicial de cada conta num mês.
+ * @returns {Promise<{[contaId: string]: number}>}
+ */
+export async function getSaldosConta(mes, ano) {
+  const res = await call('getSaldosConta')({ uid: uidAtual(), mes, ano });
+  return res?.saldos || {};
+}
+
+/** Atualiza o saldo inicial de UMA conta no mês (merge no servidor). */
+export async function saveSaldoConta(mes, ano, contaId, valor) {
+  return call('saveSaldoConta')({ uid: uidAtual(), mes, ano, contaId, valor });
+}
+
 // ─── Categorias globais (legacy) ─────────────────────────────────────────────
 export async function getCategorias() {
   const res = await call('getCategorias')({ uid: uidAtual() });

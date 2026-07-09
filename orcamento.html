@@ -2225,7 +2225,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=26';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=27';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -2427,6 +2427,10 @@
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
     let planejamentoMeta = { renda: null, percentual: null }; // renda + % planejado do mês atual
     let _naoPlanExpandido = false; // estado do "Não planejado" (expandir/colapsar) no Planejamento
+    // Saldo Final do mês em tela — capturado a cada render() pra servir de
+    // carryover automático pro saldo inicial do mês seguinte, sem precisar
+    // buscar o mês anterior de novo quando ele já está carregado na sessão.
+    let _ultimoSaldoFinal = null;
     let _projecaoFiltro = null; // 'despesa' | 'receita' | 'fatura' | null (mostra tudo)
 
     // Diferença entre o comprometido do mês (soma de tudo lançado) e a
@@ -2980,7 +2984,10 @@
       const { mes, ano } = currentData.periodo;
       const mesAtual = new Date().getMonth() + 1;
       const itens = [
-        ...(currentData.saldoConta > 0 ? [{ categoria: '__saldo_conta__', tipo: 'receita', valor: currentData.saldoConta, data: '', descricao: 'Saldo em conta', cartao: false, fatura: '', origem: 'manual' }] : []),
+        // Saldo em conta NÃO é mais lançado como item sentinela aqui — vive em
+        // saldosConta/{mesKey} (ver saveSaldoConta/resolverSaldoConta). Meses
+        // salvos antes dessa mudança ainda têm o sentinela legado no array;
+        // a leitura (buscarPeriodo/carga inicial) continua tratando isso.
         ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: r.origem || 'manual', ...(r.pendente ? { pendente: true } : {}) })),
         // Itens "emprestados" de outro mês (_sourceMes) NUNCA são reenviados daqui —
         // reenviá-los alimentava um merge no backend que estava duplicando essas
@@ -3119,7 +3126,11 @@
       document.getElementById('saldoContaDisplay').style.display = '';
       document.getElementById('saldoContaSub').style.display = '';
       render(currentData);
-      try { await salvarEAtualizar(); } catch (e) { /* já tratado em salvarEAtualizar */ }
+      // Grava na coleção de saldo por conta — não mexe no array de itens do
+      // orçamento (o saldo em conta não é mais lançado como item sentinela).
+      const { mes, ano } = currentData.periodo;
+      try { await saveSaldoConta(mes, ano, 'principal', valor); }
+      catch (e) { toast(msgErro(e), 'error'); }
     };
     window._cancelarSaldoConta = () => {
       document.getElementById('saldoContaForm').style.display = 'none';
@@ -3392,6 +3403,13 @@
       } catch (err) {
         console.error('Erro ao renderizar orçamento:', err);
       }
+
+      // Resolve o saldo inicial (carryover automático) em segundo plano —
+      // sem sessão anterior nesse carregamento inicial (página acabou de
+      // abrir), então resolverSaldoConta faz o salto único pro mês anterior
+      // se precisar. Só re-renderiza se o valor realmente mudou.
+      resolverSaldoConta(currentData).then(mudou => { if (mudou) render(currentData); }).catch(() => {});
+
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
 
@@ -3587,6 +3605,9 @@
         sobra, sobraPct, totalAp, saldoFinal,
         diffNaoIdentificadoMes: _diffNaoIdentificadoMesCalculado,
       } = agregados;
+      // Guarda o Saldo Final deste mês — usado como carryover automático pro
+      // saldo inicial do mês seguinte, sem precisar rebuscar este mês depois.
+      _ultimoSaldoFinal = saldoFinal;
       // Critério de "comprometido" — despesas já efetivadas + pendentes + faturas
       // fechadas aguardando pagamento. Compras na fatura ABERTA (ciclo em curso,
       // ainda pode receber mais compras e nem fechou) ficam de fora — só contam
@@ -5876,7 +5897,65 @@
       }
     }
 
+    /**
+     * Resolve o saldo inicial (conta principal) do mês em `data`, na ordem:
+     * 1) valor já salvo em saldosConta pro mês — inclusive se for 0 (explícito);
+     * 2) item-sentinela legado "__saldo_conta__" (dado de antes dessa coleção
+     *    existir — buscarPeriodo já extraiu pra data.saldoConta) — migra;
+     * 3) carryover do Saldo Final do mês anterior. Nunca recursivo: um único
+     *    salto pra trás; se o mês anterior também não tiver saldo resolvido,
+     *    assume 0 como base dele em vez de continuar buscando mais pra trás.
+     * Muta `data.saldoConta` in-place (atualiza o cache de _periodoCache junto,
+     * que guarda a mesma referência) e persiste o valor resolvido.
+     *
+     * `sessaoAnterior`, se informado ({ mes, ano, saldoFinal }), evita
+     * rebuscar o mês anterior quando ele é exatamente o que estava em tela
+     * antes desta navegação — precisa ser capturado pelo chamador ANTES de
+     * chamar render() do novo mês, senão _ultimoSaldoFinal já foi
+     * sobrescrito com o saldoFinal do mês novo (não do anterior).
+     *
+     * @returns {Promise<boolean>} true se o valor mudou (vale re-renderizar)
+     */
+    async function resolverSaldoConta(data, sessaoAnterior = null) {
+      const { mes, ano } = data.periodo;
+      const valorAntes = data.saldoConta;
+      let saldos = {};
+      try { saldos = await getSaldosConta(mes, ano); } catch (_) { /* segue pro fallback */ }
+
+      if ('principal' in saldos) {
+        data.saldoConta = saldos.principal;
+        return data.saldoConta !== valorAntes;
+      }
+
+      if (data.saldoConta) {
+        // Sentinela legado com valor real — migra pra saldosConta.
+        saveSaldoConta(mes, ano, 'principal', data.saldoConta).catch(() => {});
+        return false; // valor em tela já está certo, só persistindo em segundo plano
+      }
+
+      const mesPrev = mes > 1 ? mes - 1 : 12;
+      const anoPrev = mes > 1 ? ano : ano - 1;
+      let saldoFinalPrev = 0;
+      try {
+        if (sessaoAnterior?.mes === mesPrev && sessaoAnterior?.ano === anoPrev && sessaoAnterior?.saldoFinal != null) {
+          saldoFinalPrev = sessaoAnterior.saldoFinal; // mês anterior já estava em tela — reaproveita
+        } else {
+          const dataPrev   = await buscarPeriodo(mesPrev, anoPrev, false);
+          const saldosPrev = await getSaldosConta(mesPrev, anoPrev).catch(() => ({}));
+          const baseAnterior = 'principal' in saldosPrev ? saldosPrev.principal : (dataPrev.saldoConta || 0);
+          saldoFinalPrev = calcularAgregadosOrcamento({
+            data: { ...dataPrev, saldoConta: baseAnterior }, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes,
+          }).saldoFinal;
+        }
+      } catch (_) { saldoFinalPrev = 0; }
+
+      data.saldoConta = saldoFinalPrev;
+      saveSaldoConta(mes, ano, 'principal', saldoFinalPrev).catch(() => {});
+      return data.saldoConta !== valorAntes;
+    }
+
     document.getElementById('btnPrev').addEventListener('click', async () => {
+      const sessaoAnterior = { ...currentData.periodo, saldoFinal: _ultimoSaldoFinal };
       let { mes, ano } = currentData.periodo;
       mes--;
       if (mes < 1) { mes = 12; ano--; }
@@ -5885,9 +5964,11 @@
         currentData = await buscarPeriodo(mes, ano);
       }
       render(currentData);
+      if (await resolverSaldoConta(currentData, sessaoAnterior)) render(currentData);
     });
 
     document.getElementById('btnNext').addEventListener('click', async () => {
+      const sessaoAnterior = { ...currentData.periodo, saldoFinal: _ultimoSaldoFinal };
       let { mes, ano } = currentData.periodo;
       const agora = new Date();
       const limiteTotal  = (agora.getFullYear() * 12 + agora.getMonth() + 1) + 2;
@@ -5900,6 +5981,7 @@
         currentData = await buscarPeriodo(mes, ano);
       }
       render(currentData);
+      if (await resolverSaldoConta(currentData, sessaoAnterior)) render(currentData);
     });
 
     // ─── Upload CSV ───────────────────────────

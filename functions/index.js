@@ -1563,6 +1563,52 @@ exports.arquivarConta = onCall(async (request) => {
   return { ok: true };
 });
 
+// ─── SALDO INICIAL POR CONTA E MÊS ────────────────────────────────────────────
+// Coleção: mentoradas/{uid}/saldosConta/{YYYY-MM} = { [contaId]: valor }.
+// Substitui o item-sentinela "__saldo_conta__" (que vivia dentro do array de
+// itens do orçamento) — o frontend decide o valor de cada mês (carryover do
+// Saldo Final do mês anterior, ou fallback pro sentinela legado de meses já
+// salvos antes dessa coleção existir) e persiste aqui via saveSaldoConta.
+
+exports.getSaldosConta = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  const snap = await db.collection('mentoradas').doc(uid).collection('saldosConta').doc(mesKey).get();
+  return { saldos: snap.exists ? (snap.data().saldos || {}) : {} };
+});
+
+/**
+ * Atualiza o saldo inicial de UMA conta no mês, via transaction (merge no
+ * servidor — não sobrescreve o saldo de outras contas salvo em paralelo).
+ * Espera: { uid, mes, ano, contaId, valor }
+ */
+exports.saveSaldoConta = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, mes, ano, contaId, valor } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveSaldoConta', 30, 60_000); // 30/min — carryover automático pode disparar em background
+
+  if (!contaId || typeof contaId !== 'string') throw new HttpsError('invalid-argument', 'contaId inválido.');
+  if (typeof valor !== 'number' || !Number.isFinite(valor)) throw new HttpsError('invalid-argument', 'Valor inválido.');
+
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  const ref = db.collection('mentoradas').doc(uid).collection('saldosConta').doc(mesKey);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const saldosAtuais = snap.exists ? (snap.data().saldos || {}) : {};
+    tx.set(ref, {
+      saldos: { ...saldosAtuais, [contaId]: valor },
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  return { ok: true };
+});
+
 // ─── CATEGORIAS GLOBAIS (legacy — mantido para compatibilidade) ───────────────
 exports.getCategorias = onCall(async (request) => {
   requireAuth(request);
