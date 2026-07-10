@@ -2992,10 +2992,11 @@
     // futuro) só sensibiliza o caixa depois de confirmado — achado 09/07/2026,
     // antes só data futura ficava pendente, então um lançamento de hoje
     // entrava sozinho, sem dar chance de conferir antes.
-    async function confirmarPendente(tipo, idx) {
+    async function confirmarPendente(tipo, idx, btn) {
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
       const item = lista[idx];
       if (item) {
+        if (btn) btn.disabled = true; // feedback imediato — sem isso parecia que nada acontecia (achado 10/07/2026)
         delete item.pendente;
         item.confirmado = true;
         // Se a data ainda está no futuro, confirmar significa "aconteceu agora":
@@ -3006,6 +3007,7 @@
           item.data = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
         }
         await salvarEAtualizar();
+        toast('Confirmado.', 'success');
       }
     }
 
@@ -3848,7 +3850,7 @@
         projecaoListaEl.querySelectorAll('[data-proj-confirmar]').forEach(btn =>
           btn.addEventListener('click', () => {
             const [tipo, idx] = btn.dataset.projConfirmar.split(':');
-            confirmarPendente(tipo, +idx);
+            confirmarPendente(tipo, +idx, btn);
           }));
         projecaoListaEl.querySelectorAll('[data-proj-editar]').forEach(btn =>
           btn.addEventListener('click', () => {
@@ -4778,7 +4780,7 @@
       despList.querySelectorAll('[data-del-desp]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
       despList.querySelectorAll('[data-confirmar-pend]').forEach(btn =>
-        btn.addEventListener('click', () => confirmarPendente('despesa', +btn.dataset.confirmarPend)));
+        btn.addEventListener('click', () => confirmarPendente('despesa', +btn.dataset.confirmarPend, btn)));
       despList.querySelectorAll('[data-cancelar-parcela]').forEach(btn =>
         btn.addEventListener('click', () => cancelarParcelamentoUI(btn.dataset.cancelarParcela)));
       despList.querySelectorAll('[data-materializar-virtual]').forEach(btn =>
