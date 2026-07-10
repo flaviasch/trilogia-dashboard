@@ -215,8 +215,11 @@ export function calcularAgregadosOrcamento({
   // Fatura com ajuste manual confirmado (ajusteTotal) não pode sumir só
   // porque nenhum lançamento individual ficou com essa fatura — o ajuste é
   // o valor real da conta física, independente de existir item detalhado.
+  // NUNCA pular por já estar paga_total (achado 09/07/2026): uma fatura
+  // ajuste-only marcada como paga desaparecia do cálculo inteiro — o
+  // backfill existe justamente pra ela continuar existindo depois de paga.
   Object.entries(faturaEstados).forEach(([key, fe]) => {
-    if (fe?.estado === 'paga_total' || key in gruposFechadaCaixa) return;
+    if (key in gruposFechadaCaixa) return;
     const cartaoId = key.split('_')[0];
     if (cartoes.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixa[key] = 0;
   });

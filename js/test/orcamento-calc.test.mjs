@@ -212,6 +212,29 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.equal(r.despesaComprometida, 250);
   });
 
+  await t.test('achado 09/07/2026: fatura SEM lançamento (só ajusteTotal) marcada como paga sensibiliza o caixa', () => {
+    // Fatura confirmada só via "Ajustar fatura" (sem nenhuma despesa individual
+    // lançada pra ela) — antes do fix, o backfill pulava chaves já paga_total,
+    // e a fatura sumia do cálculo inteiro assim que confirmada como paga.
+    const data = periodo([]); // nenhuma despesa de cartão lançada
+    const cartoes = [{ id: 'c1', ativo: true }];
+    const faturaEstados = { 'c1_2026-07': { estado: 'paga_total', ajusteTotal: 9892 } };
+    const r = calcularAgregadosOrcamento({ data, cartoes, faturaEstados, agora: HOJE });
+    assert.equal(r.despesaCaixa, 9892, 'a fatura paga precisa sensibilizar o caixa mesmo sem despesa individual');
+    assert.equal(r.totalCartaoPago, 9892);
+    assert.equal(r.totalFaturas, 0);
+  });
+
+  await t.test('fatura SEM lançamento, ainda NÃO paga, continua em "a vencer" (totalFaturas)', () => {
+    const data = periodo([]);
+    const cartoes = [{ id: 'c1', ativo: true }];
+    const faturaEstados = { 'c1_2026-07': { ajusteTotal: 500 } }; // sem estado = ainda não paga
+    const r = calcularAgregadosOrcamento({ data, cartoes, faturaEstados, agora: HOJE });
+    assert.equal(r.totalFaturas, 500);
+    assert.equal(r.totalCartaoPago, 0);
+    assert.equal(r.despesaCaixa, 0);
+  });
+
   await t.test('receitaComprometida inclui receita pendente (data futura), diferente de totalReceita', () => {
     const data = periodo([], [
       { categoria: 'Salário', valor: 3000, data: '2026-07-05' },

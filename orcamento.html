@@ -4262,8 +4262,13 @@
       // Fatura com ajuste manual confirmado (ajusteTotal) não pode sumir da lista
       // só porque nenhum lançamento individual ficou com essa fatura — o ajuste
       // é o valor real da conta física, independente de existir item detalhado.
+      // NUNCA pular por já estar paga_total (achado 09/07/2026, mesmo fix em
+      // orcamento-calc.js): confirmar pagamento de fatura ajuste-only fazia
+      // ela sumir da aba Faturas inteira, e o valor parava de sensibilizar o
+      // saldo — o backfill existe justamente pra ela continuar existindo
+      // (com o badge "✓ Paga") depois de confirmada.
       Object.entries(_faturaEstados).forEach(([key, fe]) => {
-        if (fe?.estado === 'paga_total' || key in gruposFechada) return;
+        if (key in gruposFechada) return;
         const cartaoId = key.split('_')[0];
         if (cartoesAtivos.some(c => c.id === cartaoId)) gruposFechada[key] = [];
       });
