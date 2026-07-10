@@ -3959,8 +3959,17 @@
       // ── Despesas — lista plana no Resumo ────────────────────────────────────
       // Resumo: agrupa por categoria (detalhe item a item está na aba Detalhe)
       const despList = document.getElementById('despesasList');
+      // Item de cartão só entra aqui se a fatura dele já foi paga (total) —
+      // aí sim já é dinheiro que saiu de verdade e faz parte de despesaCaixa.
+      // Fatura só parcialmente paga fica de fora (não dá pra saber qual parte
+      // do item específico foi paga) — mesmo critério de gruposFechadaCaixa
+      // em orcamento-calc.js. Sugestão da Flávia (10/07/2026): sem isso, o
+      // total do card batia mas a lista por categoria "sumia" com o valor
+      // de qualquer fatura já paga.
+      const _faturaPagaTotal = d => d.cartao && d.fatura &&
+        _faturaEstados[`${d.cartaoId}_${d.fatura}`]?.estado === 'paga_total';
       const _gruposResumoNorm = {};
-      data.despesas.filter(d => _contaComoCaixa(d) && !d._faturaAberta && !(d.cartao && d.fatura)).forEach(d => {
+      data.despesas.filter(d => _contaComoCaixa(d) && !d._faturaAberta && (!(d.cartao && d.fatura) || _faturaPagaTotal(d))).forEach(d => {
         const norm = normCat(d.categoria);
         if (!_gruposResumoNorm[norm]) _gruposResumoNorm[norm] = { total: 0, n: 0, labels: {} };
         _gruposResumoNorm[norm].total += d.valor;
