@@ -1260,9 +1260,6 @@ exports.saveCartao = onCall(async (request) => {
     diaVencimento:  cartao.diaVencimento || null,
     limite:         typeof cartao.limite === 'number' ? cartao.limite : null,
     ativo:          cartao.ativo !== false,
-    // contaId ausente/null = conta principal (mesmo default de despesas/
-    // receitas — ver pertenceAConta em js/orcamento-calc.js).
-    contaId:        cartao.contaId ? String(cartao.contaId) : null,
   };
 
   const col = db.collection('mentoradas').doc(uid).collection('cartoes');
