@@ -19,13 +19,18 @@ export const CATEGORIA_AJUSTE = 'Lançamentos não identificados — verificar';
 // ─── Helpers de data/recorrência ──────────────────────────────────────────────
 
 /**
- * Um lançamento é "pendente" (não sensibiliza o caixa ainda) só quando tem
- * data futura. Hoje ou passado: já aconteceu, entra no saldo.
+ * Um lançamento é "pendente" (não sensibiliza o caixa ainda) quando a data é
+ * hoje ou no futuro, e ele ainda não foi confirmado manualmente — hoje
+ * também precisa de confirmação (achado 09/07/2026: um item datado de hoje
+ * não pode virar caixa sozinho, só amanhã, quando a data já passou, ou
+ * quando a usuária confirmar antes disso). Só data estritamente passada
+ * conta como "já aconteceu" automaticamente, sem confirmação.
  */
 export function isPendenteEfetivo(item, agora = new Date()) {
+  if (item.confirmado) return false;
   if (!item.data) return false;
   const hoje = new Date(agora); hoje.setHours(0, 0, 0, 0);
-  return new Date(item.data + 'T00:00:00') > hoje;
+  return new Date(item.data + 'T00:00:00') >= hoje;
 }
 
 /**

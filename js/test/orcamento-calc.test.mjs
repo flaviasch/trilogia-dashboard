@@ -39,10 +39,16 @@ test('isPendenteEfetivo', async (t) => {
   await t.test('data futura é pendente', () => {
     assert.equal(isPendenteEfetivo({ data: '2026-07-10' }, HOJE), true);
   });
-  await t.test('data de hoje não é pendente', () => {
-    assert.equal(isPendenteEfetivo({ data: '2026-07-06' }, HOJE), false);
+  await t.test('data de hoje é pendente até ser confirmada (achado 09/07/2026)', () => {
+    assert.equal(isPendenteEfetivo({ data: '2026-07-06' }, HOJE), true);
   });
-  await t.test('data passada não é pendente', () => {
+  await t.test('data de hoje confirmada não é mais pendente', () => {
+    assert.equal(isPendenteEfetivo({ data: '2026-07-06', confirmado: true }, HOJE), false);
+  });
+  await t.test('data futura confirmada não é mais pendente', () => {
+    assert.equal(isPendenteEfetivo({ data: '2026-07-10', confirmado: true }, HOJE), false);
+  });
+  await t.test('data passada não é pendente (mesmo sem confirmar — resolve sozinha no dia seguinte)', () => {
     assert.equal(isPendenteEfetivo({ data: '2026-07-01' }, HOJE), false);
   });
   await t.test('sem data não é pendente', () => {
@@ -150,6 +156,36 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.equal(r.despesaCaixa, 0);
     assert.equal(r.totalPendente, 300);
     assert.equal(r.despesaComprometida, 300);
+  });
+
+  await t.test('achado 09/07/2026: receita datada de HOJE não sensibiliza o caixa sem confirmar', () => {
+    const data = periodo([], [{ categoria: 'Salário', valor: 5000, data: '2026-07-06' }]); // HOJE = 2026-07-06
+    const r = calcularAgregadosOrcamento({ data, agora: HOJE });
+    assert.equal(r.totalReceita, 0, 'não deveria entrar em caixa sem confirmar');
+    assert.equal(r.totalReceitaPendente, 5000);
+    assert.equal(r.receitaComprometida, 5000, 'comprometido (Planejamento/Score/home) continua contando o mês inteiro');
+  });
+
+  await t.test('achado 09/07/2026: despesa datada de HOJE também precisa de confirmação (regra simétrica)', () => {
+    const data = periodo([{ categoria: 'Mercado', valor: 200, data: '2026-07-06' }]); // HOJE = 2026-07-06
+    const r = calcularAgregadosOrcamento({ data, agora: HOJE });
+    assert.equal(r.despesaCaixa, 0);
+    assert.equal(r.totalPendente, 200);
+    assert.equal(r.despesaComprometida, 200);
+  });
+
+  await t.test('receita de hoje CONFIRMADA sensibiliza o caixa normalmente', () => {
+    const data = periodo([], [{ categoria: 'Salário', valor: 5000, data: '2026-07-06', confirmado: true }]);
+    const r = calcularAgregadosOrcamento({ data, agora: HOJE });
+    assert.equal(r.totalReceita, 5000);
+    assert.equal(r.totalReceitaPendente, 0);
+  });
+
+  await t.test('receita de ONTEM (data passada) continua entrando sozinha, sem precisar confirmar', () => {
+    const data = periodo([], [{ categoria: 'Salário', valor: 5000, data: '2026-07-05' }]); // 1 dia antes de HOJE
+    const r = calcularAgregadosOrcamento({ data, agora: HOJE });
+    assert.equal(r.totalReceita, 5000);
+    assert.equal(r.totalReceitaPendente, 0);
   });
 
   await t.test('fatura fechada aguardando pagamento entra em despesaComprometida (achado 06/07/2026) mas não em despesaCaixa', () => {
