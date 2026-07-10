@@ -178,15 +178,22 @@ export function calcularAgregadosOrcamento({
   // Filtro por conta aplicado uma única vez, antes de qualquer cálculo — sem
   // contaId (default) é um no-op (pertenceAConta sempre retorna true), então
   // o resultado consolidado continua idêntico ao de antes desse parâmetro
-  // existir. Com contaId, cartões de outra conta também ficam de fora (senão
-  // um ajuste manual de fatura de outra conta vazaria pro total filtrado).
+  // existir. Cartão não pertence a conta nenhuma (não existe mais vínculo
+  // fixo cartão→conta) — quem paga a fatura é escolhido no momento da
+  // confirmação de pagamento, então um item de despesa de cartão usa a conta
+  // gravada em faturaEstados[cartaoId_fatura].contaId, não a sua própria.
+  // Fatura ainda não paga não tem conta definida — cai em CONTA_PRINCIPAL_ID
+  // por padrão até ser confirmada.
+  const _contaFatura = d => faturaEstados[`${d.cartaoId}_${d.fatura}`]?.contaId || CONTA_PRINCIPAL_ID;
+  const _pertenceItemDespesa = d => (d.cartao && d.fatura)
+    ? (contaId == null || _contaFatura(d) === contaId)
+    : pertenceAConta(d, contaId);
   data = {
     ...data,
     receitas: data.receitas.filter(r => pertenceAConta(r, contaId)),
-    despesas: data.despesas.filter(d => pertenceAConta(d, contaId)),
+    despesas: data.despesas.filter(_pertenceItemDespesa),
     aportes: (data.aportes || []).filter(a => pertenceAConta(a, contaId)),
   };
-  cartoes = cartoes.filter(c => pertenceAConta(c, contaId));
   recorrentes = (recorrentes || []).filter(r => pertenceAConta(r, contaId));
 
   const { mes, ano } = data.periodo;
@@ -220,6 +227,7 @@ export function calcularAgregadosOrcamento({
   // backfill existe justamente pra ela continuar existindo depois de paga.
   Object.entries(faturaEstados).forEach(([key, fe]) => {
     if (key in gruposFechadaCaixa) return;
+    if (contaId != null && (fe.contaId || CONTA_PRINCIPAL_ID) !== contaId) return;
     const cartaoId = key.split('_')[0];
     if (cartoes.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixa[key] = 0;
   });

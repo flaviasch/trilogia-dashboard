@@ -2049,6 +2049,14 @@
         <input type="text" id="mDescricao" placeholder="ex: Supermercado, Aluguel, iFood…" />
       </div>
 
+      <!-- Conta: só aparece pra quem tem mais de uma conta cadastrada. Não se
+           aplica a despesa de cartão — a conta debitada é escolhida só na
+           hora de confirmar o pagamento da fatura. -->
+      <div class="field-group" id="fgConta" style="display:none">
+        <label for="mConta">Conta</label>
+        <select id="mConta" style="width:100%;padding:9px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;box-sizing:border-box;"></select>
+      </div>
+
       <!-- Cartão de crédito: oculto por padrão, reapare só ao editar item de cartão -->
       <div id="fgCartaoSection" style="display:none;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-secondary);user-select:none">
@@ -2152,6 +2160,10 @@
           <input type="text" inputmode="numeric" id="cpValorPago" placeholder="ex: 800" />
         </div>
         <div id="cpRolloverInfo" style="font-size:12px;color:var(--text-muted);margin-top:6px;padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:8px;display:none;"></div>
+      </div>
+      <div class="field-group" id="cpFgConta" style="display:none">
+        <label for="cpConta">Pago com a conta</label>
+        <select id="cpConta" style="width:100%;padding:9px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;box-sizing:border-box;"></select>
       </div>
       <div class="modal-actions">
         <button class="btn-cancel" id="cpCancelar">Cancelar</button>
@@ -2574,6 +2586,25 @@
       dl.innerHTML = todas.map(c => `<option value="${escapeHtml(c)}">`).join('');
     }
 
+    // Conta: seletor no modal de lançamento manual — só visível pra quem tem
+    // mais de uma conta e não se aplica a despesa de cartão (a conta debitada
+    // é escolhida na hora de confirmar o pagamento da fatura, não do lançamento).
+    function _preencherSeletorConta(contaIdSelecionado) {
+      const sel = document.getElementById('mConta');
+      if (!sel) return;
+      sel.innerHTML = _contas.map(c =>
+        `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nome)}</option>`
+      ).join('');
+      sel.value = contaIdSelecionado || _contaAtivaId || CONTA_PRINCIPAL_ID;
+    }
+
+    function _atualizarVisibilidadeConta() {
+      const fgConta = document.getElementById('fgConta');
+      if (!fgConta) return;
+      const isCartao = document.getElementById('mCartao')?.checked;
+      fgConta.style.display = (_contas.length > 1 && !isCartao) ? '' : 'none';
+    }
+
     function abrirModal(tipo, idx = null, catLocked = null) {
       _catLocked  = catLocked || null;
       editandoIdx = idx !== null ? { tipo, idx } : null;
@@ -2617,6 +2648,7 @@
           preencherSeletorCartoes(item.cartaoId || null);
           atualizarVctoCartao();
         }
+        _preencherSeletorConta(item.contaId || null);
         // Toggles recorrência: nunca mostrar ao editar
         if (fgToggles) fgToggles.style.display = 'none';
       } else {
@@ -2629,6 +2661,7 @@
         if (fgCartao) fgCartao.style.display = 'none';
         document.getElementById('fgCartaoOpcoes').style.display = 'none';
         document.getElementById('mFatura').value = '';
+        _preencherSeletorConta(null);
         // Toggles recorrência: visíveis só para despesa nova
         if (fgToggles) fgToggles.style.display = tipo === 'despesa' ? '' : 'none';
         document.getElementById('mVirarFixa').checked       = false;
@@ -2643,6 +2676,7 @@
 
       // Mostrar/ocultar opção de cartão conforme tipo (mobile)
       atualizarModalParaTipo(tipo);
+      _atualizarVisibilidadeConta();
 
       _lockBody();
       modal.classList.remove('hidden');
@@ -2754,6 +2788,7 @@
         preencherSeletorCartoes(null);
         calcularFaturaAutomatica();
       }
+      _atualizarVisibilidadeConta();
     });
 
     document.getElementById('mCartaoSelecionado')?.addEventListener('change', () => {
@@ -2781,13 +2816,16 @@
       const cartao    = document.getElementById('mCartao').checked;
       const fatura    = cartao ? document.getElementById('mFatura').value.trim() : '';
       const cartaoId  = cartao ? (document.getElementById('mCartaoSelecionado')?.value || '') : '';
+      // Conta: só se aplica a lançamento direto em conta (não cartão — a
+      // conta debitada da fatura é escolhida na confirmação de pagamento).
+      const contaId   = (!cartao && _contas.length > 1) ? (document.getElementById('mConta')?.value || '') : '';
 
       if (!categoria) { toast('Preencha a categoria.', 'warning'); return; }
       if (!data) { toast('Preencha a data do lançamento.', 'warning'); return; }
       if (cartao && !fatura) { toast('Selecione o mês da fatura.', 'warning'); return; }
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
 
-      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}) };
+      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}), ...(contaId ? { contaId } : {}) };
 
       if (cartao && fatura) {
         // Salva diretamente no mês da fatura (não no mês exibido)
@@ -6666,6 +6704,15 @@
       document.getElementById('cpValorPago').value        = '';
       document.getElementById('cpParcialSection').style.display = 'none';
       document.getElementById('cpRolloverInfo').style.display   = 'none';
+      const fgConta = document.getElementById('cpFgConta');
+      if (fgConta) {
+        fgConta.style.display = _contas.length > 1 ? '' : 'none';
+        if (_contas.length > 1) {
+          const sel = document.getElementById('cpConta');
+          sel.innerHTML = _contas.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nome)}</option>`).join('');
+          sel.value = _faturaEstados[estadoKey]?.contaId || _contaAtivaId || CONTA_PRINCIPAL_ID;
+        }
+      }
       _lockBody();
       document.getElementById('modalConfirmarPagamento').classList.remove('hidden');
     }
@@ -6712,6 +6759,7 @@
       const rollover = parcial ? Math.round((_cpTotal - valorPago) * 100) / 100 : 0;
       const [cartaoId, faturaKey] = _cpEstadoKey.split('_').reduce((acc, p, i, arr) =>
         i === arr.length - 1 ? [arr.slice(0, -1).join('_'), p] : acc, ['', '']);
+      const contaId = _contas.length > 1 ? (document.getElementById('cpConta')?.value || CONTA_PRINCIPAL_ID) : '';
 
       // nextMesKey = mês seguinte ao mês atual em exibição
       const { mes, ano } = currentData.periodo;
@@ -6726,11 +6774,13 @@
           valorPago, rollover,
           nomeCartao: _cpNomeCartao,
           nextMesKey,
+          ...(contaId ? { contaId } : {}),
         });
         _faturaEstados[_cpEstadoKey] = {
           ...(_faturaEstados[_cpEstadoKey] || {}),
           estado: parcial ? 'paga_parcial' : 'paga_total',
           valorPago, rollover,
+          ...(contaId ? { contaId } : {}),
         };
         if (parcial && rollover > 0) _invalPeriodo(nextMes, nextAno);
         fecharModalConfirmarPagamento();

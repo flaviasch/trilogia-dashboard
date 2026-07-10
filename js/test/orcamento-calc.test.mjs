@@ -325,18 +325,46 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.equal(secundaria.despesaCaixa, 300);
   });
 
-  await t.test('cartão de outra conta não vaza total via ajusteTotal de faturaEstados', () => {
+  await t.test('fatura de outra conta não vaza total via ajusteTotal de faturaEstados (contaId vem do pagamento, não do cartão)', () => {
+    // Cartão não carrega contaId (não existe mais vínculo fixo cartão→conta) —
+    // quem define a conta é o campo contaId gravado em faturaEstados no
+    // momento da confirmação de pagamento (ou do ajuste manual).
     const data = periodo([]);
     const cartoes = [
-      { id: 'c-principal', ativo: true }, // sem contaId = principal
-      { id: 'c-secundaria', ativo: true, contaId: 'conta-secundaria' },
+      { id: 'c-principal', ativo: true },
+      { id: 'c-secundaria', ativo: true },
     ];
     const faturaEstados = {
-      'c-principal_2026-07': { ajusteTotal: 400 },
-      'c-secundaria_2026-07': { ajusteTotal: 900 },
+      'c-principal_2026-07': { ajusteTotal: 400 }, // sem contaId = principal
+      'c-secundaria_2026-07': { ajusteTotal: 900, contaId: 'conta-secundaria' },
     };
     const principal = calcularAgregadosOrcamento({ data, cartoes, faturaEstados, agora: HOJE, contaId: 'principal' });
+    const secundaria = calcularAgregadosOrcamento({ data, cartoes, faturaEstados, agora: HOJE, contaId: 'conta-secundaria' });
     assert.equal(principal.totalFaturas, 400, 'não deve incluir o ajuste de 900 da conta secundária');
+    assert.equal(secundaria.totalFaturas, 900, 'inclui só o ajuste da própria conta');
+  });
+
+  await t.test('despesa de cartão usa a conta gravada no pagamento da fatura, não a conta do item', () => {
+    const data = periodo([
+      { categoria: 'Mercado', valor: 300, data: '2026-07-05', cartao: true, cartaoId: 'c1', fatura: '2026-07' },
+    ]);
+    const cartoes = [{ id: 'c1', ativo: true }];
+    const faturaEstados = { 'c1_2026-07': { estado: 'paga_total', contaId: 'conta-secundaria' } };
+    const principal   = calcularAgregadosOrcamento({ data, cartoes, faturaEstados, agora: HOJE, contaId: 'principal' });
+    const secundaria  = calcularAgregadosOrcamento({ data, cartoes, faturaEstados, agora: HOJE, contaId: 'conta-secundaria' });
+    assert.equal(principal.totalCartaoPago, 0, 'fatura paga por outra conta não aparece na principal');
+    assert.equal(secundaria.totalCartaoPago, 300, 'fatura paga pela conta secundária aparece nela');
+  });
+
+  await t.test('fatura ainda não paga (sem contaId no faturaEstados) cai em principal por padrão', () => {
+    const data = periodo([
+      { categoria: 'Mercado', valor: 500, data: '2026-07-05', cartao: true, cartaoId: 'c1', fatura: '2026-07' },
+    ]);
+    const cartoes = [{ id: 'c1', ativo: true }];
+    const principal  = calcularAgregadosOrcamento({ data, cartoes, faturaEstados: {}, agora: HOJE, contaId: 'principal' });
+    const secundaria = calcularAgregadosOrcamento({ data, cartoes, faturaEstados: {}, agora: HOJE, contaId: 'conta-secundaria' });
+    assert.equal(principal.totalFaturas, 500, 'fatura a vencer sem pagamento aparece na principal por padrão');
+    assert.equal(secundaria.totalFaturas, 0, 'não aparece na secundária até ser paga por ela');
   });
 });
 

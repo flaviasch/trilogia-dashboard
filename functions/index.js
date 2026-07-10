@@ -924,13 +924,13 @@ exports.getFaturaEstados = onCall({ secrets: [] }, async (request) => {
 /**
  * Salva o estado de uma fatura específica (ajuste total, pagamento, rollover).
  * Espera: { uid, cartaoId, faturaKey, ajusteTotal?, estado?, valorPago?, rollover?,
- *           nomeCartao?, nextMesKey? }
+ *           nomeCartao?, nextMesKey?, contaId? }
  * Se estado=paga_parcial e rollover>0, cria automaticamente uma despesa no nextMesKey.
  */
 exports.saveFaturaEstado = onCall({ secrets: [] }, async (request) => {
   requireAuth(request);
   const { uid, cartaoId, faturaKey, ajusteTotal, estado, valorPago, rollover,
-          nomeCartao, nextMesKey } = request.data;
+          nomeCartao, nextMesKey, contaId } = request.data;
   requireSelfOrAdmin(request, uid);
   await checkRateLimit(uid, 'saveFaturaEstado', 20, 60_000); // 20/min
 
@@ -947,6 +947,7 @@ exports.saveFaturaEstado = onCall({ secrets: [] }, async (request) => {
   if (estado       != null) update.estado        = estado;
   if (valorPago    != null) update.valorPago      = valorPago;
   if (rollover     != null) update.rollover       = rollover;
+  if (contaId      != null) update.contaId        = contaId;
 
   const ops = [col.doc(docId).set(update, { merge: true })];
 
