@@ -906,6 +906,11 @@ export async function anunciarBalancoJul2026() {
   return call('anunciarBalancoJul2026')({});
 }
 
+/** Dispara e-mail de múltiplas contas correntes — Jul/2026. Admin only. */
+export async function anunciarMultiplasContasJul2026() {
+  return call('anunciarMultiplasContasJul2026')({});
+}
+
 /** Marca/desmarca lição de casa no Notion. */
 export async function marcarLicaoCasa({ blockId, checked, uid }) {
   return call('marcarLicaoCasa')({ blockId, checked, uid });

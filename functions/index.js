@@ -51,6 +51,7 @@ const {
   emailNovidadesJun2026Completo,
   emailNovidadesJul2026,
   emailBalancoJul2026,
+  emailMultiplasContasJul2026,
   emailJornadaDashboard,
   emailIR,
   emailReenvioAcesso,
@@ -4394,6 +4395,31 @@ exports.anunciarBalancoJul2026 = onCall({ secrets: SECRETS_EMAIL }, async (reque
   }
   await db.collection('config').doc('comunicados').set(
     { balancoJul2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+exports.anunciarMultiplasContasJul2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Chegou: múltiplas contas correntes no seu Dashboard',
+        html:    emailMultiplasContasJul2026(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarMultiplasContasJul2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { multiplasContasJul2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };

@@ -554,6 +554,53 @@ function emailBalancoJul2026(nome) {
   `);
 }
 
+// ─── Múltiplas contas correntes — Jul/2026 ───────────────────────────────────
+
+function emailMultiplasContasJul2026(nome) {
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  const secao = (titulo) =>
+    `<tr><td style="padding:18px 0 6px;">
+      <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Chegou: múltiplas contas correntes</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      A novidade que a gente vinha adiantando chegou: agora dá para cadastrar mais de uma conta corrente no seu orçamento e escolher, lançamento a lançamento, onde cada uma entra.
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('🏦 Múltiplas contas')}
+      ${item('➕','Cadastre quantas contas usar','Em Contas, no orçamento, adicione cada conta corrente que você movimenta e alterne entre elas ou veja tudo somado no modo Consolidado.')}
+      ${item('🎯','Escolha a conta ao lançar','Toda despesa ou receita manual agora tem um campo de conta — só aparece pra quem já tem mais de uma cadastrada.')}
+      ${item('💳','E na hora de pagar a fatura também','Ao confirmar o pagamento de uma fatura de cartão, você escolhe de qual conta o valor saiu — o cartão em si não fica preso a nenhuma conta.')}
+
+      ${secao('🛠️ Também corrigimos')}
+      ${item('✅','Lançamento de hoje pede confirmação','Receitas e despesas com data de hoje agora só entram no caixa depois de confirmadas — igual já acontecia com datas futuras.')}
+      ${item('🧾','Fatura paga não some mais','Corrigimos um erro em que confirmar o pagamento de uma fatura sem itens detalhados (só ajuste) fazia ela desaparecer da aba Faturas e parar de contar no saldo.')}
+      ${item('📊','Fatura paga aparece no Resumo por categoria','O valor de uma fatura já paga agora entra também na lista por categoria do Resumo, não só no total do topo.')}
+
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">
+      Ver o orçamento →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 // ─── Comunicado Técnico ───────────────────────────────────────────────────────
 
 function emailComunicadoTecnico(nome) {
@@ -887,6 +934,7 @@ module.exports = {
   emailNovidadesJun2026Completo,
   emailNovidadesJul2026,
   emailBalancoJul2026,
+  emailMultiplasContasJul2026,
   emailJornadaDashboard,
   emailComunicadoTecnico,
   emailIR,

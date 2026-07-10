@@ -1276,6 +1276,15 @@
       </div>
     </div>
 
+    <!-- Banner de novidades: múltiplas contas + correções (Jul/2026) -->
+    <div id="bannerNovidadesContas" style="display:none;background:rgba(207,174,101,0.08);border:1px solid rgba(207,174,101,0.3);border-radius:12px;padding:16px 18px;margin-bottom:16px;position:relative;">
+      <button id="btnFecharBannerNovidadesContas" title="Fechar" style="position:absolute;top:10px;right:10px;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;line-height:1;padding:4px;">✕</button>
+      <div style="font-size:14px;font-weight:700;color:var(--gold);margin-bottom:6px;">✨ Novidade: múltiplas contas correntes</div>
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:2px;">
+        Agora você pode cadastrar mais de uma conta e escolher onde cada lançamento entra — inclusive de qual conta sai o pagamento da fatura do cartão. Também corrigimos: lançamentos de hoje que ficavam registrados sem confirmação, uma fatura paga sem itens que sumia da aba Faturas, e a fatura paga passou a aparecer na lista por categoria do Resumo.
+      </div>
+    </div>
+
     <!-- Banner de importação -->
     <div class="upload-banner" id="uploadBanner">
       <!-- Versão completa (sem dados no mês) -->
@@ -3487,6 +3496,16 @@
 
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
+
+      // Banner de novidades (múltiplas contas + correções, Jul/2026) — some
+      // após fechado uma vez, igual ao tutorial de SMS.
+      if (!localStorage.getItem('novidadesMultiplasContasJul2026Visto')) {
+        document.getElementById('bannerNovidadesContas').style.display = 'block';
+      }
+      document.getElementById('btnFecharBannerNovidadesContas')?.addEventListener('click', () => {
+        document.getElementById('bannerNovidadesContas').style.display = 'none';
+        localStorage.setItem('novidadesMultiplasContasJul2026Visto', '1');
+      });
 
       // Carrega histórico anual em paralelo e renderiza o gráfico ao terminar
       carregarHistoricoAnual(new Date().getFullYear())
