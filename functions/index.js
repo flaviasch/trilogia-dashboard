@@ -32,6 +32,7 @@ const sMailerLiteReserva  = defineSecret('MAILERLITE_GRUPO_RESERVA_RENDE');
 const sZapiId             = defineSecret('ZAPI_INSTANCE_ID');
 const sZapiToken  = defineSecret('ZAPI_TOKEN');
 const sZapiClient = defineSecret('ZAPI_CLIENT_TOKEN');
+const sAnthropic  = defineSecret('ANTHROPIC_API_KEY'); // categorizarExtratoIA — substitui o Custom GPT do Raio-X
 
 const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId } = require('./lib/auth');
 const { SheetsClient }    = require('./lib/sheets');
@@ -364,6 +365,21 @@ async function checkRateLimit(uid, action, maxCalls, windowMs) {
  * Retorna todos os dados necessários para a tela principal de uma mentorada:
  * orçamento do mês atual, patrimônio, reservas e perfil.
  */
+/**
+ * getNivelAcesso — leitura mínima (1 campo) usada só para o guard de acesso em
+ * patrimonio.html/reservas.html/perfil.html, que não chamam getDashboard/getDashboardHome.
+ * Contas nivelAcesso: 'raio-x' (degustação, só módulo Orçamento) são redirecionadas
+ * para orcamento.html por essas páginas ao ver este retorno.
+ */
+exports.getNivelAcesso = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+  const docSnap = await db.collection('mentoradas').doc(uid).get();
+  if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
+  return { nivelAcesso: docSnap.data().nivelAcesso || null };
+});
+
 exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
   const uid  = request.data?.uid || auth.uid;
@@ -375,7 +391,7 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
   }
   const { sheetId, inicio, nome, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
-          assinaturaClube, assinaturaDashboard,
+          assinaturaClube, assinaturaDashboard, nivelAcesso,
           scoreMes, scoreChave } = docSnap.data();
 
   // Verifica se tem acesso ao dashboard:
@@ -508,6 +524,7 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     inicio:          inicio          || null,
     lgpdAceite:      lgpdAceite      || false,
     assinaturaClube: assinaturaClube || false,
+    nivelAcesso:     nivelAcesso     || null, // 'raio-x' → frontend esconde Patrimônio/Reservas/Perfil
     sheetError:      sheetError,
     scoreMes:        scoreMes        ?? null,
     scoreChave:      scoreChave      ?? null,
@@ -542,7 +559,7 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
   if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
 
   const { nome, inicio, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
-          assinaturaClube, assinaturaDashboard, mentoriaEncerrada,
+          assinaturaClube, assinaturaDashboard, mentoriaEncerrada, nivelAcesso,
           pl, sobra, totalReservas, scoreMes, scoreChave, sheetId } = docSnap.data();
 
   // Controle de acesso
@@ -614,6 +631,7 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
     scoreChave:         scoreChaveCalculado ?? scoreChave ?? null,
     mentoriaEncerrada:  mentoriaEncerrada || false,
     assinaturaDashboard: assinaturaDashboard || false,
+    nivelAcesso:        nivelAcesso       || null, // 'raio-x' → frontend esconde Patrimônio/Reservas/Perfil
     mes,
     ano,
     orcamento:       { receita: receitaMes, despesa: despesaMes, sobra: sobraMes, aporte: aporteMes, mes, ano },
@@ -774,7 +792,16 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const { uid, mes, ano, itens, permitirReducao } = request.data;
   requireSelfOrAdmin(request, uid);
   await checkRateLimit(uid, 'saveOrcamento', 30, 60_000); // 30/min
+  return _gravarOrcamento({ uid, mes, ano, itens, permitirReducao });
+});
 
+/**
+ * Núcleo de gravação de orçamento, extraído de saveOrcamento em 10/07/2026 para
+ * ser reaproveitado por categorizarExtratoRaioX (import via IA) sem duplicar a
+ * lógica de validação/versionamento/merge de faturas. Comportamento idêntico ao
+ * que já existia dentro do onCall — só mudou de onde os parâmetros vêm.
+ */
+async function _gravarOrcamento({ uid, mes, ano, itens, permitirReducao }) {
   // ── Validação ──────────────────────────────────────────────────────────────
   if (!Number.isInteger(mes) || mes < 1 || mes > 12)
     throw new HttpsError('invalid-argument', 'mes deve ser inteiro entre 1 e 12.');
@@ -901,7 +928,138 @@ exports.saveOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   }).catch(e => console.warn('[saveOrcamento] Falha ao atualizar cache:', e.message));
 
   return { ok: true };
-});
+}
+
+/**
+ * categorizarExtratoIA — substitui o Agente Raio-X (Custom GPT no ChatGPT) por
+ * categorização via API da Anthropic, direto no backend. Recebe o extrato/fatura
+ * (texto colado, ou PDF/imagem em base64) e devolve os lançamentos já extraídos
+ * e categorizados, no MESMO formato que parsearCsvRaioX() já produz no frontend
+ * (categoria, tipo, valor, data, descricao, fixa) — de propósito, para que
+ * orcamento.html trate o resultado exatamente como já trata o CSV do Custom GPT
+ * hoje (normaliza categoria contra as já existentes no mês, preserva lançamentos
+ * manuais/recorrentes/parcelamentos, detecta fixas para o modal de confirmação,
+ * chama saveOrcamento com permitirReducao=true). Esta função NÃO grava no
+ * Firestore — só extrai e categoriza. Ver dashboard/raio-x-no-dashboard/BLUEPRINT.md.
+ */
+exports.categorizarExtratoIA = onCall(
+  { secrets: [sAnthropic], timeoutSeconds: 120, memory: '512MiB' },
+  async (request) => {
+    const auth = requireAuth(request);
+    const { uid, conteudo, tipoConteudo } = request.data;
+    requireSelfOrAdmin(request, uid);
+    // 10 a cada 10min — uso típico é 1-2 importações por mês; generoso o bastante
+    // contra abuso sem incomodar uso legítimo (várias contas/cartões no mesmo dia).
+    await checkRateLimit(uid, 'categorizarExtratoIA', 10, 600_000);
+
+    if (!conteudo || typeof conteudo !== 'string') {
+      throw new HttpsError('invalid-argument', 'conteudo é obrigatório (texto colado ou base64 do arquivo).');
+    }
+    const TIPOS_CONTEUDO = new Set(['texto', 'pdf', 'imagem']);
+    if (!TIPOS_CONTEUDO.has(tipoConteudo)) {
+      throw new HttpsError('invalid-argument', 'tipoConteudo deve ser "texto", "pdf" ou "imagem".');
+    }
+    // Limites de tamanho — protege custo de API e timeout da function.
+    if (tipoConteudo === 'texto' && conteudo.length > 60_000) {
+      throw new HttpsError('invalid-argument', 'Texto muito longo (máximo ~60.000 caracteres). Envie em partes menores.');
+    }
+    if (tipoConteudo !== 'texto' && conteudo.length > 15_000_000) { // ~10MB decodificado de base64
+      throw new HttpsError('invalid-argument', 'Arquivo muito grande (máximo ~10MB).');
+    }
+
+    const listaCategorias = Object.entries(_CATEGORIAS_CODIGO)
+      .map(([cod, nome]) => `${cod}=${nome}`).join(', ');
+
+    const systemPrompt = `Você extrai e categoriza transações de extratos bancários e faturas de cartão de crédito brasileiros.
+
+Categorias válidas (código=nome) — use SEMPRE o código numérico, nunca invente categoria fora desta lista:
+${listaCategorias}
+
+Regras obrigatórias:
+- Ignore saldos, linhas de resumo/cabeçalho e duplicidades.
+- "tipo" é "despesa" para gastos e "receita" para entradas (salário, transferência recebida, estorno).
+- Pagamento de fatura de cartão de crédito debitado na conta corrente NÃO é uma despesa própria — ignore essa linha (o gasto real já está nos itens individuais da fatura, se ela também foi enviada).
+- "fixa": true somente para despesas que claramente se repetem todo mês com valor igual ou parecido (aluguel, mensalidade, assinatura de streaming). Parcelamentos e compras avulsas de cartão nunca são fixa: true.
+- "valor" sempre positivo, tipo número (não string), com ponto decimal.
+- "data" no formato AAAA-MM-DD. Se o ano não estiver explícito, use o ano corrente (${new Date().getFullYear()}).
+- Responda APENAS com um array JSON válido, sem markdown, sem texto antes ou depois. Formato de cada item:
+  {"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false}`;
+
+    const contentBlock = tipoConteudo === 'texto'
+      ? { type: 'text', text: conteudo }
+      : tipoConteudo === 'pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: conteudo } }
+        : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: conteudo } };
+
+    let respostaIA;
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': sAnthropic.value(),
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 4096,
+          system: systemPrompt,
+          messages: [{
+            role: 'user',
+            content: [contentBlock, { type: 'text', text: 'Extraia e categorize todas as transações deste extrato/fatura.' }],
+          }],
+        }),
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '');
+        console.error(`[categorizarExtratoIA] Erro API Anthropic (${resp.status}) uid=${uid}: ${errText.slice(0, 500)}`);
+        throw new HttpsError('internal', 'Erro ao processar o extrato. Tente novamente em instantes.');
+      }
+      respostaIA = await resp.json();
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      console.error(`[categorizarExtratoIA] Falha na chamada à API (uid=${uid}):`, err.message);
+      throw new HttpsError('internal', 'Erro ao processar o extrato. Tente novamente em instantes.');
+    }
+
+    const textoResposta = respostaIA?.content?.[0]?.text || '';
+    let itensBrutos;
+    try {
+      // Remove eventuais cercas de markdown (```json ... ```) que o modelo às vezes inclui.
+      const limpo = textoResposta.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+      itensBrutos = JSON.parse(limpo);
+      if (!Array.isArray(itensBrutos)) throw new Error('resposta não é um array');
+    } catch (err) {
+      console.error(`[categorizarExtratoIA] Resposta da IA não é JSON válido (uid=${uid}):`, textoResposta.slice(0, 500));
+      throw new HttpsError('internal', 'Não consegui interpretar esse arquivo. Tente novamente ou envie um extrato mais claro.');
+    }
+
+    if (itensBrutos.length === 0) {
+      throw new HttpsError('invalid-argument', 'Nenhuma transação foi identificada neste arquivo.');
+    }
+    if (itensBrutos.length > 500) {
+      throw new HttpsError('invalid-argument', 'Muitas transações identificadas (limite de 500). Envie um período menor.');
+    }
+
+    const TIPOS_ITEM = new Set(['receita', 'despesa']);
+    const itens = itensBrutos.map((it, i) => {
+      if (!TIPOS_ITEM.has(it.tipo)) throw new HttpsError('internal', `Item ${i + 1}: tipo inválido retornado pela IA.`);
+      const valor = Number(it.valor);
+      if (!Number.isFinite(valor) || valor < 0) throw new HttpsError('internal', `Item ${i + 1}: valor inválido retornado pela IA.`);
+      return {
+        categoria:  _resolverCategoria(String(it.categoria ?? '')) || 'Outros',
+        tipo:       it.tipo,
+        valor,
+        data:       typeof it.data === 'string' ? it.data : '',
+        descricao:  typeof it.descricao === 'string' ? it.descricao.slice(0, 200) : '',
+        ...(it.fixa === true ? { fixa: true } : {}),
+      };
+    });
+
+    console.log(`[categorizarExtratoIA] uid=${uid} — ${itens.length} lançamentos extraídos via IA (tipoConteudo=${tipoConteudo})`);
+    return { itens };
+  },
+);
 
 // ─── FATURA ESTADOS ───────────────────────────────────────────────────────────
 
@@ -2753,6 +2911,7 @@ const EVENTOS_VALIDOS = new Set([
   'csv_importado', 'aporte_registrado', 'patrimonio_atualizado',
   'reserva_salva', 'perfil_atualizado', 'planejamento_configurado',
   'fixa_cadastrada', 'cartao_cadastrado',
+  'extrato_ia_importado', // categorizarExtratoIA — substitui o Agente Raio-X do ChatGPT
   // Eventos de abandono (5.3/5.4)
   'ir_importado', 'corretora_importada', 'divida_cadastrada',
   'reserva_retirada', 'aba_anual_aberta',
@@ -3733,7 +3892,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
     const RANGES_VALOR = {
       mentoria:  { min: 500,  max: 15000 },
       private:   { min: 2000, max: 30000 },
-      dashboard: { min: 100,  max: 300   },  // R$147/mês standalone
+      dashboard: { min: 90,   max: 1000  },  // R$97/mês ou R$970/ano (atualizado 10/07/2026)
       clube:     { min: 50,   max: 200   },  // legado — fundadoras R$67
       combo:     { min: 50,   max: 300   },  // R$67 fundadoras a R$197 público
       curso:     { min: 97,   max: 997   },  // produtos de entrada
@@ -3805,17 +3964,30 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         console.log(`[kiwify] dataExpiracao nova mentorada: ${ehAnual ? 'anual' : 'mensal'} → ${flagsNovaM.dataExpiracao} (R$${valorRecebido})`);
       }
 
+      // Raio-X: degustação de 30 dias no módulo Orçamento — pagamento único, sem
+      // assinatura recorrente. Expira sozinho via verificarExpiracoes (mesmo cron
+      // que já bloqueia dashboard/clube vencidos), a menos que a cliente assine o
+      // Dashboard completo depois (assinaturaDashboard: true passa a manter acesso).
+      if (produtoEspecifico === 'raiox') {
+        const exp = new Date();
+        exp.setDate(exp.getDate() + 30);
+        flagsNovaM.dataExpiracao = exp.toISOString().slice(0, 10);
+        flagsNovaM.nivelAcesso   = 'raio-x'; // gate de UI: só módulo Orçamento liberado
+        console.log(`[kiwify] dataExpiracao nova mentorada (degustação Raio-X, 30 dias) → ${flagsNovaM.dataExpiracao}`);
+      }
+
       // 4. Documento Firestore
       await db.collection('mentoradas').doc(novoUid).set({
-        nome:            nomeCliente,
+        nome:              nomeCliente,
         email,
-        produto:         produtoParaFS,
-        valorMensal:     valorRecebido || 0,
-        formaPagamento:  'kiwify',
-        inicio:          new Date().toISOString().slice(0, 7),
+        produto:           produtoParaFS,
+        produtoEspecifico: produtoEspecifico || null,
+        valorMensal:       valorRecebido || 0,
+        formaPagamento:    'kiwify',
+        inicio:            new Date().toISOString().slice(0, 7),
         sheetId,
-        criadoViaKiwify: true,
-        criadoEm:        admin.firestore.FieldValue.serverTimestamp(),
+        criadoViaKiwify:   true,
+        criadoEm:          admin.firestore.FieldValue.serverTimestamp(),
         ...flagsNovaM,
       });
 
@@ -3854,7 +4026,11 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         const link = await admin.auth().generatePasswordResetLink(email, {
           url: 'https://dashboard.flaviaschusciman.com/login.html',
         });
-        await sendEmail({ to: email, subject: 'Bem-vinda ao Trilogia Dashboard', html: emailBoasVindas(nomeCliente, link) });
+        const contextoBoasVindas = produtoEspecifico === 'raiox' ? 'raio-x' : 'mentoria';
+        const assuntoBoasVindas  = contextoBoasVindas === 'raio-x'
+          ? 'Bem-vinda ao seu Raio-X Financeiro'
+          : 'Bem-vinda ao Trilogia Dashboard';
+        await sendEmail({ to: email, subject: assuntoBoasVindas, html: emailBoasVindas(nomeCliente, contextoBoasVindas) });
       } catch (err) {
         console.error(`[kiwify] Falha no e-mail de boas-vindas para ${maskEmail(email)}:`, err.message);
       }
@@ -4794,20 +4970,33 @@ exports.verificarExpiracoes = onSchedule(
 
 /**
  * notifExpiracaoProxima — diariamente às 07h (Sao_Paulo)
- * Avisa alunas cuja dataExpiracao é daqui a 7 dias.
+ * Avisa alunas cuja dataExpiracao está próxima.
  * Roda ANTES de verificarExpiracoes (09h) para garantir que o aviso chega antes do bloqueio.
+ *
+ * Régua padrão (dashboard/clube pago): só D-7, aviso genérico de renovação — comportamento
+ * inalterado desde antes de 10/07/2026.
+ * Régua Raio-X (nivelAcesso: 'raio-x', degustação de 30 dias): D-7, D-3 e D-0, com copy de
+ * upgrade para o Dashboard completo (emailUpgradeDashboard contexto 'raio-x').
  */
 exports.notifExpiracaoProxima = onSchedule(
   { schedule: '0 7 * * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
   async () => {
     if (await jaExecutouHoje('notifExpiracaoProxima')) return;
-    const em7Dias = new Date();
-    em7Dias.setDate(em7Dias.getDate() + 7);
-    const alvo = em7Dias.toISOString().slice(0, 10);
+
+    const dataAlvo = (diasAFrente) => {
+      const d = new Date();
+      d.setDate(d.getDate() + diasAFrente);
+      return d.toISOString().slice(0, 10);
+    };
+    const REGUA = [
+      { dias: 7, alvo: dataAlvo(7) },
+      { dias: 3, alvo: dataAlvo(3) },
+      { dias: 0, alvo: dataAlvo(0) },
+    ];
 
     const snap = await db.collection('mentoradas')
       .where('status', '==', 'ativa')
-      .where('dataExpiracao', '==', alvo)
+      .where('dataExpiracao', 'in', REGUA.map(r => r.alvo))
       .get();
 
     for (const doc of snap.docs) {
@@ -4815,11 +5004,26 @@ exports.notifExpiracaoProxima = onSchedule(
       if (!m.email) continue;
       // Não notifica quem tem assinatura ativa de dashboard ou clube (não vai expirar)
       if (m.assinaturaDashboard === true || m.assinaturaClube === true) continue;
-      await sendEmail({
-        to:      m.email,
-        subject: 'Seu acesso ao Dashboard expira em 7 dias',
-        html:    emailExpiracaoProxima(m.nome || 'mentorada'),
-      }).catch(err => console.error(`Erro ao enviar expiração para ${m.email}:`, err));
+
+      const matchRegua = REGUA.find(r => r.alvo === m.dataExpiracao);
+      const diasRestantes = matchRegua ? matchRegua.dias : null;
+      const ehRaioX = m.nivelAcesso === 'raio-x';
+
+      // D-3 e D-0 só existem para a régua do Raio-X; produtos fora dela mantêm só D-7.
+      if (!ehRaioX && diasRestantes !== 7) continue;
+
+      const subject = ehRaioX
+        ? (diasRestantes === 0
+            ? 'Hoje é o último dia da sua degustação do Raio-X'
+            : `Sua degustação do Raio-X termina em ${diasRestantes} dias`)
+        : 'Seu acesso ao Dashboard expira em 7 dias';
+
+      const html = ehRaioX
+        ? emailUpgradeDashboard(m.nome || 'mentorada', 'raio-x', diasRestantes)
+        : emailExpiracaoProxima(m.nome || 'mentorada');
+
+      await sendEmail({ to: m.email, subject, html })
+        .catch(err => console.error(`Erro ao enviar expiração para ${m.email}:`, err));
     }
     await marcarEnviado('notifExpiracaoProxima');
   },

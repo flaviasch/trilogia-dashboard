@@ -865,15 +865,15 @@
       <svg viewBox="0 0 24 24"><line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/></svg>
       Orçamento
     </a>
-    <a href="patrimonio.html" class="bnav-item">
+    <a href="patrimonio.html" class="bnav-item nivel-completo">
       <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       Patrimônio
     </a>
-    <a href="reservas.html" class="bnav-item">
+    <a href="reservas.html" class="bnav-item nivel-completo">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
       Reservas
     </a>
-    <a href="jornada.html" class="bnav-item" id="linkJornada">
+    <a href="jornada.html" class="bnav-item nivel-completo" id="linkJornada">
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Jornada
     </a>
@@ -885,7 +885,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=25';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=30';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
     import { calcularAgregadosOrcamento } from './js/orcamento-calc.js';
@@ -908,6 +908,12 @@
       // Mostra ícone imediatamente se localStorage já tiver o valor (evita piscar)
       if (localStorage.getItem('clubeAccess') === '1') {
         document.querySelectorAll('.link-clube').forEach(el => el.style.display = '');
+      }
+      // Raio-X (degustação, só módulo Orçamento): esconde Patrimônio/Reservas/Jornada
+      // imediatamente pelo cache local; a confirmação definitiva vem da chamada fresca
+      // em _applyDashboard (nunca redireciona por dado só cacheado).
+      if (localStorage.getItem('nivelAcesso') === 'raio-x') {
+        document.querySelectorAll('.nivel-completo').forEach(el => el.style.display = 'none');
       }
       init(user).catch(err => {
         console.error('[init] erro não capturado:', err);
@@ -1379,6 +1385,15 @@
         localStorage.removeItem('clubeAccess');
       }
       localStorage.removeItem('clubeOnlyMode');
+
+      // Raio-X: degustação de 30 dias, só módulo Orçamento liberado.
+      // CTA de upgrade fica em orcamento.html (página que a conta raio-x realmente usa).
+      if (data.nivelAcesso === 'raio-x') {
+        localStorage.setItem('nivelAcesso', 'raio-x');
+        document.querySelectorAll('.nivel-completo').forEach(el => el.style.display = 'none');
+      } else {
+        localStorage.removeItem('nivelAcesso');
+      }
     }
 
     // ─── Onboarding ──────────────────────────────
@@ -1416,16 +1431,22 @@
           tag: 'acao',
         },
       ];
-      _ultimosSteps = steps;
 
-      const totalDone  = steps.filter(s => s.done).length;
-      const setupSteps = steps.filter(s => s.tag === 'setup');
+      // Raio-X (degustação): só os passos do módulo Orçamento fazem sentido —
+      // Perfil/Patrimônio/Reservas ficam bloqueados até o upgrade para o Dashboard completo.
+      const stepsFiltrados = data.nivelAcesso === 'raio-x'
+        ? steps.filter(s => s.href === 'orcamento.html')
+        : steps;
+      _ultimosSteps = stepsFiltrados;
+
+      const totalDone  = stepsFiltrados.filter(s => s.done).length;
+      const setupSteps = stepsFiltrados.filter(s => s.tag === 'setup');
       const setupDone  = setupSteps.filter(s => s.done).length;
 
       document.getElementById('loadingOverlay').style.display = 'none';
 
       if (totalDone === 0) {
-        renderWelcomeScreen(steps);
+        renderWelcomeScreen(stepsFiltrados);
         document.getElementById('welcomeScreen').style.display = 'block';
         // mainContent permanece oculto
         // No onboarding: aceita LGPD inline (sem modal), nota aparece na tela

@@ -184,6 +184,25 @@ export async function getPatrimonio() {
 }
 
 /**
+ * Leitura mínima do nível de acesso — usada como guard nas páginas que não
+ * chamam getDashboard/getDashboardHome (patrimonio.html, reservas.html, perfil.html).
+ * @returns {Promise<{nivelAcesso: string|null}>} nivelAcesso === 'raio-x' → só Orçamento liberado.
+ */
+export async function getNivelAcesso() {
+  return call('getNivelAcesso')({ uid: uidAtual() });
+}
+
+/**
+ * Envia extrato/fatura para categorização via IA (substitui o Agente Raio-X do ChatGPT).
+ * @param {string} conteudo — texto colado, ou base64 (sem prefixo data:) de PDF/imagem
+ * @param {'texto'|'pdf'|'imagem'} tipoConteudo
+ * @returns {Promise<{itens: Array}>} mesmo formato de parsearCsvRaioX — usar do mesmo jeito.
+ */
+export async function categorizarExtratoIA(conteudo, tipoConteudo) {
+  return call('categorizarExtratoIA')({ uid: uidAtual(), conteudo, tipoConteudo });
+}
+
+/**
  * Salva ativos importados do CSV (IR ou corretora).
  * @param {Array<{classe, valor}>} itens
  * @param {'ir'|'corretora'} tipo

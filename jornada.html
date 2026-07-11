@@ -323,7 +323,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getMinhaJornada, marcarLicaoCasa } from './js/api.js?v=25';
+    import { getMinhaJornada, marcarLicaoCasa, getNivelAcesso } from './js/api.js?v=30';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -352,6 +352,13 @@
       // ViewAs: propaga ?viewAs em todos os links locais para manter o contexto da mentorada
       const _va = new URLSearchParams(window.location.search).get('viewAs')
                || localStorage.getItem('viewAsUid');
+
+      // Raio-X (degustação): Jornada não faz parte do acesso liberado — redireciona.
+      if (!_va) {
+        getNivelAcesso().then(({ nivelAcesso }) => {
+          if (nivelAcesso === 'raio-x') { window.location.replace('orcamento.html'); return; }
+        }).catch(() => {});
+      }
       if (_va) {
         document.getElementById('viewAsBanner').style.display = 'flex';
         document.querySelectorAll('a[href]').forEach(a => {

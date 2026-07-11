@@ -1217,7 +1217,7 @@
     <a href="index.html" class="logo">Trilogia <span>Dashboard</span></a>
     <div class="navbar-right">
       <a href="clube.html" class="link-clube link-jornada-nav" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
-      <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
+      <a href="jornada.html" class="link-jornada-nav nivel-completo" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
       <span class="user-name" id="userDisplayName"></span>
       <button class="btn-logout" id="btnLogout">Sair</button>
@@ -1285,20 +1285,55 @@
       </div>
     </div>
 
+    <!-- CTA de upgrade — só visível para contas Raio-X (degustação de 30 dias) -->
+    <div id="ctaUpgradeRaioX" style="display:none;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:rgba(207,174,101,0.08);border:1px solid rgba(207,174,101,0.3);border-radius:12px;padding:16px 18px;margin-bottom:16px;">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--gold);margin-bottom:4px;">Você está no Raio-X — degustação de 30 dias</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;">
+          Aproveite para lançar seu extrato e ver seu orçamento. Quando quiser ir além (Patrimônio, Reservas e Perfil de investidor), é só assinar o Dashboard completo — sem perder nada do que você já lançou aqui.
+        </div>
+      </div>
+      <a href="https://pay.kiwify.com.br/ntySa9B" target="_blank" style="flex-shrink:0;display:inline-block;background:var(--gold);color:var(--navy);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">
+        Desbloquear Dashboard completo
+      </a>
+    </div>
+
     <!-- Banner de importação -->
     <div class="upload-banner" id="uploadBanner">
       <!-- Versão completa (sem dados no mês) -->
       <div class="upload-banner-text upload-banner-full">
         <strong>Importar Raio-X</strong>
-        Cole seus extratos no Agente Raio-X — ele categoriza seus gastos e gera o CSV para importar aqui. <a id="linkAgenteRaioX" href="https://chatgpt.com/g/g-69ebbc598b988191a771ebef5b0b5d63-raio-x-financeiro" target="_blank" class="link-agente">Abrir agente →</a>
+        Envie seu extrato ou fatura (PDF, foto ou texto colado) — a IA categoriza tudo sozinha, sem precisar de agente externo.
       </div>
       <!-- Versão compacta (mês já tem dados) -->
       <span class="upload-banner-compact">
-        Raio-X já carregado · <a id="linkAgenteRaioXCompact" href="https://chatgpt.com/g/g-69ebbc598b988191a771ebef5b0b5d63-raio-x-financeiro" target="_blank" class="link-agente">Abrir agente →</a>
+        Raio-X já carregado · envie um novo extrato quando quiser atualizar
       </span>
-      <div>
-        <input type="file" id="csvInput" class="upload-input" />
-        <button class="btn-upload" id="btnUpload">Importar CSV</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="file" id="csvInput" class="upload-input" accept=".csv,.txt" />
+        <button class="btn-upload" id="btnUploadIA">🤖 Importar extrato com IA</button>
+        <button class="btn-upload" id="btnUpload" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" title="Formato antigo — CSV já categorizado">Importar CSV</button>
+      </div>
+    </div>
+
+    <!-- Modal: importar extrato via IA (substitui o Agente Raio-X do ChatGPT) -->
+    <div id="modalImportarIA" class="modal-overlay hidden">
+      <div class="modal-card wide">
+        <h2 class="modal-title">Importar extrato com IA</h2>
+        <p class="modal-sub">Cole o texto do extrato/fatura, ou envie um arquivo (PDF, foto ou imagem). A IA extrai e categoriza as transações sozinha — sem precisar do agente externo.</p>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Colar texto do extrato/fatura</label>
+          <textarea id="iaExtratoTexto" rows="8" placeholder="Cole aqui o texto do extrato ou da fatura..." style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+        </div>
+        <div style="text-align:center;margin:10px 0;color:var(--text-muted);font-size:12px;">— ou —</div>
+        <div style="margin-bottom:18px;">
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, JPG ou PNG)</label>
+          <input type="file" id="iaArquivoInput" accept=".pdf,.jpg,.jpeg,.png" style="width:100%;font-size:13px;color:var(--text-secondary);">
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="btnCancelarImportarIA">Cancelar</button>
+          <button class="btn-save" id="btnConfirmarImportarIA">Categorizar e importar</button>
+        </div>
       </div>
     </div>
 
@@ -1960,15 +1995,15 @@
       <svg viewBox="0 0 24 24"><line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/></svg>
       Orçamento
     </a>
-    <a href="patrimonio.html" class="bnav-item">
+    <a href="patrimonio.html" class="bnav-item nivel-completo">
       <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       Patrimônio
     </a>
-    <a href="reservas.html" class="bnav-item">
+    <a href="reservas.html" class="bnav-item nivel-completo">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
       Reservas
     </a>
-    <a href="jornada.html" class="bnav-item">
+    <a href="jornada.html" class="bnav-item nivel-completo">
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Jornada
     </a>
@@ -2268,7 +2303,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos } from './js/api.js?v=29';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA } from './js/api.js?v=30';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -2326,6 +2361,9 @@
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
       if (localStorage.getItem('clubeAccess') === '1') {
         document.querySelectorAll('.link-clube').forEach(el => el.style.display = '');
+      }
+      if (localStorage.getItem('nivelAcesso') === 'raio-x') {
+        document.querySelectorAll('.nivel-completo').forEach(el => el.style.display = 'none');
       }
       init(user);
     });
@@ -3428,6 +3466,20 @@
       const _admin = await isAdmin();
       if (!VIEW_AS_UID && _admin && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
       if (_admin) document.getElementById('linkAdmin').style.display = 'inline';
+
+      // Raio-X (degustação de 30 dias, só Orçamento): esconde nav de Patrimônio/
+      // Reservas/Jornada e mostra o CTA de upgrade. Não bloqueia o resto do init.
+      if (!VIEW_AS_UID) {
+        getNivelAcesso().then(({ nivelAcesso }) => {
+          if (nivelAcesso === 'raio-x') {
+            localStorage.setItem('nivelAcesso', 'raio-x');
+            document.querySelectorAll('.nivel-completo').forEach(el => el.style.display = 'none');
+            document.getElementById('ctaUpgradeRaioX')?.style.setProperty('display', 'flex');
+          } else {
+            localStorage.removeItem('nivelAcesso');
+          }
+        }).catch(() => {});
+      }
 
       // Inicia carga dos cartões agora que auth.currentUser está disponível
       _cartoesReady = carregarCartoes();
@@ -5402,43 +5454,69 @@
     // ─── Aba Anual ───────────────────────────────────────────────────────────
     let _graficoAnualInstance = null;
 
+    // Últimos 12 meses rolando (não ano-calendário) — atravessa virada de ano.
+    // Ex: em julho/2026, gera ago/2025 até jul/2026. Substitui a janela fixa
+    // jan-até-mês-atual usada antes de 10/07/2026 (ver raio-x-no-dashboard/BLUEPRINT.md).
+    function ultimos12Meses() {
+      const hoje = new Date();
+      const arr = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        arr.push({ mes: d.getMonth() + 1, ano: d.getFullYear() });
+      }
+      return arr;
+    }
+
     async function renderAnual() {
       const el = document.getElementById('anualContent');
       if (!el) return;
-      el.innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:40px 0;text-align:center"><div class="spinner" style="margin:0 auto 12px"></div>Carregando ano...</div>`;
+      el.innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:40px 0;text-align:center"><div class="spinner" style="margin:0 auto 12px"></div>Carregando últimos 12 meses...</div>`;
 
-      const ano      = new Date().getFullYear();
-      const mesAtual = new Date().getMonth() + 1;
+      const janela = ultimos12Meses(); // [{mes, ano}, ...] do mais antigo ao mais recente
 
-      const [resultados, scoresHistorico] = await Promise.all([
+      const [resultados, scoresHistorico, planejamentos] = await Promise.all([
         Promise.all(
-          Array.from({ length: mesAtual }, (_, i) => i + 1).map(m =>
-            buscarPeriodo(m, ano, false)
+          janela.map(({ mes: m, ano: a }) =>
+            buscarPeriodo(m, a, false)
               .then(data => {
                 // Mesmo critério "comprometido" do Detalhe/Planejamento/home
                 // (achado em 07/07/2026: a versão antiga somava despesa sem
                 // excluir a fatura em ABERTO, inflando o total do mês corrente).
                 const { receitaComprometida, despesaComprometida, totalAp } =
                   calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, contaId: _contaAtivaId });
+                // Despesa real por categoria (exclui fatura em aberto, mesmo critério acima)
+                const porCategoria = data.despesas
+                  .filter(d => !d._faturaAberta && pertenceAConta(d, _contaAtivaId))
+                  .reduce((acc, d) => { acc[d.categoria] = (acc[d.categoria] || 0) + d.valor; return acc; }, {});
                 return {
-                  mes:       m,
+                  mes: m, ano: a,
                   receita:   receitaComprometida,
                   despesa:   despesaComprometida,
                   aporte:    totalAp,
                   temDados:  data.receitas.length > 0 || data.despesas.length > 0 || data.aportes.length > 0,
                   porCartao: data.despesas.filter(d => d.cartao && d.cartaoId && !d._faturaAberta && pertenceAConta(d, _contaAtivaId))
                     .reduce((acc, d) => { acc[d.cartaoId] = (acc[d.cartaoId] || 0) + d.valor; return acc; }, {}),
+                  porCategoria,
                 };
               })
-              .catch(() => ({ mes: m, receita: 0, despesa: 0, aporte: 0, temDados: false, porCartao: {} }))
+              .catch(() => ({ mes: m, ano: a, receita: 0, despesa: 0, aporte: 0, temDados: false, porCartao: {}, porCategoria: {} }))
           )
         ),
         getScoreHistorico({}).catch(() => []),
+        Promise.all(
+          janela.map(({ mes: m, ano: a }) => getCategoriasMes(m, a).catch(() => ({ categorias: [] })))
+        ),
       ]);
+
+      // Rótulo do mês com ano quando a janela atravessa virada de ano
+      const anosDistintos = new Set(janela.map(j => j.ano)).size > 1;
+      const rotuloMes = (r) => anosDistintos
+        ? `${MESES[r.mes - 1].slice(0, 3)}/${String(r.ano).slice(2)}`
+        : MESES[r.mes - 1];
 
       const comDados = resultados.filter(r => r.temDados);
       if (comDados.length === 0) {
-        el.innerHTML = `<p style="color:var(--text-muted);font-size:13px;padding:40px 0;text-align:center">Nenhum dado encontrado para ${ano}.</p>`;
+        el.innerHTML = `<p style="color:var(--text-muted);font-size:13px;padding:40px 0;text-align:center">Nenhum dado encontrado nos últimos 12 meses.</p>`;
         return;
       }
 
@@ -5453,7 +5531,7 @@
         const sobraPct = r.receita > 0 ? (sobra / r.receita * 100).toFixed(1) : '0';
         const corSobra = sobra >= 0 ? 'var(--positive)' : 'var(--negative)';
         const dim      = r.temDados ? '' : 'opacity:0.25;';
-        const chave    = `${ano}-${String(r.mes).padStart(2,'0')}`;
+        const chave    = `${r.ano}-${String(r.mes).padStart(2,'0')}`;
         const scoreObj = scoresHistorico.find(s => s.id === chave);
         const scoreVal = scoreObj?.score ?? null;
         let scoreCor   = 'var(--text-muted)';
@@ -5464,7 +5542,7 @@
           else                     scoreCor = '#f87171';
         }
         return `<tr style="${dim}border-top:1px solid var(--border)">
-          <td style="padding:11px 16px;font-weight:500;color:var(--white)">${MESES[r.mes - 1]}</td>
+          <td style="padding:11px 16px;font-weight:500;color:var(--white)">${rotuloMes(r)}</td>
           <td style="padding:11px 16px;text-align:right;color:var(--positive)">${r.temDados ? brl(r.receita) : '—'}</td>
           <td style="padding:11px 16px;text-align:right;color:var(--negative)">${r.temDados ? brl(r.despesa) : '—'}</td>
           <td style="padding:11px 16px;text-align:right;color:${corSobra};font-weight:600">${r.temDados ? brl(sobra) : '—'}</td>
@@ -5495,7 +5573,7 @@
           }).join('');
         cartoesAnualHTML = `
           <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:24px;">
-            <div style="padding:14px 20px 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">💳 Gastos por cartão — ${ano}</div>
+            <div style="padding:14px 20px 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">💳 Gastos por cartão — últimos 12 meses</div>
             <table style="width:100%;border-collapse:collapse;">
               <thead><tr style="background:rgba(255,255,255,.03);">
                 <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Cartão</th>
@@ -5504,6 +5582,64 @@
               </tr></thead>
               <tbody>${linhasCartao}</tbody>
             </table>
+          </div>`;
+      }
+
+      // ── Por categoria — Real × Previsto, últimos 12 meses ──────────────────
+      // Réplica da visão "Resumo_Real"/"Resumo_Previsto" da planilha original do
+      // Raio-X (categoria × mês), agora com toggle em vez de duas abas separadas.
+      const categoriasTodas = new Set();
+      resultados.forEach(r => Object.keys(r.porCategoria || {}).forEach(c => categoriasTodas.add(c)));
+      planejamentos.forEach(p => (p.categorias || []).forEach(c => categoriasTodas.add(c.nome)));
+
+      const linhasCategoria = Array.from(categoriasTodas).map(cat => {
+        const real12     = resultados.map(r => r.porCategoria?.[cat] || 0);
+        const previsto12 = planejamentos.map(p => (p.categorias || []).find(c => normCat(c.nome) === normCat(cat))?.limite || 0);
+        return {
+          categoria: cat,
+          real12, previsto12,
+          totalReal: real12.reduce((s, v) => s + v, 0),
+          totalPrevisto: previsto12.reduce((s, v) => s + v, 0),
+        };
+      }).filter(l => l.totalReal > 0 || l.totalPrevisto > 0)
+        .sort((a, b) => b.totalReal - a.totalReal);
+
+      let categoriaAnualHTML = '';
+      if (linhasCategoria.length > 0) {
+        const cabecalhoMeses = resultados.map(r => `<th style="padding:9px 10px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;">${rotuloMes(r)}</th>`).join('');
+
+        const gerarLinhasTabela = (campo, totalCampo) => linhasCategoria.map(l => `
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:9px 12px;font-weight:500;color:var(--white);white-space:nowrap;">${escapeHtml(l.categoria)}</td>
+            ${l[campo].map(v => `<td style="padding:9px 10px;text-align:right;color:var(--text-secondary);font-size:12px;">${v > 0 ? brl(v) : '—'}</td>`).join('')}
+            <td style="padding:9px 12px;text-align:right;font-weight:700;color:var(--gold);">${brl(l[totalCampo])}</td>
+          </tr>`).join('');
+
+        const linhasReal     = gerarLinhasTabela('real12', 'totalReal');
+        const linhasPrevisto = gerarLinhasTabela('previsto12', 'totalPrevisto');
+
+        categoriaAnualHTML = `
+          <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:24px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;flex-wrap:wrap;gap:10px;">
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Por categoria — últimos 12 meses</div>
+              <div style="display:flex;gap:6px;">
+                <button id="btnCategoriaReal" onclick="window._toggleCategoriaAnual('real')"
+                  style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;">Real</button>
+                <button id="btnCategoriaPrevisto" onclick="window._toggleCategoriaAnual('previsto')"
+                  style="background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;">Previsto</button>
+              </div>
+            </div>
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead><tr style="background:rgba(255,255,255,.03);">
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;">Categoria</th>
+                  ${cabecalhoMeses}
+                  <th style="padding:9px 12px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;">Total</th>
+                </tr></thead>
+                <tbody id="tbodyCategoriaReal">${linhasReal}</tbody>
+                <tbody id="tbodyCategoriaPrevisto" style="display:none;">${linhasPrevisto}</tbody>
+              </table>
+            </div>
           </div>`;
       }
 
@@ -5517,25 +5653,25 @@
             onclick="exportarAnual()">↓ PDF anual</button>
         </div>
 
-        <!-- KPIs do ano -->
+        <!-- KPIs dos últimos 12 meses -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;">
           <div class="resumo-card">
-            <div class="resumo-label">Receita ${ano}</div>
+            <div class="resumo-label">Receita 12 meses</div>
             <div class="resumo-value positive">${brl(totReceita)}</div>
             <div class="resumo-sub">${comDados.length} mes${comDados.length !== 1 ? 'es' : ''} com dados</div>
           </div>
           <div class="resumo-card">
-            <div class="resumo-label">Despesa ${ano}</div>
+            <div class="resumo-label">Despesa 12 meses</div>
             <div class="resumo-value negative">${brl(totDespesa)}</div>
             <div class="resumo-sub">${totReceita > 0 ? pct(totDespesa, totReceita) + ' da receita' : '—'}</div>
           </div>
           <div class="resumo-card destaque">
-            <div class="resumo-label">Sobra ${ano}</div>
+            <div class="resumo-label">Sobra 12 meses</div>
             <div class="resumo-value ${totSobra >= 0 ? 'gold' : 'negative'}">${brl(totSobra)}</div>
             <div class="resumo-sub">${sobraPctAno}% da receita</div>
           </div>
           <div class="resumo-card" style="border-color:rgba(207,174,101,0.3)">
-            <div class="resumo-label">Investido ${ano}</div>
+            <div class="resumo-label">Investido 12 meses</div>
             <div class="resumo-value gold">${brl(totAporte)}</div>
             <div class="resumo-sub">${totReceita > 0 ? pct(totAporte, totReceita) + ' da receita' : '—'}</div>
           </div>
@@ -5544,7 +5680,7 @@
         <!-- Gráfico -->
         <div class="grafico-card" style="margin-bottom:24px;">
           <div class="grafico-header">
-            <h2 class="grafico-title">Receita × Despesa × Sobra — ${ano}</h2>
+            <h2 class="grafico-title">Receita × Despesa × Sobra — últimos 12 meses</h2>
           </div>
           <div class="grafico-canvas-wrap"><canvas id="graficoAnualCanvas"></canvas></div>
           <div class="grafico-legenda">
@@ -5571,7 +5707,7 @@
             <tbody>${linhas}</tbody>
             <tfoot>
               <tr style="border-top:2px solid var(--border);background:rgba(255,255,255,0.02);">
-                <td style="padding:13px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Total ${ano}</td>
+                <td style="padding:13px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Total 12 meses</td>
                 <td style="padding:13px 16px;text-align:right;font-weight:700;color:var(--positive)">${brl(totReceita)}</td>
                 <td style="padding:13px 16px;text-align:right;font-weight:700;color:var(--negative)">${brl(totDespesa)}</td>
                 <td style="padding:13px 16px;text-align:right;font-weight:700;color:${totSobra >= 0 ? 'var(--gold)' : 'var(--negative)'}">${brl(totSobra)}</td>
@@ -5582,7 +5718,8 @@
             </tfoot>
           </table>
         </div>
-        ${cartoesAnualHTML}`;
+        ${cartoesAnualHTML}
+        ${categoriaAnualHTML}`;
 
       // Gráfico
       const ctx = document.getElementById('graficoAnualCanvas')?.getContext('2d');
@@ -5590,7 +5727,7 @@
         if (_graficoAnualInstance) { _graficoAnualInstance.destroy(); _graficoAnualInstance = null; }
         _graficoAnualInstance = new Chart(ctx, {
           data: {
-            labels: comDados.map(r => MESES[r.mes - 1].slice(0, 3)),
+            labels: comDados.map(r => rotuloMes(r)),
             datasets: [
               {
                 type: 'bar', label: 'Receita',
@@ -5630,6 +5767,24 @@
         });
       }
     }
+
+    // Alterna a tabela "Por categoria" (aba Anual) entre Real e Previsto sem refazer a busca.
+    window._toggleCategoriaAnual = function(modo) {
+      const tbodyReal     = document.getElementById('tbodyCategoriaReal');
+      const tbodyPrevisto = document.getElementById('tbodyCategoriaPrevisto');
+      const btnReal       = document.getElementById('btnCategoriaReal');
+      const btnPrevisto   = document.getElementById('btnCategoriaPrevisto');
+      if (!tbodyReal || !tbodyPrevisto) return;
+      const ehReal = modo === 'real';
+      tbodyReal.style.display     = ehReal ? '' : 'none';
+      tbodyPrevisto.style.display = ehReal ? 'none' : '';
+      btnReal.style.background     = ehReal ? 'var(--gold)' : 'transparent';
+      btnReal.style.color          = ehReal ? 'var(--navy)' : 'var(--text-secondary)';
+      btnReal.style.border         = ehReal ? 'none' : '1px solid var(--border)';
+      btnPrevisto.style.background = ehReal ? 'transparent' : 'var(--gold)';
+      btnPrevisto.style.color      = ehReal ? 'var(--text-secondary)' : 'var(--navy)';
+      btnPrevisto.style.border     = ehReal ? '1px solid var(--border)' : 'none';
+    };
 
     // ─── Modal de limite de categoria ────────────────────────────────────────
     const modalLimite = document.getElementById('modalLimite');
@@ -6305,6 +6460,72 @@
       return { mes: Number(mesStr), ano: Number(anoStr) };
     }
 
+    /**
+     * Processa uma lista de itens já categorizados (vindos do CSV do Raio-X ou
+     * da nova categorização via IA — mesmo formato: categoria, tipo, valor, data,
+     * descricao, fixa) e faz o merge/salvamento que antes vivia só no handler do
+     * CSV: detecta mês pelas datas, normaliza categoria contra o que já existe no
+     * mês alvo, preserva manuais/recorrentes/parcelamentos, salva e avisa a usuária.
+     * Extraído em 10/07/2026 para ser reaproveitado pela importação via IA sem
+     * duplicar essa lógica (ver categorizarExtratoIA em functions/index.js).
+     */
+    async function processarItensImportados(itensCsv, { origemLabel = 'Raio-X', origemTag = 'csv', eventoNome = 'csv_importado' } = {}) {
+      // Detecta mês alvo pelas datas; usa período atual se não encontrar
+      const detectado = detectarMesCsv(itensCsv);
+      const { mes: mesAtual, ano: anoAtual } = currentData.periodo;
+      const mesSalvar = detectado?.mes ?? mesAtual;
+      const anoSalvar = detectado?.ano ?? anoAtual;
+
+      // Carrega dados do período alvo para preservar manuais/recorrentes/parcelamentos
+      // (afetaGlobal=false: mês alvo pode ser diferente do exibido na tela)
+      const dadosAlvo = (mesSalvar === mesAtual && anoSalvar === anoAtual)
+        ? currentData
+        : await buscarPeriodo(mesSalvar, anoSalvar, false);
+
+      // Normaliza a categoria contra as já existentes no mês alvo — evita criar
+      // "Alimentação"/"alimentação" como categorias diferentes só porque vieram
+      // de fontes com grafia distinta.
+      const catCanonicaPorNorm = {};
+      [...dadosAlvo.despesas, ...dadosAlvo.receitas].forEach(item => {
+        const norm = normCat(item.categoria);
+        if (!catCanonicaPorNorm[norm]) catCanonicaPorNorm[norm] = item.categoria;
+      });
+      const itensNormalizados = itensCsv.map(i => {
+        const canonica = catCanonicaPorNorm[normCat(i.categoria)];
+        return canonica && canonica !== i.categoria ? { ...i, categoria: canonica } : i;
+      });
+
+      // Despesas marcadas como fixas — serão propostas como recorrentes
+      const fixasDetectadas = itensNormalizados.filter(i => i.fixa && i.tipo === 'despesa');
+
+      // Preserva recorrentes, parcelamentos e lançamentos manuais — importação não sobrescreve
+      const preservar = [
+        ...dadosAlvo.receitas
+          .filter(r => r.origem === 'manual')
+          .map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: 'manual' })),
+        ...dadosAlvo.despesas
+          .filter(d => d._sourceMes == null && (d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento'))
+          .map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.parcelamentoId ? { parcelamentoId: d.parcelamentoId, parcelaAtual: d.parcelaAtual, parcelasTotal: d.parcelasTotal } : {}) })),
+      ];
+
+      // Salva todos os itens normalmente (fixa entra como lançamento regular)
+      const itens = [...itensNormalizados.map(({ fixa: _f, ...i }) => ({ ...i, origem: origemTag })), ...preservar];
+      await saveOrcamento(mesSalvar, anoSalvar, itens, true); // substituição intencional (nova importação)
+      _invalPeriodo(mesSalvar, anoSalvar);
+
+      if (mesSalvar === mesAtual && anoSalvar === anoAtual) {
+        currentData = await buscarPeriodo(mesAtual, anoAtual);
+        render(currentData);
+        toast(`${origemLabel} importado com sucesso!`, 'success');
+      } else {
+        toast(`${origemLabel} importado para ${MESES[mesSalvar - 1]} de ${anoSalvar} ✓`, 'success');
+      }
+
+      registrarEvento(eventoNome);
+      // Se houver fixas detectadas, exibe modal de confirmação
+      if (fixasDetectadas.length > 0) abrirModalFixasCsv(fixasDetectadas);
+    }
+
     document.getElementById('btnUpload').addEventListener('click', () => {
       document.getElementById('csvInput').click();
     });
@@ -6320,61 +6541,7 @@
       reader.onload = async (ev) => {
         try {
           const itensCsv = parsearCsvRaioX(ev.target.result);
-
-          // Detecta mês alvo pelas datas do CSV; usa período atual se não encontrar
-          const detectado = detectarMesCsv(itensCsv);
-          const { mes: mesAtual, ano: anoAtual } = currentData.periodo;
-          const mesSalvar = detectado?.mes ?? mesAtual;
-          const anoSalvar = detectado?.ano ?? anoAtual;
-
-          // Carrega dados do período alvo para preservar manuais/recorrentes/parcelamentos
-          // (afetaGlobal=false: mês alvo pode ser diferente do exibido na tela)
-          const dadosAlvo = (mesSalvar === mesAtual && anoSalvar === anoAtual)
-            ? currentData
-            : await buscarPeriodo(mesSalvar, anoSalvar, false);
-
-          // Normaliza a categoria do CSV contra as já existentes no mês alvo —
-          // evita criar "Alimentação"/"alimentação" como categorias diferentes
-          // só porque vieram de fontes com grafia distinta.
-          const catCanonicaPorNorm = {};
-          [...dadosAlvo.despesas, ...dadosAlvo.receitas].forEach(item => {
-            const norm = normCat(item.categoria);
-            if (!catCanonicaPorNorm[norm]) catCanonicaPorNorm[norm] = item.categoria;
-          });
-          const itensCsvNormalizado = itensCsv.map(i => {
-            const canonica = catCanonicaPorNorm[normCat(i.categoria)];
-            return canonica && canonica !== i.categoria ? { ...i, categoria: canonica } : i;
-          });
-
-          // Despesas marcadas como fixas no CSV — serão propostas como recorrentes
-          const fixasDetectadas = itensCsvNormalizado.filter(i => i.fixa && i.tipo === 'despesa');
-
-          // Preserva recorrentes, parcelamentos e lançamentos manuais — CSV não sobrescreve
-          const preservar = [
-            ...dadosAlvo.receitas
-              .filter(r => r.origem === 'manual')
-              .map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: 'manual' })),
-            ...dadosAlvo.despesas
-              .filter(d => d._sourceMes == null && (d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento'))
-              .map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.parcelamentoId ? { parcelamentoId: d.parcelamentoId, parcelaAtual: d.parcelaAtual, parcelasTotal: d.parcelasTotal } : {}) })),
-          ];
-
-          // Salva todos os itens do CSV normalmente (fixa entra como lançamento regular)
-          const itens = [...itensCsvNormalizado.map(({ fixa: _f, ...i }) => ({ ...i, origem: 'csv' })), ...preservar];
-          await saveOrcamento(mesSalvar, anoSalvar, itens, true); // substituição intencional (novo CSV)
-          _invalPeriodo(mesSalvar, anoSalvar);
-
-          if (mesSalvar === mesAtual && anoSalvar === anoAtual) {
-            currentData = await buscarPeriodo(mesAtual, anoAtual);
-            render(currentData);
-            toast('Raio-X importado com sucesso!', 'success');
-          } else {
-            toast(`Raio-X importado para ${MESES[mesSalvar - 1]} de ${anoSalvar} ✓`, 'success');
-          }
-
-          registrarEvento('csv_importado');
-          // Se houver fixas detectadas, exibe modal de confirmação
-          if (fixasDetectadas.length > 0) abrirModalFixasCsv(fixasDetectadas);
+          await processarItensImportados(itensCsv, { origemLabel: 'Raio-X', origemTag: 'csv', eventoNome: 'csv_importado' });
         } catch (err) {
           toast(msgErro(err), 'error');
         } finally {
@@ -6382,6 +6549,55 @@
         }
       };
       reader.readAsText(file, 'utf-8');
+    });
+
+    // ─── Importação via IA (substitui o Agente Raio-X do ChatGPT) ────────────
+    document.getElementById('btnUploadIA').addEventListener('click', () => {
+      document.getElementById('iaExtratoTexto').value = '';
+      document.getElementById('iaArquivoInput').value = '';
+      document.getElementById('modalImportarIA').classList.remove('hidden');
+    });
+
+    document.getElementById('btnCancelarImportarIA').addEventListener('click', () => {
+      document.getElementById('modalImportarIA').classList.add('hidden');
+    });
+
+    document.getElementById('btnConfirmarImportarIA').addEventListener('click', async () => {
+      const btn     = document.getElementById('btnConfirmarImportarIA');
+      const texto   = document.getElementById('iaExtratoTexto').value.trim();
+      const arquivo = document.getElementById('iaArquivoInput').files[0];
+
+      if (!texto && !arquivo) {
+        toast('Cole o texto do extrato ou selecione um arquivo.', 'error');
+        return;
+      }
+
+      setLoading(btn, true, 'Categorizando…');
+      try {
+        let conteudo, tipoConteudo;
+        if (arquivo) {
+          // Lê como base64 e remove o prefixo "data:<mime>;base64," antes de enviar
+          const base64completo = await new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload  = () => resolve(r.result);
+            r.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
+            r.readAsDataURL(arquivo);
+          });
+          conteudo     = base64completo.split(',')[1] || '';
+          tipoConteudo = arquivo.type === 'application/pdf' ? 'pdf' : 'imagem';
+        } else {
+          conteudo     = texto;
+          tipoConteudo = 'texto';
+        }
+
+        const { itens: itensIA } = await categorizarExtratoIA(conteudo, tipoConteudo);
+        document.getElementById('modalImportarIA').classList.add('hidden');
+        await processarItensImportados(itensIA, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado' });
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
+      }
     });
 
     // ─── Expõe funções usadas em onclick para o escopo global ────────────────

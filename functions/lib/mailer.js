@@ -227,14 +227,38 @@ function emailReenvioAcesso(nome, linkSenha) {
  * @param {string} nome      — nome da mentorada
  * @param {string} linkSenha — link gerado pelo Firebase para definir senha
  */
-function emailBoasVindas(nome) {
+function emailBoasVindas(nome, contexto = 'mentoria') {
+  const intro = contexto === 'raio-x'
+    ? {
+        titulo: 'Bem-vinda ao seu Raio-X Financeiro',
+        paragrafo: `
+          Sua conta está criada e você já tem <strong>30 dias de acesso</strong> ao módulo de
+          Orçamento do Trilogia Dashboard. É só entrar, colar ou anexar seu extrato e fatura,
+          e a inteligência artificial classifica tudo automaticamente para você.
+        `,
+        extra: `
+          <p style="${S.p}">
+            Dentro do Orçamento, clique em <strong>"Importar extrato com IA"</strong> para começar.
+            Você pode importar quantas vezes quiser durante os 30 dias.
+          </p>
+          <p style="${S.pSmall}">
+            Se depois da degustação você quiser continuar, o upgrade para o Dashboard completo
+            mantém a mesma conta e os mesmos dados — nada se perde.
+          </p>
+        `,
+      }
+    : {
+        titulo: 'Bem-vinda ao Trilogia Dashboard',
+        paragrafo: `
+          Sua conta está criada e o Dashboard já está pronto para você.
+          Para definir sua senha e acessar pela primeira vez, clique no botão abaixo:
+        `,
+        extra: '',
+      };
   return layout(`
-    <h2 style="${S.h2}">Bem-vinda ao Trilogia Dashboard</h2>
+    <h2 style="${S.h2}">${intro.titulo}</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
-    <p style="${S.p}">
-      Sua conta está criada e o Dashboard já está pronto para você.
-      Para definir sua senha e acessar pela primeira vez, clique no botão abaixo:
-    </p>
+    <p style="${S.p}">${intro.paragrafo}</p>
     <a href="https://dashboard.flaviaschusciman.com/login.html" style="${S.btn}">
       Acessar o Dashboard
     </a>
@@ -243,6 +267,7 @@ function emailBoasVindas(nome) {
       (ou "Esqueci minha senha"), informe este e-mail e você receberá um link
       para criar sua senha na hora.
     </p>
+    ${intro.extra}
     <p style="${S.pSmall}">
       Qualquer dúvida, fale diretamente com a Flávia pelo WhatsApp.
     </p>
@@ -794,17 +819,42 @@ function emailRetencaoDia7(nome) {
 }
 
 /**
- * E-mail de upgrade: enviado à mentorada quando a mentoria é encerrada.
- * Oferece assinatura standalone do Dashboard (mensal ou anual).
+ * E-mail de upgrade: oferece assinatura standalone do Dashboard (mensal ou anual).
+ * @param {string} nome
+ * @param {'mentoria'|'raio-x'} contexto — 'mentoria' (padrão, comportamento original):
+ *   enviado quando a mentoria é encerrada. 'raio-x': enviado durante a régua de fim de
+ *   degustação (D-7/D-3/D-0) do Raio-X, ver notifExpiracaoProxima.
+ * @param {number|null} diasRestantes — só usado no contexto 'raio-x' (7, 3 ou 0).
+ *
+ * Preços atualizados em 10/07/2026 (R$147/1.470 → R$97/970, confirmado por Flávia).
+ * Os links de checkout do Kiwify (pay.kiwify.com.br/...) não foram alterados —
+ * confirmar antes do deploy se continuam apontando para os planos corretos com
+ * o valor novo, já que o link em si não carrega o preço.
  */
-function emailUpgradeDashboard(nome) {
+function emailUpgradeDashboard(nome, contexto = 'mentoria', diasRestantes = null) {
+  const intro = contexto === 'raio-x'
+    ? {
+        titulo: diasRestantes === 0
+          ? 'Hoje é o último dia da sua degustação do Raio-X'
+          : `Faltam ${diasRestantes} dias para o fim da sua degustação do Raio-X`,
+        paragrafo: `
+          Seu período de degustação do Raio-X no Dashboard Trilogia está chegando ao fim.
+          Se ele já te ajudou a enxergar para onde vai o seu dinheiro, o Dashboard completo
+          vai além: Patrimônio, Reservas de longo prazo e Perfil de investidor — tudo na
+          mesma conta, sem perder nada do que você já lançou no Orçamento.
+        `,
+      }
+    : {
+        titulo: 'Sua mentoria chegou ao fim — e sua jornada continua',
+        paragrafo: `
+          Sua Mentoria Trilogia Financeira foi encerrada. Foi uma trajetória de muito aprendizado
+          e avanço na sua vida financeira — e tudo que você construiu fica guardado no seu Dashboard.
+        `,
+      };
   return layout(`
-    <h2 style="${S.h2}">Sua mentoria chegou ao fim — e sua jornada continua</h2>
+    <h2 style="${S.h2}">${intro.titulo}</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
-    <p style="${S.p}">
-      Sua Mentoria Trilogia Financeira foi encerrada. Foi uma trajetória de muito aprendizado
-      e avanço na sua vida financeira — e tudo que você construiu fica guardado no seu Dashboard.
-    </p>
+    <p style="${S.p}">${intro.paragrafo}</p>
     <p style="${S.p}">
       Para continuar acompanhando seu patrimônio, reservas, orçamento e score financeiro,
       você pode manter o acesso com a assinatura do Trilogia Dashboard:
@@ -813,14 +863,14 @@ function emailUpgradeDashboard(nome) {
       <tr>
         <td align="center" style="padding:0 8px 12px;">
           <a href="https://pay.kiwify.com.br/ntySa9B" style="${S.btn}">
-            Mensal — R$&nbsp;147/mês
+            Mensal — R$&nbsp;97/mês
           </a>
         </td>
       </tr>
       <tr>
         <td align="center" style="padding:0 8px;">
           <a href="https://pay.kiwify.com.br/KIhxony" style="display:inline-block;background:#f3f4f6;color:#0D2B45;padding:14px 28px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;">
-            Anual — R$&nbsp;1.470/ano <span style="font-size:12px;font-weight:400;color:#6b7280;">(economize 2 meses)</span>
+            Anual — R$&nbsp;970/ano <span style="font-size:12px;font-weight:400;color:#6b7280;">(economize 2 meses)</span>
           </a>
         </td>
       </tr>

@@ -659,15 +659,15 @@
       <svg viewBox="0 0 24 24"><line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/></svg>
       Orçamento
     </a>
-    <a href="patrimonio.html" class="bnav-item active">
+    <a href="patrimonio.html" class="bnav-item active nivel-completo">
       <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       Patrimônio
     </a>
-    <a href="reservas.html" class="bnav-item">
+    <a href="reservas.html" class="bnav-item nivel-completo">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
       Reservas
     </a>
-    <a href="jornada.html" class="bnav-item">
+    <a href="jornada.html" class="bnav-item nivel-completo">
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Jornada
     </a>
@@ -683,8 +683,8 @@
       getPatrimonio, savePatrimonio,
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
-      getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro,
-    } from './js/api.js?v=25';
+      getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
+    } from './js/api.js?v=30';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
     // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se
@@ -761,6 +761,14 @@
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
       if (localStorage.getItem('clubeAccess') === '1') {
         document.querySelectorAll('.link-clube').forEach(el => el.style.display = '');
+      }
+      // Raio-X (degustação): Patrimônio não faz parte do acesso liberado — redireciona.
+      // Leitura fresca (não confia só no cache local) porque isto é controle de acesso,
+      // não só cosmético de navegação.
+      if (!_isViewAs) {
+        getNivelAcesso().then(({ nivelAcesso }) => {
+          if (nivelAcesso === 'raio-x') { window.location.replace('orcamento.html'); return; }
+        }).catch(() => {}); // falha na checagem não deve travar a página para quem tem acesso normal
       }
       init(user);
     });
