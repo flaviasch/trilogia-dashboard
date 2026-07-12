@@ -983,11 +983,12 @@ Regras obrigatórias:
 - Ignore saldos, linhas de resumo/cabeçalho e duplicidades.
 - "tipo" é "despesa" para gastos e "receita" para entradas (salário, transferência recebida, estorno).
 - Pagamento de fatura de cartão de crédito debitado na conta corrente NÃO é uma despesa própria — ignore essa linha (o gasto real já está nos itens individuais da fatura, se ela também foi enviada).
-- "fixa": true somente para despesas que claramente se repetem todo mês com valor igual ou parecido (aluguel, mensalidade, assinatura de streaming). Parcelamentos e compras avulsas de cartão nunca são fixa: true.
+- "fixa": true para despesas que claramente se repetem todo mês com valor igual ou parecido — aluguel, mensalidade, assinatura de streaming, academia, tratamento recorrente — MESMO quando pagas em parcelas (ex: "Academia Parcela 2/12" é fixa: true, porque é uma mensalidade parcelada). Compras avulsas de cartão parceladas que não se repetem depois de quitadas (eletrônico, móvel, roupa, viagem) NUNCA são fixa: true.
+- "parcelaAtual" e "parcelasTotal": quando a descrição contiver um padrão de parcelamento (ex: "Parcela 2/12", "Parc 02/12", "2/12"), preencha os dois números; senão, null nos dois. Preencha isso independente do valor de "fixa".
 - "valor" sempre positivo, tipo número (não string), com ponto decimal.
 - "data" no formato AAAA-MM-DD. Se o ano não estiver explícito, use o ano corrente (${new Date().getFullYear()}).
 - Responda APENAS com um array JSON válido, sem markdown, sem texto antes ou depois. Formato de cada item:
-  {"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false}`;
+  {"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>}`;
 
     const contentBlock = tipoConteudo === 'texto'
       ? { type: 'text', text: conteudo }
@@ -1060,6 +1061,9 @@ Regras obrigatórias:
         data:       typeof it.data === 'string' ? it.data : '',
         descricao:  typeof it.descricao === 'string' ? it.descricao.slice(0, 200) : '',
         ...(it.fixa === true ? { fixa: true } : {}),
+        ...(Number.isInteger(it.parcelaAtual) && Number.isInteger(it.parcelasTotal) && it.parcelasTotal > 0
+          ? { parcelaAtual: it.parcelaAtual, parcelasTotal: it.parcelasTotal }
+          : {}),
       };
     });
 
