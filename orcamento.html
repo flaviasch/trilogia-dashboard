@@ -1899,12 +1899,12 @@
 
   <!-- Modal: categorias incertas detectadas pela IA -->
   <div id="modalCategoriasIncertas" class="modal-overlay hidden">
-    <div class="modal-card" style="max-width:480px;width:94%;">
+    <div class="modal-card wide" style="max-width:600px;width:94%;">
       <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0 0 6px;">Confirme as categorias</h3>
       <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
         A IA não teve certeza da categoria destes lançamentos. Confirme ou corrija — da próxima vez que esse estabelecimento aparecer, já entra categorizado sozinho.
       </p>
-      <div id="listaCategoriasIncertas" style="margin-bottom:16px;max-height:340px;overflow-y:auto;"></div>
+      <div id="listaCategoriasIncertas" style="margin-bottom:16px;max-height:60vh;overflow-y:auto;padding-right:14px;"></div>
       <datalist id="iaCategoriasSugeridas"></datalist>
       <button id="btnConfirmarCategoriasIncertas" class="btn-save" style="width:100%;font-size:14px;">Confirmar e continuar</button>
     </div>
@@ -7647,8 +7647,8 @@
       lista.innerHTML = incertos.map(({ item, idx }) => `
         <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
           <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;">
-            <span style="font-size:13px;font-weight:500;">${escapeHtml(item.descricao || '(sem descrição)')}</span>
-            <span style="font-size:13px;font-weight:700;color:var(--negative);white-space:nowrap;">${brl(item.valor)}</span>
+            <span style="font-size:13px;font-weight:500;min-width:0;">${escapeHtml(item.descricao || '(sem descrição)')}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--negative);white-space:nowrap;flex-shrink:0;">${brl(item.valor)}</span>
           </div>
           <input type="text" data-incerta-idx="${idx}" value="${escapeHtml(item.categoria)}" list="iaCategoriasSugeridas" autocomplete="off"
             style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
