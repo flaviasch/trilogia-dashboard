@@ -1906,7 +1906,10 @@
       </p>
       <div id="listaCategoriasIncertas" style="margin-bottom:16px;max-height:60vh;overflow-y:auto;padding-right:14px;"></div>
       <datalist id="iaCategoriasSugeridas"></datalist>
-      <button id="btnConfirmarCategoriasIncertas" class="btn-save" style="width:100%;font-size:14px;">Confirmar e continuar</button>
+      <div class="modal-actions">
+        <button id="btnCancelarCategoriasIncertas" class="btn-cancel">Cancelar importação</button>
+        <button id="btnConfirmarCategoriasIncertas" class="btn-save">Confirmar e continuar</button>
+      </div>
     </div>
   </div>
 
@@ -6721,7 +6724,8 @@
         });
 
         document.getElementById('modalImportarIA').classList.add('hidden');
-        await confirmarCategoriasIncertas(itensProcessados);
+        const { cancelado } = await confirmarCategoriasIncertas(itensProcessados);
+        if (cancelado) { toast('Importação cancelada.', 'info'); return; }
         await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado' });
       } catch (err) {
         toast(msgErro(err), 'error');
@@ -7631,7 +7635,7 @@
       const incertos = itens
         .map((item, idx) => ({ item, idx }))
         .filter(({ item }) => item.categoriaIncerta === true);
-      if (!incertos.length) return Promise.resolve(itens);
+      if (!incertos.length) return Promise.resolve({ itens, cancelado: false });
 
       const dl = document.getElementById('iaCategoriasSugeridas');
       if (dl) {
@@ -7657,6 +7661,10 @@
       document.getElementById('modalCategoriasIncertas')?.classList.remove('hidden');
 
       return new Promise(resolve => {
+        document.getElementById('btnCancelarCategoriasIncertas').onclick = () => {
+          document.getElementById('modalCategoriasIncertas')?.classList.add('hidden');
+          resolve({ itens, cancelado: true });
+        };
         document.getElementById('btnConfirmarCategoriasIncertas').onclick = async () => {
           const btn = document.getElementById('btnConfirmarCategoriasIncertas');
           setLoading(btn, true, 'Salvando…');
@@ -7675,7 +7683,7 @@
           await Promise.all(aprendizados);
           setLoading(btn, false);
           document.getElementById('modalCategoriasIncertas')?.classList.add('hidden');
-          resolve(itens);
+          resolve({ itens, cancelado: false });
         };
       });
     }
