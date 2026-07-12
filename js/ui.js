@@ -58,8 +58,9 @@ export function toast(msg, type = 'success', duration = 3500) {
 // ─── Confirm delete dialog ────────────────────────────────────────────────────
 // Substitui o confirm() nativo por um diálogo estilizado.
 // Uso: if (!(await confirmDelete('Excluir "Viagem Europa"?'))) return;
+// Uso com rótulo customizado (ação não é exclusão): confirmDelete(msg, 'Substituir')
 
-export function confirmDelete(msg) {
+export function confirmDelete(msg, labelConfirm = 'Excluir') {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
     overlay.style.cssText = [
@@ -79,7 +80,7 @@ export function confirmDelete(msg) {
           <button id="_cfYes" style="flex:1;background:rgba(248,113,113,.12);
             border:1px solid rgba(248,113,113,.35);border-radius:8px;padding:10px;
             font-size:13px;font-weight:600;color:#f87171;cursor:pointer;
-            font-family:'Inter',sans-serif">Excluir</button>
+            font-family:'Inter',sans-serif">${labelConfirm}</button>
         </div>
       </div>`;
 

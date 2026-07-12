@@ -6521,6 +6521,21 @@
         ? currentData
         : await buscarPeriodo(mesSalvar, anoSalvar, false);
 
+      // Já existe uma importação anterior nesse mês? saveOrcamento substitui
+      // tudo que não for manual/recorrente/parcelamento — avisa antes de
+      // sobrescrever silenciosamente (achado em 12/07/2026).
+      const seriamSubstituidos = [
+        ...dadosAlvo.receitas.filter(r => r.origem !== 'manual'),
+        ...dadosAlvo.despesas.filter(d => d._sourceMes == null && !d.recorrenteId && d.origem !== 'manual' && d.origem !== 'parcelamento'),
+      ].length;
+      if (seriamSubstituidos > 0) {
+        const confirmou = await confirmDelete(
+          `Você já tem ${seriamSubstituidos} lançamento${seriamSubstituidos > 1 ? 's' : ''} importado${seriamSubstituidos > 1 ? 's' : ''} anteriormente em ${MESES[mesSalvar - 1]}/${anoSalvar}. Importar de novo vai substituí-${seriamSubstituidos > 1 ? 'los' : 'lo'} pelos novos lançamentos. Continuar?`,
+          'Substituir',
+        );
+        if (!confirmou) { toast('Importação cancelada.', 'info'); return; }
+      }
+
       // Normaliza a categoria contra as já existentes no mês alvo — evita criar
       // "Alimentação"/"alimentação" como categorias diferentes só porque vieram
       // de fontes com grafia distinta.
