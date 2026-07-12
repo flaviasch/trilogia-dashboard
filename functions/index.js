@@ -1006,8 +1006,9 @@ Regras obrigatórias:
 - "categoriaIncerta": marque true quando você genuinamente não tiver confiança na categoria escolhida (estabelecimento desconhecido ou ambíguo, e que não está no mapeamento já confirmado acima) — mesmo assim preencha "categoria" com seu melhor palpite. Marque false quando tiver certeza, ou quando o estabelecimento estava no mapeamento já confirmado.
 - "valor" sempre positivo, tipo número (não string), com ponto decimal.
 - "data" no formato AAAA-MM-DD. Se o ano não estiver explícito, use o ano corrente (${new Date().getFullYear()}).
-- Responda APENAS com um array JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só, sem indentação nem quebras de linha entre os itens — extratos longos precisam caber no limite de tokens de saída). Formato de cada item:
-  {"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false}`;
+- "vencimentoFatura": SE o documento for uma fatura de cartão de crédito (não extrato de conta corrente) E tiver uma data de vencimento impressa (ex: "Vencimento: 20/07/2026", "Data de vencimento", "Pagamento até"), preencha no formato AAAA-MM-DD. Isso é o vencimento IMPRESSO no documento, não uma data que você calcula — se não encontrar essa informação impressa, ou se for extrato de conta corrente, use null.
+- Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só, sem indentação nem quebras de linha). Formato:
+  {"vencimentoFatura": "AAAA-MM-DD"|null, "itens": [{"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false}, ...]}`;
 
     const contentBlock = tipoConteudo === 'texto'
       ? { type: 'text', text: conteudo }
@@ -1051,11 +1052,16 @@ Regras obrigatórias:
 
     const textoResposta = respostaIA?.content?.[0]?.text || '';
     let itensBrutos;
+    let vencimentoFatura = null;
     try {
       // Remove eventuais cercas de markdown (```json ... ```) que o modelo às vezes inclui.
       const limpo = textoResposta.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-      itensBrutos = JSON.parse(limpo);
-      if (!Array.isArray(itensBrutos)) throw new Error('resposta não é um array');
+      const respostaParsed = JSON.parse(limpo);
+      if (!respostaParsed || !Array.isArray(respostaParsed.itens)) throw new Error('resposta não tem "itens" como array');
+      itensBrutos = respostaParsed.itens;
+      if (typeof respostaParsed.vencimentoFatura === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(respostaParsed.vencimentoFatura)) {
+        vencimentoFatura = respostaParsed.vencimentoFatura;
+      }
     } catch (err) {
       console.error(`[categorizarExtratoIA] Resposta da IA não é JSON válido (uid=${uid}):`, textoResposta.slice(0, 500));
       throw new HttpsError('internal', 'Não consegui interpretar esse arquivo. Tente novamente ou envie um extrato mais claro.');
@@ -1092,8 +1098,8 @@ Regras obrigatórias:
       };
     });
 
-    console.log(`[categorizarExtratoIA] uid=${uid} — ${itens.length} lançamentos extraídos via IA (tipoConteudo=${tipoConteudo})`);
-    return { itens };
+    console.log(`[categorizarExtratoIA] uid=${uid} — ${itens.length} lançamentos extraídos via IA (tipoConteudo=${tipoConteudo}, vencimentoFatura=${vencimentoFatura || 'não encontrado'})`);
+    return { itens, vencimentoFatura };
   },
 );
 

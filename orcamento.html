@@ -6719,19 +6719,27 @@
           tipoConteudo = 'texto';
         }
 
-        const { itens: itensIA } = await categorizarExtratoIA(conteudo, tipoConteudo);
+        const { itens: itensIA, vencimentoFatura } = await categorizarExtratoIA(conteudo, tipoConteudo);
 
         // Fatura de cartão selecionada: marca cada despesa como cartao. A fatura
-        // é UMA SÓ para o lote inteiro (calculada a partir de hoje, igual à
-        // "fatura aberta"), não recalculada por item a partir da data de cada
-        // transação — parcelas antigas (ex: "Parcela 4/9" comprada meses atrás)
-        // têm a data de compra original, que não é a fatura em que aparecem
-        // hoje; usar a data de cada item abria uma fatura errada por parcela.
+        // é UMA SÓ para o lote inteiro, não recalculada por item a partir da
+        // data de cada transação — parcelas antigas (ex: "Parcela 4/9" comprada
+        // meses atrás) têm a data de compra original, que não é a fatura em que
+        // aparecem hoje; usar a data de cada item abria uma fatura errada por
+        // parcela. Preferência: vencimento impresso no PDF (mais confiável) —
+        // se a IA não encontrou, cai para o cálculo pela data de hoje + corte.
         const cartaoIdSel = document.getElementById('iaCartaoSelecionado').value;
         const cartaoObjSel = cartaoIdSel ? _cartoes.find(c => c.id === cartaoIdSel) : null;
-        const hoje = new Date();
-        const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
-        const faturaLote = cartaoObjSel ? sugerirFatura(hojeStr, cartaoObjSel.diaCorte, cartaoObjSel.diaVencimento || 1) : null;
+        let faturaLote = null;
+        if (cartaoObjSel) {
+          if (vencimentoFatura) {
+            faturaLote = vencimentoFatura.slice(0, 7); // "AAAA-MM-DD" → "AAAA-MM"
+          } else {
+            const hoje = new Date();
+            const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
+            faturaLote = sugerirFatura(hojeStr, cartaoObjSel.diaCorte, cartaoObjSel.diaVencimento || 1);
+          }
+        }
         // Extrato de conta corrente com mais de uma conta cadastrada: marca
         // cada lançamento com a conta escolhida no Passo 1 (mesma regra do
         // lançamento manual — a conta só é perguntada quando não é cartão).
