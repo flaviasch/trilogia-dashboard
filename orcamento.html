@@ -1329,6 +1329,10 @@
               <option value="">Extrato de conta corrente</option>
             </select>
           </div>
+          <div id="iaFgConta" style="display:none;margin-bottom:18px;">
+            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">De qual conta?</label>
+            <select id="iaContaSelecionada" style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;"></select>
+          </div>
           <div class="modal-actions">
             <button class="btn-cancel" id="btnCancelarImportarIA1">Cancelar</button>
             <button class="btn-save" id="btnIaProximo">Continuar</button>
@@ -6614,11 +6618,24 @@
       const ativos = (_cartoes || []).filter(c => c.ativo);
       selCartao.innerHTML = '<option value="">Extrato de conta corrente</option>' +
         ativos.map(c => `<option value="${c.id}">${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`).join('');
+      const selConta = document.getElementById('iaContaSelecionada');
+      selConta.innerHTML = _contas.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nome)}</option>`).join('');
+      selConta.value = _contaAtivaId || CONTA_PRINCIPAL_ID;
+      _atualizarVisibilidadeContaIA();
       document.getElementById('iaErroAjuda').style.display = 'none';
       document.getElementById('iaPasso1').style.display = 'block';
       document.getElementById('iaPasso2').style.display = 'none';
       document.getElementById('modalImportarIA').classList.remove('hidden');
     });
+
+    // Conta corrente só faz sentido perguntar quando não é fatura de cartão
+    // (a conta debitada por uma fatura é escolhida na hora de confirmar o
+    // pagamento, não na importação) e quando há mais de uma conta cadastrada.
+    function _atualizarVisibilidadeContaIA() {
+      const ehCartao = !!document.getElementById('iaCartaoSelecionado').value;
+      document.getElementById('iaFgConta').style.display = (!ehCartao && _contas.length > 1) ? 'block' : 'none';
+    }
+    document.getElementById('iaCartaoSelecionado').addEventListener('change', _atualizarVisibilidadeContaIA);
 
     document.getElementById('btnCancelarImportarIA1').addEventListener('click', () => {
       document.getElementById('modalImportarIA').classList.add('hidden');
@@ -6678,11 +6695,17 @@
         // já usada no lançamento manual e na importação de SMS.
         const cartaoIdSel = document.getElementById('iaCartaoSelecionado').value;
         const cartaoObjSel = cartaoIdSel ? _cartoes.find(c => c.id === cartaoIdSel) : null;
-        const itensProcessados = cartaoObjSel
-          ? itensIA.map(i => i.tipo === 'despesa'
-              ? { ...i, cartao: true, cartaoId: cartaoObjSel.id, fatura: sugerirFatura(i.data, cartaoObjSel.diaCorte, cartaoObjSel.diaVencimento || 1) }
-              : i)
-          : itensIA;
+        // Extrato de conta corrente com mais de uma conta cadastrada: marca
+        // cada lançamento com a conta escolhida no Passo 1 (mesma regra do
+        // lançamento manual — a conta só é perguntada quando não é cartão).
+        const contaIdSel = (!cartaoObjSel && _contas.length > 1)
+          ? document.getElementById('iaContaSelecionada').value : '';
+        const itensProcessados = itensIA.map(i => {
+          if (cartaoObjSel && i.tipo === 'despesa') {
+            return { ...i, cartao: true, cartaoId: cartaoObjSel.id, fatura: sugerirFatura(i.data, cartaoObjSel.diaCorte, cartaoObjSel.diaVencimento || 1) };
+          }
+          return contaIdSel ? { ...i, contaId: contaIdSel } : i;
+        });
 
         document.getElementById('modalImportarIA').classList.add('hidden');
         await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado' });
