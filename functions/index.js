@@ -948,6 +948,10 @@ exports.categorizarExtratoIA = onCall(
     const auth = requireAuth(request);
     const { uid, conteudo, tipoConteudo } = request.data;
     requireSelfOrAdmin(request, uid);
+    // Ambiente de teste: só a conta master e a conta de teste da Luiza até validação.
+    if (!auth.token.admin && !TEST_ACCESS_EMAILS.includes(auth.token.email)) {
+      throw new HttpsError('permission-denied', 'Recurso em fase de testes — ainda não liberado para esta conta.');
+    }
     // 10 a cada 10min — uso típico é 1-2 importações por mês; generoso o bastante
     // contra abuso sem incomodar uso legítimo (várias contas/cartões no mesmo dia).
     await checkRateLimit(uid, 'categorizarExtratoIA', 10, 600_000);
@@ -3131,6 +3135,13 @@ exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) 
 const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
 
 /**
+ * Gate temporário de ambiente de teste: implementações novas em validação ficam
+ * visíveis só para a conta master e para a conta de teste da Luiza, até a Flávia
+ * confirmar e liberar para todas as mentoradas (acordado em 12/07/2026).
+ */
+const TEST_ACCESS_EMAILS = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+
+/**
  * Verifica o escopo e validade da Service Account (diagnóstico de segurança).
  * Retorna: email da SA, escopos configurados, se o secret existe.
  */
@@ -3968,7 +3979,10 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       // assinatura recorrente. Expira sozinho via verificarExpiracoes (mesmo cron
       // que já bloqueia dashboard/clube vencidos), a menos que a cliente assine o
       // Dashboard completo depois (assinaturaDashboard: true passa a manter acesso).
-      if (produtoEspecifico === 'raiox') {
+      // Ambiente de teste: até validação, só a compra da conta de teste da Luiza
+      // recebe o gate raio-x/degustação; demais compras seguem como antes (conta
+      // sem restrição de módulo, sem expiração de 30 dias).
+      if (produtoEspecifico === 'raiox' && TEST_ACCESS_EMAILS.includes(email.toLowerCase())) {
         const exp = new Date();
         exp.setDate(exp.getDate() + 30);
         flagsNovaM.dataExpiracao = exp.toISOString().slice(0, 10);

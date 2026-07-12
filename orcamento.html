@@ -1311,7 +1311,7 @@
       </span>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <input type="file" id="csvInput" class="upload-input" accept=".csv,.txt" />
-        <button class="btn-upload" id="btnUploadIA">🤖 Importar extrato com IA</button>
+        <button class="btn-upload" id="btnUploadIA" style="display:none;">🤖 Importar extrato com IA</button>
         <button class="btn-upload" id="btnUpload" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" title="Formato antigo — CSV já categorizado">Importar CSV</button>
       </div>
     </div>
@@ -3462,10 +3462,17 @@
       if (e.key === 'Enter') document.getElementById('btnSalvarAporte').click();
     });
 
+    // Ambiente de teste: recurso de importação por IA só liberado para a conta
+    // master e para a conta de teste da Luiza, até validação (12/07/2026).
+    const TEST_ACCESS_EMAILS = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+
     async function init(user) {
       const _admin = await isAdmin();
       if (!VIEW_AS_UID && _admin && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
       if (_admin) document.getElementById('linkAdmin').style.display = 'inline';
+      if (_admin || TEST_ACCESS_EMAILS.includes(user.email)) {
+        document.getElementById('btnUploadIA').style.display = '';
+      }
 
       // Raio-X (degustação de 30 dias, só Orçamento): esconde nav de Patrimônio/
       // Reservas/Jornada e mostra o CTA de upgrade. Não bloqueia o resto do init.

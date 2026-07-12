@@ -894,6 +894,16 @@
       signOut,
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+    // Expostos em window: o <script> inline de push/lançamento rápido roda em
+    // escopo global separado do módulo e precisa chamar essas funções.
+    window.getOrcamento = getOrcamento;
+    window.saveOrcamento = saveOrcamento;
+    window.savePushSubscription = savePushSubscription;
+    window.registrarEvento = registrarEvento;
+    window.msgErro = msgErro;
+    window.toast = toast;
+    window.setLoading = setLoading;
+
     let _ultimosSteps = []; // último cálculo de checkOnboarding, usado pelo modal "Por que essa ordem?"
 
     // ─── Auth guard ───────────────────────────────
