@@ -1322,6 +1322,12 @@
         <h2 class="modal-title">Importar extrato com IA</h2>
         <p class="modal-sub">Cole o texto do extrato/fatura, ou envie um arquivo (PDF, foto ou imagem). A IA extrai e categoriza as transações sozinha — sem precisar do agente externo.</p>
         <div style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Isso é fatura de cartão de crédito?</label>
+          <select id="iaCartaoSelecionado" style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+            <option value="">Não — é extrato de conta corrente</option>
+          </select>
+        </div>
+        <div style="margin-bottom:14px;">
           <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Colar texto do extrato/fatura</label>
           <textarea id="iaExtratoTexto" rows="8" placeholder="Cole aqui o texto do extrato ou da fatura..." style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
         </div>
@@ -6562,6 +6568,10 @@
     document.getElementById('btnUploadIA').addEventListener('click', () => {
       document.getElementById('iaExtratoTexto').value = '';
       document.getElementById('iaArquivoInput').value = '';
+      const selCartao = document.getElementById('iaCartaoSelecionado');
+      const ativos = (_cartoes || []).filter(c => c.ativo);
+      selCartao.innerHTML = '<option value="">Não — é extrato de conta corrente</option>' +
+        ativos.map(c => `<option value="${c.id}">${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`).join('');
       document.getElementById('modalImportarIA').classList.remove('hidden');
     });
 
@@ -6598,8 +6608,20 @@
         }
 
         const { itens: itensIA } = await categorizarExtratoIA(conteudo, tipoConteudo);
+
+        // Fatura de cartão selecionada: marca cada despesa como cartao + calcula
+        // a fatura correta (mês de vencimento, não o mês da compra) — mesma regra
+        // já usada no lançamento manual e na importação de SMS.
+        const cartaoIdSel = document.getElementById('iaCartaoSelecionado').value;
+        const cartaoObjSel = cartaoIdSel ? _cartoes.find(c => c.id === cartaoIdSel) : null;
+        const itensProcessados = cartaoObjSel
+          ? itensIA.map(i => i.tipo === 'despesa'
+              ? { ...i, cartao: true, cartaoId: cartaoObjSel.id, fatura: sugerirFatura(i.data, cartaoObjSel.diaCorte, cartaoObjSel.diaVencimento || 1) }
+              : i)
+          : itensIA;
+
         document.getElementById('modalImportarIA').classList.add('hidden');
-        await processarItensImportados(itensIA, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado' });
+        await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado' });
       } catch (err) {
         toast(msgErro(err), 'error');
       } finally {
