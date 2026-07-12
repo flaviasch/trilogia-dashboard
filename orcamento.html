@@ -1320,28 +1320,44 @@
     <div id="modalImportarIA" class="modal-overlay hidden">
       <div class="modal-card wide">
         <h2 class="modal-title">Importar extrato com IA</h2>
-        <p class="modal-sub">Cole o texto do extrato/fatura, ou envie um arquivo (PDF, foto ou imagem). A IA extrai e categoriza as transações sozinha — sem precisar do agente externo.</p>
-        <div style="margin-bottom:14px;">
-          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Isso é fatura de cartão de crédito?</label>
-          <select id="iaCartaoSelecionado" style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
-            <option value="">Não — é extrato de conta corrente</option>
-          </select>
+
+        <!-- Passo 1: de onde vem o extrato -->
+        <div id="iaPasso1">
+          <p class="modal-sub">Isso é fatura de cartão de crédito ou extrato de conta corrente?</p>
+          <div style="margin-bottom:18px;">
+            <select id="iaCartaoSelecionado" style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+              <option value="">Extrato de conta corrente</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-cancel" id="btnCancelarImportarIA1">Cancelar</button>
+            <button class="btn-save" id="btnIaProximo">Continuar</button>
+          </div>
         </div>
-        <div style="margin-bottom:14px;">
-          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Colar texto do extrato/fatura</label>
-          <textarea id="iaExtratoTexto" rows="8" placeholder="Cole aqui o texto do extrato ou da fatura..." style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
-        </div>
-        <div style="text-align:center;margin:10px 0;color:var(--text-muted);font-size:12px;">— ou —</div>
-        <div style="margin-bottom:18px;">
-          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, JPG ou PNG)</label>
-          <input type="file" id="iaArquivoInput" accept=".pdf,.jpg,.jpeg,.png" style="width:100%;font-size:13px;color:var(--text-secondary);">
-        </div>
-        <div class="modal-actions">
-          <button class="btn-cancel" id="btnCancelarImportarIA">Cancelar</button>
-          <button class="btn-save" id="btnConfirmarImportarIA">Categorizar e importar</button>
-        </div>
-        <div id="iaErroAjuda" style="display:none;text-align:center;margin-top:14px;">
-          <a href="ajuda.html#pdf-senha" target="_blank" style="color:var(--gold);font-size:13px;text-decoration:underline;">Preciso de ajuda →</a>
+
+        <!-- Passo 2: colar texto ou enviar arquivo -->
+        <div id="iaPasso2" style="display:none;">
+          <p class="modal-sub">Cole o texto do extrato/fatura, ou envie um arquivo (PDF, foto ou imagem). A IA extrai e categoriza as transações sozinha — sem precisar do agente externo.</p>
+          <div style="margin-bottom:14px;">
+            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Colar texto do extrato/fatura</label>
+            <textarea id="iaExtratoTexto" rows="8" placeholder="Cole aqui o texto do extrato ou da fatura..." style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+          </div>
+          <div style="text-align:center;margin:10px 0;color:var(--text-muted);font-size:12px;">— ou —</div>
+          <div style="margin-bottom:18px;">
+            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, JPG ou PNG)</label>
+            <input type="file" id="iaArquivoInput" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <button type="button" id="btnEscolherArquivo" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Escolher arquivo</button>
+              <span id="iaArquivoNome" style="font-size:13px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Nenhum arquivo selecionado</span>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-cancel" id="btnIaVoltar">← Voltar</button>
+            <button class="btn-save" id="btnConfirmarImportarIA">Categorizar e importar</button>
+          </div>
+          <div id="iaErroAjuda" style="display:none;text-align:center;margin-top:14px;">
+            <a href="ajuda.html#pdf-senha" target="_blank" style="color:var(--gold);font-size:13px;text-decoration:underline;">Preciso de ajuda →</a>
+          </div>
         </div>
       </div>
     </div>
@@ -6571,16 +6587,38 @@
     document.getElementById('btnUploadIA').addEventListener('click', () => {
       document.getElementById('iaExtratoTexto').value = '';
       document.getElementById('iaArquivoInput').value = '';
+      document.getElementById('iaArquivoNome').textContent = 'Nenhum arquivo selecionado';
       const selCartao = document.getElementById('iaCartaoSelecionado');
       const ativos = (_cartoes || []).filter(c => c.ativo);
-      selCartao.innerHTML = '<option value="">Não — é extrato de conta corrente</option>' +
+      selCartao.innerHTML = '<option value="">Extrato de conta corrente</option>' +
         ativos.map(c => `<option value="${c.id}">${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`).join('');
       document.getElementById('iaErroAjuda').style.display = 'none';
+      document.getElementById('iaPasso1').style.display = 'block';
+      document.getElementById('iaPasso2').style.display = 'none';
       document.getElementById('modalImportarIA').classList.remove('hidden');
     });
 
-    document.getElementById('btnCancelarImportarIA').addEventListener('click', () => {
+    document.getElementById('btnCancelarImportarIA1').addEventListener('click', () => {
       document.getElementById('modalImportarIA').classList.add('hidden');
+    });
+
+    document.getElementById('btnIaProximo').addEventListener('click', () => {
+      document.getElementById('iaPasso1').style.display = 'none';
+      document.getElementById('iaPasso2').style.display = 'block';
+    });
+
+    document.getElementById('btnIaVoltar').addEventListener('click', () => {
+      document.getElementById('iaPasso2').style.display = 'none';
+      document.getElementById('iaPasso1').style.display = 'block';
+    });
+
+    document.getElementById('btnEscolherArquivo').addEventListener('click', () => {
+      document.getElementById('iaArquivoInput').click();
+    });
+
+    document.getElementById('iaArquivoInput').addEventListener('change', (e) => {
+      const nome = e.target.files[0]?.name;
+      document.getElementById('iaArquivoNome').textContent = nome || 'Nenhum arquivo selecionado';
     });
 
     document.getElementById('btnConfirmarImportarIA').addEventListener('click', async () => {
