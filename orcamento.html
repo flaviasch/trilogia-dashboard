@@ -6466,8 +6466,12 @@
     function detectarMesCsv(itens) {
       const contagem = {};
       for (const item of itens) {
-        if (!item.data) continue;
-        const d = String(item.data).trim();
+        // Despesa de cartão: usa o mês da fatura (já calculado pela data de
+        // corte do cartão), não a data bruta da compra — senão o lote pode
+        // ser salvo num mês diferente do mês que a própria fatura indica.
+        const dataRef = (item.cartao && item.fatura) ? item.fatura : item.data;
+        if (!dataRef) continue;
+        const d = String(dataRef).trim();
         let mes, ano;
         if (d.includes('/')) {
           const p = d.split('/');
@@ -6477,6 +6481,9 @@
           if (p.length === 3) {
             if (p[0].length === 4) { ano = parseInt(p[0], 10); mes = parseInt(p[1], 10); }
             else                   { mes = parseInt(p[1], 10); ano = parseInt(p[2], 10); }
+          } else if (p.length === 2 && p[0].length === 4) {
+            // Formato "AAAA-MM" — usado pelo campo fatura (sugerirFatura)
+            ano = parseInt(p[0], 10); mes = parseInt(p[1], 10);
           }
         }
         if (ano < 100) ano += 2000;
