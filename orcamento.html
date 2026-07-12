@@ -6719,7 +6719,7 @@
           tipoConteudo = 'texto';
         }
 
-        const { itens: itensIA, vencimentoFatura } = await categorizarExtratoIA(conteudo, tipoConteudo);
+        const { itens: itensIA, vencimentoFatura, pagamentosFatura } = await categorizarExtratoIA(conteudo, tipoConteudo);
 
         // Fatura de cartão selecionada: marca cada despesa como cartao. A fatura
         // é UMA SÓ para o lote inteiro, não recalculada por item a partir da
@@ -6762,6 +6762,41 @@
         const { cancelado } = await confirmarCategoriasIncertas(itensProcessados);
         if (cancelado) { toast('Importação cancelada.', 'info'); return; }
         await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado', escopo: escopoLote });
+
+        // Extrato de conta corrente com linha de pagamento de fatura de cartão
+        // detectada: casa pelo nome do cartão e marca a fatura como paga sozinha.
+        if (!cartaoObjSel && pagamentosFatura?.length) {
+          const cartoesAtivos = (_cartoes || []).filter(c => c.ativo);
+          for (const pag of pagamentosFatura) {
+            const descNorm = pag.descricao.toUpperCase();
+            const cartaoPago = cartoesAtivos.find(c => descNorm.includes(c.nome.toUpperCase()));
+            if (!cartaoPago) continue;
+            const faturaKey = pag.data.slice(0, 7);
+            const [anoFat, mesFatStr] = faturaKey.split('-');
+            const mesFat = parseInt(mesFatStr, 10);
+            const nextMes = mesFat === 12 ? 1 : mesFat + 1;
+            const nextAno = mesFat === 12 ? Number(anoFat) + 1 : Number(anoFat);
+            const nextMesKey = `${nextAno}-${String(nextMes).padStart(2, '0')}`;
+            try {
+              await saveFaturaEstado(cartaoPago.id, faturaKey, {
+                estado: 'paga_total',
+                valorPago: pag.valor,
+                nomeCartao: cartaoPago.nome,
+                nextMesKey,
+                ...(contaIdSel ? { contaId: contaIdSel } : {}),
+              });
+              _faturaEstados[`${cartaoPago.id}_${faturaKey}`] = {
+                ...(_faturaEstados[`${cartaoPago.id}_${faturaKey}`] || {}),
+                estado: 'paga_total', valorPago: pag.valor, ...(contaIdSel ? { contaId: contaIdSel } : {}),
+              };
+              toast(`Fatura ${cartaoPago.nome} de ${MESES[mesFat - 1]}/${anoFat} marcada como paga.`, 'success');
+              renderFaturas(currentData);
+              render(currentData);
+            } catch (e) {
+              console.warn('[importar-ia] Falha ao marcar fatura como paga:', e.message);
+            }
+          }
+        }
       } catch (err) {
         toast(msgErro(err), 'error');
         const ehErroSenha = /protegid[ao] por senha/i.test(err?.message || '');

@@ -999,7 +999,7 @@ ${listaAprendidas.join('\n')}
 Regras obrigatórias:
 - Ignore saldos, linhas de resumo/cabeçalho e duplicidades.
 - "tipo" é "despesa" para gastos e "receita" para entradas (salário, transferência recebida, estorno).
-- Pagamento de fatura de cartão de crédito debitado na conta corrente NÃO é uma despesa própria — ignore essa linha (o gasto real já está nos itens individuais da fatura, se ela também foi enviada).
+- Pagamento de fatura de cartão de crédito debitado na conta corrente NÃO é uma despesa própria — NÃO inclua essa linha em "itens" (o gasto real já está nos itens individuais da fatura, se ela também foi enviada). Em vez disso, inclua essa linha em "pagamentosFatura" (ver formato abaixo), com a descrição completa da linha (para identificar qual cartão/bandeira foi pago, ex: "PGTO CARTAO VISA", "PAGAMENTO FATURA MASTERCARD"), o valor e a data.
 - Identifique o estabelecimento pelo nome mesmo com abreviações/sufixos de operadora (ex: "ANTHROPIC* CLAUDE SUB", "NETFLIX.COM", "UBER *TRIP") e categorize pelo que o estabelecimento realmente vende, não pela primeira palavra parecida. Assinatura de software/IA (ChatGPT, Claude, Notion, Adobe, Spotify, etc.) → categoria 17 (Streaming), nunca Cosméticos ou outra categoria não relacionada. Na dúvida entre duas categorias, prefira a mais genérica da mesma área (ex: "Outros Saúde") a uma categoria de área errada.
 - "fixa": true para despesas que claramente se repetem todo mês com valor igual ou parecido — aluguel, mensalidade, assinatura de streaming, academia, tratamento recorrente — MESMO quando pagas em parcelas (ex: "Academia Parcela 2/12" é fixa: true, porque é uma mensalidade parcelada). Compras avulsas de cartão parceladas que não se repetem depois de quitadas (eletrônico, móvel, roupa, viagem) NUNCA são fixa: true.
 - "parcelaAtual" e "parcelasTotal": quando a descrição contiver um padrão de parcelamento (ex: "Parcela 2/12", "Parc 02/12", "2/12"), preencha os dois números; senão, null nos dois. Preencha isso independente do valor de "fixa".
@@ -1007,8 +1007,9 @@ Regras obrigatórias:
 - "valor" sempre positivo, tipo número (não string), com ponto decimal.
 - "data" no formato AAAA-MM-DD. Se o ano não estiver explícito, use o ano corrente (${new Date().getFullYear()}).
 - "vencimentoFatura": SE o documento for uma fatura de cartão de crédito (não extrato de conta corrente) E tiver uma data de vencimento impressa (ex: "Vencimento: 20/07/2026", "Data de vencimento", "Pagamento até"), preencha no formato AAAA-MM-DD. Isso é o vencimento IMPRESSO no documento, não uma data que você calcula — se não encontrar essa informação impressa, ou se for extrato de conta corrente, use null.
+- "pagamentosFatura": array com as linhas de pagamento de fatura de cartão identificadas (ver regra acima) — [] se não houver nenhuma ou se o documento for a própria fatura (não faz sentido dentro de uma fatura).
 - Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só, sem indentação nem quebras de linha). Formato:
-  {"vencimentoFatura": "AAAA-MM-DD"|null, "itens": [{"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false}, ...]}`;
+  {"vencimentoFatura": "AAAA-MM-DD"|null, "pagamentosFatura": [{"descricao": "<texto completo da linha>", "valor": <número>, "data": "AAAA-MM-DD"}], "itens": [{"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false}, ...]}`;
 
     const contentBlock = tipoConteudo === 'texto'
       ? { type: 'text', text: conteudo }
@@ -1053,6 +1054,7 @@ Regras obrigatórias:
     const textoResposta = respostaIA?.content?.[0]?.text || '';
     let itensBrutos;
     let vencimentoFatura = null;
+    let pagamentosFaturaBrutos = [];
     try {
       // Remove eventuais cercas de markdown (```json ... ```) que o modelo às vezes inclui.
       const limpo = textoResposta.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
@@ -1061,6 +1063,9 @@ Regras obrigatórias:
       itensBrutos = respostaParsed.itens;
       if (typeof respostaParsed.vencimentoFatura === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(respostaParsed.vencimentoFatura)) {
         vencimentoFatura = respostaParsed.vencimentoFatura;
+      }
+      if (Array.isArray(respostaParsed.pagamentosFatura)) {
+        pagamentosFaturaBrutos = respostaParsed.pagamentosFatura;
       }
     } catch (err) {
       console.error(`[categorizarExtratoIA] Resposta da IA não é JSON válido (uid=${uid}):`, textoResposta.slice(0, 500));
@@ -1098,8 +1103,13 @@ Regras obrigatórias:
       };
     });
 
-    console.log(`[categorizarExtratoIA] uid=${uid} — ${itens.length} lançamentos extraídos via IA (tipoConteudo=${tipoConteudo}, vencimentoFatura=${vencimentoFatura || 'não encontrado'})`);
-    return { itens, vencimentoFatura };
+    const pagamentosFatura = pagamentosFaturaBrutos
+      .filter(p => p && typeof p.descricao === 'string' && Number.isFinite(Number(p.valor)) && typeof p.data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.data))
+      .map(p => ({ descricao: p.descricao.slice(0, 200), valor: Number(p.valor), data: p.data }))
+      .slice(0, 20);
+
+    console.log(`[categorizarExtratoIA] uid=${uid} — ${itens.length} lançamentos extraídos via IA (tipoConteudo=${tipoConteudo}, vencimentoFatura=${vencimentoFatura || 'não encontrado'}, pagamentosFatura=${pagamentosFatura.length})`);
+    return { itens, vencimentoFatura, pagamentosFatura };
   },
 );
 
