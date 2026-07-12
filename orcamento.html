@@ -6528,7 +6528,7 @@
      * Extraído em 10/07/2026 para ser reaproveitado pela importação via IA sem
      * duplicar essa lógica (ver categorizarExtratoIA em functions/index.js).
      */
-    async function processarItensImportados(itensCsv, { origemLabel = 'Raio-X', origemTag = 'csv', eventoNome = 'csv_importado' } = {}) {
+    async function processarItensImportados(itensCsv, { origemLabel = 'Raio-X', origemTag = 'csv', eventoNome = 'csv_importado', escopo = null } = {}) {
       // Detecta mês alvo pelas datas; usa período atual se não encontrar
       const detectado = detectarMesCsv(itensCsv);
       const { mes: mesAtual, ano: anoAtual } = currentData.periodo;
@@ -6541,12 +6541,25 @@
         ? currentData
         : await buscarPeriodo(mesSalvar, anoSalvar, false);
 
-      // Já existe uma importação anterior nesse mês? saveOrcamento substitui
-      // tudo que não for manual/recorrente/parcelamento — avisa antes de
-      // sobrescrever silenciosamente (achado em 12/07/2026).
+      // Escopo do lote (achado em 12/07/2026): sem isso, importar a fatura de
+      // um cartão substituía TAMBÉM o extrato de conta corrente já importado
+      // no mesmo mês (e vice-versa). Cada lote só deve substituir itens do
+      // mesmo escopo — cartão específico, ou conta corrente (não-cartão).
+      // escopo=null (import de CSV legado) preserva o comportamento antigo:
+      // qualquer importação substitui tudo que não for manual/recorrente/parcelamento.
+      const pertenceEscopo = (item) => {
+        if (!escopo) return true;
+        return escopo.tipo === 'cartao'
+          ? (!!item.cartao && item.cartaoId === escopo.cartaoId)
+          : !item.cartao;
+      };
+
+      // Já existe uma importação anterior desse mesmo escopo nesse mês?
+      // saveOrcamento substitui tudo que não for manual/recorrente/parcelamento
+      // — avisa antes de sobrescrever silenciosamente (achado em 12/07/2026).
       const seriamSubstituidos = [
-        ...dadosAlvo.receitas.filter(r => r.origem !== 'manual'),
-        ...dadosAlvo.despesas.filter(d => d._sourceMes == null && !d.recorrenteId && d.origem !== 'manual' && d.origem !== 'parcelamento'),
+        ...dadosAlvo.receitas.filter(r => r.origem !== 'manual' && pertenceEscopo(r)),
+        ...dadosAlvo.despesas.filter(d => d._sourceMes == null && !d.recorrenteId && d.origem !== 'manual' && d.origem !== 'parcelamento' && pertenceEscopo(d)),
       ].length;
       if (seriamSubstituidos > 0) {
         const confirmou = await confirmDelete(
@@ -6572,13 +6585,15 @@
       // Despesas marcadas como fixas — serão propostas como recorrentes
       const fixasDetectadas = itensNormalizados.filter(i => i.fixa && i.tipo === 'despesa');
 
-      // Preserva recorrentes, parcelamentos e lançamentos manuais — importação não sobrescreve
+      // Preserva recorrentes, parcelamentos, lançamentos manuais e qualquer item
+      // fora do escopo deste lote (ex: itens de cartão quando o lote é de conta
+      // corrente, ou vice-versa) — importação não sobrescreve nada disso.
       const preservar = [
         ...dadosAlvo.receitas
-          .filter(r => r.origem === 'manual')
-          .map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: 'manual' })),
+          .filter(r => r.origem === 'manual' || !pertenceEscopo(r))
+          .map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: r.origem || 'manual', ...(r.pendente ? { pendente: true } : {}), ...(r.confirmado ? { confirmado: true } : {}) })),
         ...dadosAlvo.despesas
-          .filter(d => d._sourceMes == null && (d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento'))
+          .filter(d => d._sourceMes == null && (d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento' || !pertenceEscopo(d)))
           .map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.parcelamentoId ? { parcelamentoId: d.parcelamentoId, parcelaAtual: d.parcelaAtual, parcelasTotal: d.parcelasTotal } : {}) })),
       ];
 
@@ -6729,10 +6744,16 @@
           return contaIdSel ? { ...i, contaId: contaIdSel } : i;
         });
 
+        // Escopo do lote: um cartão específico, ou conta corrente — usado pra
+        // não deixar uma importação apagar a de outro escopo no mesmo mês
+        // (ex: importar a fatura do cartão não pode apagar o extrato da conta
+        // corrente já importado, achado em 12/07/2026).
+        const escopoLote = cartaoObjSel ? { tipo: 'cartao', cartaoId: cartaoObjSel.id } : { tipo: 'conta' };
+
         document.getElementById('modalImportarIA').classList.add('hidden');
         const { cancelado } = await confirmarCategoriasIncertas(itensProcessados);
         if (cancelado) { toast('Importação cancelada.', 'info'); return; }
-        await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado' });
+        await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado', escopo: escopoLote });
       } catch (err) {
         toast(msgErro(err), 'error');
         const ehErroSenha = /protegid[ao] por senha/i.test(err?.message || '');
