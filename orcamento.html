@@ -6706,11 +6706,17 @@
 
         const { itens: itensIA } = await categorizarExtratoIA(conteudo, tipoConteudo);
 
-        // Fatura de cartão selecionada: marca cada despesa como cartao + calcula
-        // a fatura correta (mês de vencimento, não o mês da compra) — mesma regra
-        // já usada no lançamento manual e na importação de SMS.
+        // Fatura de cartão selecionada: marca cada despesa como cartao. A fatura
+        // é UMA SÓ para o lote inteiro (calculada a partir de hoje, igual à
+        // "fatura aberta"), não recalculada por item a partir da data de cada
+        // transação — parcelas antigas (ex: "Parcela 4/9" comprada meses atrás)
+        // têm a data de compra original, que não é a fatura em que aparecem
+        // hoje; usar a data de cada item abria uma fatura errada por parcela.
         const cartaoIdSel = document.getElementById('iaCartaoSelecionado').value;
         const cartaoObjSel = cartaoIdSel ? _cartoes.find(c => c.id === cartaoIdSel) : null;
+        const hoje = new Date();
+        const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
+        const faturaLote = cartaoObjSel ? sugerirFatura(hojeStr, cartaoObjSel.diaCorte, cartaoObjSel.diaVencimento || 1) : null;
         // Extrato de conta corrente com mais de uma conta cadastrada: marca
         // cada lançamento com a conta escolhida no Passo 1 (mesma regra do
         // lançamento manual — a conta só é perguntada quando não é cartão).
@@ -6718,7 +6724,7 @@
           ? document.getElementById('iaContaSelecionada').value : '';
         const itensProcessados = itensIA.map(i => {
           if (cartaoObjSel && i.tipo === 'despesa') {
-            return { ...i, cartao: true, cartaoId: cartaoObjSel.id, fatura: sugerirFatura(i.data, cartaoObjSel.diaCorte, cartaoObjSel.diaVencimento || 1) };
+            return { ...i, cartao: true, cartaoId: cartaoObjSel.id, fatura: faturaLote };
           }
           return contaIdSel ? { ...i, contaId: contaIdSel } : i;
         });
