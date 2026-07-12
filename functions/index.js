@@ -677,6 +677,13 @@ function _resolverCategoria(cat) {
     : cat;
 }
 
+// Chave normalizada de nome de estabelecimento — usada para lembrar a
+// categoria que a usuária já confirmou para esse estabelecimento (aprendizado
+// da importação por IA, ver categorizarExtratoIA/salvarCategoriaAprendida).
+function _normalizarEstabelecimento(desc) {
+  return String(desc || '').trim().toUpperCase().replace(/\s+/g, ' ').slice(0, 200);
+}
+
 // Chave normalizada de categoria (minúscula, sem acento, sem espaços nas
 // pontas) — usada só pra COMPARAR/AGRUPAR categorias, nunca reescreve o
 // texto salvo de um lançamento existente. Mesma lógica do cliente (orcamento.html).
@@ -974,11 +981,21 @@ exports.categorizarExtratoIA = onCall(
     const listaCategorias = Object.entries(_CATEGORIAS_CODIGO)
       .map(([cod, nome]) => `${cod}=${nome}`).join(', ');
 
+    // Aprendizado por estabelecimento: categorias que a própria usuária já
+    // confirmou manualmente em importações anteriores (ver salvarCategoriaAprendida).
+    const aprendidasSnap = await db.collection('mentoradas').doc(uid).collection('categoriasAprendidas').get();
+    const aprendidasMap = {};
+    aprendidasSnap.docs.forEach(d => { aprendidasMap[d.id] = d.data().categoria; });
+    const listaAprendidas = aprendidasSnap.docs.map(d => `${d.data().descricaoOriginal} → ${d.data().categoria}`);
+
     const systemPrompt = `Você extrai e categoriza transações de extratos bancários e faturas de cartão de crédito brasileiros.
 
 Categorias válidas (código=nome) — use SEMPRE o código numérico, nunca invente categoria fora desta lista:
 ${listaCategorias}
-
+${listaAprendidas.length ? `
+Mapeamento de estabelecimentos já confirmado pela própria usuária em importações anteriores — sempre que um desses aparecer (mesmo com pequenas variações de grafia, sufixo ou pontuação), use exatamente o código correspondente a essa categoria na lista acima, e marque "categoriaIncerta": false:
+${listaAprendidas.join('\n')}
+` : ''}
 Regras obrigatórias:
 - Ignore saldos, linhas de resumo/cabeçalho e duplicidades.
 - "tipo" é "despesa" para gastos e "receita" para entradas (salário, transferência recebida, estorno).
@@ -986,10 +1003,11 @@ Regras obrigatórias:
 - Identifique o estabelecimento pelo nome mesmo com abreviações/sufixos de operadora (ex: "ANTHROPIC* CLAUDE SUB", "NETFLIX.COM", "UBER *TRIP") e categorize pelo que o estabelecimento realmente vende, não pela primeira palavra parecida. Assinatura de software/IA (ChatGPT, Claude, Notion, Adobe, Spotify, etc.) → categoria 17 (Streaming), nunca Cosméticos ou outra categoria não relacionada. Na dúvida entre duas categorias, prefira a mais genérica da mesma área (ex: "Outros Saúde") a uma categoria de área errada.
 - "fixa": true para despesas que claramente se repetem todo mês com valor igual ou parecido — aluguel, mensalidade, assinatura de streaming, academia, tratamento recorrente — MESMO quando pagas em parcelas (ex: "Academia Parcela 2/12" é fixa: true, porque é uma mensalidade parcelada). Compras avulsas de cartão parceladas que não se repetem depois de quitadas (eletrônico, móvel, roupa, viagem) NUNCA são fixa: true.
 - "parcelaAtual" e "parcelasTotal": quando a descrição contiver um padrão de parcelamento (ex: "Parcela 2/12", "Parc 02/12", "2/12"), preencha os dois números; senão, null nos dois. Preencha isso independente do valor de "fixa".
+- "categoriaIncerta": marque true quando você genuinamente não tiver confiança na categoria escolhida (estabelecimento desconhecido ou ambíguo, e que não está no mapeamento já confirmado acima) — mesmo assim preencha "categoria" com seu melhor palpite. Marque false quando tiver certeza, ou quando o estabelecimento estava no mapeamento já confirmado.
 - "valor" sempre positivo, tipo número (não string), com ponto decimal.
 - "data" no formato AAAA-MM-DD. Se o ano não estiver explícito, use o ano corrente (${new Date().getFullYear()}).
 - Responda APENAS com um array JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só, sem indentação nem quebras de linha entre os itens — extratos longos precisam caber no limite de tokens de saída). Formato de cada item:
-  {"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>}`;
+  {"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false}`;
 
     const contentBlock = tipoConteudo === 'texto'
       ? { type: 'text', text: conteudo }
@@ -1055,16 +1073,22 @@ Regras obrigatórias:
       if (!TIPOS_ITEM.has(it.tipo)) throw new HttpsError('internal', `Item ${i + 1}: tipo inválido retornado pela IA.`);
       const valor = Number(it.valor);
       if (!Number.isFinite(valor) || valor < 0) throw new HttpsError('internal', `Item ${i + 1}: valor inválido retornado pela IA.`);
+      const descricao = typeof it.descricao === 'string' ? it.descricao.slice(0, 200) : '';
+      // Se já existe categoria aprendida pra esse estabelecimento, ela sempre
+      // vence — mesmo que a IA não tenha aplicado corretamente o mapeamento
+      // do prompt (garante consistência sem depender só do modelo obedecer).
+      const categoriaAprendida = aprendidasMap[_normalizarEstabelecimento(descricao)];
       return {
-        categoria:  _resolverCategoria(String(it.categoria ?? '')) || 'Outros',
+        categoria:  categoriaAprendida || _resolverCategoria(String(it.categoria ?? '')) || 'Outros',
         tipo:       it.tipo,
         valor,
         data:       typeof it.data === 'string' ? it.data : '',
-        descricao:  typeof it.descricao === 'string' ? it.descricao.slice(0, 200) : '',
+        descricao,
         ...(it.fixa === true ? { fixa: true } : {}),
         ...(Number.isInteger(it.parcelaAtual) && Number.isInteger(it.parcelasTotal) && it.parcelasTotal > 0
           ? { parcelaAtual: it.parcelaAtual, parcelasTotal: it.parcelasTotal }
           : {}),
+        ...(!categoriaAprendida && it.categoriaIncerta === true ? { categoriaIncerta: true } : {}),
       };
     });
 
@@ -1072,6 +1096,34 @@ Regras obrigatórias:
     return { itens };
   },
 );
+
+/**
+ * Salva a categoria que a usuária confirmou manualmente para um estabelecimento
+ * cuja categorização a IA marcou como incerta — essa mesma categoria passa a
+ * ser aplicada automaticamente em futuras importações via categorizarExtratoIA.
+ */
+exports.salvarCategoriaAprendida = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const { uid, descricao, categoria } = request.data;
+  requireSelfOrAdmin(request, uid);
+  // Ambiente de teste: só a conta master e a conta de teste da Luiza até validação.
+  if (!auth.token.admin && !TEST_ACCESS_EMAILS.includes(auth.token.email)) {
+    throw new HttpsError('permission-denied', 'Recurso em fase de testes — ainda não liberado para esta conta.');
+  }
+  if (!descricao || typeof descricao !== 'string' || !descricao.trim())
+    throw new HttpsError('invalid-argument', 'descricao é obrigatória.');
+  if (!categoria || typeof categoria !== 'string' || !categoria.trim())
+    throw new HttpsError('invalid-argument', 'categoria é obrigatória.');
+  await checkRateLimit(uid, 'salvarCategoriaAprendida', 30, 60_000);
+
+  const chave = _normalizarEstabelecimento(descricao);
+  await db.collection('mentoradas').doc(uid).collection('categoriasAprendidas').doc(chave).set({
+    categoria: categoria.trim().slice(0, 200),
+    descricaoOriginal: descricao.trim().slice(0, 200),
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true };
+});
 
 // ─── FATURA ESTADOS ───────────────────────────────────────────────────────────
 

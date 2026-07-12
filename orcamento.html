@@ -1897,6 +1897,19 @@
     </div>
   </div>
 
+  <!-- Modal: categorias incertas detectadas pela IA -->
+  <div id="modalCategoriasIncertas" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width:480px;width:94%;">
+      <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0 0 6px;">Confirme as categorias</h3>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        A IA não teve certeza da categoria destes lançamentos. Confirme ou corrija — da próxima vez que esse estabelecimento aparecer, já entra categorizado sozinho.
+      </p>
+      <div id="listaCategoriasIncertas" style="margin-bottom:16px;max-height:340px;overflow-y:auto;"></div>
+      <datalist id="iaCategoriasSugeridas"></datalist>
+      <button id="btnConfirmarCategoriasIncertas" class="btn-save" style="width:100%;font-size:14px;">Confirmar e continuar</button>
+    </div>
+  </div>
+
   <!-- Modal Despesas Fixas -->
   <div id="modalFixas" class="modal-overlay hidden">
     <div class="modal-card" style="max-width:520px;width:94%;">
@@ -2332,7 +2345,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA } from './js/api.js?v=30';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida } from './js/api.js?v=31';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -6708,6 +6721,7 @@
         });
 
         document.getElementById('modalImportarIA').classList.add('hidden');
+        await confirmarCategoriasIncertas(itensProcessados);
         await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado' });
       } catch (err) {
         toast(msgErro(err), 'error');
@@ -7608,6 +7622,63 @@
     // _cartoesReady é preenchido dentro de init() (após auth estar pronto)
     // para garantir que auth.currentUser != null quando getCartoes() é chamado
     let _cartoesReady = Promise.resolve();
+
+    // ─── Modal: categorias incertas detectadas pela IA ───────────────────────
+    // Mostra um passo de confirmação antes de salvar, quando a IA marcou algum
+    // item como "categoriaIncerta". A escolha da usuária é aprendida (ver
+    // salvarCategoriaAprendida) e passa a ser aplicada sozinha da próxima vez.
+    function confirmarCategoriasIncertas(itens) {
+      const incertos = itens
+        .map((item, idx) => ({ item, idx }))
+        .filter(({ item }) => item.categoriaIncerta === true);
+      if (!incertos.length) return Promise.resolve(itens);
+
+      const dl = document.getElementById('iaCategoriasSugeridas');
+      if (dl) {
+        const cats = new Set([
+          ...currentData.despesas.map(d => d.categoria),
+          ...currentData.receitas.map(r => r.categoria),
+          ..._recorrentes.map(r => r.categoria),
+        ]);
+        dl.innerHTML = [...cats].filter(Boolean).map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
+      }
+
+      const lista = document.getElementById('listaCategoriasIncertas');
+      lista.innerHTML = incertos.map(({ item, idx }) => `
+        <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;">
+            <span style="font-size:13px;font-weight:500;">${escapeHtml(item.descricao || '(sem descrição)')}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--negative);white-space:nowrap;">${brl(item.valor)}</span>
+          </div>
+          <input type="text" data-incerta-idx="${idx}" value="${escapeHtml(item.categoria)}" list="iaCategoriasSugeridas" autocomplete="off"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+        </div>`).join('');
+
+      document.getElementById('modalCategoriasIncertas')?.classList.remove('hidden');
+
+      return new Promise(resolve => {
+        document.getElementById('btnConfirmarCategoriasIncertas').onclick = async () => {
+          const btn = document.getElementById('btnConfirmarCategoriasIncertas');
+          setLoading(btn, true, 'Salvando…');
+          const aprendizados = [];
+          lista.querySelectorAll('[data-incerta-idx]').forEach(input => {
+            const idx = Number(input.dataset.incertaIdx);
+            const novaCategoria = input.value.trim();
+            if (novaCategoria) {
+              itens[idx] = { ...itens[idx], categoria: novaCategoria };
+              delete itens[idx].categoriaIncerta;
+              aprendizados.push(salvarCategoriaAprendida(itens[idx].descricao, novaCategoria).catch(() => {}));
+            } else {
+              delete itens[idx].categoriaIncerta;
+            }
+          });
+          await Promise.all(aprendizados);
+          setLoading(btn, false);
+          document.getElementById('modalCategoriasIncertas')?.classList.add('hidden');
+          resolve(itens);
+        };
+      });
+    }
 
     // ─── Modal: fixas detectadas no CSV (11.2) ───────────────────────────────
     let _fixasCsvPendentes = [];

@@ -203,6 +203,15 @@ export async function categorizarExtratoIA(conteudo, tipoConteudo) {
 }
 
 /**
+ * Salva a categoria que a usuária confirmou para um estabelecimento cuja
+ * categorização a IA marcou como incerta — passa a ser aplicada automaticamente
+ * em futuras importações via categorizarExtratoIA.
+ */
+export async function salvarCategoriaAprendida(descricao, categoria) {
+  return call('salvarCategoriaAprendida')({ uid: uidAtual(), descricao, categoria });
+}
+
+/**
  * Salva ativos importados do CSV (IR ou corretora).
  * @param {Array<{classe, valor}>} itens
  * @param {'ir'|'corretora'} tipo
