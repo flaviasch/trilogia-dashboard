@@ -1897,6 +1897,21 @@
     </div>
   </div>
 
+  <!-- Modal: pagamento de fatura detectado, sem cartão identificado com segurança -->
+  <div id="modalPagamentosFatura" class="modal-overlay hidden">
+    <div class="modal-card wide" style="max-width:520px;width:94%;">
+      <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0 0 6px;">Pagamento de fatura detectado</h3>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        Encontramos pagamento(s) de fatura de cartão neste extrato, mas não conseguimos identificar automaticamente qual cartão. Selecione o cartão de cada um, ou deixe em branco para não marcar como pago.
+      </p>
+      <div id="listaPagamentosFatura" style="margin-bottom:16px;max-height:50vh;overflow-y:auto;padding-right:14px;"></div>
+      <div class="modal-actions">
+        <button id="btnPularPagamentosFatura" class="btn-cancel">Pular</button>
+        <button id="btnConfirmarPagamentosFatura" class="btn-save">Marcar como pagas</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: categorias incertas detectadas pela IA -->
   <div id="modalCategoriasIncertas" class="modal-overlay hidden">
     <div class="modal-card wide" style="max-width:600px;width:94%;">
@@ -6764,38 +6779,25 @@
         await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado', escopo: escopoLote });
 
         // Extrato de conta corrente com linha de pagamento de fatura de cartão
-        // detectada: casa pelo nome do cartão e marca a fatura como paga sozinha.
+        // detectada: casa pelo nome do cartão. Se identificou o cartão E a
+        // fatura ainda está pendente (não paga), confirma sozinho. Senão,
+        // pergunta numa telinha em vez de simplesmente ignorar (achado em 13/07/2026).
         if (!cartaoObjSel && pagamentosFatura?.length) {
           const cartoesAtivos = (_cartoes || []).filter(c => c.ativo);
+          const naoIdentificados = [];
           for (const pag of pagamentosFatura) {
             const descNorm = pag.descricao.toUpperCase();
             const cartaoPago = cartoesAtivos.find(c => descNorm.includes(c.nome.toUpperCase()));
-            if (!cartaoPago) continue;
             const faturaKey = pag.data.slice(0, 7);
-            const [anoFat, mesFatStr] = faturaKey.split('-');
-            const mesFat = parseInt(mesFatStr, 10);
-            const nextMes = mesFat === 12 ? 1 : mesFat + 1;
-            const nextAno = mesFat === 12 ? Number(anoFat) + 1 : Number(anoFat);
-            const nextMesKey = `${nextAno}-${String(nextMes).padStart(2, '0')}`;
-            try {
-              await saveFaturaEstado(cartaoPago.id, faturaKey, {
-                estado: 'paga_total',
-                valorPago: pag.valor,
-                nomeCartao: cartaoPago.nome,
-                nextMesKey,
-                ...(contaIdSel ? { contaId: contaIdSel } : {}),
-              });
-              _faturaEstados[`${cartaoPago.id}_${faturaKey}`] = {
-                ...(_faturaEstados[`${cartaoPago.id}_${faturaKey}`] || {}),
-                estado: 'paga_total', valorPago: pag.valor, ...(contaIdSel ? { contaId: contaIdSel } : {}),
-              };
-              toast(`Fatura ${cartaoPago.nome} de ${MESES[mesFat - 1]}/${anoFat} marcada como paga.`, 'success');
-              renderFaturas(currentData);
-              render(currentData);
-            } catch (e) {
-              console.warn('[importar-ia] Falha ao marcar fatura como paga:', e.message);
+            const jaPaga = cartaoPago && ['paga_total', 'paga_parcial'].includes(_faturaEstados[`${cartaoPago.id}_${faturaKey}`]?.estado);
+            if (cartaoPago && !jaPaga) {
+              await _marcarFaturaComoPaga(cartaoPago, pag, faturaKey, contaIdSel);
+            } else if (!cartaoPago) {
+              naoIdentificados.push(pag);
             }
+            // jaPaga && cartaoPago: já está paga, nada a fazer, sem perguntar de novo.
           }
+          if (naoIdentificados.length) await confirmarPagamentosFatura(naoIdentificados, contaIdSel);
         }
       } catch (err) {
         toast(msgErro(err), 'error');
@@ -7696,6 +7698,79 @@
     // _cartoesReady é preenchido dentro de init() (após auth estar pronto)
     // para garantir que auth.currentUser != null quando getCartoes() é chamado
     let _cartoesReady = Promise.resolve();
+
+    // ─── Marca uma fatura como paga a partir de um pagamento detectado no
+    // extrato de conta corrente (importação por IA) ───────────────────────────
+    async function _marcarFaturaComoPaga(cartaoObj, pag, faturaKey, contaIdSel) {
+      const [anoFat, mesFatStr] = faturaKey.split('-');
+      const mesFat = parseInt(mesFatStr, 10);
+      const nextMes = mesFat === 12 ? 1 : mesFat + 1;
+      const nextAno = mesFat === 12 ? Number(anoFat) + 1 : Number(anoFat);
+      const nextMesKey = `${nextAno}-${String(nextMes).padStart(2, '0')}`;
+      try {
+        await saveFaturaEstado(cartaoObj.id, faturaKey, {
+          estado: 'paga_total',
+          valorPago: pag.valor,
+          nomeCartao: cartaoObj.nome,
+          nextMesKey,
+          ...(contaIdSel ? { contaId: contaIdSel } : {}),
+        });
+        _faturaEstados[`${cartaoObj.id}_${faturaKey}`] = {
+          ...(_faturaEstados[`${cartaoObj.id}_${faturaKey}`] || {}),
+          estado: 'paga_total', valorPago: pag.valor, ...(contaIdSel ? { contaId: contaIdSel } : {}),
+        };
+        toast(`Fatura ${cartaoObj.nome} de ${MESES[mesFat - 1]}/${anoFat} marcada como paga.`, 'success');
+        renderFaturas(currentData);
+        render(currentData);
+      } catch (e) {
+        console.warn('[importar-ia] Falha ao marcar fatura como paga:', e.message);
+      }
+    }
+
+    // ─── Modal: pagamentos de fatura sem cartão identificado com segurança ───
+    function confirmarPagamentosFatura(pagamentos, contaIdSel) {
+      const cartoesAtivos = (_cartoes || []).filter(c => c.ativo);
+      const lista = document.getElementById('listaPagamentosFatura');
+      lista.innerHTML = pagamentos.map((pag, idx) => `
+        <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;">
+            <span style="font-size:13px;font-weight:500;min-width:0;">${escapeHtml(pag.descricao)}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--negative);white-space:nowrap;flex-shrink:0;">${brl(pag.valor)}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">${formatData(pag.data)}</div>
+          <select data-pag-idx="${idx}" style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+            <option value="">— Não marcar —</option>
+            ${cartoesAtivos.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join('')}
+          </select>
+        </div>`).join('');
+
+      document.getElementById('modalPagamentosFatura')?.classList.remove('hidden');
+
+      return new Promise(resolve => {
+        document.getElementById('btnPularPagamentosFatura').onclick = () => {
+          document.getElementById('modalPagamentosFatura')?.classList.add('hidden');
+          resolve();
+        };
+        document.getElementById('btnConfirmarPagamentosFatura').onclick = async () => {
+          const btn = document.getElementById('btnConfirmarPagamentosFatura');
+          setLoading(btn, true, 'Salvando…');
+          const marcacoes = [];
+          lista.querySelectorAll('[data-pag-idx]').forEach(sel => {
+            const idx = Number(sel.dataset.pagIdx);
+            const cartaoId = sel.value;
+            if (!cartaoId) return;
+            const cartaoObj = cartoesAtivos.find(c => c.id === cartaoId);
+            const pag = pagamentos[idx];
+            const faturaKey = pag.data.slice(0, 7);
+            marcacoes.push(_marcarFaturaComoPaga(cartaoObj, pag, faturaKey, contaIdSel));
+          });
+          await Promise.all(marcacoes);
+          setLoading(btn, false);
+          document.getElementById('modalPagamentosFatura')?.classList.add('hidden');
+          resolve();
+        };
+      });
+    }
 
     // ─── Modal: categorias incertas detectadas pela IA ───────────────────────
     // Mostra um passo de confirmação antes de salvar, quando a IA marcou algum
