@@ -1017,6 +1017,9 @@ Regras obrigatórias:
       if (!resp.ok) {
         const errText = await resp.text().catch(() => '');
         console.error(`[categorizarExtratoIA] Erro API Anthropic (${resp.status}) uid=${uid}: ${errText.slice(0, 500)}`);
+        if (/password protected/i.test(errText)) {
+          throw new HttpsError('invalid-argument', 'Este PDF está protegido por senha. Remova a senha do arquivo (geralmente há uma opção "salvar sem senha" no app do banco/cartão) e envie de novo — ou cole o texto do extrato diretamente.');
+        }
         throw new HttpsError('internal', 'Erro ao processar o extrato. Tente novamente em instantes.');
       }
       respostaIA = await resp.json();
