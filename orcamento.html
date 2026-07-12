@@ -1340,6 +1340,9 @@
           <button class="btn-cancel" id="btnCancelarImportarIA">Cancelar</button>
           <button class="btn-save" id="btnConfirmarImportarIA">Categorizar e importar</button>
         </div>
+        <div id="iaErroAjuda" style="display:none;text-align:center;margin-top:14px;">
+          <a href="ajuda.html#pdf-senha" target="_blank" style="color:var(--gold);font-size:13px;text-decoration:underline;">Preciso de ajuda →</a>
+        </div>
       </div>
     </div>
 
@@ -6572,6 +6575,7 @@
       const ativos = (_cartoes || []).filter(c => c.ativo);
       selCartao.innerHTML = '<option value="">Não — é extrato de conta corrente</option>' +
         ativos.map(c => `<option value="${c.id}">${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`).join('');
+      document.getElementById('iaErroAjuda').style.display = 'none';
       document.getElementById('modalImportarIA').classList.remove('hidden');
     });
 
@@ -6624,6 +6628,8 @@
         await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado' });
       } catch (err) {
         toast(msgErro(err), 'error');
+        const ehErroSenha = /protegid[ao] por senha/i.test(err?.message || '');
+        document.getElementById('iaErroAjuda').style.display = ehErroSenha ? 'block' : 'none';
       } finally {
         setLoading(btn, false);
       }

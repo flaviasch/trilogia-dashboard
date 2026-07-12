@@ -988,7 +988,7 @@ Regras obrigatórias:
 - "parcelaAtual" e "parcelasTotal": quando a descrição contiver um padrão de parcelamento (ex: "Parcela 2/12", "Parc 02/12", "2/12"), preencha os dois números; senão, null nos dois. Preencha isso independente do valor de "fixa".
 - "valor" sempre positivo, tipo número (não string), com ponto decimal.
 - "data" no formato AAAA-MM-DD. Se o ano não estiver explícito, use o ano corrente (${new Date().getFullYear()}).
-- Responda APENAS com um array JSON válido, sem markdown, sem texto antes ou depois. Formato de cada item:
+- Responda APENAS com um array JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só, sem indentação nem quebras de linha entre os itens — extratos longos precisam caber no limite de tokens de saída). Formato de cada item:
   {"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>}`;
 
     const contentBlock = tipoConteudo === 'texto'
@@ -1008,7 +1008,7 @@ Regras obrigatórias:
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 4096,
+          max_tokens: 16000,
           system: systemPrompt,
           messages: [{
             role: 'user',
