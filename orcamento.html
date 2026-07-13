@@ -1341,15 +1341,15 @@
 
         <!-- Passo 2: colar texto ou enviar arquivo -->
         <div id="iaPasso2" style="display:none;">
-          <p class="modal-sub">Cole o texto do extrato/fatura, ou envie um arquivo (PDF, foto ou imagem). A IA extrai e categoriza as transações sozinha — sem precisar do agente externo.</p>
+          <p class="modal-sub">Cole o texto do extrato/fatura, ou envie um arquivo (PDF, foto, imagem, ou a planilha antiga do Orçamento Sob Medida em .xlsx). A IA extrai e categoriza as transações sozinha — sem precisar do agente externo.</p>
           <div style="margin-bottom:14px;">
             <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Colar texto do extrato/fatura</label>
             <textarea id="iaExtratoTexto" rows="8" placeholder="Cole aqui o texto do extrato ou da fatura..." style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
           </div>
           <div style="text-align:center;margin:10px 0;color:var(--text-muted);font-size:12px;">— ou —</div>
           <div style="margin-bottom:18px;">
-            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, JPG ou PNG)</label>
-            <input type="file" id="iaArquivoInput" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
+            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, JPG, PNG ou .xlsx da planilha antiga)</label>
+            <input type="file" id="iaArquivoInput" accept=".pdf,.jpg,.jpeg,.png,.xlsx" style="display:none;">
             <div style="display:flex;align-items:center;gap:10px;">
               <button type="button" id="btnEscolherArquivo" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Escolher arquivo</button>
               <span id="iaArquivoNome" style="font-size:13px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Nenhum arquivo selecionado</span>
@@ -1362,6 +1362,17 @@
           </div>
           <div id="iaErroAjuda" style="display:none;text-align:center;margin-top:14px;">
             <a href="ajuda.html#pdf-senha" target="_blank" style="color:var(--gold);font-size:13px;text-decoration:underline;">Preciso de ajuda →</a>
+          </div>
+        </div>
+
+        <!-- Passo 3: planilha legada (.xlsx) — escolher qual mês importar -->
+        <div id="iaPasso3" style="display:none;">
+          <p class="modal-sub">Planilha antiga do Orçamento Sob Medida detectada. Escolha qual mês importar — despesas reais, rendas e o orçamento planejado (Previsto) desse mês.</p>
+          <div id="iaLegadoLoading" style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:13px;">Lendo a planilha…</div>
+          <div id="iaLegadoMeses" style="margin-bottom:16px;max-height:50vh;overflow-y:auto;"></div>
+          <div class="modal-actions">
+            <button class="btn-cancel" id="btnCancelarImportarIA3" style="flex:1;">Cancelar</button>
+            <button class="btn-save" id="btnConfirmarImportarLegado" style="flex:2;" disabled>Importar mês selecionado</button>
           </div>
         </div>
       </div>
@@ -6582,9 +6593,13 @@
      * Extraído em 10/07/2026 para ser reaproveitado pela importação via IA sem
      * duplicar essa lógica (ver categorizarExtratoIA em functions/index.js).
      */
-    async function processarItensImportados(itensCsv, { origemLabel = 'Raio-X', origemTag = 'csv', eventoNome = 'csv_importado', escopo = null } = {}) {
-      // Detecta mês alvo pelas datas; usa período atual se não encontrar
-      const detectado = detectarMesCsv(itensCsv);
+    async function processarItensImportados(itensCsv, { origemLabel = 'Raio-X', origemTag = 'csv', eventoNome = 'csv_importado', escopo = null, mesForcado = null, anoForcado = null } = {}) {
+      // Detecta mês alvo pelas datas; usa período atual se não encontrar.
+      // mesForcado/anoForcado (import da planilha legada, achado 13/07/2026):
+      // a usuária já escolheu explicitamente o mês-alvo, então pula a detecção
+      // por data — itens "reais" desse mês podem ter data de compra em meses
+      // anteriores (parcelas antigas), o que confundiria detectarMesCsv.
+      const detectado = (mesForcado && anoForcado) ? { mes: mesForcado, ano: anoForcado } : detectarMesCsv(itensCsv);
       const { mes: mesAtual, ano: anoAtual } = currentData.periodo;
       const mesSalvar = detectado?.mes ?? mesAtual;
       const anoSalvar = detectado?.ano ?? anoAtual;
@@ -6669,6 +6684,244 @@
       if (fixasDetectadas.length > 0) abrirModalFixasCsv(fixasDetectadas);
     }
 
+    // ─── Importação da planilha legada "Orçamento Sob Medida" (.xlsx) ────────
+    // A planilha antiga do agente ChatGPT usa os MESMOS códigos numéricos de
+    // categoria já usados no backend (ver _CATEGORIAS_CODIGO em functions/index.js
+    // e a aba "Códigos" da planilha) — por isso o parser lê os dados direto,
+    // sem precisar de IA (achado 13/07/2026).
+    const _CATEGORIAS_CODIGO_LEGADO = {
+      1:'Aluguel', 2:'Financiamento Imóvel', 3:'IPTU', 4:'Condomínio', 5:'Manutenção',
+      6:'Energia', 7:'Água', 8:'Gás', 9:'Suprimentos', 10:'Outros Moradia',
+      11:'Supermercado', 12:'Restaurante', 13:'Café', 14:'Barzinho',
+      15:'Celular', 16:'Internet', 17:'Streaming', 18:'Telefonia Fixa', 19:'TV a Cabo', 20:'Outros Comunicação',
+      21:'Academia', 22:'Assistência Médica', 23:'Cabelo e Unha', 24:'Cosméticos',
+      25:'Dentista', 26:'Exames médicos', 27:'Farmácia', 28:'Médicos particular',
+      29:'Suplementos', 30:'Outros Saúde',
+      31:'Roupas', 32:'Acessórios', 33:'Outros Vestuário',
+      34:'Veterinário', 35:'Remédios', 36:'Alimentação', 37:'Outros Pet',
+      40:'Aplicativos', 41:'Combustível', 42:'Estacionamento', 43:'Financiamento',
+      44:'IPVA', 45:'Licenciamento', 46:'Manutenção', 47:'Passagens',
+      48:'Seguro', 49:'Táxi', 50:'Transporte Público', 51:'Outros Transporte',
+      52:'Mensalidades', 53:'Idiomas', 54:'Despesas Gerais', 55:'Cursos',
+      56:'Livros e Revistas', 57:'FIES', 58:'Outros Educação',
+      60:'Cinema', 61:'Esportes', 62:'Shows', 63:'Viagens', 64:'Outros Lazer',
+      70:'Cama, Mesa e Banho', 71:'Consertos', 72:'Eletrodomésticos', 73:'Móveis',
+      74:'TV, Som e Informática', 75:'Utensílios e decoração', 76:'Outros Artigos',
+      80:'Presentes', 81:'Doações', 82:'Cigarro', 83:'Outros',
+      90:'Juros Cartão de Crédito', 91:'Empréstimos', 92:'Outros Financeiro',
+      93:'Reserva Financeira', 94:'Aposentadoria', 95:'Casa Própria', 96:'Outros Projetos',
+    };
+    const _MESES_ABAS_LEGADO = [
+      { aba: 'JAN', mes: 1 }, { aba: 'FEV', mes: 2 }, { aba: 'MAR', mes: 3 }, { aba: 'ABR', mes: 4 },
+      { aba: 'MAI', mes: 5 }, { aba: 'JUN', mes: 6 }, { aba: 'JUL', mes: 7 }, { aba: 'AGO', mes: 8 },
+      { aba: 'SET', mes: 9 }, { aba: 'OUT', mes: 10 }, { aba: 'NOV', mes: 11 }, { aba: 'DEZ', mes: 12 },
+    ];
+
+    let _xlsxLibPromise = null;
+    function _carregarXLSXLib() {
+      if (window.XLSX) return Promise.resolve();
+      if (_xlsxLibPromise) return _xlsxLibPromise;
+      _xlsxLibPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = './js/vendor/xlsx.full.min.js';
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('Falha ao carregar leitor de planilha.'));
+        document.head.appendChild(s);
+      });
+      return _xlsxLibPromise;
+    }
+
+    // Extrai parcela "NN/NN" no fim de uma descrição (ex: "Toldosiguatemi 07/10").
+    function _extrairParcelaLegado(desc) {
+      const m = /(\d{1,2})\s*\/\s*(\d{1,2})\s*$/.exec(desc || '');
+      if (!m) return null;
+      const atual = parseInt(m[1], 10), total = parseInt(m[2], 10);
+      return (total > 0 && atual > 0 && atual <= total) ? { atual, total } : null;
+    }
+
+    function _dataISOLegado(d) {
+      if (!(d instanceof Date)) return '';
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    }
+
+    // Lê uma aba de mês da planilha legada e devolve os dados estruturados,
+    // ou null se a aba não existir ou não tiver o formato esperado.
+    function _parseAbaLegado(ws) {
+      if (!ws) return null;
+      const grid = window.XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+      let headerRow = -1;
+      for (let r = 0; r < grid.length; r++) {
+        if (grid[r] && grid[r][14] === 'Data' && grid[r][15] === 'Despesa') { headerRow = r; break; }
+      }
+      if (headerRow === -1) return null;
+
+      // Lista REAL (colunas O-S): transações reais lançadas no mês
+      const real = [];
+      for (let r = headerRow + 1; r < grid.length; r++) {
+        const row = grid[r];
+        if (!row) continue;
+        const data = row[14], desc = row[15], valor = row[16], area = row[17];
+        if (desc == null || !(data instanceof Date) || !(valor > 0)) continue;
+        const parcela = _extrairParcelaLegado(desc);
+        real.push({
+          categoria: _CATEGORIAS_CODIGO_LEGADO[area] || 'Outros',
+          tipo: 'despesa',
+          valor,
+          data: _dataISOLegado(data),
+          descricao: String(desc).trim(),
+          ...(parcela ? { parcelaAtual: parcela.atual, parcelasTotal: parcela.total } : {}),
+        });
+      }
+
+      // Lista PREVISTO (colunas U-X, restatement plano por categoria) — usa o
+      // código (não o texto da coluna "nome", que pode ter sido editado à mão
+      // pela usuária) para achar o nome canônico da categoria.
+      const previstoCategorias = [];
+      for (let r = headerRow + 1; r < grid.length; r++) {
+        const row = grid[r];
+        if (!row) continue;
+        const cod = row[22], valor = row[21];
+        if (cod == null || !(valor > 0)) continue;
+        const nome = _CATEGORIAS_CODIGO_LEGADO[cod];
+        if (nome) previstoCategorias.push({ nome, limite: valor });
+      }
+
+      // Renda 1/2/3 — procura pelas linhas de label nas primeiras 10 linhas
+      // (coluna C=nome, D=previsto, F=real).
+      let rendaPrevisto = 0, rendaReal = 0;
+      for (let r = 0; r < Math.min(12, grid.length); r++) {
+        const row = grid[r];
+        if (!row) continue;
+        const label = row[2];
+        if (typeof label === 'string' && /^Renda \d$/.test(label)) {
+          if (row[3] > 0) rendaPrevisto += row[3];
+          if (row[5] > 0) rendaReal += row[5];
+        }
+      }
+
+      const totalReal = real.reduce((s, r) => s + r.valor, 0);
+      const totalPrevisto = previstoCategorias.reduce((s, c) => s + c.limite, 0);
+      const temDados = real.length > 0 || totalPrevisto > 0 || rendaPrevisto > 0 || rendaReal > 0;
+      if (!temDados) return null;
+
+      // Ano sugerido: o mais comum entre as datas reais; sem datas, ano atual.
+      const anos = {};
+      real.forEach(r => { const a = r.data.slice(0, 4); anos[a] = (anos[a] || 0) + 1; });
+      const anoSugerido = Object.keys(anos).length
+        ? Number(Object.entries(anos).sort((a, b) => b[1] - a[1])[0][0])
+        : new Date().getFullYear();
+
+      return { real, previstoCategorias, rendaPrevisto, rendaReal, totalReal, totalPrevisto, anoSugerido };
+    }
+
+    let _legadoWorkbook = null;
+    let _legadoMeses = [];   // [{ aba, mes, nomeMes, ...dadosParseAbaLegado }]
+    let _legadoSelecionado = null;
+
+    async function abrirPassoLegado(arquivo) {
+      document.getElementById('iaLegadoLoading').style.display = 'block';
+      document.getElementById('iaLegadoMeses').innerHTML = '';
+      document.getElementById('btnConfirmarImportarLegado').disabled = true;
+      _legadoSelecionado = null;
+      try {
+        await _carregarXLSXLib();
+        const buf = await arquivo.arrayBuffer();
+        _legadoWorkbook = window.XLSX.read(buf, { type: 'array', cellDates: true });
+
+        _legadoMeses = _MESES_ABAS_LEGADO
+          .map(({ aba, mes }) => {
+            const dados = _parseAbaLegado(_legadoWorkbook.Sheets[aba]);
+            return dados ? { aba, mes, nomeMes: MESES[mes - 1], ...dados } : null;
+          })
+          .filter(Boolean);
+
+        if (!_legadoMeses.length) {
+          toast('Não encontrei dados reconhecíveis nessa planilha. Confira se é a planilha "Orçamento Sob Medida".', 'error');
+          document.getElementById('modalImportarIA').classList.add('hidden');
+          return;
+        }
+
+        const lista = document.getElementById('iaLegadoMeses');
+        lista.innerHTML = _legadoMeses.map((m, i) => `
+          <label style="display:block;padding:12px;margin-bottom:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;cursor:pointer;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+              <input type="radio" name="legadoMes" value="${i}" style="accent-color:var(--gold);flex-shrink:0;">
+              <strong style="font-size:14px;">${m.nomeMes}</strong>
+              <input type="number" data-legado-ano="${i}" value="${m.anoSugerido}" min="2000" max="2100"
+                style="width:80px;margin-left:auto;padding:6px 8px;background:var(--navy-dark);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+            </div>
+            <div style="font-size:12px;color:var(--text-secondary);padding-left:26px;">
+              ${m.real.length} despesa${m.real.length !== 1 ? 's' : ''} real${m.real.length !== 1 ? 'is' : ''} (${brl(m.totalReal)})
+              ${m.rendaReal > 0 ? ` · renda real ${brl(m.rendaReal)}` : ''}
+              ${m.totalPrevisto > 0 ? ` · orçamento planejado ${brl(m.totalPrevisto)}` : ''}
+            </div>
+          </label>`).join('');
+
+        lista.querySelectorAll('input[name="legadoMes"]').forEach(radio => {
+          radio.addEventListener('change', () => {
+            _legadoSelecionado = Number(radio.value);
+            document.getElementById('btnConfirmarImportarLegado').disabled = false;
+          });
+        });
+      } catch (err) {
+        toast('Não consegui ler essa planilha. Confira se o arquivo não está corrompido.', 'error');
+        document.getElementById('modalImportarIA').classList.add('hidden');
+      } finally {
+        document.getElementById('iaLegadoLoading').style.display = 'none';
+      }
+    }
+
+    document.getElementById('btnConfirmarImportarLegado').addEventListener('click', async () => {
+      if (_legadoSelecionado == null) return;
+      const btn = document.getElementById('btnConfirmarImportarLegado');
+      const m = _legadoMeses[_legadoSelecionado];
+      const anoInput = document.querySelector(`[data-legado-ano="${_legadoSelecionado}"]`);
+      const ano = parseInt(anoInput?.value, 10) || m.anoSugerido;
+
+      setLoading(btn, true, 'Importando…');
+      try {
+        const itens = [...m.real];
+        if (m.rendaReal > 0) {
+          itens.push({
+            categoria: 'Salário', tipo: 'receita', valor: m.rendaReal,
+            data: `${ano}-${String(m.mes).padStart(2, '0')}-01`,
+            descricao: 'Renda (planilha importada)',
+          });
+        }
+
+        document.getElementById('modalImportarIA').classList.add('hidden');
+        await processarItensImportados(itens, {
+          origemLabel: 'Planilha', origemTag: 'planilha-legada', eventoNome: 'planilha_legada_importada',
+          escopo: { tipo: 'conta' }, mesForcado: m.mes, anoForcado: ano,
+        });
+
+        // Orçamento planejado (Previsto) do mês — categorias + renda planejada.
+        // Mescla com limites já existentes nesse mês em vez de substituir tudo
+        // (mesmo cuidado do "copiar mês" — nunca apaga limite já definido).
+        if (m.previstoCategorias.length || m.rendaPrevisto > 0) {
+          const atuais = await getCategoriasMes(m.mes, ano);
+          const mesclado = [...atuais];
+          m.previstoCategorias.forEach(cNova => {
+            const idx = mesclado.findIndex(c => normCat(c.nome) === normCat(cNova.nome));
+            if (idx === -1) mesclado.push(cNova); else mesclado[idx] = cNova;
+          });
+          await saveCategoriasMes(m.mes, ano, mesclado);
+          if (m.rendaPrevisto > 0) await savePlanejamentoMeta(m.mes, ano, m.rendaPrevisto, null);
+          if (m.mes === currentData.periodo.mes && ano === currentData.periodo.ano) {
+            categoriasMes = mesclado;
+            planejamentoMeta = { renda: m.rendaPrevisto || null, percentual: null };
+            if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
+          }
+        }
+        toast(`Planilha de ${m.nomeMes}/${ano} importada com sucesso!`, 'success');
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
     document.getElementById('btnUpload').addEventListener('click', () => {
       document.getElementById('csvInput').click();
     });
@@ -6710,6 +6963,7 @@
       document.getElementById('iaErroAjuda').style.display = 'none';
       document.getElementById('iaPasso1').style.display = 'block';
       document.getElementById('iaPasso2').style.display = 'none';
+      document.getElementById('iaPasso3').style.display = 'none';
       document.getElementById('modalImportarIA').classList.remove('hidden');
     });
 
@@ -6727,6 +6981,10 @@
     });
 
     document.getElementById('btnCancelarImportarIA2').addEventListener('click', () => {
+      document.getElementById('modalImportarIA').classList.add('hidden');
+    });
+
+    document.getElementById('btnCancelarImportarIA3').addEventListener('click', () => {
       document.getElementById('modalImportarIA').classList.add('hidden');
     });
 
@@ -6756,6 +7014,16 @@
 
       if (!texto && !arquivo) {
         toast('Cole o texto do extrato ou selecione um arquivo.', 'error');
+        return;
+      }
+
+      // Planilha antiga do Orçamento Sob Medida (.xlsx) — não vai pra IA, tem
+      // parser dedicado que lê os dados já estruturados e codificados direto
+      // (achado 13/07/2026: mais confiável que mandar pra IA interpretar texto).
+      if (arquivo && /\.xlsx$/i.test(arquivo.name)) {
+        document.getElementById('iaPasso2').style.display = 'none';
+        document.getElementById('iaPasso3').style.display = 'block';
+        await abrirPassoLegado(arquivo);
         return;
       }
 
