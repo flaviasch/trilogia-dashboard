@@ -465,7 +465,7 @@ test('calcularNaoPlanejado', async (t) => {
     assert.equal(r.realNaoPlanejado, 0);
   });
 
-  await t.test('exclui despesas da fatura em aberto (mesmo critério do resto do Planejamento)', () => {
+  await t.test('conta despesas da fatura em aberto já importada (achado 13/07/2026: diferente do resto do Planejamento, que ainda espera a fatura fechar só pra reconciliação de caixa)', () => {
     const r = calcularNaoPlanejado({
       categorias: [],
       despesas: [
@@ -473,6 +473,6 @@ test('calcularNaoPlanejado', async (t) => {
         { categoria: 'Lazer', valor: 50 },
       ],
     });
-    assert.equal(r.realNaoPlanejado, 50);
+    assert.equal(r.realNaoPlanejado, 250);
   });
 });

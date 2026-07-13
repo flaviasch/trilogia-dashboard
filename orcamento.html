@@ -3736,14 +3736,13 @@
       const catsComLimite = cats.filter(c => c.limite > 0);
       let ptsOrcamento = 75; // neutro se sem limites
       if (catsComLimite.length > 0) {
-        // Mesmo critério "comprometido" do Planejamento: exclui compras na
-        // fatura ABERTA (ciclo em curso, ainda não fechou) — sem isso o score
-        // contava como "estourada" categoria que só parecia passar do limite
-        // por causa de compras de cartão que nem fecharam ainda (achado
-        // 07/07/2026, divergência entre Score e aba Planejamento).
+        // Mesmo critério "comprometido" do Planejamento (achado 13/07/2026:
+        // Planejamento passou a contar compras já importadas da fatura ABERTA,
+        // então o Score precisa fazer o mesmo pra não divergir de novo, como
+        // aconteceu em 07/07/2026 quando o critério era o oposto).
         const estouradas = catsComLimite.filter(c => {
           const gasto = data.despesas
-            .filter(d => !d._faturaAberta && normCat(d.categoria) === normCat(c.nome))
+            .filter(d => normCat(d.categoria) === normCat(c.nome))
             .reduce((s, d) => s + d.valor, 0);
           return gasto > c.limite;
         }).length;
@@ -3876,14 +3875,12 @@
       // Guarda o Saldo Final deste mês — usado como carryover automático pro
       // saldo inicial do mês seguinte, sem precisar rebuscar este mês depois.
       _ultimoSaldoFinal = saldoFinal;
-      // Critério de "comprometido" — despesas já efetivadas + pendentes + faturas
-      // fechadas aguardando pagamento. Compras na fatura ABERTA (ciclo em curso,
-      // ainda pode receber mais compras e nem fechou) ficam de fora — só contam
-      // quando a fatura fechar (acham correção em 04/07/2026: estavam inflando
-      // o "Realizado" do Planejamento, gerando "Lançamentos não identificados"
-      // maior do que deveria).
-      // Usado nos alertas de categoria (Resumo) e no Planejamento.
-      const contaComoComprometido = d => !d._faturaAberta;
+      // Critério de "comprometido" por categoria — usado no banner de alertas
+      // de limite (Resumo). Conta compras já importadas da fatura ABERTA
+      // (achado 13/07/2026) pra bater com o Planejamento e o Score, que usam
+      // o mesmo critério — sem isso o banner "quase no limite" divergia do
+      // que a aba Planejamento mostrava pra mesma categoria.
+      const contaComoComprometido = () => true;
       // Em mês futuro, "pendente por data" não diz nada (tudo é futuro) — conta
       // tudo. Só no mês atual a distinção caixa (já sensibilizou) x pendente
       // (ainda não) faz sentido. Usado na lista de despesas do Resumo.
@@ -5049,11 +5046,13 @@
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
 
       // Planejamento acompanha gasto comprometido por categoria: efetivado +
-      // pendente + fatura fechada aguardando pagamento — sem contar compras na
-      // fatura ABERTA (ciclo em curso, ainda não fechou), que só entram quando
-      // a fatura fechar (correção 04/07/2026, mesmo critério de contaComoComprometido
-      // em render()).
-      const contaComoComprometido = d => !d._faturaAberta;
+      // pendente + fatura fechada aguardando pagamento + compras já
+      // IMPORTADAS na fatura ABERTA (ciclo em curso, ainda não fechou) — a
+      // usuária já tem o dado real ao importar, então conta pro orçamento por
+      // categoria mesmo antes do banco fechar o ciclo (achado 13/07/2026,
+      // revisão do critério de 04/07/2026 — que só valia pra reconciliação
+      // de caixa em render(), não devia ter sido copiado pro Planejamento).
+      const contaComoComprometido = () => true;
 
       // Agrega despesas por categoria NORMALIZADA — "Alimentação"/"alimentação"
       // contam juntas; o rótulo exibido é a grafia mais usada no grupo. Só
@@ -6656,8 +6655,14 @@
         return canonica && canonica !== i.categoria ? { ...i, categoria: canonica } : i;
       });
 
-      // Despesas marcadas como fixas — serão propostas como recorrentes
-      const fixasDetectadas = itensNormalizados.filter(i => i.fixa && i.tipo === 'despesa');
+      // Despesas marcadas como fixas — serão propostas como recorrentes, mas só
+      // as que ainda não têm recorrente ativa correspondente (mesma categoria+
+      // valor) — sem isso, uma fixa já cadastrada antes voltava a perguntar toda
+      // importação, mesmo que a resposta fosse sempre "sim, já existe" (achado
+      // 13/07/2026).
+      const fixasDetectadas = itensNormalizados.filter(i =>
+        i.fixa && i.tipo === 'despesa' &&
+        !_recorrentes.some(r => r.categoria === i.categoria && r.valor === i.valor && r.ativo));
 
       // Preserva recorrentes, parcelamentos, lançamentos manuais e qualquer item
       // fora do escopo deste lote (ex: itens de cartão quando o lote é de conta

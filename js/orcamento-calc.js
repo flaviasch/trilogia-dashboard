@@ -343,10 +343,13 @@ export function calcularNaoPlanejado({ renda = null, percentual = null, categori
   const folga = temMeta ? Math.max(0, totalPlanejado - somaLimites) : null;
   const sobreAlocado = temMeta && somaLimites > totalPlanejado;
 
-  // Compras em aberto (_faturaAberta) ficam fora — mesmo critério
-  // "comprometido" usado pelas demais categorias do Planejamento.
+  // Diferente das demais telas (Resumo/Detalhe/Anual — reconciliação de
+  // caixa, que corretamente espera a fatura fechar), o Planejamento conta
+  // compras em fatura ABERTA já importada — a usuária já tem o dado real,
+  // não faz sentido esconder do orçamento por categoria só porque o banco
+  // ainda não fechou o ciclo (achado 13/07/2026).
   const catsComLimite = new Set((categorias || []).filter(c => c.limite > 0).map(c => normCat(c.nome)));
-  const itensNaoPlanejado = (despesas || []).filter(d => !d._faturaAberta && !catsComLimite.has(normCat(d.categoria)));
+  const itensNaoPlanejado = (despesas || []).filter(d => !catsComLimite.has(normCat(d.categoria)));
   const realNaoPlanejado = itensNaoPlanejado.reduce((s, d) => s + d.valor, 0);
 
   return { temMeta, totalPlanejado, somaLimites, folga, sobreAlocado, itensNaoPlanejado, realNaoPlanejado };
