@@ -1917,9 +1917,9 @@
   <!-- Modal: categorias incertas detectadas pela IA -->
   <div id="modalCategoriasIncertas" class="modal-overlay hidden">
     <div class="modal-card wide" style="max-width:600px;width:94%;">
-      <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0 0 6px;">Confirme as categorias</h3>
+      <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0 0 6px;">Confirme estes lançamentos</h3>
       <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
-        A IA não teve certeza da categoria destes lançamentos. Confirme ou corrija — da próxima vez que esse estabelecimento aparecer, já entra categorizado sozinho.
+        A IA não teve certeza da categoria (e, em alguns casos, se é receita ou despesa) destes lançamentos. Confirme ou corrija — da próxima vez que esse estabelecimento aparecer, a categoria já entra sozinha.
       </p>
       <div id="listaCategoriasIncertas" style="margin-bottom:16px;max-height:60vh;overflow-y:auto;padding-right:14px;"></div>
       <datalist id="iaCategoriasSugeridas"></datalist>
@@ -3553,16 +3553,23 @@
     // Ambiente de teste: recurso de importação por IA só liberado para a conta
     // master e para a conta de teste da Luiza, até validação (12/07/2026).
     const TEST_ACCESS_EMAILS = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    // UID da Luiza (mesma conta de TEST_ACCESS_EMAILS) — usado só para liberar em
+    // modo "ver como" (admin.html), onde user.email continua sendo o da Flávia e
+    // não dá pra checar por e-mail (achado 13/07/2026, ver TEST_ACCESS_EMAILS acima).
+    const TEST_ACCESS_UIDS = ['tqrwd6BpreXKBJhNtKtjGEaBq712'];
 
     async function init(user) {
       const _admin = await isAdmin();
       if (!VIEW_AS_UID && _admin && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
       if (_admin) document.getElementById('linkAdmin').style.display = 'inline';
-      // Nunca liberar em modo "ver como" (admin.html): user.email continua sendo
-      // o e-mail da Flávia mesmo impersonando outra mentorada, então "_admin ||"
-      // sozinho vazava o botão pra qualquer conta real vista via admin (achado
-      // 13/07/2026). Testar a IA exige logar como a própria conta de teste.
-      if (!VIEW_AS_UID && (_admin || TEST_ACCESS_EMAILS.includes(user.email))) {
+      // Fora do "ver como": libera pra admin ou pras contas de teste, pelo e-mail
+      // de quem está logado. Em "ver como": user.email é sempre o da Flávia
+      // (impersonar não troca a identidade autenticada), então checa o UID da
+      // conta sendo vista contra TEST_ACCESS_UIDS em vez do e-mail — sem isso,
+      // "_admin ||" sozinho vazava o botão pra QUALQUER conta real vista via
+      // admin, não só as de teste (achado 13/07/2026).
+      const liberado = VIEW_AS_UID ? TEST_ACCESS_UIDS.includes(VIEW_AS_UID) : (_admin || TEST_ACCESS_EMAILS.includes(user.email));
+      if (liberado) {
         document.getElementById('btnUploadIA').style.display = '';
       }
 
@@ -7886,7 +7893,7 @@
     function confirmarCategoriasIncertas(itens) {
       const incertos = itens
         .map((item, idx) => ({ item, idx }))
-        .filter(({ item }) => item.categoriaIncerta === true);
+        .filter(({ item }) => item.categoriaIncerta === true || item.tipoIncerto === true);
       if (!incertos.length) return Promise.resolve({ itens, cancelado: false });
 
       const dl = document.getElementById('iaCategoriasSugeridas');
@@ -7906,8 +7913,20 @@
             <span style="font-size:13px;font-weight:500;min-width:0;">${escapeHtml(item.descricao || '(sem descrição)')}</span>
             <span style="font-size:13px;font-weight:700;color:var(--negative);white-space:nowrap;flex-shrink:0;">${brl(item.valor)}</span>
           </div>
+          ${item.tipoIncerto ? `
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+              <input type="radio" name="tipo-incerto-${idx}" data-tipo-incerta-idx="${idx}" value="despesa" ${item.tipo !== 'receita' ? 'checked' : ''} style="accent-color:var(--gold);">
+              Despesa
+            </label>
+            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+              <input type="radio" name="tipo-incerto-${idx}" data-tipo-incerta-idx="${idx}" value="receita" ${item.tipo === 'receita' ? 'checked' : ''} style="accent-color:var(--gold);">
+              Receita
+            </label>
+          </div>` : ''}
+          ${item.categoriaIncerta ? `
           <input type="text" data-incerta-idx="${idx}" value="${escapeHtml(item.categoria)}" list="iaCategoriasSugeridas" autocomplete="off"
-            style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+            style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">` : ''}
         </div>`).join('');
 
       document.getElementById('modalCategoriasIncertas')?.classList.remove('hidden');
@@ -7920,6 +7939,11 @@
         document.getElementById('btnConfirmarCategoriasIncertas').onclick = async () => {
           const btn = document.getElementById('btnConfirmarCategoriasIncertas');
           setLoading(btn, true, 'Salvando…');
+          lista.querySelectorAll('[data-tipo-incerta-idx]:checked').forEach(radio => {
+            const idx = Number(radio.dataset.tipoIncertaIdx);
+            itens[idx] = { ...itens[idx], tipo: radio.value };
+            delete itens[idx].tipoIncerto;
+          });
           const aprendizados = [];
           lista.querySelectorAll('[data-incerta-idx]').forEach(input => {
             const idx = Number(input.dataset.incertaIdx);
