@@ -1356,8 +1356,9 @@
             </div>
           </div>
           <div class="modal-actions">
-            <button class="btn-cancel" id="btnIaVoltar">← Voltar</button>
-            <button class="btn-save" id="btnConfirmarImportarIA">Categorizar e importar</button>
+            <button class="btn-cancel" id="btnCancelarImportarIA2" style="flex:1;">Cancelar</button>
+            <button class="btn-cancel" id="btnIaVoltar" style="flex:1;">← Voltar</button>
+            <button class="btn-save" id="btnConfirmarImportarIA" style="flex:2;">Categorizar e importar</button>
           </div>
           <div id="iaErroAjuda" style="display:none;text-align:center;margin-top:14px;">
             <a href="ajuda.html#pdf-senha" target="_blank" style="color:var(--gold);font-size:13px;text-decoration:underline;">Preciso de ajuda →</a>
@@ -1906,8 +1907,9 @@
       </p>
       <div id="listaPagamentosFatura" style="margin-bottom:16px;max-height:50vh;overflow-y:auto;padding-right:14px;"></div>
       <div class="modal-actions">
-        <button id="btnPularPagamentosFatura" class="btn-cancel">Pular</button>
-        <button id="btnConfirmarPagamentosFatura" class="btn-save">Marcar como pagas</button>
+        <button id="btnCancelarPagamentosFatura" class="btn-cancel" style="flex:1;">Cancelar importação</button>
+        <button id="btnPularPagamentosFatura" class="btn-cancel" style="flex:1;">Pular</button>
+        <button id="btnConfirmarPagamentosFatura" class="btn-save" style="flex:2;">Marcar como pagas</button>
       </div>
     </div>
   </div>
@@ -6687,6 +6689,10 @@
       document.getElementById('modalImportarIA').classList.add('hidden');
     });
 
+    document.getElementById('btnCancelarImportarIA2').addEventListener('click', () => {
+      document.getElementById('modalImportarIA').classList.add('hidden');
+    });
+
     document.getElementById('btnIaProximo').addEventListener('click', () => {
       document.getElementById('iaPasso1').style.display = 'none';
       document.getElementById('iaPasso2').style.display = 'block';
@@ -6794,7 +6800,8 @@
             else naoIdentificados.push(pag);
           }
           if (naoIdentificados.length) {
-            const { despesasExtras, marcacoesExtras } = await confirmarPagamentosFatura(naoIdentificados, cartoesAtivos);
+            const { despesasExtras, marcacoesExtras, cancelado: canceladoPag } = await confirmarPagamentosFatura(naoIdentificados, cartoesAtivos);
+            if (canceladoPag) { toast('Importação cancelada.', 'info'); return; }
             itensProcessados.push(...despesasExtras.map(d => contaIdSel ? { ...d, contaId: contaIdSel } : d));
             pagamentosParaMarcar.push(...marcacoesExtras);
           }
@@ -7810,9 +7817,13 @@
       document.getElementById('modalPagamentosFatura')?.classList.remove('hidden');
 
       return new Promise(resolve => {
+        document.getElementById('btnCancelarPagamentosFatura').onclick = () => {
+          document.getElementById('modalPagamentosFatura')?.classList.add('hidden');
+          resolve({ despesasExtras: [], marcacoesExtras: [], cancelado: true });
+        };
         document.getElementById('btnPularPagamentosFatura').onclick = () => {
           document.getElementById('modalPagamentosFatura')?.classList.add('hidden');
-          resolve({ despesasExtras: [], marcacoesExtras: [] });
+          resolve({ despesasExtras: [], marcacoesExtras: [], cancelado: false });
         };
         document.getElementById('btnConfirmarPagamentosFatura').onclick = () => {
           const despesasExtras = [];
@@ -7833,7 +7844,7 @@
           });
           if (faltouCategoria) { toast('Preencha a categoria dos itens marcados como despesa.', 'warning'); return; }
           document.getElementById('modalPagamentosFatura')?.classList.add('hidden');
-          resolve({ despesasExtras, marcacoesExtras });
+          resolve({ despesasExtras, marcacoesExtras, cancelado: false });
         };
       });
     }
