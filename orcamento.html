@@ -2942,7 +2942,9 @@
       // continua valendo só para o que chega sem revisão da usuária).
       const hojeNovoItem = new Date(); hojeNovoItem.setHours(0, 0, 0, 0);
       const jaAconteceuNovoItem = data && new Date(data + 'T00:00:00') <= hojeNovoItem;
-      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}), ...(contaId ? { contaId } : {}), ...(jaAconteceuNovoItem ? { confirmado: true } : {}) };
+      // Data futura: marca pendente explicitamente (fica esperando confirmação
+      // da usuária mesmo depois que a data passar — ver isPendenteEfetivo).
+      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}), ...(contaId ? { contaId } : {}), ...(jaAconteceuNovoItem ? { confirmado: true } : { pendente: true }) };
 
       if (cartao && fatura) {
         // Salva diretamente no mês da fatura (não no mês exibido)
@@ -8183,6 +8185,7 @@
         cartaoId:     r.cartaoId || '',
         origem:       'recorrente',
         recorrenteId: r.id,
+        pendente:     true,
       };
 
       if (!r.cartao || faturaCalc === faturaAtual) {

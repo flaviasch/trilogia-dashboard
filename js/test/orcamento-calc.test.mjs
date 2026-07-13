@@ -48,8 +48,14 @@ test('isPendenteEfetivo', async (t) => {
   await t.test('data futura confirmada não é mais pendente', () => {
     assert.equal(isPendenteEfetivo({ data: '2026-07-10', confirmado: true }, HOJE), false);
   });
-  await t.test('data passada não é pendente (mesmo sem confirmar — resolve sozinha no dia seguinte)', () => {
+  await t.test('fallback legado (sem flag pendente): data passada não é pendente — usado por importação de extrato/fatura', () => {
     assert.equal(isPendenteEfetivo({ data: '2026-07-01' }, HOJE), false);
+  });
+  await t.test('marcado explicitamente pendente: continua pendente mesmo com data passada (achado 13/07/2026 — sem prazo de validade)', () => {
+    assert.equal(isPendenteEfetivo({ data: '2026-07-01', pendente: true }, HOJE), true);
+  });
+  await t.test('marcado explicitamente pendente, mas confirmado: não é mais pendente', () => {
+    assert.equal(isPendenteEfetivo({ data: '2026-07-01', pendente: true, confirmado: true }, HOJE), false);
   });
   await t.test('sem data não é pendente', () => {
     assert.equal(isPendenteEfetivo({ data: '' }, HOJE), false);

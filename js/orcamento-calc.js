@@ -19,16 +19,28 @@ export const CATEGORIA_AJUSTE = 'Lançamentos não identificados — verificar';
 // ─── Helpers de data/recorrência ──────────────────────────────────────────────
 
 /**
- * Um lançamento é "pendente" (não sensibiliza o caixa ainda) quando a data é
- * hoje ou no futuro, e ele ainda não foi confirmado manualmente — hoje
- * também precisa de confirmação (achado 09/07/2026: um item datado de hoje
- * não pode virar caixa sozinho, só amanhã, quando a data já passou, ou
- * quando a usuária confirmar antes disso). Só data estritamente passada
- * conta como "já aconteceu" automaticamente, sem confirmação.
+ * Um lançamento é "pendente" (não sensibiliza o caixa ainda) enquanto não for
+ * confirmado manualmente. Dois critérios, nessa ordem:
+ *
+ * 1. `item.pendente === true` — marcado explicitamente no momento em que o
+ *    item nasceu como algo agendado/projetado (lançamento manual com data
+ *    futura, ou fixa recorrente materializada) — fica pendente PARA SEMPRE,
+ *    a data passar não resolve sozinho (achado 13/07/2026: a versão anterior
+ *    deixava isso virar caixa automaticamente no dia seguinte à data, sem a
+ *    usuária confirmar — ela quer confirmação explícita sempre, sem prazo de
+ *    validade). Só existe até a usuária confirmar (que apaga esse campo) ou
+ *    excluir o item.
+ *
+ * 2. Fallback por data (comportamento legado, achado 09/07/2026) — para
+ *    itens de antes dessa marcação existir (sem `pendente` explícito, ex.
+ *    já materializados em produção): hoje ou futuro = pendente; passado =
+ *    já aconteceu. Também é o que rege importação de extrato/fatura, que
+ *    nunca marca `pendente` (é histórico, não precisa confirmação).
  */
 export function isPendenteEfetivo(item, agora = new Date()) {
   if (item.confirmado) return false;
   if (!item.data) return false;
+  if (item.pendente) return true;
   const hoje = new Date(agora); hoje.setHours(0, 0, 0, 0);
   return new Date(item.data + 'T00:00:00') >= hoje;
 }
