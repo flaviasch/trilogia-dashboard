@@ -46,8 +46,9 @@
       display: flex; align-items: center; justify-content: space-between;
       position: sticky; top: 0; z-index: 100;
     }
-    .logo { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--white); text-decoration: none; }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--white); text-decoration: none; }
     .logo span { color: var(--gold); }
+    .logo-icon { width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0; }
     .navbar-right { display: flex; align-items: center; gap: 16px; }
     .user-name { font-size: 14px; color: var(--text-secondary); }
     .btn-logout {
@@ -295,7 +296,7 @@
 <body>
 
   <nav class="navbar">
-    <a href="index.html" class="logo">Trilogia <span>Dashboard</span></a>
+    <a href="index.html" class="logo"><img src="icons/icon.svg" alt="" class="logo-icon">Trilogia <span>Dashboard</span></a>
     <div class="navbar-right">
       <a href="clube.html" class="link-clube link-jornada-nav" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
       <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>

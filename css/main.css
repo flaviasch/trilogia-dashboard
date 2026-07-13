@@ -43,6 +43,9 @@ body {
 }
 
 .logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: 'Playfair Display', serif;
   font-size: 18px;
   font-weight: 600;
@@ -50,6 +53,12 @@ body {
   text-decoration: none;
 }
 .logo span { color: var(--gold); }
+.logo-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
 
 .navbar-right {
   display: flex;

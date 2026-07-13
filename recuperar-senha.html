@@ -37,6 +37,9 @@
       max-width: 420px;
     }
     .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       font-family: 'Playfair Display', serif;
       color: var(--white);
       font-size: 20px;
@@ -44,6 +47,7 @@
       margin-bottom: 8px;
     }
     .logo span { color: var(--gold); }
+    .logo-icon { width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0; }
     .subtitle {
       font-size: 13px;
       color: rgba(255,255,255,0.45);
@@ -115,7 +119,7 @@
 <body>
 
   <div class="card">
-    <p class="logo">Trilogia <span>Dashboard</span></p>
+    <p class="logo"><img src="icons/icon.svg" alt="" class="logo-icon">Trilogia <span>Dashboard</span></p>
     <p class="subtitle">Digite seu e-mail e enviaremos um link para você criar uma nova senha.</p>
 
     <div class="msg" id="msg"></div>

@@ -32,8 +32,9 @@
       align-items: center;
       justify-content: space-between;
     }
-    .logo { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--white); }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 18px; color: var(--white); }
     .logo span { color: var(--gold); }
+    .logo-icon { width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0; }
     header a { font-size: 13px; color: var(--gold); text-decoration: none; }
     main { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
     h1 {
@@ -72,7 +73,7 @@
 <body>
 
 <header>
-  <div class="logo">Trilogia <span>Dashboard</span></div>
+  <div class="logo"><img src="icons/icon.svg" alt="" class="logo-icon">Trilogia <span>Dashboard</span></div>
   <a href="index.html">← Voltar ao dashboard</a>
 </header>
 
