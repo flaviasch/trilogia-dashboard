@@ -1902,7 +1902,7 @@
     <div class="modal-card wide" style="max-width:520px;width:94%;">
       <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0 0 6px;">Pagamento de fatura detectado</h3>
       <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
-        Encontramos pagamento(s) de fatura de cartão neste extrato, mas não conseguimos identificar automaticamente qual cartão. Selecione o cartão de cada um, ou deixe em branco para não marcar como pago.
+        Encontramos pagamento(s) que parecem fatura de cartão, mas não identificamos automaticamente qual cartão. Selecione o cartão de cada um, marque "não é cartão" se for outra despesa (ex: condomínio), ou deixe em branco para ignorar.
       </p>
       <div id="listaPagamentosFatura" style="margin-bottom:16px;max-height:50vh;overflow-y:auto;padding-right:14px;"></div>
       <div class="modal-actions">
@@ -6776,25 +6776,38 @@
         document.getElementById('modalImportarIA').classList.add('hidden');
         const { cancelado } = await confirmarCategoriasIncertas(itensProcessados);
         if (cancelado) { toast('Importação cancelada.', 'info'); return; }
-        await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado', escopo: escopoLote });
 
-        // Extrato de conta corrente com linha de pagamento de fatura de cartão
-        // detectada: casa pelo nome do cartão. Se identificou o cartão E a
-        // fatura ainda está pendente (não paga), confirma sozinho. Senão,
-        // pergunta numa telinha em vez de simplesmente ignorar (achado em 13/07/2026).
+        // Pagamento de fatura de cartão detectado no extrato de conta corrente:
+        // separa quem casou por nome de cartão de quem não casou. Quem não
+        // casou (ex: "PAGTO ELETRON COBRANCA LELLO" é condomínio, não cartão)
+        // vai pro modal — lá dá pra apontar um cartão manualmente OU dizer que
+        // não é cartão, e nesse caso volta a virar um lançamento normal em vez
+        // de simplesmente desaparecer (achado em 13/07/2026).
+        const pagamentosParaMarcar = [];
         if (!cartaoObjSel && pagamentosFatura?.length) {
           const cartoesAtivos = (_cartoes || []).filter(c => c.ativo);
           const naoIdentificados = [];
           for (const pag of pagamentosFatura) {
             const descNorm = pag.descricao.toUpperCase();
             const cartaoPago = cartoesAtivos.find(c => descNorm.includes(c.nome.toUpperCase()));
-            if (!cartaoPago) { naoIdentificados.push(pag); continue; }
-            const faturaKey = await _resolverFaturaKeyPagamento(cartaoPago, pag);
-            const jaPaga = ['paga_total', 'paga_parcial'].includes(_faturaEstados[`${cartaoPago.id}_${faturaKey}`]?.estado);
-            if (!jaPaga) await _marcarFaturaComoPaga(cartaoPago, pag, faturaKey, contaIdSel);
-            // jaPaga: já está paga, nada a fazer, sem perguntar de novo.
+            if (cartaoPago) pagamentosParaMarcar.push({ cartaoObj: cartaoPago, pag });
+            else naoIdentificados.push(pag);
           }
-          if (naoIdentificados.length) await confirmarPagamentosFatura(naoIdentificados, contaIdSel);
+          if (naoIdentificados.length) {
+            const { despesasExtras, marcacoesExtras } = await confirmarPagamentosFatura(naoIdentificados, cartoesAtivos);
+            itensProcessados.push(...despesasExtras.map(d => contaIdSel ? { ...d, contaId: contaIdSel } : d));
+            pagamentosParaMarcar.push(...marcacoesExtras);
+          }
+        }
+
+        await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado', escopo: escopoLote });
+
+        // Marca as faturas identificadas como pagas — se ainda estiverem
+        // pendentes (não precisa acontecer antes de salvar os itens).
+        for (const { cartaoObj, pag } of pagamentosParaMarcar) {
+          const faturaKey = await _resolverFaturaKeyPagamento(cartaoObj, pag);
+          const jaPaga = ['paga_total', 'paga_parcial'].includes(_faturaEstados[`${cartaoObj.id}_${faturaKey}`]?.estado);
+          if (!jaPaga) await _marcarFaturaComoPaga(cartaoObj, pag, faturaKey, contaIdSel);
         }
       } catch (err) {
         toast(msgErro(err), 'error');
@@ -7758,8 +7771,18 @@
     }
 
     // ─── Modal: pagamentos de fatura sem cartão identificado com segurança ───
-    function confirmarPagamentosFatura(pagamentos, contaIdSel) {
-      const cartoesAtivos = (_cartoes || []).filter(c => c.ativo);
+    const _PAG_DESPESA = '__despesa__';
+
+    function confirmarPagamentosFatura(pagamentos, cartoesAtivos) {
+      const dl = document.getElementById('iaCategoriasSugeridas');
+      if (dl && !dl.childElementCount) {
+        const cats = new Set([
+          ...currentData.despesas.map(d => d.categoria),
+          ..._recorrentes.map(r => r.categoria),
+        ]);
+        dl.innerHTML = [...cats].filter(Boolean).map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
+      }
+
       const lista = document.getElementById('listaPagamentosFatura');
       lista.innerHTML = pagamentos.map((pag, idx) => `
         <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
@@ -7770,34 +7793,47 @@
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">${formatData(pag.data)}</div>
           <select data-pag-idx="${idx}" style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
             <option value="">— Não marcar —</option>
+            <option value="${_PAG_DESPESA}">Não é cartão — lançar como despesa</option>
             ${cartoesAtivos.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join('')}
           </select>
+          <input type="text" data-pag-cat-idx="${idx}" placeholder="Categoria (ex: Condomínio)" list="iaCategoriasSugeridas" autocomplete="off"
+            style="display:none;width:100%;box-sizing:border-box;padding:8px 10px;margin-top:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
         </div>`).join('');
+
+      lista.querySelectorAll('[data-pag-idx]').forEach(sel => {
+        sel.addEventListener('change', () => {
+          const catInput = lista.querySelector(`[data-pag-cat-idx="${sel.dataset.pagIdx}"]`);
+          catInput.style.display = sel.value === _PAG_DESPESA ? 'block' : 'none';
+        });
+      });
 
       document.getElementById('modalPagamentosFatura')?.classList.remove('hidden');
 
       return new Promise(resolve => {
         document.getElementById('btnPularPagamentosFatura').onclick = () => {
           document.getElementById('modalPagamentosFatura')?.classList.add('hidden');
-          resolve();
+          resolve({ despesasExtras: [], marcacoesExtras: [] });
         };
-        document.getElementById('btnConfirmarPagamentosFatura').onclick = async () => {
-          const btn = document.getElementById('btnConfirmarPagamentosFatura');
-          setLoading(btn, true, 'Salvando…');
-          const marcacoes = [];
+        document.getElementById('btnConfirmarPagamentosFatura').onclick = () => {
+          const despesasExtras = [];
+          const marcacoesExtras = [];
+          let faltouCategoria = false;
           lista.querySelectorAll('[data-pag-idx]').forEach(sel => {
             const idx = Number(sel.dataset.pagIdx);
-            const cartaoId = sel.value;
-            if (!cartaoId) return;
-            const cartaoObj = cartoesAtivos.find(c => c.id === cartaoId);
             const pag = pagamentos[idx];
-            const faturaKey = pag.data.slice(0, 7);
-            marcacoes.push(_marcarFaturaComoPaga(cartaoObj, pag, faturaKey, contaIdSel));
+            if (sel.value === _PAG_DESPESA) {
+              const catInput = lista.querySelector(`[data-pag-cat-idx="${idx}"]`);
+              const categoria = catInput.value.trim();
+              if (!categoria) { faltouCategoria = true; return; }
+              despesasExtras.push({ tipo: 'despesa', categoria, valor: pag.valor, data: pag.data, descricao: pag.descricao });
+            } else if (sel.value) {
+              const cartaoObj = cartoesAtivos.find(c => c.id === sel.value);
+              if (cartaoObj) marcacoesExtras.push({ cartaoObj, pag });
+            }
           });
-          await Promise.all(marcacoes);
-          setLoading(btn, false);
+          if (faltouCategoria) { toast('Preencha a categoria dos itens marcados como despesa.', 'warning'); return; }
           document.getElementById('modalPagamentosFatura')?.classList.add('hidden');
-          resolve();
+          resolve({ despesasExtras, marcacoesExtras });
         };
       });
     }
