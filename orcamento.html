@@ -1353,8 +1353,8 @@
           </div>
           <div style="text-align:center;margin:10px 0;color:var(--text-muted);font-size:12px;">— ou —</div>
           <div style="margin-bottom:18px;">
-            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, JPG, PNG, CSV/TXT ou .xlsx da planilha antiga)</label>
-            <input type="file" id="iaArquivoInput" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.csv,.txt" style="display:none;">
+            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, foto, CSV/TXT, .xlsx — qualquer formato que seu banco exportar)</label>
+            <input type="file" id="iaArquivoInput" style="display:none;">
             <div style="display:flex;align-items:center;gap:10px;">
               <button type="button" id="btnEscolherArquivo" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Escolher arquivo</button>
               <span id="iaArquivoNome" style="font-size:13px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Nenhum arquivo selecionado</span>
@@ -7063,9 +7063,12 @@
         if (xlsxComoTexto != null) {
           conteudo     = xlsxComoTexto;
           tipoConteudo = 'texto';
-        } else if (arquivo && /\.(csv|txt)$/i.test(arquivo.name)) {
-          // CSV/TXT não é PDF nem imagem — lê como texto puro, senão virava
-          // base64 de "imagem" e a IA não reconhecia o conteúdo (achado 13/07/2026).
+        } else if (arquivo && arquivo.type !== 'application/pdf' && !arquivo.type.startsWith('image/')) {
+          // Não é PDF nem imagem (CSV/TXT, ou qualquer outro formato que o
+          // banco exporte, ex: OFX/QIF/HTML — o seletor de arquivo agora
+          // aceita qualquer extensão) — lê como texto puro, senão virava
+          // base64 de "imagem" e a IA rejeitava com "Could not process
+          // image" (achado 13/07/2026).
           conteudo     = await arquivo.text();
           tipoConteudo = 'texto';
         } else if (arquivo) {
