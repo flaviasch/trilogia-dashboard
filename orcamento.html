@@ -6788,14 +6788,11 @@
           for (const pag of pagamentosFatura) {
             const descNorm = pag.descricao.toUpperCase();
             const cartaoPago = cartoesAtivos.find(c => descNorm.includes(c.nome.toUpperCase()));
-            const faturaKey = pag.data.slice(0, 7);
-            const jaPaga = cartaoPago && ['paga_total', 'paga_parcial'].includes(_faturaEstados[`${cartaoPago.id}_${faturaKey}`]?.estado);
-            if (cartaoPago && !jaPaga) {
-              await _marcarFaturaComoPaga(cartaoPago, pag, faturaKey, contaIdSel);
-            } else if (!cartaoPago) {
-              naoIdentificados.push(pag);
-            }
-            // jaPaga && cartaoPago: já está paga, nada a fazer, sem perguntar de novo.
+            if (!cartaoPago) { naoIdentificados.push(pag); continue; }
+            const faturaKey = await _resolverFaturaKeyPagamento(cartaoPago, pag);
+            const jaPaga = ['paga_total', 'paga_parcial'].includes(_faturaEstados[`${cartaoPago.id}_${faturaKey}`]?.estado);
+            if (!jaPaga) await _marcarFaturaComoPaga(cartaoPago, pag, faturaKey, contaIdSel);
+            // jaPaga: já está paga, nada a fazer, sem perguntar de novo.
           }
           if (naoIdentificados.length) await confirmarPagamentosFatura(naoIdentificados, contaIdSel);
         }
@@ -7698,6 +7695,39 @@
     // _cartoesReady é preenchido dentro de init() (após auth estar pronto)
     // para garantir que auth.currentUser != null quando getCartoes() é chamado
     let _cartoesReady = Promise.resolve();
+
+    // ─── Resolve qual fatura (AAAA-MM) um pagamento de conta corrente se refere ──
+    // Palpite padrão: mês do débito na conta. Mas perto da virada do mês, o banco
+    // pode atrasar o débito pro mês seguinte ao vencimento (ex: vencimento dia 31,
+    // débito processado dia 1º do mês seguinte) — nesse caso o palpite padrão erra
+    // a fatura. Se o mês anterior tiver uma fatura desse cartão com lançamentos e
+    // ainda pendente, e o mês do débito NÃO tiver (ainda não foi importada, ou não
+    // existe), usa o mês anterior em vez do palpite padrão (achado em 13/07/2026).
+    async function _resolverFaturaKeyPagamento(cartaoObj, pag) {
+      const mesmoMes = pag.data.slice(0, 7);
+      const [anoStr, mesStr] = mesmoMes.split('-');
+      const mesNum = parseInt(mesStr, 10);
+      const anoAnterior = mesNum === 1 ? Number(anoStr) - 1 : Number(anoStr);
+      const mesAnteriorNum = mesNum === 1 ? 12 : mesNum - 1;
+      const mesAnterior = `${anoAnterior}-${String(mesAnteriorNum).padStart(2, '0')}`;
+
+      const temItensDoCartao = async (faturaKey) => {
+        const [ano, mes] = faturaKey.split('-').map(Number);
+        const dados = (mes === currentData.periodo.mes && ano === currentData.periodo.ano)
+          ? currentData
+          : await buscarPeriodo(mes, ano, false).catch(() => null);
+        return !!dados?.despesas.some(d => d.cartao && d.cartaoId === cartaoObj.id && d.fatura === faturaKey);
+      };
+
+      for (const candidato of [mesmoMes, mesAnterior]) {
+        const jaPaga = ['paga_total', 'paga_parcial'].includes(_faturaEstados[`${cartaoObj.id}_${candidato}`]?.estado);
+        if (jaPaga) continue;
+        if (await temItensDoCartao(candidato)) return candidato;
+      }
+      // Nenhum dos dois candidatos tem lançamentos confirmados (fatura ainda não
+      // importada) — usa o palpite padrão, é a melhor estimativa disponível.
+      return mesmoMes;
+    }
 
     // ─── Marca uma fatura como paga a partir de um pagamento detectado no
     // extrato de conta corrente (importação por IA) ───────────────────────────
