@@ -6823,15 +6823,13 @@
     let _legadoMeses = [];   // [{ aba, mes, nomeMes, ...dadosParseAbaLegado }]
     let _legadoSelecionado = null;
 
-    async function abrirPassoLegado(arquivo) {
+    async function abrirPassoLegado(workbook) {
       document.getElementById('iaLegadoLoading').style.display = 'block';
       document.getElementById('iaLegadoMeses').innerHTML = '';
       document.getElementById('btnConfirmarImportarLegado').disabled = true;
       _legadoSelecionado = null;
       try {
-        await _carregarXLSXLib();
-        const buf = await arquivo.arrayBuffer();
-        _legadoWorkbook = window.XLSX.read(buf, { type: 'array', cellDates: true });
+        _legadoWorkbook = workbook;
 
         _legadoMeses = _MESES_ABAS_LEGADO
           .map(({ aba, mes }) => {
@@ -7021,20 +7019,50 @@
         return;
       }
 
-      // Planilha antiga do Orçamento Sob Medida (.xlsx) — não vai pra IA, tem
-      // parser dedicado que lê os dados já estruturados e codificados direto
-      // (achado 13/07/2026: mais confiável que mandar pra IA interpretar texto).
+      // .xlsx: pode ser a planilha antiga do Orçamento Sob Medida (parser
+      // dedicado, sem IA — reconhece pela aba "Códigos") OU um extrato/fatura
+      // de banco que só exporta em Excel (alguns bancos só dão Excel pra
+      // fatura em ABERTO, ainda não fechada, achado 13/07/2026) — nesse
+      // segundo caso vira texto (CSV) e segue pro fluxo normal da IA, que já
+      // cai para sugerirFatura() por data de corte quando não há vencimento
+      // impresso (é exatamente o caso de uma fatura em aberto).
+      let xlsxComoTexto = null;
       if (arquivo && /\.xlsx$/i.test(arquivo.name)) {
         document.getElementById('iaPasso2').style.display = 'none';
         document.getElementById('iaPasso3').style.display = 'block';
-        await abrirPassoLegado(arquivo);
-        return;
+        try {
+          await _carregarXLSXLib();
+          const buf = await arquivo.arrayBuffer();
+          const wb = window.XLSX.read(buf, { type: 'array', cellDates: true });
+          if (wb.SheetNames.includes('Códigos')) {
+            await abrirPassoLegado(wb);
+            return;
+          }
+          xlsxComoTexto = wb.SheetNames
+            .map(nome => `--- ${nome} ---\n${window.XLSX.utils.sheet_to_csv(wb.Sheets[nome])}`)
+            .join('\n\n')
+            .trim();
+          if (!xlsxComoTexto) {
+            toast('Essa planilha parece vazia.', 'error');
+            document.getElementById('modalImportarIA').classList.add('hidden');
+            return;
+          }
+        } catch (err) {
+          toast('Não consegui ler essa planilha. Confira se o arquivo não está corrompido.', 'error');
+          document.getElementById('modalImportarIA').classList.add('hidden');
+          return;
+        }
+        document.getElementById('iaPasso3').style.display = 'none';
+        document.getElementById('iaPasso2').style.display = 'block';
       }
 
       setLoading(btn, true, 'Categorizando…');
       try {
         let conteudo, tipoConteudo;
-        if (arquivo) {
+        if (xlsxComoTexto != null) {
+          conteudo     = xlsxComoTexto;
+          tipoConteudo = 'texto';
+        } else if (arquivo) {
           // Lê como base64 e remove o prefixo "data:<mime>;base64," antes de enviar
           const base64completo = await new Promise((resolve, reject) => {
             const r = new FileReader();
