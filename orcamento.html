@@ -2934,7 +2934,15 @@
       if (cartao && !fatura) { toast('Selecione o mês da fatura.', 'warning'); return; }
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
 
-      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}), ...(contaId ? { contaId } : {}) };
+      // Lançamento MANUAL com data de hoje (ou passada) já nasce confirmado —
+      // a própria usuária digitando na hora É a confirmação, diferente de um
+      // item importado/projetado (recorrente, CSV) que ela ainda não revisou
+      // (achado 13/07/2026: distinção pedida entre entrada manual e
+      // importada; a regra de "hoje exige confirmação" de 10/07/2026
+      // continua valendo só para o que chega sem revisão da usuária).
+      const hojeNovoItem = new Date(); hojeNovoItem.setHours(0, 0, 0, 0);
+      const jaAconteceuNovoItem = data && new Date(data + 'T00:00:00') <= hojeNovoItem;
+      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}), ...(contaId ? { contaId } : {}), ...(jaAconteceuNovoItem ? { confirmado: true } : {}) };
 
       if (cartao && fatura) {
         // Salva diretamente no mês da fatura (não no mês exibido)
