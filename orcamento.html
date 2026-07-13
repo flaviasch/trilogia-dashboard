@@ -3558,7 +3558,11 @@
       const _admin = await isAdmin();
       if (!VIEW_AS_UID && _admin && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
       if (_admin) document.getElementById('linkAdmin').style.display = 'inline';
-      if (_admin || TEST_ACCESS_EMAILS.includes(user.email)) {
+      // Nunca liberar em modo "ver como" (admin.html): user.email continua sendo
+      // o e-mail da Flávia mesmo impersonando outra mentorada, então "_admin ||"
+      // sozinho vazava o botão pra qualquer conta real vista via admin (achado
+      // 13/07/2026). Testar a IA exige logar como a própria conta de teste.
+      if (!VIEW_AS_UID && (_admin || TEST_ACCESS_EMAILS.includes(user.email))) {
         document.getElementById('btnUploadIA').style.display = '';
       }
 
