@@ -8315,6 +8315,10 @@
             // quando as parcelas acabarem.
             const mesesRestantes = Number.isInteger(f.parcelaAtual) && Number.isInteger(f.parcelasTotal)
               ? Math.max(0, f.parcelasTotal - f.parcelaAtual) : null;
+            // Herda cartao/cartaoId do item original — sem isso, uma fixa
+            // importada da FATURA DO CARTÃO virava recorrente de débito em
+            // conta, duplicando o que já está lançado no cartão e cobrando
+            // confirmação mensal de um "pendente" fantasma (achado 13/07/2026).
             await saveRecorrente({
               categoria: f.categoria,
               valor: f.valor,
@@ -8323,8 +8327,8 @@
               frequencia: 'mensal',
               mesesRestantes,
               ativo: true,
-              cartao: false,
-              cartaoId: '',
+              cartao: !!f.cartao,
+              cartaoId: f.cartao ? (f.cartaoId || '') : '',
             });
           }
         }
