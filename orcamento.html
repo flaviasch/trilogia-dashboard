@@ -3158,7 +3158,23 @@
       }
     }
 
-    async function salvarEAtualizar() {
+    // Serializa chamadas a salvarEAtualizar — saveOrcamento substitui a lista
+    // inteira do mês, então dois salvamentos concorrentes (ex: confirmar dois
+    // lançamentos pendentes rapidamente, um logo depois do outro) podiam
+    // correr em paralelo; se o mais antigo (com um retrato desatualizado de
+    // currentData) terminasse DEPOIS do mais novo, ele sobrescrevia o Firestore
+    // e revertia silenciosamente a segunda confirmação (achado em 14/07/2026).
+    // Agora cada chamada espera a anterior terminar antes de montar seu
+    // próprio retrato de itens, garantindo que sempre reflita o estado mais
+    // recente e que a ordem de conclusão siga a ordem de chamada.
+    let _salvarChain = Promise.resolve();
+    function salvarEAtualizar() {
+      const proximo = _salvarChain.then(() => _salvarEAtualizarAgora());
+      _salvarChain = proximo.catch(() => {}); // uma falha não trava as próximas
+      return proximo;
+    }
+
+    async function _salvarEAtualizarAgora() {
       const { mes, ano } = currentData.periodo;
       const mesAtual = new Date().getMonth() + 1;
       const itens = [
