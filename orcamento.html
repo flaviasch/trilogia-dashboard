@@ -1346,15 +1346,15 @@
 
         <!-- Passo 2: colar texto ou enviar arquivo -->
         <div id="iaPasso2" style="display:none;">
-          <p class="modal-sub">Cole o texto do extrato/fatura, ou envie um arquivo (PDF, foto, imagem, ou a planilha antiga do Orçamento Sob Medida em .xlsx). A IA extrai e categoriza as transações sozinha — sem precisar do agente externo.</p>
+          <p class="modal-sub">Cole o texto do extrato/fatura, ou envie um arquivo (PDF, foto, imagem, CSV/TXT, ou a planilha antiga do Orçamento Sob Medida em .xlsx). A IA extrai e categoriza as transações sozinha — sem precisar do agente externo.</p>
           <div style="margin-bottom:14px;">
             <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Colar texto do extrato/fatura</label>
             <textarea id="iaExtratoTexto" rows="8" placeholder="Cole aqui o texto do extrato ou da fatura..." style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
           </div>
           <div style="text-align:center;margin:10px 0;color:var(--text-muted);font-size:12px;">— ou —</div>
           <div style="margin-bottom:18px;">
-            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, JPG, PNG ou .xlsx da planilha antiga)</label>
-            <input type="file" id="iaArquivoInput" accept=".pdf,.jpg,.jpeg,.png,.xlsx" style="display:none;">
+            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, JPG, PNG, CSV/TXT ou .xlsx da planilha antiga)</label>
+            <input type="file" id="iaArquivoInput" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.csv,.txt" style="display:none;">
             <div style="display:flex;align-items:center;gap:10px;">
               <button type="button" id="btnEscolherArquivo" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Escolher arquivo</button>
               <span id="iaArquivoNome" style="font-size:13px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Nenhum arquivo selecionado</span>
@@ -7062,6 +7062,11 @@
         let conteudo, tipoConteudo;
         if (xlsxComoTexto != null) {
           conteudo     = xlsxComoTexto;
+          tipoConteudo = 'texto';
+        } else if (arquivo && /\.(csv|txt)$/i.test(arquivo.name)) {
+          // CSV/TXT não é PDF nem imagem — lê como texto puro, senão virava
+          // base64 de "imagem" e a IA não reconhecia o conteúdo (achado 13/07/2026).
+          conteudo     = await arquivo.text();
           tipoConteudo = 'texto';
         } else if (arquivo) {
           // Lê como base64 e remove o prefixo "data:<mime>;base64," antes de enviar
