@@ -988,17 +988,21 @@ exports.categorizarExtratoIA = onCall(
     aprendidasSnap.docs.forEach(d => { aprendidasMap[d.id] = d.data().categoria; });
     const listaAprendidas = aprendidasSnap.docs.map(d => `${d.data().descricaoOriginal} → ${d.data().categoria}`);
 
+    const CATEGORIAS_RECEITA = ['Salário', 'Freelance / Prestação de Serviço', 'Transferência Recebida', 'Reembolso', 'Rendimento de Investimento', 'Restituição / Estorno', 'Outros'];
+
     const systemPrompt = `Você extrai e categoriza transações de extratos bancários e faturas de cartão de crédito brasileiros.
 
-Categorias válidas (código=nome) — use SEMPRE o código numérico, nunca invente categoria fora desta lista:
+Categorias válidas para DESPESA (código=nome) — use SEMPRE o código numérico para despesas, nunca invente categoria fora desta lista:
 ${listaCategorias}
+
+Categorias válidas para RECEITA — são uma lista SEPARADA, NUNCA use um código de despesa (a lista acima) para uma receita, mesmo que pareça genérico (ex: "Despesas Gerais" nunca é categoria de receita). Escolha uma destas, como texto (não código): ${CATEGORIAS_RECEITA.join(', ')}.
 ${listaAprendidas.length ? `
-Mapeamento de estabelecimentos já confirmado pela própria usuária em importações anteriores — sempre que um desses aparecer (mesmo com pequenas variações de grafia, sufixo ou pontuação), use exatamente o código correspondente a essa categoria na lista acima, e marque "categoriaIncerta": false:
+Mapeamento de estabelecimentos já confirmado pela própria usuária em importações anteriores — sempre que um desses aparecer (mesmo com pequenas variações de grafia, sufixo ou pontuação), use exatamente o código/categoria correspondente na lista acima, e marque "categoriaIncerta": false:
 ${listaAprendidas.join('\n')}
 ` : ''}
 Regras obrigatórias:
 - Ignore saldos, linhas de resumo/cabeçalho e duplicidades.
-- "tipo" é "despesa" para gastos e "receita" para entradas (salário, transferência recebida, estorno).
+- "tipo" é "despesa" para gastos e "receita" para entradas (salário, transferência recebida, estorno). Determine "tipo" pelo indicador de débito/crédito impresso no documento (coluna C/D, sinal +/-, "crédito"/"débito"), não só pelo texto da descrição — descrições como "pagamento", "cobrança" ou "depósito" aparecem tanto em débitos quanto em créditos dependendo do banco; confie no indicador estrutural do extrato quando ele existir, e só na ausência dele infira pelo texto.
 - Pagamento de fatura de cartão de crédito debitado na conta corrente NÃO é uma despesa própria — NÃO inclua essa linha em "itens" (o gasto real já está nos itens individuais da fatura, se ela também foi enviada). Em vez disso, inclua essa linha em "pagamentosFatura" (ver formato abaixo), com a descrição completa da linha (para identificar qual cartão/bandeira foi pago, ex: "PGTO CARTAO VISA", "PAGAMENTO FATURA MASTERCARD"), o valor e a data.
 - Identifique o estabelecimento pelo nome mesmo com abreviações/sufixos de operadora (ex: "ANTHROPIC* CLAUDE SUB", "NETFLIX.COM", "UBER *TRIP") e categorize pelo que o estabelecimento realmente vende, não pela primeira palavra parecida. Assinatura de software/IA (ChatGPT, Claude, Notion, Adobe, Spotify, etc.) → categoria 17 (Streaming), nunca Cosméticos ou outra categoria não relacionada. Na dúvida entre duas categorias, prefira a mais genérica da mesma área (ex: "Outros Saúde") a uma categoria de área errada.
 - "fixa": true para despesas que claramente se repetem todo mês com valor igual ou parecido — aluguel, mensalidade, assinatura de streaming, academia, tratamento recorrente — MESMO quando pagas em parcelas (ex: "Academia Parcela 2/12" é fixa: true, porque é uma mensalidade parcelada). Compras avulsas de cartão parceladas que não se repetem depois de quitadas (eletrônico, móvel, roupa, viagem) NUNCA são fixa: true.
@@ -1009,7 +1013,7 @@ Regras obrigatórias:
 - "vencimentoFatura": SE o documento for uma fatura de cartão de crédito (não extrato de conta corrente) E tiver uma data de vencimento impressa (ex: "Vencimento: 20/07/2026", "Data de vencimento", "Pagamento até"), preencha no formato AAAA-MM-DD. Isso é o vencimento IMPRESSO no documento, não uma data que você calcula — se não encontrar essa informação impressa, ou se for extrato de conta corrente, use null.
 - "pagamentosFatura": array com as linhas de pagamento de fatura de cartão identificadas (ver regra acima) — [] se não houver nenhuma ou se o documento for a própria fatura (não faz sentido dentro de uma fatura).
 - Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só, sem indentação nem quebras de linha). Formato:
-  {"vencimentoFatura": "AAAA-MM-DD"|null, "pagamentosFatura": [{"descricao": "<texto completo da linha>", "valor": <número>, "data": "AAAA-MM-DD"}], "itens": [{"categoria": "<código numérico como string>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false}, ...]}`;
+  {"vencimentoFatura": "AAAA-MM-DD"|null, "pagamentosFatura": [{"descricao": "<texto completo da linha>", "valor": <número>, "data": "AAAA-MM-DD"}], "itens": [{"categoria": "<código numérico como string, se despesa — ou texto da lista de receita, se receita>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false}, ...]}`;
 
     const contentBlock = tipoConteudo === 'texto'
       ? { type: 'text', text: conteudo }
