@@ -537,10 +537,8 @@
     .item-actions {
       display: flex;
       gap: 4px;
-      opacity: 0;
-      transition: opacity 0.15s;
+      opacity: 1;
     }
-    .item-row:hover .item-actions { opacity: 1; }
     .btn-item {
       background: transparent;
       border: 1px solid var(--border);
@@ -957,11 +955,9 @@
       background: transparent; border: 1px solid var(--border); border-radius: 4px;
       width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
       font-size: 10px; cursor: pointer; color: var(--text-muted);
-      opacity: 0; transition: opacity .15s; flex-shrink: 0;
+      opacity: 1; flex-shrink: 0;
     }
-    .plan-row:hover .btn-edit-plan { opacity: 1; }
     .btn-edit-plan:hover { border-color: var(--border-gold); color: var(--gold); }
-    @media (max-width: 640px) { .btn-edit-plan { opacity: 1; } }
     .input-plan {
       background: rgba(255,255,255,.06); border: 1px solid var(--border-gold); border-radius: 6px;
       padding: 4px 8px; font-size: 13px; font-weight: 600; color: var(--gold);
@@ -2965,7 +2961,6 @@
         // Salva diretamente no mês da fatura (não no mês exibido)
         const [fatAno, fatMes] = fatura.split('-').map(Number);
         const editandoIdxCaptura = editandoIdx; // captura antes de fecharModal zerar
-        fecharModal();
         setLoading(btnSalvarItem, true);
         try {
           // Se é edição, remove o item original do mês atual antes de salvar na fatura
@@ -2981,6 +2976,10 @@
           itensFatura.push(novoItem);
           await saveOrcamento(fatMes, fatAno, itensFatura);
           _invalPeriodo(fatMes, fatAno);
+          // Só fecha o modal depois do salvamento confirmado — fechar antes
+          // deixava o intervalo de espera sem nenhum feedback visível, parecendo
+          // que nada tinha acontecido (achado 14/07/2026).
+          fecharModal();
           const { mes: mesVisAtual, ano: anoVisAtual } = currentData.periodo;
           if (fatMes === mesVisAtual && fatAno === anoVisAtual) {
             currentData = await buscarPeriodo(fatMes, fatAno);
@@ -3023,7 +3022,6 @@
           return;
         }
 
-        fecharModal();
         setLoading(btnSalvarItem, true);
         try {
           // Se é edição, remove o item original do mês em tela antes de salvar no mês certo
@@ -3065,6 +3063,7 @@
           }
           await saveOrcamento(itemMesData, itemAnoData, itensOutroMes);
           _invalPeriodo(itemMesData, itemAnoData);
+          fecharModal();
           toast(`Salvo em ${MESES[itemMesData - 1]}/${itemAnoData} — visualize navegando para aquele mês.`, 'success', 5000);
         } catch (err) {
           toast('Erro ao salvar.', 'error');
@@ -3107,10 +3106,13 @@
         return;
       }
 
-      fecharModal();
       setLoading(btnSalvarItem, true);
       try {
         await salvarEAtualizar();
+        // Só fecha o modal depois do salvamento confirmado — fechar antes deixava
+        // o intervalo de espera sem nenhum feedback visível, parecendo que nada
+        // tinha acontecido (achado 14/07/2026).
+        fecharModal();
         // Cadastra como recorrente se solicitado
         if (virarFixa || recorrPrazo) {
           const { id: novoRecId } = await saveRecorrente({
