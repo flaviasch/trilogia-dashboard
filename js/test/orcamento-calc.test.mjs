@@ -412,7 +412,7 @@ test('calcularAjuste', async (t) => {
 
 test('calcularNaoPlanejado', async (t) => {
   await t.test('sem renda/percentual definidos, totalPlanejado e folga são null', () => {
-    const r = calcularNaoPlanejado({ categorias: [{ nome: 'Moradia', limite: 2000 }], despesas: [] });
+    const r = calcularNaoPlanejado({ categorias: [{ nome: 'Moradia', limite: 2000 }] });
     assert.equal(r.temMeta, false);
     assert.equal(r.totalPlanejado, null);
     assert.equal(r.folga, null);
@@ -423,7 +423,6 @@ test('calcularNaoPlanejado', async (t) => {
     const r = calcularNaoPlanejado({
       renda: 10000, percentual: 70,
       categorias: [{ nome: 'Moradia', limite: 4000 }, { nome: 'Alimentação', limite: 2000 }],
-      despesas: [],
     });
     assert.equal(r.totalPlanejado, 7000);
     assert.equal(r.somaLimites, 6000);
@@ -435,44 +434,10 @@ test('calcularNaoPlanejado', async (t) => {
     const r = calcularNaoPlanejado({
       renda: 10000, percentual: 70,
       categorias: [{ nome: 'Moradia', limite: 5000 }, { nome: 'Alimentação', limite: 3000 }],
-      despesas: [],
     });
     assert.equal(r.totalPlanejado, 7000);
     assert.equal(r.somaLimites, 8000);
     assert.equal(r.folga, 0);
     assert.equal(r.sobreAlocado, true);
-  });
-
-  await t.test('real = despesas em categorias sem limite definido', () => {
-    const r = calcularNaoPlanejado({
-      renda: 10000, percentual: 70,
-      categorias: [{ nome: 'Moradia', limite: 4000 }],
-      despesas: [
-        { categoria: 'Moradia', valor: 1500 },       // tem limite → fora
-        { categoria: 'Lazer', valor: 300 },           // sem limite → dentro
-        { categoria: 'Assinaturas', valor: 80 },      // sem limite → dentro
-      ],
-    });
-    assert.equal(r.realNaoPlanejado, 380);
-    assert.equal(r.itensNaoPlanejado.length, 2);
-  });
-
-  await t.test('categoria sem limite é case/acento-insensível (normCat)', () => {
-    const r = calcularNaoPlanejado({
-      categorias: [{ nome: 'alimentação', limite: 500 }],
-      despesas: [{ categoria: 'Alimentação', valor: 100 }],
-    });
-    assert.equal(r.realNaoPlanejado, 0);
-  });
-
-  await t.test('conta despesas da fatura em aberto já importada (achado 13/07/2026: diferente do resto do Planejamento, que ainda espera a fatura fechar só pra reconciliação de caixa)', () => {
-    const r = calcularNaoPlanejado({
-      categorias: [],
-      despesas: [
-        { categoria: 'Lazer', valor: 200, _faturaAberta: true },
-        { categoria: 'Lazer', valor: 50 },
-      ],
-    });
-    assert.equal(r.realNaoPlanejado, 250);
   });
 });

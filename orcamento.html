@@ -2585,7 +2585,6 @@
     let perfilInvestidor = null;
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
     let planejamentoMeta = { renda: null, percentual: null }; // renda + % planejado do mês atual
-    let _naoPlanExpandido = false; // estado do "Não planejado" (expandir/colapsar) no Planejamento
     // Saldo Final do mês em tela — capturado a cada render() pra servir de
     // carryover automático pro saldo inicial do mês seguinte, sem precisar
     // buscar o mês anterior de novo quando ele já está carregado na sessão.
@@ -5055,15 +5054,15 @@
       const contaComoComprometido = () => true;
 
       // Agrega despesas por categoria NORMALIZADA — "Alimentação"/"alimentação"
-      // contam juntas; o rótulo exibido é a grafia mais usada no grupo. Só
-      // categorias COM limite definido ganham linha própria — sem limite vai
-      // pra "Não planejado" (ver naoPlan mais abaixo).
-      const catsComLimiteNorm = new Set(cats.filter(c => c.limite > 0).map(c => normCat(c.nome)));
+      // contam juntas; o rótulo exibido é a grafia mais usada no grupo. TODA
+      // categoria com despesa real ganha linha própria, tenha limite definido
+      // ou não — igual a uma transação lançada manualmente, que sempre aparece
+      // na sua categoria de verdade (achado 13/07/2026: antes, categoria sem
+      // limite ficava escondida, lumped num "Não planejado" genérico).
       const gruposPorNorm = {}; // normKey -> { total, labels: {label: count} }
       data.despesas.forEach(d => {
         if (!contaComoComprometido(d)) return;
         const norm = normCat(d.categoria);
-        if (!catsComLimiteNorm.has(norm)) return;
         if (!gruposPorNorm[norm]) gruposPorNorm[norm] = { total: 0, labels: {} };
         gruposPorNorm[norm].total += d.valor;
         gruposPorNorm[norm].labels[d.categoria] = (gruposPorNorm[norm].labels[d.categoria] || 0) + 1;
@@ -5085,26 +5084,15 @@
         gruposPorNorm[norm].labels[c.nome] = (gruposPorNorm[norm].labels[c.nome] || 0) + 1;
       });
 
-      // "Não planejado" — categorias sem limite definido, resumidas numa
-      // linha só (folga do orçamento + gasto fora do plano). CATEGORIA_AJUSTE
-      // é outra coisa (reconciliação de caixa) e fica de fora, com linha própria.
+      // "Não planejado" agora é só a sobra do orçamento (renda × %) que não
+      // foi distribuída em nenhuma categoria com limite — não é mais um
+      // amontoado de despesas reais (essas já aparecem na própria categoria
+      // acima). Achado 13/07/2026.
       const naoPlan = calcularNaoPlanejado({
         renda: planejamentoMeta.renda,
         percentual: planejamentoMeta.percentual,
         categorias: cats,
-        despesas: data.despesas.filter(d => normCat(d.categoria) !== normCat(CATEGORIA_AJUSTE)),
       });
-      const _gruposNaoPlanNorm = {};
-      naoPlan.itensNaoPlanejado.forEach(d => {
-        const norm = normCat(d.categoria);
-        if (!_gruposNaoPlanNorm[norm]) _gruposNaoPlanNorm[norm] = { total: 0, labels: {} };
-        _gruposNaoPlanNorm[norm].total += d.valor;
-        _gruposNaoPlanNorm[norm].labels[d.categoria] = (_gruposNaoPlanNorm[norm].labels[d.categoria] || 0) + 1;
-      });
-      const _detalheNaoPlanItens = Object.values(_gruposNaoPlanNorm).map(g => ({
-        label: Object.entries(g.labels).sort((a, b) => b[1] - a[1])[0][0],
-        total: g.total,
-      })).sort((a, b) => b.total - a.total);
 
       // Escolhe o rótulo mais frequente de cada grupo pra exibir; porCat fica
       // indexado por esse rótulo (mantém a interface usada daqui pra baixo).
@@ -5194,63 +5182,27 @@
         </tr>`;
       }).join('');
 
-      // Duas linhas distintas (achado 13/07/2026 — antes eram uma só, misturando
-      // dois conceitos diferentes num único número):
-      // 1. "Sobra não alocada" — dinheiro do planejado (renda × %) que não foi
-      //    distribuído em nenhuma categoria com limite. Só existe com renda
-      //    definida; sem ela, mostra o CTA "+ definir renda" (ligado a esse
-      //    conceito, não ao gasto real).
-      // 2. "Não planejado" — gasto REAL em categorias sem limite definido,
-      //    igual a uma transação lançada manualmente: sem "planejado" para
-      //    comparar, só mostra o realizado e a lista dos itens (expandível).
-      const sobraRelevante = !naoPlan.temMeta || naoPlan.folga > 0 || naoPlan.sobreAlocado;
-      let linhaSobra = '';
-      if (sobraRelevante) {
-        const planCellSobra = naoPlan.temMeta
+      // Linha "Não planejado" — só a sobra do planejado sem categoria (achado
+      // 13/07/2026: voltou a ser uma linha só; despesas reais sem limite têm
+      // sua própria linha na tabela principal acima, não ficam mais aqui).
+      const naoPlanRelevante = !naoPlan.temMeta || naoPlan.folga > 0 || naoPlan.sobreAlocado;
+      let linhaNaoPlan = '';
+      if (naoPlanRelevante) {
+        const planCellNP = naoPlan.temMeta
           ? `<div class="plan-plan-wrap" style="flex-direction:column;align-items:flex-end;gap:0">
                <span class="plan-valor-plan">${brl(naoPlan.folga)}</span>
                ${naoPlan.sobreAlocado ? `<span style="font-size:10px;color:#f59e0b">categorias somam mais que o planejado</span>` : ''}
              </div>`
           : `<button class="btn-edit-plan" style="opacity:1;width:auto;padding:0 8px" onclick="event.stopPropagation();abrirModalRendaPlan()" title="Definir renda">+ definir renda</button>`;
-        linhaSobra = `
+        linhaNaoPlan = `
           <tr class="plan-row">
-            <td class="plan-cat" style="padding-left:20px">Sobra não alocada</td>
-            <td>${planCellSobra}</td>
+            <td class="plan-cat" style="padding-left:20px">Não planejado</td>
+            <td>${planCellNP}</td>
             <td><span style="color:var(--text-muted)">—</span></td>
             <td style="min-width:140px"><div class="plan-bar-wrap"><span style="color:var(--text-muted);font-size:12px">—</span></div></td>
             <td style="padding-right:20px;text-align:center"><span class="plan-status">⚪</span></td>
           </tr>`;
       }
-
-      // Linha "Não planejado" — gasto real em categorias sem limite, só aparece
-      // se houver algo. Sem conceito de "planejado" (não é comparado a limite
-      // nenhum, é justamente o gasto que ficou fora do plano).
-      const naoPlanRelevante = naoPlan.itensNaoPlanejado.length > 0;
-      let linhaNaoPlan = '';
-      if (naoPlanRelevante) {
-        const realNP  = naoPlan.realNaoPlanejado;
-        const corNP   = realNP > 0 ? 'var(--negative)' : 'var(--text-muted)';
-        const emojiNP = realNP > 0 ? '🔴' : '⚪';
-        const chevronNP = `<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="transform:rotate(${_naoPlanExpandido ? '180' : '0'}deg);transition:transform .15s;margin-left:6px;vertical-align:middle"><polyline points="4,6 8,10 12,6"/></svg>`;
-        linhaNaoPlan = `
-          <tr class="plan-row" style="cursor:pointer" onclick="toggleNaoPlanejado()">
-            <td class="plan-cat" style="padding-left:20px">Não planejado${chevronNP}</td>
-            <td><span style="color:var(--text-muted)">—</span></td>
-            <td><span style="font-weight:600;${realNP > 0 ? `color:${corNP}` : ''}">${brl(realNP)}</span></td>
-            <td style="min-width:140px"><div class="plan-bar-wrap"><span style="color:var(--text-muted);font-size:12px">—</span></div></td>
-            <td style="padding-right:20px;text-align:center"><span class="plan-status">${emojiNP}</span></td>
-          </tr>
-          <tr class="plan-row-detalhe"${_naoPlanExpandido ? '' : ' style="display:none"'}>
-            <td colspan="5" style="padding:4px 20px 14px 36px;background:rgba(255,255,255,.015)">
-              ${_detalheNaoPlanItens.map(it => `
-                <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:var(--text-secondary);border-bottom:1px solid rgba(255,255,255,.05)">
-                  <span>${escapeHtml(it.label)}</span>
-                  <span style="font-weight:600">${brl(it.total)}</span>
-                </div>`).join('') || `<div style="font-size:12px;color:var(--text-muted);padding:6px 0">Nenhuma despesa fora do plano este mês.</div>`}
-            </td>
-          </tr>`;
-      }
-      linhaNaoPlan = linhaSobra + linhaNaoPlan;
       const corpoTabela = linhas + linhaNaoPlan;
 
       const totalPctGlobal = totalPlan > 0 ? Math.round(totalReal / totalPlan * 100) : 0;
@@ -5409,12 +5361,6 @@
       // Abre o modal de limite (já existente) com a categoria
       abrirModalLimite(cat);
     }
-
-    function toggleNaoPlanejado() {
-      _naoPlanExpandido = !_naoPlanExpandido;
-      renderPlanejamento(currentData, categoriasMes);
-    }
-    window.toggleNaoPlanejado = toggleNaoPlanejado;
 
     async function copiarMesAnterior() {
       const { mes, ano } = currentData.periodo;
