@@ -3079,6 +3079,14 @@
       if (editandoIdx !== null && editandoIdx.tipo === tipo) {
         lista[editandoIdx.idx] = novoItem;
       } else {
+        // Editando um item e mudou o "Tipo" (despesa↔receita): o item some da
+        // lista original e entra na nova — sem isso, ficava duplicado (o
+        // antigo continuava na lista de despesas, e um novo era adicionado
+        // em receitas), achado 14/07/2026.
+        if (editandoIdx !== null) {
+          const listaOrigemTipo = editandoIdx.tipo === 'receita' ? currentData.receitas : currentData.despesas;
+          listaOrigemTipo.splice(editandoIdx.idx, 1);
+        }
         lista.push(novoItem);
       }
 
