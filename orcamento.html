@@ -6582,14 +6582,18 @@
       // Escopo do lote (achado em 12/07/2026): sem isso, importar a fatura de
       // um cartão substituía TAMBÉM o extrato de conta corrente já importado
       // no mesmo mês (e vice-versa). Cada lote só deve substituir itens do
-      // mesmo escopo — cartão específico, ou conta corrente (não-cartão).
+      // mesmo escopo — cartão específico, ou conta corrente ESPECÍFICA
+      // (achado 13/07/2026: faltava distinguir por contaId também — importar
+      // o extrato da conta B avisava/substituía os itens da conta A, mesmo
+      // sendo contas diferentes, porque "conta" tratava toda despesa não-cartão
+      // como um escopo só, independente de qual conta corrente).
       // escopo=null (import de CSV legado) preserva o comportamento antigo:
       // qualquer importação substitui tudo que não for manual/recorrente/parcelamento.
       const pertenceEscopo = (item) => {
         if (!escopo) return true;
         return escopo.tipo === 'cartao'
           ? (!!item.cartao && item.cartaoId === escopo.cartaoId)
-          : !item.cartao;
+          : (!item.cartao && pertenceAConta(item, escopo.contaId || CONTA_PRINCIPAL_ID));
       };
 
       // Já existe uma importação anterior desse mesmo escopo nesse mês?
@@ -7089,11 +7093,15 @@
           return contaIdSel ? { ...i, contaId: contaIdSel } : i;
         });
 
-        // Escopo do lote: um cartão específico, ou conta corrente — usado pra
-        // não deixar uma importação apagar a de outro escopo no mesmo mês
-        // (ex: importar a fatura do cartão não pode apagar o extrato da conta
-        // corrente já importado, achado em 12/07/2026).
-        const escopoLote = cartaoObjSel ? { tipo: 'cartao', cartaoId: cartaoObjSel.id } : { tipo: 'conta' };
+        // Escopo do lote: um cartão específico, ou uma conta corrente
+        // específica — usado pra não deixar uma importação apagar a de outro
+        // escopo no mesmo mês (ex: importar a fatura do cartão não pode
+        // apagar o extrato da conta corrente já importado, achado em
+        // 12/07/2026; importar o extrato da conta B não pode apagar o da
+        // conta A, achado em 13/07/2026).
+        const escopoLote = cartaoObjSel
+          ? { tipo: 'cartao', cartaoId: cartaoObjSel.id }
+          : { tipo: 'conta', contaId: contaIdSel || CONTA_PRINCIPAL_ID };
 
         document.getElementById('modalImportarIA').classList.add('hidden');
         const { cancelado } = await confirmarCategoriasIncertas(itensProcessados);
