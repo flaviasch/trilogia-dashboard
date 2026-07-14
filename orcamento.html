@@ -7158,6 +7158,32 @@
 
         await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado', escopo: escopoLote });
 
+        // Fatura de cartão importada: procura um lançamento avulso já existente
+        // que pareça ser o pagamento dessa mesma fatura (valor batendo, perto
+        // do vencimento) — acontece quando a usuária lançou o pagamento manual
+        // antes de ter a fatura detalhada em mãos. Manter os dois conta o valor
+        // em dobro. Nunca exclui sozinho: mostra o item encontrado e pede
+        // confirmação explícita (achado 14/07/2026).
+        if (cartaoObjSel) {
+          const totalFaturaImportada = itensProcessados
+            .filter(i => i.cartaoId === cartaoObjSel.id && i.fatura === faturaLote)
+            .reduce((s, i) => s + (i.tipo === 'despesa' ? i.valor : -i.valor), 0);
+          const avulso = await _buscarAvulsoCorrespondenteAFatura(cartaoObjSel, faturaLote, totalFaturaImportada);
+          if (avulso) {
+            const confirmarExclusao = await confirmDelete(
+              `Encontramos um lançamento avulso que parece ser o pagamento desta fatura:<br><br>` +
+              `<strong>${escapeHtml(avulso.item.categoria)}</strong> — ${brl(avulso.item.valor)} em ${formatData(avulso.item.data)}` +
+              `${avulso.item.descricao ? `<br>${escapeHtml(avulso.item.descricao)}` : ''}<br><br>` +
+              `Agora que os itens detalhados da fatura foram importados, manter os dois lançamentos contaria esse valor em dobro. Excluir o avulso?`,
+              'Excluir avulso'
+            );
+            if (confirmarExclusao) {
+              await _excluirDespesaAvulsaEm(avulso.mes, avulso.ano, avulso.item);
+              toast('Lançamento avulso excluído — os itens da fatura já cobrem esse valor.', 'success');
+            }
+          }
+        }
+
         // Marca as faturas identificadas como pagas — se ainda estiverem
         // pendentes (não precisa acontecer antes de salvar os itens). Fallback
         // pro palpite padrão (mês do débito) só se null — nesse ponto pode vir
@@ -8102,6 +8128,43 @@
       // nesse caso (achado 14/07/2026) — marcar como paga sem itens faz o
       // gasto desaparecer do controle, sem virar despesa nem item de fatura.
       return null;
+    }
+
+    // ─── Procura uma despesa avulsa que pareça ser o pagamento de uma fatura
+    // recém-importada (mesmo valor líquido, no mês da fatura ou no seguinte,
+    // que costuma ser o mês do vencimento/débito) ──────────────────────────
+    async function _buscarAvulsoCorrespondenteAFatura(cartaoObj, faturaKey, totalFatura) {
+      if (!totalFatura) return null;
+      const [anoFatStr, mesFatStr] = faturaKey.split('-');
+      const anoFat = Number(anoFatStr), mesFat = Number(mesFatStr);
+      const nextMes = mesFat === 12 ? 1 : mesFat + 1;
+      const nextAno = mesFat === 12 ? anoFat + 1 : anoFat;
+      const candidatos = [{ mes: mesFat, ano: anoFat }, { mes: nextMes, ano: nextAno }];
+      for (const { mes, ano } of candidatos) {
+        const dados = (mes === currentData.periodo.mes && ano === currentData.periodo.ano)
+          ? currentData
+          : await buscarPeriodo(mes, ano, false).catch(() => null);
+        if (!dados) continue;
+        const item = dados.despesas.find(d => !d.cartao && Math.abs(d.valor - totalFatura) < 0.01);
+        if (item) return { mes, ano, item };
+      }
+      return null;
+    }
+
+    async function _excluirDespesaAvulsaEm(mes, ano, item) {
+      if (mes === currentData.periodo.mes && ano === currentData.periodo.ano) {
+        const idx = currentData.despesas.indexOf(item);
+        if (idx !== -1) currentData.despesas.splice(idx, 1);
+        await salvarEAtualizar();
+      } else {
+        const itens = (await getOrcamento(mes, ano)).filter(i => i._sourceMes == null);
+        const idx = itens.findIndex(i =>
+          i.tipo === 'despesa' && !i.cartao && i.data === item.data &&
+          Math.abs(i.valor - item.valor) < 0.01 && i.descricao === item.descricao);
+        if (idx !== -1) itens.splice(idx, 1);
+        await saveOrcamento(mes, ano, itens);
+        _invalPeriodo(mes, ano);
+      }
     }
 
     // ─── Marca uma fatura como paga a partir de um pagamento detectado no
