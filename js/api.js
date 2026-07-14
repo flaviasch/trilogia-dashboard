@@ -196,10 +196,13 @@ export async function getNivelAcesso() {
  * Envia extrato/fatura para categorização via IA (substitui o Agente Raio-X do ChatGPT).
  * @param {string} conteudo — texto colado, ou base64 (sem prefixo data:) de PDF/imagem
  * @param {'texto'|'pdf'|'imagem'} tipoConteudo
+ * @param {string[]} [nomesCartoes] — nomes dos cartões ativos da usuária, ajuda a IA a
+ *   reconhecer pagamento de fatura (ex: "PAGTO ELETRON COBRANCA BANCO XP S.A") mesmo quando
+ *   a linha não diz "cartão"/"fatura" explicitamente (achado 14/07/2026).
  * @returns {Promise<{itens: Array}>} mesmo formato de parsearCsvRaioX — usar do mesmo jeito.
  */
-export async function categorizarExtratoIA(conteudo, tipoConteudo) {
-  return call('categorizarExtratoIA')({ uid: uidAtual(), conteudo, tipoConteudo });
+export async function categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoes = []) {
+  return call('categorizarExtratoIA')({ uid: uidAtual(), conteudo, tipoConteudo, nomesCartoes });
 }
 
 /**

@@ -7073,7 +7073,10 @@
           tipoConteudo = 'texto';
         }
 
-        const { itens: itensIA, vencimentoFatura, pagamentosFatura } = await categorizarExtratoIA(conteudo, tipoConteudo);
+        // Nomes dos cartões ativos — ajuda a IA a reconhecer pagamento de fatura
+        // mesmo quando a linha do extrato não diz "cartão"/"fatura" (achado 14/07/2026).
+        const nomesCartoesAtivos = (_cartoes || []).filter(c => c.ativo).map(c => c.nome);
+        const { itens: itensIA, vencimentoFatura, pagamentosFatura } = await categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoesAtivos);
 
         // Fatura de cartão selecionada: marca cada despesa como cartao. A fatura
         // é UMA SÓ para o lote inteiro, não recalculada por item a partir da
