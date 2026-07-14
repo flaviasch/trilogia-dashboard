@@ -4142,8 +4142,13 @@
       const IC_DEL  = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
 
       // ── Receitas ────────────────────────────────────────────────────────────
+      // Filtra pela conta ativa — sem isso a lista mostrava lançamentos de
+      // TODAS as contas mesmo com uma conta específica selecionada, enquanto
+      // o total (via calcularAgregadosOrcamento, que já filtra por conta)
+      // batia certinho só com a conta ativa — dava a impressão de "itens
+      // aparecem mas o total zera" (achado 14/07/2026).
       const recList = document.getElementById('receitasList');
-      const recOrdenadas = [...data.receitas].sort((a, b) => b.valor - a.valor);
+      const recOrdenadas = data.receitas.filter(r => pertenceAConta(r, _contaAtivaId)).sort((a, b) => b.valor - a.valor);
       recList.innerHTML = recOrdenadas.map((r) => {
           const idxOriginal = data.receitas.indexOf(r);
           const p   = totalReceita > 0 ? (r.valor / totalReceita) * 100 : 0;
@@ -4196,7 +4201,7 @@
       const _faturaPagaTotal = d => d.cartao && d.fatura &&
         _faturaEstados[`${d.cartaoId}_${d.fatura}`]?.estado === 'paga_total';
       const _gruposResumoNorm = {};
-      data.despesas.filter(d => _contaComoCaixa(d) && !d._faturaAberta && (!(d.cartao && d.fatura) || _faturaPagaTotal(d))).forEach(d => {
+      data.despesas.filter(d => _contaComoCaixa(d) && !d._faturaAberta && (!(d.cartao && d.fatura) || _faturaPagaTotal(d)) && pertenceAConta(d, _contaAtivaId)).forEach(d => {
         const norm = normCat(d.categoria);
         if (!_gruposResumoNorm[norm]) _gruposResumoNorm[norm] = { total: 0, n: 0, labels: {} };
         _gruposResumoNorm[norm].total += d.valor;
