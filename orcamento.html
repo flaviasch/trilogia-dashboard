@@ -7004,7 +7004,7 @@
     document.getElementById('iaArquivoInput').addEventListener('change', (e) => {
       const arquivo = e.target.files[0];
       if (arquivo && arquivo.size > IA_ARQUIVO_MAX_MB * 1024 * 1024) {
-        toast(`Esse arquivo tem ${(arquivo.size / 1024 / 1024).toFixed(1)}MB — grande demais pra processar (limite ${IA_ARQUIVO_MAX_MB}MB). Confira se o app do banco não exportou um período maior do que o pretendido (ex: histórico completo em vez da fatura atual).`, 'error', 7000);
+        toast(`Esse arquivo tem ${(arquivo.size / 1024 / 1024).toFixed(1)}MB — grande demais pra processar (limite ${IA_ARQUIVO_MAX_MB}MB). Confira se o período exportado não ficou maior do que o pretendido, ou tente compactar o PDF (tem serviços gratuitos de compactação de PDF online) antes de enviar de novo.`, 'error', 8000);
         e.target.value = '';
         document.getElementById('iaArquivoNome').textContent = 'Nenhum arquivo selecionado';
         return;
