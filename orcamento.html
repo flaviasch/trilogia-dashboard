@@ -5184,7 +5184,14 @@
       const totalPlan = naoPlan.totalPlanejado != null
         ? naoPlan.totalPlanejado
         : cats.reduce((s, c) => s + (c.limite || 0), 0);
-      const totalReal = data.despesas.filter(contaComoComprometido).reduce((s, d) => s + d.valor, 0)
+      // O total soma base + valorAjuste, mas valorAjuste foi calibrado contra
+      // totalComprometidoMes (que SEMPRE exclui fatura aberta, orcamento-calc.js)
+      // — usar a base com aberta incluída aqui (mesma de gruposPorNorm, correta
+      // pra exibição por categoria) somava a fatura aberta duas vezes: uma na
+      // base, outra embutida no ajuste. Por isso essa base exclui aberta,
+      // igual a aba Detalhe já faz (achado 15/07/2026, Flávia: Realizado do
+      // Planejamento não batia com Despesas do Resumo).
+      const totalReal = data.despesas.filter(d => contaComoComprometido(d) && !d._faturaAberta).reduce((s, d) => s + d.valor, 0)
         + (temAjuste ? _valorAjustePlanejamento : 0);
 
       // Linhas da tabela
