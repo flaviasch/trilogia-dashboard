@@ -202,6 +202,15 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.equal(r.despesaComprometida, 400);
   });
 
+  await t.test('achado 15/07/2026: estorno de compra vinculado à fatura desconta do total a pagar', () => {
+    const despesas = [{ categoria: 'Compras', valor: 400, data: '2026-07-01', cartao: true, cartaoId: 'c1', fatura: '2026-07', _faturaAberta: false }];
+    const receitas = [{ categoria: 'Restituição / Estorno', valor: 150, data: '2026-07-05', cartao: true, cartaoId: 'c1', fatura: '2026-07', _faturaAberta: false }];
+    const data = periodo(despesas, receitas);
+    const r = calcularAgregadosOrcamento({ data, agora: HOJE });
+    assert.equal(r.totalFaturas, 250, 'fatura a vencer deve descontar o estorno vinculado');
+    assert.equal(r.despesaComprometida, 250);
+  });
+
   await t.test('item de fatura ABERTA nunca conta em nenhum dos dois totais', () => {
     const data = periodo([{ categoria: 'Transporte', valor: 999, data: '2026-07-05', cartao: true, cartaoId: 'c1', fatura: '2026-08', _faturaAberta: true }]);
     const r = calcularAgregadosOrcamento({ data, agora: HOJE });

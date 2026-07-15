@@ -3217,7 +3217,7 @@
         // saldosConta/{mesKey} (ver saveSaldoConta/resolverSaldoConta). Meses
         // salvos antes dessa mudança ainda têm o sentinela legado no array;
         // a leitura (buscarPeriodo/carga inicial) continua tratando isso.
-        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: r.origem || 'manual', ...(r.contaId ? { contaId: r.contaId } : {}), ...(r.pendente ? { pendente: true } : {}), ...(r.confirmado ? { confirmado: true } : {}) })),
+        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: !!r.cartao, fatura: r.fatura || '', origem: r.origem || 'manual', ...(r.cartaoId ? { cartaoId: r.cartaoId } : {}), ...(r.contaId ? { contaId: r.contaId } : {}), ...(r.pendente ? { pendente: true } : {}), ...(r.confirmado ? { confirmado: true } : {}) })),
         // Itens "emprestados" de outro mês (_sourceMes) NUNCA são reenviados daqui —
         // reenviá-los alimentava um merge no backend que estava duplicando essas
         // despesas a cada salvamento (achado em 04/07/2026). Esses itens só devem
@@ -3635,7 +3635,7 @@
         currentData = {
           periodo:    { mes, ano },
           saldoConta: _saldoItem ? _saldoItem.valor : 0,
-          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual', ...(i.contaId ? { contaId: i.contaId } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}) })),
+          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i.contaId ? { contaId: i.contaId } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}) })),
           despesas:   itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.contaId ? { contaId: i.contaId } : {}), ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
           aportes:    itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
@@ -4498,7 +4498,14 @@
         const key = _openKey[c.id];
         const pd  = key ? _periodoAberta[key] : null;
         if (pd) {
-          const items = (pd.despesas || []).filter(d => d.cartao && d.cartaoId === c.id && d.fatura === key);
+          // Estorno de uma compra da própria fatura entra vinculado ao mesmo
+          // cartão/período (ver comentário no import da IA) — soma-se aqui
+          // junto com as despesas pra aparecer na lista e descontar do total,
+          // em vez de ficar como receita solta sem relação visível com a
+          // fatura (achado 15/07/2026).
+          const despesasG = (pd.despesas || []).filter(d => d.cartao && d.cartaoId === c.id && d.fatura === key);
+          const receitasG = (pd.receitas || []).filter(r => r.cartao && r.cartaoId === c.id && r.fatura === key);
+          const items = [...despesasG, ...receitasG];
           if (items.length) gruposAberta[c.id] = items;
         }
       });
@@ -4510,6 +4517,13 @@
           const key = `${d.cartaoId || ''}_${d.fatura || ''}`;
           if (!gruposFechada[key]) gruposFechada[key] = [];
           gruposFechada[key].push(d);
+        }
+      });
+      data.receitas.filter(r => r.cartao).forEach(r => {
+        if (r.fatura !== _openKey[r.cartaoId]) {
+          const key = `${r.cartaoId || ''}_${r.fatura || ''}`;
+          if (!gruposFechada[key]) gruposFechada[key] = [];
+          gruposFechada[key].push(r);
         }
       });
       // Fatura com ajuste manual confirmado (ajusteTotal) não pode sumir da lista
@@ -4547,20 +4561,26 @@
         if (!itens.length)
           return `<div style="padding:16px 20px;color:var(--text-muted);font-size:13px;text-align:center;border-top:1px solid var(--border);">Nenhuma despesa lançada ainda</div>`;
         return itens.map(d => {
-          const idxOriginal = data.despesas.indexOf(d);
+          // Estorno de uma compra vinculado à fatura (tipo receita) — vem
+          // misturado com as despesas na mesma lista, então precisa apontar
+          // pro array de origem certo (receitas) e mostrar visualmente como
+          // crédito (achado 15/07/2026).
+          const isReceita = d.tipo === 'receita';
+          const idxOriginal = (isReceita ? data.receitas : data.despesas).indexOf(d);
           const desc = d.descricao || d.categoria;
-          const botoesAcao = idxOriginal >= 0
-            ? `<button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_E}</button>
-               <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_D}</button>`
-            : '';
+          const botoesAcao = idxOriginal < 0 ? '' : isReceita
+            ? `<button class="btn-item" data-edit-rec="${idxOriginal}" title="Editar">${IC_E}</button>
+               <button class="btn-item del" data-del-rec="${idxOriginal}" title="Excluir">${IC_D}</button>`
+            : `<button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_E}</button>
+               <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_D}</button>`;
           return `
             <div class="item-row" style="border-radius:0;border:none;border-top:1px solid var(--border);">
               <div>
-                <div class="item-categoria">${escapeHtml(desc)}</div>
+                <div class="item-categoria">${escapeHtml(desc)}${isReceita ? ' <span style="font-size:10px;background:rgba(74,222,128,.13);color:#4ade80;border-radius:3px;padding:1px 5px;margin-left:4px;">↩ estorno</span>' : ''}</div>
                 ${d.data ? `<div class="item-fonte">${escapeHtml(formatData(d.data))}</div>` : ''}
               </div>
               <div></div>
-              <div class="item-value despesa">${brl(d.valor)}</div>
+              <div class="item-value ${isReceita ? 'receita' : 'despesa'}">${isReceita ? '-' : ''}${brl(d.valor)}</div>
               <div class="item-actions">${botoesAcao}</div>
             </div>`;
         }).join('');
@@ -4616,7 +4636,7 @@
         const ultimoDia  = aAno ? new Date(aAno, aMes, 0).getDate() : 31;
         const diaFecha   = Math.min(diaCorte, ultimoDia);
         const mesNome    = aAno ? `${MESES[aMes - 1]} ${aAno}` : '—';
-        const totalAberta= abertaItens.reduce((s, d) => s + d.valor, 0);
+        const totalAberta= abertaItens.reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
 
         const fechaStr = (() => {
           if (!diaCorte || !aAno) return '';
@@ -4678,7 +4698,7 @@
         const fatEstado    = _faturaEstados[estadoKey] || {};
         const [fAno, fMes] = fechadaKey ? fechadaKey.split('-').map(Number) : [0, 0];
         const mesNome      = fAno ? `${MESES[fMes - 1]} ${fAno}` : '—';
-        const totalCalc    = fechadaItens.reduce((s, d) => s + d.valor, 0);
+        const totalCalc    = fechadaItens.reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
         const totalDisplay = fatEstado.ajusteTotal ?? totalCalc;
         const vctoStr      = _vctoLabel(cartaoObj?.diaVencimento, cartaoObj?.diaCorte, fMes, fAno);
 
@@ -4777,6 +4797,10 @@
         btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
       el.querySelectorAll('[data-del-desp]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
+      el.querySelectorAll('[data-edit-rec]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModal('receita', +btn.dataset.editRec)));
+      el.querySelectorAll('[data-del-rec]').forEach(btn =>
+        btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec)));
       el.querySelectorAll('[data-add-cartao]').forEach(btn =>
         btn.addEventListener('click', () => abrirModalCartaoDespesa(btn.dataset.addCartao)));
       el.querySelectorAll('[data-confirmar-fat]').forEach(btn =>
@@ -6403,7 +6427,7 @@
         const data = {
           periodo:    { mes, ano },
           saldoConta: _saldoItemB ? _saldoItemB.valor : 0,
-          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: false, fatura: '', origem: i.origem || 'manual', ...(i.contaId ? { contaId: i.contaId } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}) })),
+          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i.contaId ? { contaId: i.contaId } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}) })),
           despesas:   itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.contaId ? { contaId: i.contaId } : {}), ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
           aportes:    itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
@@ -6654,7 +6678,7 @@
       const preservar = [
         ...dadosAlvo.receitas
           .filter(r => r.origem === 'manual' || !pertenceEscopo(r))
-          .map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: false, fatura: '', origem: r.origem || 'manual', ...(r.contaId ? { contaId: r.contaId } : {}), ...(r.pendente ? { pendente: true } : {}), ...(r.confirmado ? { confirmado: true } : {}) })),
+          .map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: !!r.cartao, fatura: r.fatura || '', origem: r.origem || 'manual', ...(r.cartaoId ? { cartaoId: r.cartaoId } : {}), ...(r.contaId ? { contaId: r.contaId } : {}), ...(r.pendente ? { pendente: true } : {}), ...(r.confirmado ? { confirmado: true } : {}) })),
         ...dadosAlvo.despesas
           .filter(d => d._sourceMes == null && (d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento' || !pertenceEscopo(d)))
           .map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.contaId ? { contaId: d.contaId } : {}), ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.parcelamentoId ? { parcelamentoId: d.parcelamentoId, parcelaAtual: d.parcelaAtual, parcelasTotal: d.parcelasTotal } : {}) })),
@@ -7117,8 +7141,15 @@
         // lançamento manual — a conta só é perguntada quando não é cartão).
         const contaIdSel = (!cartaoObjSel && _contas.length > 1)
           ? document.getElementById('iaContaSelecionada').value : '';
+        // Receita dentro de uma fatura só existe como estorno de UMA compra
+        // específica já listada (a IA já filtra isso — ver prompt) — por
+        // isso vincula ao mesmo cartão/período da fatura, igual às despesas.
+        // Sem esse vínculo, o estorno virava uma receita solta: não aparecia
+        // dentro da fatura na aba Faturas nem descontava do total (achado
+        // 15/07/2026, MercadoLivre estornado ficou contando como se a compra
+        // nunca tivesse sido revertida).
         const itensProcessados = itensIA.map(i => {
-          if (cartaoObjSel && i.tipo === 'despesa') {
+          if (cartaoObjSel) {
             return { ...i, cartao: true, cartaoId: cartaoObjSel.id, fatura: faturaLote };
           }
           return contaIdSel ? { ...i, contaId: contaIdSel } : i;

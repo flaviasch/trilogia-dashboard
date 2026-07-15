@@ -231,6 +231,14 @@ export function calcularAgregadosOrcamento({
       gruposFechadaCaixa[key] = (gruposFechadaCaixa[key] || 0) + d.valor;
     }
   });
+  // Estorno de uma compra vinculado à mesma fatura (achado 15/07/2026) —
+  // desconta do total devido, igual já acontece na aba Faturas do frontend.
+  (data.receitas || []).forEach(r => {
+    if (r.cartao && r.fatura && !r._faturaAberta) {
+      const key = `${r.cartaoId}_${r.fatura}`;
+      gruposFechadaCaixa[key] = (gruposFechadaCaixa[key] || 0) - r.valor;
+    }
+  });
   // Fatura com ajuste manual confirmado (ajusteTotal) não pode sumir só
   // porque nenhum lançamento individual ficou com essa fatura — o ajuste é
   // o valor real da conta física, independente de existir item detalhado.
