@@ -6994,9 +6994,22 @@
       document.getElementById('iaArquivoInput').click();
     });
 
+    // Limite alinhado ao próprio limite de PDF da IA (32MB) — sem essa checagem
+    // o arquivo grande demais só falhava lá na frente, com erro genérico e sem
+    // dizer que o problema era o tamanho (achado 15/07/2026: fatura "aberta"
+    // exportada pelo app do Bradesco veio com 444 páginas e 45MB, todas em
+    // imagem — provável exportação de um período muito maior do que a usuária
+    // pretendia).
+    const IA_ARQUIVO_MAX_MB = 30;
     document.getElementById('iaArquivoInput').addEventListener('change', (e) => {
-      const nome = e.target.files[0]?.name;
-      document.getElementById('iaArquivoNome').textContent = nome || 'Nenhum arquivo selecionado';
+      const arquivo = e.target.files[0];
+      if (arquivo && arquivo.size > IA_ARQUIVO_MAX_MB * 1024 * 1024) {
+        toast(`Esse arquivo tem ${(arquivo.size / 1024 / 1024).toFixed(1)}MB — grande demais pra processar (limite ${IA_ARQUIVO_MAX_MB}MB). Confira se o app do banco não exportou um período maior do que o pretendido (ex: histórico completo em vez da fatura atual).`, 'error', 7000);
+        e.target.value = '';
+        document.getElementById('iaArquivoNome').textContent = 'Nenhum arquivo selecionado';
+        return;
+      }
+      document.getElementById('iaArquivoNome').textContent = arquivo?.name || 'Nenhum arquivo selecionado';
     });
 
     document.getElementById('btnConfirmarImportarIA').addEventListener('click', async () => {
