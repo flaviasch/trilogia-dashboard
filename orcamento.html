@@ -2265,15 +2265,27 @@
           <span style="font-size:17px;font-weight:700;color:var(--negative);" id="cpTotalLabel">—</span>
         </div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
-        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;border:2px solid var(--gold);border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--white);background:rgba(207,174,101,0.1);">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">O valor calculado está correto?</p>
+      <div style="display:flex;gap:6px;margin-bottom:16px;">
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 6px;border:2px solid var(--gold);border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;color:var(--white);background:rgba(207,174,101,0.1);text-align:center;">
           <input type="radio" name="cpTipo" value="total" id="cpTotal" checked style="accent-color:var(--gold);" />
-          Pagamento total
+          Sim, total
         </label>
-        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;border:1px solid var(--border);border-radius:10px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 6px;border:1px solid var(--border);border-radius:10px;cursor:pointer;font-size:12px;color:var(--text-secondary);text-align:center;">
+          <input type="radio" name="cpTipo" value="diferente" id="cpDiferente" style="accent-color:var(--gold);" />
+          Não, é diferente
+        </label>
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 6px;border:1px solid var(--border);border-radius:10px;cursor:pointer;font-size:12px;color:var(--text-secondary);text-align:center;">
           <input type="radio" name="cpTipo" value="parcial" id="cpParcial" style="accent-color:var(--gold);" />
-          Parcial
+          Paguei só parte
         </label>
+      </div>
+      <div id="cpDiferenteSection" style="display:none;">
+        <div class="field-group">
+          <label for="cpValorReal">Valor real pago (R$)</label>
+          <input type="text" inputmode="numeric" id="cpValorReal" placeholder="ex: 1.500" />
+          <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">A diferença entre esse valor e o calculado é lançada como "Ajuste de fatura", e a fatura já fica marcada como paga com esse valor.</span>
+        </div>
       </div>
       <div id="cpParcialSection" style="display:none;">
         <div class="field-group">
@@ -4819,11 +4831,11 @@
                 <span class="total-label">Total a pagar</span>
                 <span class="total-value despesa">${brl(totalDisplay)}</span>
               </div>
-              <div style="display:flex;gap:8px;padding:0 14px;margin-top:4px;">
-                <button class="btn-add-item" data-ajustar-fat="${estadoKey}" data-total-calculado="${totalCalc}" data-nome="${nomeCartao}" data-mes="${mesNome}"
-                  style="flex:1;background:transparent;color:var(--text-muted);border-color:var(--border);">✎ Ajustar fatura</button>
-              </div>
               ${btnConfirmar}
+              <div style="display:flex;gap:8px;padding:0 14px;margin-top:6px;">
+                <button class="btn-add-item" data-ajustar-fat="${estadoKey}" data-total-calculado="${totalCalc}" data-nome="${nomeCartao}" data-mes="${mesNome}"
+                  style="flex:1;background:transparent;color:var(--text-muted);border-color:var(--border);font-size:12px;padding:7px;">✎ Só ajustar valor (sem confirmar pagamento)</button>
+              </div>
             </div>
           </div>`;
       }).join('');
@@ -7676,8 +7688,10 @@
       document.getElementById('cpTotalLabel').textContent = brl(total);
       document.getElementById('cpTotal').checked          = true;
       document.getElementById('cpValorPago').value        = '';
-      document.getElementById('cpParcialSection').style.display = 'none';
+      document.getElementById('cpParcialSection').style.display   = 'none';
+      document.getElementById('cpDiferenteSection').style.display = 'none';
       document.getElementById('cpRolloverInfo').style.display   = 'none';
+      setMoney(document.getElementById('cpValorReal'), total);
       const fgConta = document.getElementById('cpFgConta');
       if (fgConta) {
         fgConta.style.display = _contas.length > 1 ? '' : 'none';
@@ -7699,9 +7713,11 @@
 
     document.querySelectorAll('input[name="cpTipo"]').forEach(radio =>
       radio.addEventListener('change', () => {
-        const parcial = document.getElementById('cpParcial').checked;
-        document.getElementById('cpParcialSection').style.display = parcial ? '' : 'none';
-        document.getElementById('cpRolloverInfo').style.display   = 'none';
+        const parcial   = document.getElementById('cpParcial').checked;
+        const diferente = document.getElementById('cpDiferente').checked;
+        document.getElementById('cpParcialSection').style.display   = parcial ? '' : 'none';
+        document.getElementById('cpDiferenteSection').style.display = diferente ? '' : 'none';
+        document.getElementById('cpRolloverInfo').style.display     = 'none';
       }));
 
     document.getElementById('cpValorPago').addEventListener('input', function() {
@@ -7723,17 +7739,24 @@
     document.getElementById('cpConfirmar').addEventListener('click', async () => {
       if (!_cpEstadoKey) return;
       const btn = document.getElementById('cpConfirmar');
-      const parcial = document.getElementById('cpParcial').checked;
-      let valorPago = _cpTotal;
-      if (parcial) {
-        valorPago = readMoney(document.getElementById('cpValorPago'));
-        if (!valorPago || valorPago <= 0) { toast('Preencha o valor pago.', 'warning'); return; }
-        if (valorPago >= _cpTotal) { toast('Para pagamento total, use a opção "Pagamento total".', 'warning'); return; }
-      }
-      const rollover = parcial ? Math.round((_cpTotal - valorPago) * 100) / 100 : 0;
+      const parcial   = document.getElementById('cpParcial').checked;
+      const diferente = document.getElementById('cpDiferente').checked;
       const [cartaoId, faturaKey] = _cpEstadoKey.split('_').reduce((acc, p, i, arr) =>
         i === arr.length - 1 ? [arr.slice(0, -1).join('_'), p] : acc, ['', '']);
       const contaId = _contas.length > 1 ? (document.getElementById('cpConta')?.value || CONTA_PRINCIPAL_ID) : '';
+
+      let valorPago = _cpTotal;
+      let diferencaAjuste = 0;
+      if (parcial) {
+        valorPago = readMoney(document.getElementById('cpValorPago'));
+        if (!valorPago || valorPago <= 0) { toast('Preencha o valor pago.', 'warning'); return; }
+        if (valorPago >= _cpTotal) { toast('Para pagamento total, use a opção "Sim, total".', 'warning'); return; }
+      } else if (diferente) {
+        valorPago = readMoney(document.getElementById('cpValorReal'));
+        if (!valorPago || valorPago < 0) { toast('Preencha o valor real pago.', 'warning'); return; }
+        diferencaAjuste = Math.round((valorPago - _cpTotal) * 100) / 100;
+      }
+      const rollover = parcial ? Math.round((_cpTotal - valorPago) * 100) / 100 : 0;
 
       // nextMesKey = mês seguinte ao mês atual em exibição
       const { mes, ano } = currentData.periodo;
@@ -7743,6 +7766,33 @@
 
       setLoading(btn, true);
       try {
+        // "Não, é diferente": lança o ajuste como despesa real da própria
+        // fatura antes de confirmar como paga — mesma lógica de "Ajustar
+        // fatura", só que integrada aqui pra não precisar de dois passos
+        // separados (achado 15/07/2026, Flávia: melhorar esse fluxo pra
+        // clientes de entrada manual).
+        if (diferente && Math.abs(diferencaAjuste) >= 0.01) {
+          const hj = new Date();
+          const dataAjuste = `${hj.getFullYear()}-${String(hj.getMonth() + 1).padStart(2, '0')}-${String(hj.getDate()).padStart(2, '0')}`;
+          // Mesmo mecanismo de _afSalvar: ajuste "a mais" vira despesa, "a
+          // menos" (crédito/estorno) vira receita vinculada — nunca despesa
+          // negativa (backend rejeita) nem despesa positiva com texto de
+          // crédito (somaria ao total em vez de descontar).
+          if (diferencaAjuste > 0) {
+            currentData.despesas.push({
+              categoria: 'Ajuste de fatura', tipo: 'despesa', valor: diferencaAjuste, data: dataAjuste,
+              descricao: 'Ajuste de fatura (cobrança a mais)',
+              cartao: true, fatura: faturaKey, cartaoId, origem: 'ajuste',
+            });
+          } else {
+            currentData.receitas.push({
+              categoria: 'Ajuste de fatura', tipo: 'receita', valor: Math.abs(diferencaAjuste), data: dataAjuste,
+              descricao: 'Ajuste de fatura (crédito/estorno)',
+              cartao: true, fatura: faturaKey, cartaoId, origem: 'ajuste',
+            });
+          }
+          await salvarEAtualizar();
+        }
         await saveFaturaEstado(cartaoId, faturaKey, {
           estado: parcial ? 'paga_parcial' : 'paga_total',
           valorPago, rollover,
@@ -7762,6 +7812,8 @@
         render(currentData); // atualiza Despesa Total/Sobra/Saldo Final no Resumo
         if (parcial && rollover > 0)
           toast(`Pagamento parcial confirmado. Saldo de ${brl(rollover)} lançado em ${MESES[nextMes - 1]}.`, 'success');
+        else if (diferente && Math.abs(diferencaAjuste) >= 0.01)
+          toast(`Ajuste de ${brl(Math.abs(diferencaAjuste))} lançado e pagamento confirmado.`, 'success');
         else
           toast('Pagamento confirmado.', 'success');
       } catch (e) {
@@ -7810,17 +7862,26 @@
       setLoading(btn, true);
       try {
         const hj = new Date();
-        currentData.despesas.push({
-          categoria:   'Ajuste de fatura',
-          tipo:        'despesa',
-          valor:       diferenca,
-          data:        `${hj.getFullYear()}-${String(hj.getMonth() + 1).padStart(2, '0')}-${String(hj.getDate()).padStart(2, '0')}`,
-          descricao:   diferenca > 0 ? 'Ajuste de fatura (cobrança a mais)' : 'Ajuste de fatura (crédito/estorno)',
-          cartao:      true,
-          fatura:      faturaKey,
-          cartaoId,
-          origem:      'ajuste',
-        });
+        const dataAjuste = `${hj.getFullYear()}-${String(hj.getMonth() + 1).padStart(2, '0')}-${String(hj.getDate()).padStart(2, '0')}`;
+        // valor sempre positivo — o backend rejeita valor negativo. Um ajuste
+        // "a menos" (crédito/estorno) não pode virar despesa negativa (quebrava
+        // o salvamento antes) nem despesa positiva com texto de crédito (isso
+        // SOMARIA ao total em vez de descontar) — precisa ser uma receita
+        // vinculada à fatura, mesmo mecanismo já usado pro estorno de compra
+        // (achado 15/07/2026, Flávia: melhorar o fluxo de ajuste).
+        if (diferenca > 0) {
+          currentData.despesas.push({
+            categoria: 'Ajuste de fatura', tipo: 'despesa', valor: diferenca, data: dataAjuste,
+            descricao: 'Ajuste de fatura (cobrança a mais)',
+            cartao: true, fatura: faturaKey, cartaoId, origem: 'ajuste',
+          });
+        } else {
+          currentData.receitas.push({
+            categoria: 'Ajuste de fatura', tipo: 'receita', valor: Math.abs(diferenca), data: dataAjuste,
+            descricao: 'Ajuste de fatura (crédito/estorno)',
+            cartao: true, fatura: faturaKey, cartaoId, origem: 'ajuste',
+          });
+        }
         await salvarEAtualizar();
         fecharModalAjustarFatura();
         renderFaturas(currentData);
