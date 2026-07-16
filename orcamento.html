@@ -3890,7 +3890,10 @@
         </div>`;
 
       // Salva no Firestore (fire-and-forget)
-      salvarScoreMes({ mes, ano, score, componentes }).catch(e => console.warn('[score] Falha ao salvar:', e.message));
+      // uid explícito — sem isso, o backend usava o uid de quem está logado
+      // (o admin, em modo "Visualizando como"), salvando o score da mentorada
+      // no documento do admin em vez do dela (achado 16/07/2026).
+      salvarScoreMes({ uid: uidAtual(), mes, ano, score, componentes }).catch(e => console.warn('[score] Falha ao salvar:', e.message));
     }
 
     function render(data) {

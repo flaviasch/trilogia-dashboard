@@ -3061,9 +3061,14 @@ exports.aceitarLGPD = onCall({}, async (request) => {
  * e registra o histórico na subcoleção scores/{YYYY-MM}.
  */
 exports.salvarScoreMes = onCall({}, async (request) => {
-  const auth = requireAuth(request);
-  const uid = auth.uid;
-  const { mes, ano, score, componentes } = request.data;
+  const { mes, ano, score, componentes, uid: uidBody } = request.data;
+  // Sem uid explícito, caía sempre em auth.uid — quando o admin testava via
+  // "Visualizando como mentorada", o score calculado a partir dos dados DELA
+  // era salvo no documento do ADMIN, e o score da mentorada nunca atualizava
+  // (achado 16/07/2026: score da Luiza ficou preso num valor de dias atrás,
+  // mesmo com testes extensivos feitos via ViewAs no mesmo dia).
+  const uid = uidBody || requireAuth(request).uid;
+  requireSelfOrAdmin(request, uid);
   if (!mes || !ano || score == null) throw new HttpsError('invalid-argument', 'mes, ano e score são obrigatórios.');
 
   const chave = `${ano}-${String(mes).padStart(2, '0')}`;
