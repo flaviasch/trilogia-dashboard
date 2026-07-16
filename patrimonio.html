@@ -1487,6 +1487,19 @@
     async function deletarAtivo(classe) {
       const a = ativos.find(x => x.classe === classe);
       if (!a) return;
+      // Excluir uma classe com valor reduzia o patrimônio total como
+      // efeito colateral — a única saída "de verdade" deve ser uma retirada
+      // registrada em Reservas (que já orienta reimportar o extrato depois);
+      // correção de valor errado/duplicado deve vir de reimportar o extrato
+      // atualizado, não de apagar a linha. Exclusão livre só quando não há
+      // valor nenhum em jogo (achado 16/07/2026, Flávia).
+      if (Math.abs(a.valor) >= 0.01) {
+        toast(
+          `Não dá pra excluir "${a.classe}" (${brl(a.valor)}) direto — isso reduziria o patrimônio sem passar por retirada. Se foi uma retirada de verdade, registre pela aba Reservas. Se o valor está errado ou duplicado, reimporte o extrato atualizado da corretora/IR.`,
+          'warning', 8000
+        );
+        return;
+      }
       if (!(await confirmDelete(`Excluir "${a.classe}" (${brl(a.valor)})?`))) return;
       ativos = ativos.filter(x => x.classe !== classe);
       render(ativos, dividas);
