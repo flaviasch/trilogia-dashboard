@@ -4243,6 +4243,24 @@
         _gruposResumoNorm[norm].n++;
         _gruposResumoNorm[norm].labels[d.categoria] = (_gruposResumoNorm[norm].labels[d.categoria] || 0) + 1;
       });
+      // Fatura confirmada como paga via "Ajustar fatura" sem nenhum item
+      // detalhado (ajusteTotal sem lançamentos reais) conta no total do card
+      // (totalCartaoCaixa, via backfill em orcamento-calc.js) mas não tinha
+      // categoria nenhuma pra aparecer aqui — a lista "sumia" com uma parte
+      // do total do rodapé (achado 15/07/2026, Flávia: "tem lançamento
+      // faltando"). Mesmo princípio do ajuste já usado em Detalhe/Planejamento,
+      // aplicado à base específica deste card (caixa, não comprometido).
+      const _cartaoCaixaReal = data.despesas
+        .filter(d => d.cartao && d.fatura && !d._faturaAberta && _faturaPagaTotal(d) && pertenceAConta(d, _contaAtivaId))
+        .reduce((s, d) => s + d.valor, 0);
+      const _gapAjusteFaturaResumo = totalCartaoCaixa - _cartaoCaixaReal;
+      if (_gapAjusteFaturaResumo > 1) {
+        const normAjusteResumo = normCat(CATEGORIA_AJUSTE);
+        if (!_gruposResumoNorm[normAjusteResumo]) _gruposResumoNorm[normAjusteResumo] = { total: 0, n: 0, labels: {} };
+        _gruposResumoNorm[normAjusteResumo].total += _gapAjusteFaturaResumo;
+        _gruposResumoNorm[normAjusteResumo].n += 1;
+        _gruposResumoNorm[normAjusteResumo].labels[CATEGORIA_AJUSTE] = (_gruposResumoNorm[normAjusteResumo].labels[CATEGORIA_AJUSTE] || 0) + 1;
+      }
       const _gruposResumo = {};
       Object.values(_gruposResumoNorm).forEach(g => {
         const label = Object.entries(g.labels).sort((a, b) => b[1] - a[1])[0][0];
