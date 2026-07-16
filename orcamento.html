@@ -4733,6 +4733,22 @@
 
       // ── Constroí cards de faturas FECHADAS (a pagar este mês) ─────────────────
       const idsFechadas = Object.keys(gruposFechada);
+      // Verifica de novo, a cada renderização (não só no momento do import), se
+      // alguma fatura fechada tem um lançamento avulso batendo o valor líquido —
+      // cobre o caso em que a sugestão do import não apareceu por qualquer
+      // motivo (achado 15/07/2026: Flávia confirmou que nenhuma modal apareceu
+      // durante um import onde o avulso batia exato). Nunca exclui sozinho, só
+      // avisa com um botão pra revisar.
+      const _avulsosPorFechada = {};
+      await Promise.all(idsFechadas.map(async estadoKey => {
+        const [cartaoId, fechadaKey] = estadoKey.split('_');
+        const cartaoObj = _cartoes.find(c => c.id === cartaoId);
+        if (!cartaoObj || !fechadaKey) return;
+        const totalG = gruposFechada[estadoKey].reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
+        if (totalG <= 0) return;
+        const avulso = await _buscarAvulsoCorrespondenteAFatura(cartaoObj, fechadaKey, totalG).catch(() => null);
+        if (avulso) _avulsosPorFechada[estadoKey] = avulso;
+      }));
       const cardsFechadas = idsFechadas.map(estadoKey => {
         const [cartaoId, fechadaKey] = estadoKey.split('_');
         const cartaoObj    = _cartoes.find(c => c.id === cartaoId);
@@ -4766,6 +4782,14 @@
           `<button class="btn-add-item" data-confirmar-fat="${estadoKey}" data-total="${totalDisplay}" data-nome="${nomeCartao}" data-mes="${mesNome}"
             style="margin:4px 14px 0;width:calc(100% - 28px);background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.3);">✓ Confirmar pagamento</button>`;
 
+        const avulsoMatch = _avulsosPorFechada[estadoKey];
+        const avulsoAviso = avulsoMatch
+          ? `<div style="margin:10px 16px 0;padding:10px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:12px;color:#fbbf24;">
+              ⚠️ Encontramos um lançamento avulso de <strong>${brl(avulsoMatch.item.valor)}</strong> em ${escapeHtml(formatData(avulsoMatch.item.data))} que parece ser o pagamento desta fatura — mantê-lo conta o valor em dobro.
+              <button class="btn-add-item" data-revisar-avulso="${estadoKey}" style="margin-top:6px;width:100%;background:rgba(251,191,36,0.12);color:#fbbf24;border-color:rgba(251,191,36,0.3);">Revisar duplicidade</button>
+            </div>`
+          : '';
+
         return `
           <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
             <!-- Header clicável -->
@@ -4787,6 +4811,7 @@
                 <span style="color:var(--text-muted);">${expanded ? IC_CHEV_UP : IC_CHEV_DOWN}</span>
               </div>
             </div>
+            ${avulsoAviso}
             <!-- Corpo expansível -->
             <div style="${expanded ? '' : 'display:none;'}border-top:1px solid var(--border);padding-bottom:10px;">
               <div class="items-list" style="padding:0;margin-top:0;">${_renderLinhas(fechadaItens, cartaoObj)}</div>
@@ -4852,6 +4877,23 @@
       el.querySelectorAll('[data-ajustar-fat]').forEach(btn =>
         btn.addEventListener('click', () => abrirModalAjustarFatura(
           btn.dataset.ajustarFat, parseFloat(btn.dataset.totalCalculado), btn.dataset.nome, btn.dataset.mes)));
+      el.querySelectorAll('[data-revisar-avulso]').forEach(btn =>
+        btn.addEventListener('click', async () => {
+          const avulso = _avulsosPorFechada[btn.dataset.revisarAvulso];
+          if (!avulso) return;
+          const confirmarExclusao = await confirmDelete(
+            `Encontramos um lançamento avulso que parece ser o pagamento desta fatura:<br><br>` +
+            `<strong>${escapeHtml(avulso.item.categoria)}</strong> — ${brl(avulso.item.valor)} em ${escapeHtml(formatData(avulso.item.data))}` +
+            `${avulso.item.descricao ? `<br>${escapeHtml(avulso.item.descricao)}` : ''}<br><br>` +
+            `Manter os dois lançamentos contaria esse valor em dobro. Excluir o avulso?`,
+            'Excluir avulso'
+          );
+          if (confirmarExclusao) {
+            await _excluirDespesaAvulsaEm(avulso.mes, avulso.ano, avulso.item);
+            toast('Lançamento avulso excluído — os itens da fatura já cobrem esse valor.', 'success');
+            renderFaturas(currentData);
+          }
+        }));
     }
 
     // ─── Despesas agrupadas por categoria com limite ──────────────────────────
