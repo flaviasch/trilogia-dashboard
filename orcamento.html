@@ -1938,6 +1938,13 @@
       </p>
       <div id="listaCategoriasIncertas" style="margin-bottom:16px;max-height:60vh;overflow-y:auto;padding-right:14px;"></div>
       <datalist id="iaCategoriasSugeridas"></datalist>
+      <div id="avulsoDuplicidadeSection" style="display:none;margin-bottom:16px;padding:12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:12px;color:#fbbf24;">
+        <div id="avulsoDuplicidadeTexto" style="margin-bottom:8px;"></div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--white);">
+          <input type="checkbox" id="avulsoDuplicidadeCheck" checked style="width:16px;height:16px;accent-color:#fbbf24;flex-shrink:0;">
+          Excluir esse lançamento avulso ao importar
+        </label>
+      </div>
       <div class="modal-actions">
         <button id="btnCancelarCategoriasIncertas" class="btn-cancel">Cancelar importação</button>
         <button id="btnConfirmarCategoriasIncertas" class="btn-save">Confirmar e continuar</button>
@@ -7270,7 +7277,23 @@
           : { tipo: 'conta', contaId: contaIdSel || CONTA_PRINCIPAL_ID };
 
         document.getElementById('modalImportarIA').classList.add('hidden');
-        const { cancelado } = await confirmarCategoriasIncertas(itensProcessados);
+
+        // Fatura de cartão importada: procura um lançamento avulso já existente
+        // que pareça ser o pagamento dessa mesma fatura (valor batendo) —
+        // acontece quando a usuária lançou o pagamento manual antes de ter a
+        // fatura detalhada em mãos. Manter os dois conta o valor em dobro.
+        // Calculado ANTES de salvar, pra revisar tudo (categorias incertas +
+        // duplicidade) numa tela só (achado 15/07/2026, Flávia: "no caso de
+        // importação, pode ser tudo junto").
+        let avulsoInfo = null;
+        if (cartaoObjSel) {
+          const totalFaturaImportada = itensProcessados
+            .filter(i => i.cartaoId === cartaoObjSel.id && i.fatura === faturaLote)
+            .reduce((s, i) => s + (i.tipo === 'despesa' ? i.valor : -i.valor), 0);
+          avulsoInfo = await _buscarAvulsoCorrespondenteAFatura(cartaoObjSel, faturaLote, totalFaturaImportada);
+        }
+
+        const { cancelado, excluirAvulso } = await confirmarCategoriasIncertas(itensProcessados, avulsoInfo);
         if (cancelado) { toast('Importação cancelada.', 'info'); return; }
 
         // Pagamento de fatura de cartão detectado no extrato de conta corrente:
@@ -7306,30 +7329,11 @@
 
         await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado', escopo: escopoLote });
 
-        // Fatura de cartão importada: procura um lançamento avulso já existente
-        // que pareça ser o pagamento dessa mesma fatura (valor batendo, perto
-        // do vencimento) — acontece quando a usuária lançou o pagamento manual
-        // antes de ter a fatura detalhada em mãos. Manter os dois conta o valor
-        // em dobro. Nunca exclui sozinho: mostra o item encontrado e pede
-        // confirmação explícita (achado 14/07/2026).
-        if (cartaoObjSel) {
-          const totalFaturaImportada = itensProcessados
-            .filter(i => i.cartaoId === cartaoObjSel.id && i.fatura === faturaLote)
-            .reduce((s, i) => s + (i.tipo === 'despesa' ? i.valor : -i.valor), 0);
-          const avulso = await _buscarAvulsoCorrespondenteAFatura(cartaoObjSel, faturaLote, totalFaturaImportada);
-          if (avulso) {
-            const confirmarExclusao = await confirmDelete(
-              `Encontramos um lançamento avulso que parece ser o pagamento desta fatura:<br><br>` +
-              `<strong>${escapeHtml(avulso.item.categoria)}</strong> — ${brl(avulso.item.valor)} em ${formatData(avulso.item.data)}` +
-              `${avulso.item.descricao ? `<br>${escapeHtml(avulso.item.descricao)}` : ''}<br><br>` +
-              `Agora que os itens detalhados da fatura foram importados, manter os dois lançamentos contaria esse valor em dobro. Excluir o avulso?`,
-              'Excluir avulso'
-            );
-            if (confirmarExclusao) {
-              await _excluirDespesaAvulsaEm(avulso.mes, avulso.ano, avulso.item);
-              toast('Lançamento avulso excluído — os itens da fatura já cobrem esse valor.', 'success');
-            }
-          }
+        // Exclusão do avulso já foi decidida na tela de revisão acima —
+        // executa aqui, depois que a fatura foi salva de verdade.
+        if (avulsoInfo && excluirAvulso) {
+          await _excluirDespesaAvulsaEm(avulsoInfo.mes, avulsoInfo.ano, avulsoInfo.item);
+          toast('Lançamento avulso excluído — os itens da fatura já cobrem esse valor.', 'success');
         }
 
         // Marca as faturas identificadas como pagas — se ainda estiverem
@@ -8479,11 +8483,25 @@
     // Mostra um passo de confirmação antes de salvar, quando a IA marcou algum
     // item como "categoriaIncerta". A escolha da usuária é aprendida (ver
     // salvarCategoriaAprendida) e passa a ser aplicada sozinha da próxima vez.
-    function confirmarCategoriasIncertas(itens) {
+    // avulsoInfo (opcional): { mes, ano, item } de _buscarAvulsoCorrespondenteAFatura
+    // — quando presente, mostra o aviso de duplicidade na MESMA tela de revisão
+    // em vez de um popup separado depois do import (achado 15/07/2026, Flávia:
+    // "no caso de importação, pode ser tudo junto").
+    function confirmarCategoriasIncertas(itens, avulsoInfo = null) {
       const incertos = itens
         .map((item, idx) => ({ item, idx }))
         .filter(({ item }) => item.categoriaIncerta === true || item.tipoIncerto === true);
-      if (!incertos.length) return Promise.resolve({ itens, cancelado: false });
+      if (!incertos.length && !avulsoInfo) return Promise.resolve({ itens, cancelado: false, excluirAvulso: false });
+
+      const avulsoSection = document.getElementById('avulsoDuplicidadeSection');
+      if (avulsoInfo) {
+        document.getElementById('avulsoDuplicidadeTexto').innerHTML =
+          `⚠️ Encontramos um lançamento avulso que parece ser o pagamento desta fatura: <strong>${escapeHtml(avulsoInfo.item.categoria)}</strong> — ${brl(avulsoInfo.item.valor)} em ${escapeHtml(formatData(avulsoInfo.item.data))}. Mantê-lo conta o valor em dobro.`;
+        document.getElementById('avulsoDuplicidadeCheck').checked = true;
+        avulsoSection.style.display = '';
+      } else {
+        avulsoSection.style.display = 'none';
+      }
 
       const dl = document.getElementById('iaCategoriasSugeridas');
       if (dl) {
@@ -8523,7 +8541,7 @@
       return new Promise(resolve => {
         document.getElementById('btnCancelarCategoriasIncertas').onclick = () => {
           document.getElementById('modalCategoriasIncertas')?.classList.add('hidden');
-          resolve({ itens, cancelado: true });
+          resolve({ itens, cancelado: true, excluirAvulso: false });
         };
         document.getElementById('btnConfirmarCategoriasIncertas').onclick = async () => {
           const btn = document.getElementById('btnConfirmarCategoriasIncertas');
@@ -8546,9 +8564,10 @@
             }
           });
           await Promise.all(aprendizados);
+          const excluirAvulso = !!avulsoInfo && document.getElementById('avulsoDuplicidadeCheck').checked;
           setLoading(btn, false);
           document.getElementById('modalCategoriasIncertas')?.classList.add('hidden');
-          resolve({ itens, cancelado: false });
+          resolve({ itens, cancelado: false, excluirAvulso });
         };
       });
     }
