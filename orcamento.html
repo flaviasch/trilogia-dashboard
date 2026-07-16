@@ -2377,7 +2377,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida } from './js/api.js?v=31';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida } from './js/api.js?v=31';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -2632,6 +2632,23 @@
       moderado:    ['pos', 'infl', 'pre', 'mm', 'rv', 'int'],
       arrojado:    ['pos', 'infl', 'pre', 'mm', 'rv', 'int', 'alt'],
     };
+
+    // Resolve o código curto de classe (ex: "alt") pro nome real já usado nos
+    // ativos da usuária, se existir — sem isso, o aporte mandava o código pro
+    // backend, que não achava nenhuma classe com esse nome e criava uma linha
+    // nova em vez de somar na existente (achado 15/07/2026: "alt" virou uma
+    // linha separada de "Alternativos"). Só compara contra o nome completo
+    // (CLASSES_LABEL) e a mesma coisa sem o parêntese final — nunca tenta
+    // adivinhar por aproximação além disso.
+    function _resolverClasseReal(shortKey, ativos) {
+      const labelCompleto = CLASSES_LABEL[shortKey] || shortKey;
+      const nomeCurto = labelCompleto.replace(/\s*\([^)]*\)\s*$/, '').trim();
+      const existente = (ativos || []).find(a => {
+        const c = (a.classe || '').trim().toLowerCase();
+        return c === labelCompleto.toLowerCase() || c === nomeCurto.toLowerCase();
+      });
+      return existente ? existente.classe : nomeCurto;
+    }
 
     function mesesAteData(dataMeta) {
       if (!dataMeta) return null;
@@ -3375,7 +3392,7 @@
       if (e.key === 'Escape') window._cancelarSaldoConta();
     });
 
-    window._btnProximoClasse = () => {
+    window._btnProximoClasse = async () => {
       const inputs = document.querySelectorAll('#reservasAporteList .reserva-aporte-input');
       const distribuido = [...inputs].reduce((s, i) => s + readMoney(i), 0);
 
@@ -3390,6 +3407,11 @@
 
       modalReservas.classList.add('hidden');
 
+      // Busca os ativos reais já cadastrados pra resolver cada classe sugerida
+      // pro nome que já existe no patrimônio (achado 15/07/2026) — se falhar,
+      // segue com a lista vazia e cai no fallback (nome completo sem parêntese).
+      const { ativos: _ativosAtuais } = await getPatrimonio().catch(() => ({ ativos: [] }));
+
       // ── Monta passo 2: uma linha por reserva + resto não alocado ─────────
       const naoAlocado = (valorAportePendente || 0) - distribuido;
       const listEl = document.getElementById('classeAporteList');
@@ -3401,7 +3423,7 @@
         const classes = r ? classesPorPrazo(r.dataMeta) : ['pos'];
         const prazo   = r ? descricaoPrazo(r.dataMeta) : '';
         const opts = classes.map(c =>
-          `<option value="${c}">${CLASSES_LABEL[c]}</option>`).join('');
+          `<option value="${escapeHtml(_resolverClasseReal(c, _ativosAtuais))}">${CLASSES_LABEL[c]}</option>`).join('');
         return `
           <div class="classe-aporte-row">
             <div class="classe-aporte-info">
@@ -3416,7 +3438,7 @@
       // Linha extra para o não-alocado (se houver)
       if (naoAlocado > 0.01) {
         const todasOpts = Object.entries(CLASSES_LABEL)
-          .map(([c, l]) => `<option value="${c}">${l}</option>`).join('');
+          .map(([c, l]) => `<option value="${escapeHtml(_resolverClasseReal(c, _ativosAtuais))}">${l}</option>`).join('');
         linhas.push(`
           <div class="classe-aporte-row">
             <div class="classe-aporte-info">
