@@ -4768,6 +4768,16 @@
         const avulso = await _buscarAvulsoCorrespondenteAFatura(cartaoObj, fechadaKey, totalG).catch(() => null);
         if (avulso) _avulsosPorFechada[estadoKey] = avulso;
       }));
+      // Primeira vez que essa duplicidade aparece nesta sessão: abre a
+      // confirmação como modal de propósito (não só o aviso inline no card) —
+      // "se não estiver aberta, ninguém vai ver" (achado 16/07/2026). Marca
+      // como avisado ANTES de aguardar a modal, pra uma segunda chamada de
+      // renderFaturas (ex: expandir outro card) não abrir duas vezes.
+      Object.entries(_avulsosPorFechada).forEach(([estadoKey, avulso]) => {
+        if (_avulsosAvisadosSessao.has(estadoKey)) return;
+        _avulsosAvisadosSessao.add(estadoKey);
+        _revisarAvulsoDuplicidade(avulso);
+      });
       const cardsFechadas = idsFechadas.map(estadoKey => {
         const [cartaoId, fechadaKey] = estadoKey.split('_');
         const cartaoObj    = _cartoes.find(c => c.id === cartaoId);
@@ -4799,7 +4809,7 @@
           : '';
         const btnConfirmar = fatEstado.estado === 'paga_total' ? '' :
           `<button class="btn-add-item" data-confirmar-fat="${estadoKey}" data-total="${totalDisplay}" data-nome="${nomeCartao}" data-mes="${mesNome}"
-            style="margin:4px 14px 0;width:calc(100% - 28px);background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.3);">✓ Confirmar pagamento</button>`;
+            style="width:100%;background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.3);">✓ Confirmar pagamento</button>`;
 
         const avulsoMatch = _avulsosPorFechada[estadoKey];
         const avulsoAviso = avulsoMatch
@@ -4831,17 +4841,22 @@
               </div>
             </div>
             ${avulsoAviso}
+            <!-- Ações sempre visíveis, fora da parte que expande/colapsa — numa
+            fatura com muitos lançamentos, o botão ficava enterrado lá embaixo,
+            só visível depois de rolar a lista inteira (achado 16/07/2026). -->
+            <div style="padding:10px 16px 0;">
+              ${btnConfirmar}
+              <div style="display:flex;gap:8px;margin-top:6px;">
+                <button class="btn-add-item" data-ajustar-fat="${estadoKey}" data-total-calculado="${totalCalc}" data-nome="${nomeCartao}" data-mes="${mesNome}"
+                  style="flex:1;background:transparent;color:var(--text-muted);border-color:var(--border);font-size:12px;padding:7px;">✎ Só ajustar valor (sem confirmar pagamento)</button>
+              </div>
+            </div>
             <!-- Corpo expansível -->
-            <div style="${expanded ? '' : 'display:none;'}border-top:1px solid var(--border);padding-bottom:10px;">
+            <div style="${expanded ? '' : 'display:none;'}border-top:1px solid var(--border);margin-top:10px;padding-bottom:10px;">
               <div class="items-list" style="padding:0;margin-top:0;">${_renderLinhas(fechadaItens, cartaoObj)}</div>
               <div class="total-row" style="padding:10px 16px 4px;">
                 <span class="total-label">Total a pagar</span>
                 <span class="total-value despesa">${brl(totalDisplay)}</span>
-              </div>
-              ${btnConfirmar}
-              <div style="display:flex;gap:8px;padding:0 14px;margin-top:6px;">
-                <button class="btn-add-item" data-ajustar-fat="${estadoKey}" data-total-calculado="${totalCalc}" data-nome="${nomeCartao}" data-mes="${mesNome}"
-                  style="flex:1;background:transparent;color:var(--text-muted);border-color:var(--border);font-size:12px;padding:7px;">✎ Só ajustar valor (sem confirmar pagamento)</button>
               </div>
             </div>
           </div>`;
@@ -4897,21 +4912,9 @@
         btn.addEventListener('click', () => abrirModalAjustarFatura(
           btn.dataset.ajustarFat, parseFloat(btn.dataset.totalCalculado), btn.dataset.nome, btn.dataset.mes)));
       el.querySelectorAll('[data-revisar-avulso]').forEach(btn =>
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', () => {
           const avulso = _avulsosPorFechada[btn.dataset.revisarAvulso];
-          if (!avulso) return;
-          const confirmarExclusao = await confirmDelete(
-            `Encontramos um lançamento avulso que parece ser o pagamento desta fatura:<br><br>` +
-            `<strong>${escapeHtml(avulso.item.categoria)}</strong> — ${brl(avulso.item.valor)} em ${escapeHtml(formatData(avulso.item.data))}` +
-            `${avulso.item.descricao ? `<br>${escapeHtml(avulso.item.descricao)}` : ''}<br><br>` +
-            `Manter os dois lançamentos contaria esse valor em dobro. Excluir o avulso?`,
-            'Excluir avulso'
-          );
-          if (confirmarExclusao) {
-            await _excluirDespesaAvulsaEm(avulso.mes, avulso.ano, avulso.item);
-            toast('Lançamento avulso excluído — os itens da fatura já cobrem esse valor.', 'success');
-            renderFaturas(currentData);
-          }
+          if (avulso) _revisarAvulsoDuplicidade(avulso);
         }));
     }
 
@@ -7675,6 +7678,12 @@
     let _faturaEstados = {}; // key: cartaoId_YYYY-MM
     let _fatTabAtiva = 'abertas';
     const _faturasExpandidas = new Set();
+    // Evita reabrir a modal de duplicidade avulso/fatura repetidamente a cada
+    // re-renderização da aba Faturas dentro da mesma sessão — mostra uma vez
+    // por chave, o aviso inline no card continua como lembrete visual depois
+    // (achado 16/07/2026, Flávia: "tem que ser modal", banner sozinho passava
+    // despercebido se o card não estivesse aberto).
+    const _avulsosAvisadosSessao = new Set();
 
     async function carregarFaturaEstados() {
       try { _faturaEstados = await getFaturaEstados(); }
@@ -8365,6 +8374,24 @@
         if (idx !== -1) itens.splice(idx, 1);
         await saveOrcamento(mes, ano, itens);
         _invalPeriodo(mes, ano);
+      }
+    }
+
+    // Mostra a confirmação de duplicidade avulso/fatura e executa a exclusão
+    // se aceita — compartilhado entre o botão "Revisar duplicidade" e o
+    // disparo automático (achado 16/07/2026).
+    async function _revisarAvulsoDuplicidade(avulso) {
+      const confirmarExclusao = await confirmDelete(
+        `Encontramos um lançamento avulso que parece ser o pagamento desta fatura:<br><br>` +
+        `<strong>${escapeHtml(avulso.item.categoria)}</strong> — ${brl(avulso.item.valor)} em ${escapeHtml(formatData(avulso.item.data))}` +
+        `${avulso.item.descricao ? `<br>${escapeHtml(avulso.item.descricao)}` : ''}<br><br>` +
+        `Manter os dois lançamentos contaria esse valor em dobro. Excluir o avulso?`,
+        'Excluir avulso'
+      );
+      if (confirmarExclusao) {
+        await _excluirDespesaAvulsaEm(avulso.mes, avulso.ano, avulso.item);
+        toast('Lançamento avulso excluído — os itens da fatura já cobrem esse valor.', 'success');
+        renderFaturas(currentData);
       }
     }
 
