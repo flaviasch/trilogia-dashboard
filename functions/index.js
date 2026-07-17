@@ -3010,7 +3010,7 @@ const EVENTOS_VALIDOS = new Set([
   'extrato_ia_importado', // categorizarExtratoIA — substitui o Agente Raio-X do ChatGPT
   // Eventos de abandono (5.3/5.4)
   'ir_importado', 'corretora_importada', 'divida_cadastrada',
-  'reserva_retirada', 'aba_anual_aberta',
+  'reserva_retirada', 'aba_anual_aberta', 'divida_pagamento_confirmado',
 ]);
 
 exports.registrarEvento = onCall({}, async (request) => {

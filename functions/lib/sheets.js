@@ -169,35 +169,43 @@ class SheetsClient {
   }
 
   // ─── Dívidas ───────────────────────────────────────────────────────────────
-  // Aba: dividas | Colunas: id | nome | tipo | saldo | parcela | termino
+  // Aba: dividas | Colunas: id | nome | tipo | saldo | parcela | termino | formaPagamento | totalParcelas | parcelasPagas | quitada
+  // (histórico de pagamentos individuais fica só no Firestore — não cabe numa linha da planilha)
 
   async getDividas() {
-    const rows = await this.read('dividas!A2:F');
+    const rows = await this.read('dividas!A2:J');
     return rows.map(r => ({
-      id:      r[0] || '',
-      nome:    r[1] || '',
-      tipo:    r[2] || 'outro',
-      saldo:   parseFloat(r[3]) || 0,
-      parcela: parseFloat(r[4]) || 0,
-      termino: r[5] || '',
+      id:             r[0] || '',
+      nome:           r[1] || '',
+      tipo:           r[2] || 'outro',
+      saldo:          parseFloat(r[3]) || 0,
+      parcela:        parseFloat(r[4]) || 0,
+      termino:        r[5] || '',
+      formaPagamento: r[6] || '',
+      totalParcelas:  r[7] ? parseInt(r[7], 10) : null,
+      parcelasPagas:  parseInt(r[8], 10) || 0,
+      quitada:        r[9] === 'true' || r[9] === 'TRUE',
     }));
   }
 
   async saveDivida(divida) {
-    const rows = await this.read('dividas!A2:F');
+    const rows = await this.read('dividas!A2:J');
     const idx = rows.findIndex(r => r[0] === divida.id);
-    const row = [divida.id, divida.nome, divida.tipo, divida.saldo, divida.parcela, divida.termino || ''];
+    const row = [
+      divida.id, divida.nome, divida.tipo, divida.saldo, divida.parcela, divida.termino || '',
+      divida.formaPagamento || '', divida.totalParcelas ?? '', divida.parcelasPagas ?? 0, !!divida.quitada,
+    ];
     if (idx === -1) {
       await this.append('dividas!A2', [row]);
     } else {
-      await this.write(`dividas!A${idx + 2}:F${idx + 2}`, [row]);
+      await this.write(`dividas!A${idx + 2}:J${idx + 2}`, [row]);
     }
   }
 
   async deleteDivida(id) {
-    const rows = await this.read('dividas!A2:F');
+    const rows = await this.read('dividas!A2:J');
     const filtradas = rows.filter(r => r[0] !== id);
-    await this.clear('dividas!A2:F');
+    await this.clear('dividas!A2:J');
     if (filtradas.length > 0) await this.write('dividas!A2', filtradas);
   }
 

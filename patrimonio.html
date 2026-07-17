@@ -291,6 +291,27 @@
     .divida-progress-track { background: rgba(255,255,255,0.07); border-radius: 4px; height: 4px; overflow: hidden; margin-top: 6px; }
     .divida-progress-fill { height: 100%; border-radius: 4px; background: var(--negative); opacity: 0.5; }
 
+    /* ─── Checklist de parcelas ──────────────── */
+    .parcelas-panel {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; margin: -2px 0 8px;
+    }
+    .parcelas-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; color: var(--text-muted); margin-bottom: 10px;
+    }
+    .parcelas-grid { display: flex; flex-wrap: wrap; gap: 6px; max-height: 150px; overflow-y: auto; }
+    .parcela-chip {
+      width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 600; cursor: pointer; user-select: none;
+      border: 1px solid var(--border); color: var(--text-muted);
+      transition: all 0.15s;
+    }
+    .parcela-chip:hover { border-color: var(--border-gold); color: var(--white); }
+    .parcela-chip.paga { background: var(--gold); border-color: var(--gold); color: var(--navy); }
+    .parcela-chip.paga:hover { background: var(--gold-light); }
+
     .btn-add-divida {
       display: flex; align-items: center; justify-content: center; gap: 8px;
       background: transparent; border: 1px dashed var(--border);
@@ -586,6 +607,14 @@
       </div>
       <div id="dividasList"></div>
       <button class="btn-add-divida" id="btnAddDivida">+ Adicionar dívida</button>
+
+      <div id="dividasQuitadasWrap" style="display:none; margin-top:20px;">
+        <div role="button" tabindex="0" id="toggleQuitadas" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; color:var(--text-muted); padding:6px 0;">
+          <span id="toggleQuitadasIcon">▸</span>
+          <span id="toggleQuitadasLabel">Dívidas quitadas (0)</span>
+        </div>
+        <div id="dividasQuitadasList" style="display:none; margin-top:8px;"></div>
+      </div>
     </div>
 
   </main>
@@ -632,12 +661,26 @@
         </select>
       </div>
       <div class="field-group">
+        <label for="dividaForma">Forma de pagamento</label>
+        <select id="dividaForma">
+          <option value="parcelada">Parcelada (parcela fixa mensal)</option>
+          <option value="unico">Pagamento único / valores livres</option>
+        </select>
+      </div>
+      <div class="field-group">
         <label for="dividaSaldo">Saldo devedor (R$)</label>
         <input type="text" inputmode="numeric" id="dividaSaldo" placeholder="0" />
       </div>
-      <div class="field-group">
-        <label for="dividaParcela">Parcela mensal (R$)</label>
-        <input type="text" inputmode="numeric" id="dividaParcela" placeholder="0" />
+      <div id="camposParcelada">
+        <div class="field-group">
+          <label for="dividaParcela">Parcela mensal (R$)</label>
+          <input type="text" inputmode="numeric" id="dividaParcela" placeholder="0" />
+        </div>
+        <div class="field-group">
+          <label for="dividaTotalParcelas">Total de parcelas</label>
+          <input type="number" min="1" id="dividaTotalParcelas" placeholder="ex: 24" />
+          <span id="infoParcelasPagas" style="display:none; font-size:11px; color:var(--text-muted); margin-top:2px;"></span>
+        </div>
       </div>
       <div class="field-group">
         <label for="dividaTermino">Término previsto</label>
@@ -647,6 +690,26 @@
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelDivida">Cancelar</button>
         <button class="btn-save" id="btnSaveDivida">Salvar dívida</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal confirmar pagamento -->
+  <div class="modal-overlay hidden" id="modalPagamento">
+    <div class="modal-card">
+      <h2 class="modal-title">Confirmar pagamento</h2>
+      <p id="pagamentoContexto" style="font-size:13px; color:var(--text-muted); margin-bottom:24px; margin-top:-8px;"></p>
+      <div class="field-group">
+        <label for="pagamentoValor">Valor pago (R$)</label>
+        <input type="text" inputmode="numeric" id="pagamentoValor" placeholder="0" />
+      </div>
+      <div class="field-group">
+        <label for="pagamentoData">Data do pagamento</label>
+        <input type="date" id="pagamentoData" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelPagamento">Cancelar</button>
+        <button class="btn-save" id="btnSavePagamento">Confirmar pagamento</button>
       </div>
     </div>
   </div>
@@ -801,6 +864,7 @@
     // ─── SVG icons ───────────────────────────
     const IC_EDIT   = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
     const IC_DELETE = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10M6 7v4M10 7v4"/></svg>`;
+    const IC_PARCELAS = `<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="8" cy="3" r="1.6"/><circle cx="13" cy="3" r="1.6"/><circle cx="3" cy="8" r="1.6"/><circle cx="8" cy="8" r="1.6"/><circle cx="13" cy="8" r="1.6"/><circle cx="3" cy="13" r="1.6"/><circle cx="8" cy="13" r="1.6"/><circle cx="13" cy="13" r="1.6"/></svg>`;
 
     // ─── Helpers ────────────────────────────
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -1226,41 +1290,149 @@
 
     }
 
+    /**
+     * Dívidas antigas não têm o campo formaPagamento — infere pelo padrão:
+     * se tem parcela mensal definida, era parcelada; senão, pagamento único.
+     */
+    function formaPagamentoOf(d) {
+      return d.formaPagamento || (d.parcela > 0 ? 'parcelada' : 'unico');
+    }
+
+    /**
+     * Array de booleans (uma posição por parcela) — só existe quando a dívida
+     * é parcelada e tem totalParcelas definido. Cada posição é marcada pela
+     * própria usuária (nunca automático): ela decide quando confirma o
+     * pagamento de cada parcela, e pode legitimamente optar por não pagar.
+     */
+    function parcelasStatusOf(d) {
+      if (!d.totalParcelas) return null;
+      const arr = Array.isArray(d.parcelasStatus) ? d.parcelasStatus.slice(0, d.totalParcelas) : [];
+      while (arr.length < d.totalParcelas) arr.push(false);
+      return arr;
+    }
+
+    // Rastreia quais painéis de parcelas estão abertos entre re-renders
+    const _parcelasExpandidas = new Set();
+
     function renderDividas(divs, totalDividas) {
-      const lista = document.getElementById('dividasList');
+      const lista        = document.getElementById('dividasList');
+      const quitadasWrap  = document.getElementById('dividasQuitadasWrap');
+      const quitadasList  = document.getElementById('dividasQuitadasList');
 
       const tipoIcons = {
         financiamento: '🏠', carro: '🚗', emprestimo: '💳', cartao: '💳', outro: '📋'
       };
 
-      lista.innerHTML = divs.map(d => {
+      const ativas   = divs.filter(d => !d.quitada);
+      const quitadas = divs.filter(d => d.quitada);
+
+      lista.innerHTML = ativas.map(d => {
         const pctDivida = totalDividas > 0 ? (d.saldo / totalDividas) * 100 : 0;
         const terminoLabel = d.termino
           ? new Date(d.termino + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
           : 'Sem prazo definido';
+        const forma  = formaPagamentoOf(d);
+        const status = forma === 'parcelada' ? parcelasStatusOf(d) : null;
+
+        let metaLabel, acaoBtn, painel = '';
+        if (forma === 'parcelada' && status) {
+          const pagas = status.filter(Boolean).length;
+          metaLabel = `Parcela: ${brl(d.parcela)}/mês · Término: ${terminoLabel} · ${pagas}/${d.totalParcelas} pagas`;
+          acaoBtn = `<button class="btn-icon" data-toggle-parcelas="${d.id}" title="Ver parcelas">${IC_PARCELAS}</button>`;
+          const aberto = _parcelasExpandidas.has(d.id);
+          painel = `
+            <div class="parcelas-panel" id="parcelasPanel-${d.id}" style="display:${aberto ? '' : 'none'}">
+              <div class="parcelas-panel-header">
+                <span>Clique numa parcela para marcar/desmarcar como paga</span>
+                <span>${pagas}/${d.totalParcelas}</span>
+              </div>
+              <div class="parcelas-grid">
+                ${status.map((paga, i) => `
+                  <div class="parcela-chip ${paga ? 'paga' : ''}" data-parcela-chip="${d.id}:${i}"
+                       title="Parcela ${i + 1}${paga ? ' — paga' : ' — pendente'}">${paga ? '✓' : i + 1}</div>
+                `).join('')}
+              </div>
+            </div>`;
+        } else if (forma === 'parcelada') {
+          metaLabel = `Parcela: ${brl(d.parcela)}/mês · Término: ${terminoLabel} · defina o total de parcelas em Editar para acompanhar por parcela`;
+          acaoBtn = `<button class="btn-icon" data-pagar-divida="${d.id}" title="Confirmar pagamento">💰</button>`;
+        } else {
+          metaLabel = `Pagamento único · Término: ${terminoLabel}`;
+          acaoBtn = `<button class="btn-icon" data-pagar-divida="${d.id}" title="Confirmar pagamento">💰</button>`;
+        }
+
         return `
-          <div class="divida-row">
-            <span class="divida-icon">${tipoIcons[d.tipo] || '📋'}</span>
-            <div class="divida-info">
-              <div class="divida-nome">${d.nome}</div>
-              <div class="divida-meta">Parcela: ${brl(d.parcela)}/mês · Término: ${terminoLabel}</div>
-              <div class="divida-progress-track">
-                <div class="divida-progress-fill" style="width:${pctDivida}%"></div>
+          <div class="divida-block">
+            <div class="divida-row">
+              <span class="divida-icon">${tipoIcons[d.tipo] || '📋'}</span>
+              <div class="divida-info">
+                <div class="divida-nome">${d.nome}</div>
+                <div class="divida-meta">${metaLabel}</div>
+                <div class="divida-progress-track">
+                  <div class="divida-progress-fill" style="width:${pctDivida}%"></div>
+                </div>
+              </div>
+              <div class="divida-value">${brl(d.saldo)}</div>
+              <div class="ativo-actions">
+                ${acaoBtn}
+                <button class="btn-icon" data-edit-divida="${d.id}" title="Editar">${IC_EDIT}</button>
+                <button class="btn-icon btn-delete" data-del-divida="${d.id}" title="Excluir">${IC_DELETE}</button>
               </div>
             </div>
-            <div class="divida-value">${brl(d.saldo)}</div>
-            <div class="ativo-actions">
-              <button class="btn-icon" data-edit-divida="${d.id}" title="Editar">${IC_EDIT}</button>
-              <button class="btn-icon btn-delete" data-del-divida="${d.id}" title="Excluir">${IC_DELETE}</button>
-            </div>
+            ${painel}
           </div>`;
       }).join('');
 
-      // Listeners dos botões de dívida
+      // Listeners dos botões de dívida ativa
+      lista.querySelectorAll('[data-parcela-chip]').forEach(chip =>
+        chip.addEventListener('click', () => {
+          const [id, i] = chip.dataset.parcelaChip.split(':');
+          toggleParcela(id, parseInt(i, 10));
+        }));
+      lista.querySelectorAll('[data-toggle-parcelas]').forEach(btn =>
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.toggleParcelas;
+          const painelEl = document.getElementById('parcelasPanel-' + id);
+          if (!painelEl) return;
+          const abrindo = painelEl.style.display === 'none';
+          painelEl.style.display = abrindo ? '' : 'none';
+          if (abrindo) _parcelasExpandidas.add(id); else _parcelasExpandidas.delete(id);
+        }));
+      lista.querySelectorAll('[data-pagar-divida]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModalPagamento(btn.dataset.pagarDivida)));
       lista.querySelectorAll('[data-edit-divida]').forEach(btn =>
         btn.addEventListener('click', () => abrirModalDivida(btn.dataset.editDivida)));
       lista.querySelectorAll('[data-del-divida]').forEach(btn =>
         btn.addEventListener('click', () => deletarDivida(btn.dataset.delDivida)));
+
+      // Dívidas quitadas — seção recolhível, nada é apagado automaticamente
+      if (quitadasWrap) {
+        quitadasWrap.style.display = quitadas.length ? '' : 'none';
+        document.getElementById('toggleQuitadasLabel').textContent = `Dívidas quitadas (${quitadas.length})`;
+        quitadasList.innerHTML = quitadas.map(d => {
+          const ultimoPagamento = d.pagamentos && d.pagamentos.length ? d.pagamentos[d.pagamentos.length - 1] : null;
+          const quitadaEm = ultimoPagamento
+            ? new Date(ultimoPagamento.data + 'T00:00:00').toLocaleDateString('pt-BR')
+            : '';
+          return `
+            <div class="divida-row" style="opacity:.6">
+              <span class="divida-icon">✅</span>
+              <div class="divida-info">
+                <div class="divida-nome" style="text-decoration:line-through">${d.nome}</div>
+                <div class="divida-meta">Quitada${quitadaEm ? ' em ' + quitadaEm : ''}</div>
+              </div>
+              <div class="divida-value" style="color:var(--positive)">R$ 0</div>
+              <div class="ativo-actions">
+                <button class="btn-icon" data-reabrir-divida="${d.id}" title="Reabrir">↩</button>
+                <button class="btn-icon btn-delete" data-del-divida="${d.id}" title="Excluir">${IC_DELETE}</button>
+              </div>
+            </div>`;
+        }).join('');
+        quitadasList.querySelectorAll('[data-reabrir-divida]').forEach(btn =>
+          btn.addEventListener('click', () => reabrirDivida(btn.dataset.reabrirDivida)));
+        quitadasList.querySelectorAll('[data-del-divida]').forEach(btn =>
+          btn.addEventListener('click', () => deletarDivida(btn.dataset.delDivida)));
+      }
     }
 
     // ─── Conciliação automática de reservas ──────────────────────────────────
@@ -1510,21 +1682,38 @@
     const modalEl = document.getElementById('modalDivida');
     let editandoDividaId = null; // null = nova dívida
 
+    function toggleCamposParcelada() {
+      const forma = document.getElementById('dividaForma').value;
+      document.getElementById('camposParcelada').style.display = forma === 'parcelada' ? '' : 'none';
+    }
+    document.getElementById('dividaForma').addEventListener('change', toggleCamposParcelada);
+
     function abrirModalDivida(id = null) {
       editandoDividaId = id;
       document.getElementById('modalDividaTitle').textContent = id ? 'Editar dívida' : 'Nova dívida';
+      const infoEl = document.getElementById('infoParcelasPagas');
       if (id) {
         const d = dividas.find(x => x.id === id);
         if (d) {
+          const forma = formaPagamentoOf(d);
           document.getElementById('dividaNome').value    = d.nome;
           document.getElementById('dividaTipo').value    = d.tipo;
+          document.getElementById('dividaForma').value   = forma;
           setMoney(document.getElementById('dividaSaldo'),   d.saldo);
           setMoney(document.getElementById('dividaParcela'), d.parcela || null);
+          document.getElementById('dividaTotalParcelas').value = d.totalParcelas || '';
           document.getElementById('dividaTermino').value = d.termino || '';
+          if (infoEl) {
+            const pagas = d.parcelasPagas || 0;
+            infoEl.style.display = (forma === 'parcelada' && pagas > 0) ? '' : 'none';
+            infoEl.textContent = `${pagas} parcela${pagas !== 1 ? 's' : ''} já confirmada${pagas !== 1 ? 's' : ''}.`;
+          }
         }
       } else {
         resetModal();
+        if (infoEl) infoEl.style.display = 'none';
       }
+      toggleCamposParcelada();
       modalEl.classList.remove('hidden');
     }
 
@@ -1541,16 +1730,21 @@
     function resetModal() {
       document.getElementById('dividaNome').value    = '';
       document.getElementById('dividaTipo').value    = 'financiamento';
+      document.getElementById('dividaForma').value   = 'parcelada';
       document.getElementById('dividaSaldo').value   = '';
       document.getElementById('dividaParcela').value = '';
+      document.getElementById('dividaTotalParcelas').value = '';
       document.getElementById('dividaTermino').value = '';
     }
 
     document.getElementById('btnSaveDivida').addEventListener('click', async () => {
       const nome    = document.getElementById('dividaNome').value.trim();
       const tipo    = document.getElementById('dividaTipo').value;
+      const forma   = document.getElementById('dividaForma').value; // 'parcelada' | 'unico'
       const saldo   = readMoney(document.getElementById('dividaSaldo'));
-      const parcela = readMoney(document.getElementById('dividaParcela'));
+      const parcela = forma === 'parcelada' ? readMoney(document.getElementById('dividaParcela')) : 0;
+      const totalParcelasRaw = document.getElementById('dividaTotalParcelas').value;
+      const totalParcelas = forma === 'parcelada' && totalParcelasRaw ? parseInt(totalParcelasRaw, 10) : null;
       const termino = document.getElementById('dividaTermino').value;
 
       if (!nome || isNaN(saldo) || saldo <= 0) {
@@ -1558,15 +1752,41 @@
         return;
       }
 
+      // Ajusta o checklist de parcelas ao novo total (preserva o que já foi
+      // marcado, dentro do novo tamanho; nunca marca nada automaticamente).
+      function ajustarParcelasStatus(statusAtual, novoTotal) {
+        if (!novoTotal) return [];
+        const arr = (statusAtual || []).slice(0, novoTotal);
+        while (arr.length < novoTotal) arr.push(false);
+        return arr;
+      }
+
       const btnSaveDivida = document.getElementById('btnSaveDivida');
       setLoading(btnSaveDivida, true);
       try {
         if (editandoDividaId) {
           const idx = dividas.findIndex(d => d.id === editandoDividaId);
-          if (idx !== -1) dividas[idx] = { ...dividas[idx], nome, tipo, saldo, parcela, termino };
+          if (idx !== -1) {
+            const anterior = dividas[idx];
+            const parcelasStatus = forma === 'parcelada'
+              ? ajustarParcelasStatus(anterior.parcelasStatus, totalParcelas)
+              : [];
+            dividas[idx] = {
+              ...anterior, nome, tipo, saldo, parcela, termino,
+              formaPagamento: forma, totalParcelas, parcelasStatus,
+              parcelasPagas: parcelasStatus.filter(Boolean).length,
+            };
+          }
           await saveDivida(dividas[idx !== -1 ? idx : 0]);
         } else {
-          const nova = { id: 'd' + Date.now(), nome, tipo, saldo, parcela, termino };
+          const parcelasStatus = forma === 'parcelada' && totalParcelas
+            ? new Array(totalParcelas).fill(false)
+            : [];
+          const nova = {
+            id: 'd' + Date.now(), nome, tipo, saldo, parcela, termino,
+            formaPagamento: forma, totalParcelas, parcelasStatus,
+            parcelasPagas: 0, pagamentos: [], quitada: false,
+          };
           dividas.push(nova);
           await saveDivida(nova);
         }
@@ -1597,6 +1817,153 @@
       catch (err) { console.error('Erro ao excluir dívida:', err); toast(`Erro: ${msgErro(err)}`, 'error'); }
       render(ativos, dividas);
     }
+
+    // ─── Fila de saves por dívida ─────────────
+    // Cliques rápidos em várias parcelas disparam saves em paralelo; sem
+    // serializar por dívida, uma resposta de rede fora de ordem pode
+    // sobrescrever um toggle mais recente com um payload mais antigo (mesmo
+    // problema já visto com buscas em background sobrescrevendo estado —
+    // ver lições do orçamento). Encadear por id da dívida evita isso.
+    const _saveChainDivida = new Map();
+    function enqueueSaveDivida(divida) {
+      const anterior = _saveChainDivida.get(divida.id) || Promise.resolve();
+      const proxima = anterior.then(() => saveDivida(divida));
+      _saveChainDivida.set(divida.id, proxima.catch(() => {})); // não trava a fila em caso de erro
+      return proxima;
+    }
+
+    // ─── Checklist de parcelas — marcar/desmarcar é sempre ação explícita ────
+    // da usuária (nunca automático): numa dívida parcelada, pode fazer
+    // sentido ela decidir não pagar uma parcela específica.
+    async function toggleParcela(id, i) {
+      const idx = dividas.findIndex(d => d.id === id);
+      if (idx === -1) return;
+      const d = dividas[idx];
+      const status = parcelasStatusOf(d);
+      if (!status) return;
+
+      const estavaPaga = !!status[i];
+      status[i] = !estavaPaga;
+      const valorParcela = d.parcela || 0;
+      const novoSaldo = estavaPaga
+        ? d.saldo + valorParcela                    // desmarcando: devolve ao saldo
+        : Math.max(0, d.saldo - valorParcela);       // marcando: abate do saldo
+
+      let pagamentos = d.pagamentos ? [...d.pagamentos] : [];
+      if (estavaPaga) {
+        // Desmarcou: remove o registro mais recente dessa parcela específica
+        for (let p = pagamentos.length - 1; p >= 0; p--) {
+          if (pagamentos[p].parcela === i + 1) { pagamentos.splice(p, 1); break; }
+        }
+      } else {
+        pagamentos.push({ data: new Date().toISOString().slice(0, 10), valor: valorParcela, parcela: i + 1 });
+      }
+
+      const quitou = novoSaldo <= 0.01 && !d.quitada;
+      const atualizada = {
+        ...d, saldo: novoSaldo, parcelasStatus: status,
+        parcelasPagas: status.filter(Boolean).length,
+        pagamentos, quitada: novoSaldo <= 0.01,
+      };
+      dividas[idx] = atualizada;
+      render(ativos, dividas); // otimista — reflete o clique na hora
+
+      try {
+        await enqueueSaveDivida(atualizada);
+        if (quitou) {
+          toast(`🎉 Dívida quitada: ${d.nome}!`, 'success');
+          registrarEvento('divida_pagamento_confirmado');
+        }
+      } catch (err) {
+        // Reverte o estado local se o save falhar
+        dividas[idx] = d;
+        render(ativos, dividas);
+        toast(`Erro ao atualizar parcela: ${msgErro(err)}`, 'error');
+      }
+    }
+
+    // ─── Confirmar pagamento (abate do saldo, some ou não conta parcela) ─────
+    const modalPagamento = document.getElementById('modalPagamento');
+    let pagandoDividaId = null;
+    const _pagamentosEmCurso = new Set(); // trava contra clique duplo (mesmo padrão do orçamento)
+
+    bindMoneyInput(document.getElementById('pagamentoValor'));
+
+    function abrirModalPagamento(id) {
+      const d = dividas.find(x => x.id === id);
+      if (!d) return;
+      pagandoDividaId = id;
+      const forma = formaPagamentoOf(d);
+      document.getElementById('pagamentoContexto').textContent = `${d.nome} · saldo atual: ${brl(d.saldo)}`;
+      setMoney(document.getElementById('pagamentoValor'), forma === 'parcelada' ? (d.parcela || null) : null);
+      document.getElementById('pagamentoData').value = new Date().toISOString().slice(0, 10);
+      modalPagamento.classList.remove('hidden');
+    }
+
+    function fecharModalPagamento() {
+      modalPagamento.classList.add('hidden');
+      pagandoDividaId = null;
+    }
+
+    document.getElementById('btnCancelPagamento').addEventListener('click', fecharModalPagamento);
+    modalPagamento.addEventListener('click', e => { if (e.target === modalPagamento) fecharModalPagamento(); });
+
+    document.getElementById('btnSavePagamento').addEventListener('click', async () => {
+      const id = pagandoDividaId;
+      if (!id || _pagamentosEmCurso.has(id)) return;
+      const valor = readMoney(document.getElementById('pagamentoValor'));
+      const data  = document.getElementById('pagamentoData').value || new Date().toISOString().slice(0, 10);
+      if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
+
+      const idx = dividas.findIndex(d => d.id === id);
+      if (idx === -1) return;
+
+      _pagamentosEmCurso.add(id);
+      const btnPag = document.getElementById('btnSavePagamento');
+      setLoading(btnPag, true, 'Confirmando…');
+      try {
+        const d = dividas[idx];
+        const novoSaldo = Math.max(0, d.saldo - valor);
+        const quitou = novoSaldo <= 0.01;
+        const atualizada = {
+          ...d,
+          saldo: novoSaldo,
+          pagamentos: [...(d.pagamentos || []), { data, valor }],
+          parcelasPagas: formaPagamentoOf(d) === 'parcelada' ? (d.parcelasPagas || 0) + 1 : (d.parcelasPagas || 0),
+          quitada: quitou,
+        };
+        dividas[idx] = atualizada;
+        await saveDivida(atualizada);
+        render(ativos, dividas);
+        fecharModalPagamento();
+        toast(quitou ? `🎉 Dívida quitada: ${d.nome}!` : 'Pagamento confirmado!', 'success');
+        registrarEvento('divida_pagamento_confirmado');
+      } catch (err) {
+        toast(`Erro ao confirmar pagamento: ${msgErro(err)}`, 'error');
+      } finally {
+        setLoading(btnPag, false);
+        _pagamentosEmCurso.delete(id);
+      }
+    });
+
+    async function reabrirDivida(id) {
+      const idx = dividas.findIndex(d => d.id === id);
+      if (idx === -1) return;
+      dividas[idx] = { ...dividas[idx], quitada: false };
+      try { await saveDivida(dividas[idx]); }
+      catch (err) { toast(`Erro: ${msgErro(err)}`, 'error'); return; }
+      render(ativos, dividas);
+      toast('Dívida reaberta.', 'info');
+    }
+
+    // ─── Toggle da seção de dívidas quitadas ──
+    document.getElementById('toggleQuitadas')?.addEventListener('click', () => {
+      const listEl = document.getElementById('dividasQuitadasList');
+      const iconEl = document.getElementById('toggleQuitadasIcon');
+      const abrindo = listEl.style.display === 'none';
+      listEl.style.display = abrindo ? '' : 'none';
+      iconEl.textContent = abrindo ? '▾' : '▸';
+    });
 
     // ─── Import CSV de dívidas ────────────────
     document.getElementById('btnImportDividas').addEventListener('click', () =>

@@ -27,10 +27,11 @@ const ABAS = {
     ],
   },
   dividas: {
-    headers: ['id', 'nome', 'tipo', 'saldo', 'parcela', 'termino'],
-    colWidths: [160, 240, 160, 120, 120, 120],
+    headers: ['id', 'nome', 'tipo', 'saldo', 'parcela', 'termino', 'formaPagamento', 'totalParcelas', 'parcelasPagas', 'quitada'],
+    colWidths: [160, 240, 160, 120, 120, 120, 140, 110, 110, 90],
     validacoes: [
       { colIndex: 2, valores: ['financiamento', 'carro', 'emprestimo', 'cartao', 'outro'] },
+      { colIndex: 6, valores: ['parcelada', 'unico'] },
     ],
   },
   reservas: {
