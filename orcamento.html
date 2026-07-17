@@ -1312,7 +1312,7 @@
       </span>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <input type="file" id="csvInput" class="upload-input" accept=".csv,.txt" />
-        <button class="btn-upload" id="btnUploadIA" style="display:none;">🤖 Importar extrato com IA</button>
+        <button class="btn-upload" id="btnUploadIA">🤖 Importar extrato com IA</button>
         <button class="btn-upload" id="btnUpload" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" title="Formato antigo — CSV já categorizado">Importar CSV</button>
       </div>
     </div>
@@ -3619,28 +3619,10 @@
       if (e.key === 'Enter') document.getElementById('btnSalvarAporte').click();
     });
 
-    // Ambiente de teste: recurso de importação por IA só liberado para a conta
-    // master e para a conta de teste da Luiza, até validação (12/07/2026).
-    const TEST_ACCESS_EMAILS = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
-    // UID da Luiza (mesma conta de TEST_ACCESS_EMAILS) — usado só para liberar em
-    // modo "ver como" (admin.html), onde user.email continua sendo o da Flávia e
-    // não dá pra checar por e-mail (achado 13/07/2026, ver TEST_ACCESS_EMAILS acima).
-    const TEST_ACCESS_UIDS = ['tqrwd6BpreXKBJhNtKtjGEaBq712'];
-
     async function init(user) {
       const _admin = await isAdmin();
       if (!VIEW_AS_UID && _admin && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
       if (_admin) document.getElementById('linkAdmin').style.display = 'inline';
-      // Fora do "ver como": libera pra admin ou pras contas de teste, pelo e-mail
-      // de quem está logado. Em "ver como": user.email é sempre o da Flávia
-      // (impersonar não troca a identidade autenticada), então checa o UID da
-      // conta sendo vista contra TEST_ACCESS_UIDS em vez do e-mail — sem isso,
-      // "_admin ||" sozinho vazava o botão pra QUALQUER conta real vista via
-      // admin, não só as de teste (achado 13/07/2026).
-      const liberado = VIEW_AS_UID ? TEST_ACCESS_UIDS.includes(VIEW_AS_UID) : (_admin || TEST_ACCESS_EMAILS.includes(user.email));
-      if (liberado) {
-        document.getElementById('btnUploadIA').style.display = '';
-      }
 
       // Raio-X (degustação de 30 dias, só Orçamento): esconde nav de Patrimônio/
       // Reservas/Jornada e mostra o CTA de upgrade. Não bloqueia o resto do init.
