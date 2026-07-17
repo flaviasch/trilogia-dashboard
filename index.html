@@ -890,7 +890,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=30';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=31';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
     import { calcularAgregadosOrcamento } from './js/orcamento-calc.js';
@@ -1690,6 +1690,16 @@
             { emoji: '🔮', titulo: 'Saldo Projetado mais preciso', desc: 'Agora também desconta as despesas fixas ainda não lançadas.' },
             { emoji: '🔜', titulo: 'O que vem por aí: múltiplas contas correntes', desc: 'Estamos trabalhando pra permitir acompanhar mais de uma conta corrente dentro do orçamento.' },
           ],
+        });
+      }
+
+      // ⓪-g Importar extrato com IA direto no Orçamento (Jul/2026)
+      if (!localStorage.getItem('notif_raiox_jul2026')) {
+        notifs.unshift({
+          id: 'raiox-jul2026', type: 'novidades', key: 'notif_raiox_jul2026', icon: '⚡',
+          titulo: 'Importe extratos e faturas com IA, direto no Orçamento',
+          desc: 'Chega de planilha separada: agora você importa o extrato ou a fatura do cartão direto na aba Orçamento, e a IA classifica cada lançamento automaticamente.',
+          cta: { label: 'Importar agora', href: 'orcamento.html' },
         });
       }
 

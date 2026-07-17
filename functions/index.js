@@ -53,6 +53,7 @@ const {
   emailNovidadesJul2026,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
+  emailRaioXJul2026,
   emailJornadaDashboard,
   emailIR,
   emailReenvioAcesso,
@@ -955,10 +956,6 @@ exports.categorizarExtratoIA = onCall(
     const auth = requireAuth(request);
     const { uid, conteudo, tipoConteudo, nomesCartoes } = request.data;
     requireSelfOrAdmin(request, uid);
-    // Ambiente de teste: só a conta master e a conta de teste da Luiza até validação.
-    if (!auth.token.admin && !TEST_ACCESS_EMAILS.includes(auth.token.email)) {
-      throw new HttpsError('permission-denied', 'Recurso em fase de testes — ainda não liberado para esta conta.');
-    }
     // 10 a cada 10min — uso típico é 1-2 importações por mês; generoso o bastante
     // contra abuso sem incomodar uso legítimo (várias contas/cartões no mesmo dia).
     await checkRateLimit(uid, 'categorizarExtratoIA', 10, 600_000);
@@ -1138,10 +1135,6 @@ exports.salvarCategoriaAprendida = onCall(async (request) => {
   const auth = requireAuth(request);
   const { uid, descricao, categoria } = request.data;
   requireSelfOrAdmin(request, uid);
-  // Ambiente de teste: só a conta master e a conta de teste da Luiza até validação.
-  if (!auth.token.admin && !TEST_ACCESS_EMAILS.includes(auth.token.email)) {
-    throw new HttpsError('permission-denied', 'Recurso em fase de testes — ainda não liberado para esta conta.');
-  }
   if (!descricao || typeof descricao !== 'string' || !descricao.trim())
     throw new HttpsError('invalid-argument', 'descricao é obrigatória.');
   if (!categoria || typeof categoria !== 'string' || !categoria.trim())
@@ -3232,13 +3225,6 @@ exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) 
 const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
 
 /**
- * Gate temporário de ambiente de teste: implementações novas em validação ficam
- * visíveis só para a conta master e para a conta de teste da Luiza, até a Flávia
- * confirmar e liberar para todas as mentoradas (acordado em 12/07/2026).
- */
-const TEST_ACCESS_EMAILS = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
-
-/**
  * Verifica o escopo e validade da Service Account (diagnóstico de segurança).
  * Retorna: email da SA, escopos configurados, se o secret existe.
  */
@@ -4000,9 +3986,9 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
     const RANGES_VALOR = {
       mentoria:  { min: 500,  max: 15000 },
       private:   { min: 2000, max: 30000 },
-      dashboard: { min: 90,   max: 1000  },  // R$97/mês ou R$970/ano (atualizado 10/07/2026)
+      dashboard: { min: 60,   max: 1000  },  // R$67/mês ou R$670/ano standalone (atualizado 17/07/2026)
       clube:     { min: 50,   max: 200   },  // legado — fundadoras R$67
-      combo:     { min: 50,   max: 300   },  // R$67 fundadoras a R$197 público
+      combo:     { min: 60,   max: 1000  },  // R$97/mês ou R$970/ano com Clube (atualizado 17/07/2026)
       curso:     { min: 97,   max: 997   },  // produtos de entrada
       ebook:     { min: 9,    max: 97    },  // ebook / material digital
     };
@@ -4076,10 +4062,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       // assinatura recorrente. Expira sozinho via verificarExpiracoes (mesmo cron
       // que já bloqueia dashboard/clube vencidos), a menos que a cliente assine o
       // Dashboard completo depois (assinaturaDashboard: true passa a manter acesso).
-      // Ambiente de teste: até validação, só a compra da conta de teste da Luiza
-      // recebe o gate raio-x/degustação; demais compras seguem como antes (conta
-      // sem restrição de módulo, sem expiração de 30 dias).
-      if (produtoEspecifico === 'raiox' && TEST_ACCESS_EMAILS.includes(email.toLowerCase())) {
+      if (produtoEspecifico === 'raiox') {
         const exp = new Date();
         exp.setDate(exp.getDate() + 30);
         flagsNovaM.dataExpiracao = exp.toISOString().slice(0, 10);
@@ -4707,6 +4690,31 @@ exports.anunciarMultiplasContasJul2026 = onCall({ secrets: SECRETS_EMAIL }, asyn
   }
   await db.collection('config').doc('comunicados').set(
     { multiplasContasJul2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+exports.anunciarRaioXJul2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Chegou: importar extrato com IA, direto no Dashboard',
+        html:    emailRaioXJul2026(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarRaioXJul2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { raioXJul2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };
@@ -6139,9 +6147,9 @@ function mapProdutoDiagnostico(produtoIndicado) {
   const p = (produtoIndicado || '').toLowerCase();
   if (p.includes('mentoria')) return 'Mentoria Trilogia R$4.700';
   if (p.includes('jornada'))  return 'Jornada Domine R$197';
-  if (p.includes('combo'))    return 'Combo Dashboard + Clube R$197/mês';
+  if (p.includes('combo'))    return 'Combo Dashboard + Clube R$97/mês';
   if (p.includes('clube'))    return 'Clube Trilogia (Fundadoras R$67/mês)';
-  if (p.includes('dashboard') && !p.includes('combo')) return 'Dashboard Trilogia R$147/mês';
+  if (p.includes('dashboard') && !p.includes('combo')) return 'Dashboard Trilogia R$67/mês';
   if (p.includes('reserva'))  return 'Reserva que Rende R$247';
   if (p.includes('mapa'))     return 'Mapa da Reserva R$67';
   if (p.includes('raio'))     return 'Raio-X Financeiro R$67';

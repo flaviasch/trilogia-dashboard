@@ -626,6 +626,48 @@ function emailMultiplasContasJul2026(nome) {
   `);
 }
 
+// ─── Importar extrato com IA, direto no Orçamento — Jul/2026 ──────────────────
+
+function emailRaioXJul2026(nome) {
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  const secao = (titulo) =>
+    `<tr><td style="padding:18px 0 6px;">
+      <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Chegou: importar extrato com IA, direto no Dashboard</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      A classificação por inteligência artificial que você conhecia pelo Raio-X saiu do agente de chat e entrou direto na aba Orçamento do seu Dashboard. Não precisa mais abrir outra conversa nem colar entre duas telas — cai direto no seu orçamento.
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('⚡ O que mudou')}
+      ${item('📥','Botão "Importar extrato com IA" no Orçamento','Na aba Orçamento, cole o texto ou envie o PDF do extrato ou da fatura do cartão — a IA lê e classifica cada lançamento.')}
+      ${item('✅','Você só revisa antes de confirmar','Quando um lançamento não é claro, o Dashboard pergunta antes de confirmar — igual o agente já fazia, só que sem sair da tela.')}
+      ${item('🔁','Quantas vezes quiser','Importe extratos e faturas à vontade, direto no mês certo, sem depender de outra ferramenta.')}
+
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">
+      Ver o orçamento →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 // ─── Comunicado Técnico ───────────────────────────────────────────────────────
 
 function emailComunicadoTecnico(nome) {
@@ -985,6 +1027,7 @@ module.exports = {
   emailNovidadesJul2026,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
+  emailRaioXJul2026,
   emailJornadaDashboard,
   emailComunicadoTecnico,
   emailIR,

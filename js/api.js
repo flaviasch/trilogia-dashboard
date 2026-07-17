@@ -942,6 +942,11 @@ export async function anunciarMultiplasContasJul2026() {
   return call('anunciarMultiplasContasJul2026')({});
 }
 
+/** Dispara e-mail de importar extrato com IA no Orçamento — Jul/2026. Admin only. */
+export async function anunciarRaioXJul2026() {
+  return call('anunciarRaioXJul2026')({});
+}
+
 /** Marca/desmarca lição de casa no Notion. */
 export async function marcarLicaoCasa({ blockId, checked, uid }) {
   return call('marcarLicaoCasa')({ blockId, checked, uid });

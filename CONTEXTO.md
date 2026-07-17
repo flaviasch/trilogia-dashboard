@@ -3,10 +3,9 @@
 ## O que é
 Dashboard financeiro pessoal para mentoradas da Mentoria Trilogia Financeira (Flávia Schuscimann, CFP®). Produto de assinatura mensal entregue no encontro 3 da mentoria.
 
-**Precificação:**
-- Dashboard standalone: R$147/mês
-- Combo Dashboard + Clube: R$197/mês (público geral)
-- Combo Fundadoras: R$67/mês (preço travado — só para fundadoras)
+**Precificação (atualizado 17/07/2026):**
+- Dashboard standalone: R$67/mês ou R$670/ano
+- Combo Dashboard + Clube: R$97/mês ou R$970/ano
 - Clube standalone: extinto
 
 ## Stack
