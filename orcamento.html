@@ -8752,12 +8752,17 @@
     // contrário de um lançamento avulso de cartão) — a fixa é sobre "este mês
     // tem esse gasto", não sobre em qual fatura ele tecnicamente cai.
     async function autoLancarFixasCartao(mes, ano) {
-      // Desligado temporariamente (03/07/2026) — a geração/limpeza automática
-      // estava causando duplicação de lançamentos em produção. Reativar só após
-      // investigar com calma numa sessão dedicada. Até lá, despesas fixas no
-      // cartão não são lançadas automaticamente (segue funcionando lançar à mão).
-      return false;
-      // eslint-disable-next-line no-unreachable
+      // Reativado 17/07/2026 — estava desligada desde 03/07/2026 por
+      // "causar duplicação em produção", mas a causa raiz real era
+      // salvarEAtualizar reenviando itens emprestados de outro mês
+      // (_sourceMes), corrigida no mesmo dia (commits 525467a/33d7f2a,
+      // ANTES desta função ter sido desligada por precaução). Ficou
+      // desligada sem necessidade por 2 semanas, quebrando silenciosamente
+      // a fatura de toda despesa fixa/parcelada em cartão (achado numa
+      // mentorada real: fixas cadastradas corretamente, mas nunca
+      // aparecendo na aba Faturas). As proteções contra duplicata
+      // (_removerDuplicatasRecorrentes, _removerOcorrenciasDiaDesatualizado
+      // logo abaixo) continuam ativas.
       if (!_recorrentes.length) return false;
 
       let mudou = _removerDuplicatasRecorrentes(currentData);
@@ -8816,7 +8821,23 @@
     // linha do Saldo Projetado / Despesas pendentes) — sempre por ação
     // manual da usuária, nunca sozinho. Antes de confirmar, a ocorrência não
     // existe como lançamento de verdade (por isso não conta em caixa/comprometido).
+    //
+    // Guard contra clique duplo: sem isso, dois cliques no botão antes do
+    // primeiro salvamento terminar (await salvarEAtualizar/saveOrcamento)
+    // lançavam a mesma ocorrência duas ou mais vezes — achado 17/07/2026,
+    // várias despesas fixas de uma mentorada duplicadas 2-4x na mesma data.
+    const _materializandoFixa = new Set();
     async function materializarFixaPendente(recorrenteId, dia) {
+      const chaveEmCurso = recorrenteId + ':' + dia;
+      if (_materializandoFixa.has(chaveEmCurso)) return;
+      _materializandoFixa.add(chaveEmCurso);
+      try {
+        await _materializarFixaPendenteImpl(recorrenteId, dia);
+      } finally {
+        _materializandoFixa.delete(chaveEmCurso);
+      }
+    }
+    async function _materializarFixaPendenteImpl(recorrenteId, dia) {
       const r = _recorrentes.find(x => x.id === recorrenteId);
       if (!r) return;
       const { mes, ano } = currentData.periodo;
