@@ -215,6 +215,21 @@ export async function salvarCategoriaAprendida(descricao, categoria) {
 }
 
 /**
+ * Envia declaração de IR, posição de corretora, ou lista de dívidas para
+ * classificação via IA (substitui o Agente de Patrimônio e o Agente de
+ * Investimentos do ChatGPT).
+ * @param {string} conteudo — texto colado, ou base64 (sem prefixo data:) de PDF/imagem
+ * @param {'texto'|'pdf'|'imagem'} tipoConteudo
+ * @param {'ativos'|'dividas'} modo
+ * @returns {Promise<{itens: Array}>} modo 'ativos' → mesmo formato de parsearCsvPatrimonio
+ *   ([{classe, valor}]); modo 'dividas' → mesmo formato de parsearCsvDividas, sem "id"
+ *   (gere o id antes de chamar saveDivida, igual já se faz com o resultado do CSV).
+ */
+export async function categorizarPatrimonioIA(conteudo, tipoConteudo, modo) {
+  return call('categorizarPatrimonioIA')({ uid: uidAtual(), conteudo, tipoConteudo, modo });
+}
+
+/**
  * Salva ativos importados do CSV (IR ou corretora).
  * @param {Array<{classe, valor}>} itens
  * @param {'ir'|'corretora'} tipo

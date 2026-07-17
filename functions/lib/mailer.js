@@ -904,19 +904,24 @@ function emailUpgradeDashboard(nome, contexto = 'mentoria', diasRestantes = null
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
       <tr>
         <td align="center" style="padding:0 8px 12px;">
-          <a href="https://pay.kiwify.com.br/ntySa9B" style="${S.btn}">
-            Mensal — R$&nbsp;97/mês
+          <a href="https://pay.kiwify.com.br/PSL7Vy5" style="${S.btn}">
+            Mensal — R$&nbsp;67/mês
           </a>
         </td>
       </tr>
       <tr>
         <td align="center" style="padding:0 8px;">
-          <a href="https://pay.kiwify.com.br/KIhxony" style="display:inline-block;background:#f3f4f6;color:#0D2B45;padding:14px 28px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;">
-            Anual — R$&nbsp;970/ano <span style="font-size:12px;font-weight:400;color:#6b7280;">(economize 2 meses)</span>
+          <a href="https://pay.kiwify.com.br/hIoLfti" style="display:inline-block;background:#f3f4f6;color:#0D2B45;padding:14px 28px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;">
+            Anual — R$&nbsp;670/ano <span style="font-size:12px;font-weight:400;color:#6b7280;">(economize 2 meses)</span>
           </a>
         </td>
       </tr>
     </table>
+    <p style="${S.pSmall}">
+      Prefere ter também acesso ao Clube Trilogia junto com o Dashboard? Existe o
+      <a href="https://pay.kiwify.com.br/UzajRCK" style="color:#CFAE65;">Combo mensal — R$&nbsp;97/mês</a>
+      ou o <a href="https://pay.kiwify.com.br/PcIs3z1" style="color:#CFAE65;">Combo anual — R$&nbsp;970/ano</a>.
+    </p>
     <p style="${S.pSmall}">
       Em caso de dúvidas, fale diretamente com a Flávia pelo WhatsApp ou e-mail.
     </p>

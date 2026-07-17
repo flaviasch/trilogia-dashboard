@@ -334,6 +334,8 @@
       border-radius: 16px; padding: 32px; width: 100%; max-width: 440px;
     }
     .modal-title { font-family: 'Playfair Display', serif; font-size: 18px; margin-bottom: 24px; }
+    .modal-sub { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 18px; }
+    .modal-card.wide { max-width: 560px; }
     .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
     label { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.6); }
     input, select {
@@ -508,7 +510,7 @@
 
     <!-- Disclaimer -->
     <p class="import-disclaimer">
-      Os dados podem ser adicionados manualmente ou importados via agente. O <strong style="color:var(--text-secondary)">Agente de Patrimônio</strong> gera dois arquivos separados: um CSV de patrimônio (ativos do IR ou posição da corretora) e um CSV de dívidas. Importe cada arquivo no cartão correspondente abaixo.
+      Os dados podem ser adicionados manualmente ou importados com IA. Cole o texto da declaração de IR, da posição da corretora, ou das suas dívidas — ou anexe o PDF/foto — e a inteligência artificial organiza tudo automaticamente no cartão correspondente abaixo.
     </p>
 
     <!-- Banner de atualização do extrato — texto varia conforme o motivo (retirada ou lembrete mensal) -->
@@ -525,43 +527,71 @@
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar declaração IR</strong>
-          <span>Cole sua declaração no Agente de Patrimônio — ele extrai seus ativos e gera o CSV para importar aqui. <a id="linkAgenteIR" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <span>Cole o texto da sua declaração ou anexe o PDF — a IA extrai seus ativos automaticamente.</span>
           <div class="import-card-meta">
             <span class="cadencia-badge">Anual · maio</span>
             <span class="import-last" id="lastImportIR"></span>
           </div>
         </div>
-        <div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-import" id="btnImportIRIA" style="display:none;">🤖 Importar com IA</button>
           <input type="file" id="csvIR" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
-          <button class="btn-import" id="btnImportIR">Importar CSV</button>
+          <button class="btn-import" id="btnImportIR" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" title="Formato antigo — CSV já categorizado">Importar CSV</button>
         </div>
       </div>
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar posição da corretora</strong>
-          <span>Cole o extrato da corretora no Agente de Posição — ele organiza seus investimentos e gera o CSV para importar aqui. <a id="linkAgenteInv" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <span>Cole o extrato da corretora ou anexe o PDF/foto — a IA organiza seus investimentos automaticamente.</span>
           <div class="import-card-meta">
             <span class="cadencia-badge">Mensal</span>
             <span class="import-last" id="lastImportCorretora"></span>
           </div>
         </div>
-        <div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-import" id="btnImportCorretoraIA" style="display:none;">🤖 Importar com IA</button>
           <input type="file" id="csvCorretora" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
-          <button class="btn-import" id="btnImportCorretora">Importar CSV</button>
+          <button class="btn-import" id="btnImportCorretora" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" title="Formato antigo — CSV já categorizado">Importar CSV</button>
         </div>
       </div>
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar dívidas</strong>
-          <span>Cole suas dívidas no Agente de Patrimônio — ele estrutura os dados e gera o CSV para importar aqui. <a id="linkAgenteDividas" href="#" target="_blank" class="link-agente">Abrir agente →</a></span>
+          <span>Cole suas dívidas e financiamentos ou anexe o PDF/foto — a IA estrutura os dados automaticamente.</span>
           <div class="import-card-meta">
             <span class="cadencia-badge">Quando necessário</span>
             <span class="import-last" id="lastImportDividas"></span>
           </div>
         </div>
-        <div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-import" id="btnImportDividasIA" style="display:none;">🤖 Importar com IA</button>
           <input type="file" id="csvDividas" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
-          <button class="btn-import" id="btnImportDividas">Importar CSV</button>
+          <button class="btn-import" id="btnImportDividas" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" title="Formato antigo — CSV já categorizado">Importar CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: importar via IA (substitui o Agente de Patrimônio / Agente de Investimentos do ChatGPT) -->
+    <div id="modalImportarPatrimonioIA" class="modal-overlay hidden">
+      <div class="modal-card wide">
+        <h2 class="modal-title" id="modalImportarPatrimonioIATitulo">Importar com IA</h2>
+        <p class="modal-sub" id="modalImportarPatrimonioIASub">Cole o texto, ou envie um arquivo (PDF, foto, CSV/TXT). A IA extrai e organiza os dados sozinha.</p>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Colar texto</label>
+          <textarea id="patIaTexto" rows="8" placeholder="Cole aqui o texto..." style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+        </div>
+        <div style="text-align:center;margin:10px 0;color:var(--text-muted);font-size:12px;">— ou —</div>
+        <div style="margin-bottom:18px;">
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo</label>
+          <input type="file" id="patIaArquivoInput" style="display:none;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <button type="button" id="patIaBtnEscolherArquivo" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Escolher arquivo</button>
+            <span id="patIaArquivoNome" style="font-size:13px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Nenhum arquivo selecionado</span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="patIaBtnCancelar" style="flex:1;">Cancelar</button>
+          <button class="btn-save" id="patIaBtnConfirmar" style="flex:2;">Processar e importar</button>
         </div>
       </div>
     </div>
@@ -749,7 +779,8 @@
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
-    } from './js/api.js?v=31';
+      categorizarPatrimonioIA,
+    } from './js/api.js?v=32';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
     // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se
@@ -846,20 +877,6 @@
       window.location.href = 'login.html';
     });
 
-    // ─── URLs dos agentes (altere aqui quando tiver os links definitivos) ────
-    const AGENTE_PATRIMONIO_URL = 'https://chatgpt.com/g/g-69f8e6f369988191a8da00c7dedb454c-agente-de-patrimonio-trilogia';
-    const AGENTE_INVESTIMENTOS_URL = 'https://chatgpt.com/g/g-69f8e16e4ac48191be158bd80e149cc4-agente-de-posicao-trilogia';
-
-    // Aplica links nos banners (esconde o link se URL vazia)
-    function aplicarLinksAgentes() {
-      const ir   = document.getElementById('linkAgenteIR');
-      const inv  = document.getElementById('linkAgenteInv');
-      const div  = document.getElementById('linkAgenteDividas');
-      if (AGENTE_PATRIMONIO_URL)    { ir.href  = AGENTE_PATRIMONIO_URL;    } else { ir.style.display  = 'none'; }
-      if (AGENTE_INVESTIMENTOS_URL) { inv.href = AGENTE_INVESTIMENTOS_URL; } else { inv.style.display = 'none'; }
-      if (AGENTE_PATRIMONIO_URL)    { div.href = AGENTE_PATRIMONIO_URL;    } else { div.style.display = 'none'; }
-    }
-    aplicarLinksAgentes();
 
     // ─── SVG icons ───────────────────────────
     const IC_EDIT   = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
@@ -954,10 +971,19 @@
     let dividas  = [];
     let historico = [];
 
+    // Ambiente de teste: importação por IA em Patrimônio só liberada para a conta
+    // master e para a conta de teste da Luiza, até validação (17/07/2026).
+    const TEST_ACCESS_EMAILS = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+
     async function init(user) {
       const _admin = await isAdmin();
       if (!VIEW_AS_UID && _admin && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
       if (_admin) document.getElementById('linkAdmin').style.display = 'inline';
+      if (_admin || TEST_ACCESS_EMAILS.includes(user.email)) {
+        document.getElementById('btnImportIRIA').style.display = '';
+        document.getElementById('btnImportCorretoraIA').style.display = '';
+        document.getElementById('btnImportDividasIA').style.display = '';
+      }
 
       try {
         const [patrimonioData, hist] = await Promise.allSettled([
@@ -1521,6 +1547,32 @@
     }
 
     // ─── Imports ─────────────────────────────
+
+    // Persiste itens no formato [{classe, valor}] e atualiza a tela — usado
+    // tanto pela importação de CSV quanto pela importação com IA, para não
+    // duplicar a lógica de salvar/atualizar/notificar.
+    async function salvarAtivosImportados(itens, tipo) {
+      await savePatrimonio(itens, tipo);
+      const data = await getPatrimonio();
+      ativos  = data.ativos  || [];
+      dividas = data.dividas || [];
+      render(ativos, dividas);
+      snapshotHistorico();
+      localStorage.setItem(`lastImport_${tipo}`, new Date().toISOString());
+      renderLastImport();
+      toast(
+        tipo === 'ir'
+          ? 'Declaração IR importada com sucesso!'
+          : 'Posição da corretora importada com sucesso!',
+        'success'
+      );
+      registrarEvento('patrimonio_atualizado');
+      registrarEvento(tipo === 'ir' ? 'ir_importado' : 'corretora_importada');
+      // Se havia retirada pendente de atualização, sinaliza como resolvido
+      if (tipo === 'corretora') localStorage.removeItem('patrimonio_extrato_pendente');
+      conciliarReservas(ativos);
+    }
+
     document.getElementById('btnImportIR').addEventListener('click', () =>
       document.getElementById('csvIR').click());
     document.getElementById('btnImportCorretora').addEventListener('click', () =>
@@ -1541,25 +1593,7 @@
         reader.onload = async (ev) => {
           try {
             const itens = parsearCsvPatrimonio(ev.target.result);
-            await savePatrimonio(itens, tipo);
-            const data = await getPatrimonio();
-            ativos  = data.ativos  || [];
-            dividas = data.dividas || [];
-            render(ativos, dividas);
-            snapshotHistorico();
-            localStorage.setItem(`lastImport_${tipo}`, new Date().toISOString());
-            renderLastImport();
-            toast(
-              tipo === 'ir'
-                ? 'Declaração IR importada com sucesso!'
-                : 'Posição da corretora importada com sucesso!',
-              'success'
-            );
-            registrarEvento('patrimonio_atualizado');
-            registrarEvento(tipo === 'ir' ? 'ir_importado' : 'corretora_importada');
-            // Se havia retirada pendente de atualização, sinaliza como resolvido
-            if (tipo === 'corretora') localStorage.removeItem('patrimonio_extrato_pendente');
-            conciliarReservas(ativos);
+            await salvarAtivosImportados(itens, tipo);
           } catch (err) {
             toast(`Erro ao importar CSV: ${msgErro(err)}`, 'error');
           } finally {
@@ -1965,7 +1999,27 @@
       iconEl.textContent = abrindo ? '▾' : '▸';
     });
 
-    // ─── Import CSV de dívidas ────────────────
+    // ─── Import de dívidas ────────────────
+
+    // Substitui todas as dívidas pelas informadas — usado tanto pelo CSV
+    // quanto pela importação com IA.
+    async function salvarDividasImportadas(novasDividas) {
+      if (!novasDividas.length) { toast('Nenhuma dívida encontrada.', 'warning'); return; }
+      // Apaga todas as dívidas existentes e substitui pelas novas
+      for (const d of dividas) {
+        try { await deleteDivida(d.id); } catch { /* ignora erros individuais */ }
+      }
+      dividas = novasDividas;
+      for (const d of dividas) {
+        try { await saveDivida(d); } catch (err) { console.warn('Erro ao salvar dívida:', err); }
+      }
+      render(ativos, dividas);
+      snapshotHistorico();
+      localStorage.setItem('lastImport_dividas', new Date().toISOString());
+      renderLastImport();
+      toast('Dívidas importadas com sucesso!', 'success');
+    }
+
     document.getElementById('btnImportDividas').addEventListener('click', () =>
       document.getElementById('csvDividas').click());
 
@@ -1979,20 +2033,7 @@
       reader.onload = async (ev) => {
         try {
           const novasDividas = parsearCsvDividas(ev.target.result);
-          if (!novasDividas.length) { toast('Nenhuma dívida encontrada no CSV.', 'warning'); return; }
-          // Apaga todas as dívidas existentes e substitui pelo CSV
-          for (const d of dividas) {
-            try { await deleteDivida(d.id); } catch { /* ignora erros individuais */ }
-          }
-          dividas = novasDividas;
-          for (const d of dividas) {
-            try { await saveDivida(d); } catch (err) { console.warn('Erro ao salvar dívida:', err); }
-          }
-          render(ativos, dividas);
-          snapshotHistorico();
-          localStorage.setItem('lastImport_dividas', new Date().toISOString());
-          renderLastImport();
-          toast('Dívidas importadas com sucesso!', 'success');
+          await salvarDividasImportadas(novasDividas);
         } catch (err) {
           toast(`Erro ao importar CSV de dívidas: ${msgErro(err)}`, 'error');
         } finally {
@@ -2000,6 +2041,92 @@
         }
       };
       reader.readAsText(file, 'utf-8');
+    });
+
+    // ─── Importar com IA (substitui o Agente de Patrimônio / Agente de Investimentos) ───
+    let _patIaModo = null;      // 'ativos' | 'dividas'
+    let _patIaTipoOrigem = null; // 'ir' | 'corretora' | null (só usado quando modo === 'ativos')
+
+    function abrirModalPatIa(modo, tipoOrigem, titulo, sub) {
+      _patIaModo = modo;
+      _patIaTipoOrigem = tipoOrigem;
+      document.getElementById('modalImportarPatrimonioIATitulo').textContent = titulo;
+      document.getElementById('modalImportarPatrimonioIASub').textContent = sub;
+      document.getElementById('patIaTexto').value = '';
+      document.getElementById('patIaArquivoInput').value = '';
+      document.getElementById('patIaArquivoNome').textContent = 'Nenhum arquivo selecionado';
+      document.getElementById('modalImportarPatrimonioIA').classList.remove('hidden');
+    }
+
+    document.getElementById('btnImportIRIA').addEventListener('click', () => abrirModalPatIa(
+      'ativos', 'ir', 'Importar declaração de IR com IA',
+      'Cole o texto da sua declaração, ou envie o PDF. A IA extrai e classifica seus ativos automaticamente.'
+    ));
+    document.getElementById('btnImportCorretoraIA').addEventListener('click', () => abrirModalPatIa(
+      'ativos', 'corretora', 'Importar posição da corretora com IA',
+      'Cole o texto da posição consolidada, ou envie o PDF/foto. A IA organiza seus investimentos por classe automaticamente.'
+    ));
+    document.getElementById('btnImportDividasIA').addEventListener('click', () => abrirModalPatIa(
+      'dividas', null, 'Importar dívidas com IA',
+      'Cole o texto com suas dívidas e financiamentos, ou envie o PDF/foto. A IA estrutura os dados automaticamente.'
+    ));
+
+    document.getElementById('patIaBtnCancelar').addEventListener('click', () => {
+      document.getElementById('modalImportarPatrimonioIA').classList.add('hidden');
+    });
+
+    document.getElementById('patIaBtnEscolherArquivo').addEventListener('click', () => {
+      document.getElementById('patIaArquivoInput').click();
+    });
+    document.getElementById('patIaArquivoInput').addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      document.getElementById('patIaArquivoNome').textContent = f ? f.name : 'Nenhum arquivo selecionado';
+    });
+
+    document.getElementById('patIaBtnConfirmar').addEventListener('click', async () => {
+      const btn     = document.getElementById('patIaBtnConfirmar');
+      const texto   = document.getElementById('patIaTexto').value.trim();
+      const arquivo = document.getElementById('patIaArquivoInput').files[0];
+
+      if (!texto && !arquivo) {
+        toast('Cole o texto ou selecione um arquivo.', 'error');
+        return;
+      }
+
+      setLoading(btn, true, 'Processando…');
+      try {
+        let conteudo, tipoConteudo;
+        if (arquivo && arquivo.type !== 'application/pdf' && !arquivo.type.startsWith('image/')) {
+          conteudo     = await arquivo.text();
+          tipoConteudo = 'texto';
+        } else if (arquivo) {
+          const base64completo = await new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload  = () => resolve(r.result);
+            r.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
+            r.readAsDataURL(arquivo);
+          });
+          conteudo     = base64completo.split(',')[1] || '';
+          tipoConteudo = arquivo.type === 'application/pdf' ? 'pdf' : 'imagem';
+        } else {
+          conteudo     = texto;
+          tipoConteudo = 'texto';
+        }
+
+        const { itens } = await categorizarPatrimonioIA(conteudo, tipoConteudo, _patIaModo);
+
+        if (_patIaModo === 'ativos') {
+          await salvarAtivosImportados(itens, _patIaTipoOrigem);
+        } else {
+          const novasDividas = itens.map((d, i) => ({ id: `d${Date.now()}_${i}`, ...d }));
+          await salvarDividasImportadas(novasDividas);
+        }
+        document.getElementById('modalImportarPatrimonioIA').classList.add('hidden');
+      } catch (err) {
+        toast(`Erro ao processar: ${msgErro(err)}`, 'error');
+      } finally {
+        setLoading(btn, false);
+      }
     });
 
     // ─── Suporte ─────────────────────────────

@@ -1127,6 +1127,182 @@ Regras obrigatórias:
 );
 
 /**
+ * categorizarPatrimonioIA — extrai e classifica ativos ou dívidas a partir de
+ * declaração de IR, posição de corretora, ou lista de dívidas (texto colado,
+ * PDF ou foto), via Claude API direto. Substitui o Agente de Patrimônio e o
+ * Agente de Investimentos do ChatGPT (ver dashboard/ajuda.html).
+ *
+ * modo 'ativos'  → retorna { itens: [{classe, valor}] }, MESMO formato que
+ *                  parsearCsvPatrimonio() já produz no frontend — serve tanto
+ *                  para declaração de IR quanto para posição de corretora
+ *                  (patrimonio.html chama savePatrimonio(itens, tipo) igual
+ *                  para os dois, tipo só diferencia a origem).
+ * modo 'dividas' → retorna { itens: [{nome, tipo, saldo, parcela, termino}] },
+ *                  MESMO formato que parsearCsvDividas() produz (sem "id" —
+ *                  o frontend gera o id antes de chamar saveDivida, igual já
+ *                  faz hoje com o resultado do CSV).
+ * Esta função NÃO grava no Firestore — só extrai e categoriza.
+ */
+exports.categorizarPatrimonioIA = onCall(
+  { secrets: [sAnthropic], timeoutSeconds: 120, memory: '512MiB' },
+  async (request) => {
+    const auth = requireAuth(request);
+    const { uid, conteudo, tipoConteudo, modo } = request.data;
+    requireSelfOrAdmin(request, uid);
+    // Ambiente de teste: só a conta master e a conta de teste da Luiza até validação.
+    if (!auth.token.admin && !TEST_ACCESS_EMAILS.includes(auth.token.email)) {
+      throw new HttpsError('permission-denied', 'Recurso em fase de testes — ainda não liberado para esta conta.');
+    }
+    await checkRateLimit(uid, 'categorizarPatrimonioIA', 10, 600_000);
+
+    if (!conteudo || typeof conteudo !== 'string') {
+      throw new HttpsError('invalid-argument', 'conteudo é obrigatório (texto colado ou base64 do arquivo).');
+    }
+    const TIPOS_CONTEUDO = new Set(['texto', 'pdf', 'imagem']);
+    if (!TIPOS_CONTEUDO.has(tipoConteudo)) {
+      throw new HttpsError('invalid-argument', 'tipoConteudo deve ser "texto", "pdf" ou "imagem".');
+    }
+    if (!['ativos', 'dividas'].includes(modo)) {
+      throw new HttpsError('invalid-argument', 'modo deve ser "ativos" ou "dividas".');
+    }
+    if (tipoConteudo === 'texto' && conteudo.length > 60_000) {
+      throw new HttpsError('invalid-argument', 'Texto muito longo (máximo ~60.000 caracteres). Envie em partes menores.');
+    }
+    if (tipoConteudo !== 'texto' && conteudo.length > 15_000_000) {
+      throw new HttpsError('invalid-argument', 'Arquivo muito grande (máximo ~10MB).');
+    }
+
+    const systemPrompt = modo === 'ativos'
+      ? `Você extrai e classifica ativos patrimoniais a partir de declarações de Imposto de Renda (bens e direitos) ou posições consolidadas de corretora, de usuárias brasileiras.
+
+Classifique cada ativo em UMA destas classes (use exatamente estes nomes em português, escolhendo a mais próxima do que o documento descreve):
+- "Imóveis" — casas, apartamentos, terrenos, salas comerciais
+- "Renda Fixa Pós-fixada" — Tesouro Selic, CDB pós, LCI/LCA, conta corrente, poupança, conta investimento, caixa/disponibilidades
+- "Renda Fixa Pré-fixada" — Tesouro Prefixado, LTN, NTN-F, CDB pré
+- "Renda Fixa Inflação" — Tesouro IPCA+, NTN-B, CDB IPCA, debêntures, CRI, CRA
+- "Multimercado" — fundos multimercado, previdência privada (PGBL/VGBL), fundo de pensão
+- "Renda Variável" — ações, FIIs, ETFs, participações societárias, cotas de LTDA
+- "Internacional" — ativos no exterior, BDRs, moeda estrangeira, dólar, euro
+- "Alternativos" — cripto, ouro, COE, FIPs, commodities, veículos, joias, obras de arte, outros bens móveis
+Se um item genuinamente não couber em nenhuma classe acima, use um nome curto e descritivo em português (o sistema aceita qualquer nome de classe).
+
+Regras obrigatórias:
+- Documentos variam muito (declaração de IR com colunas "Discriminação"/"Situação em 31/12", ou posição de corretora com "Ativo"/"Saldo bruto"/"Instituição") — leia a estrutura real de cada documento, sem assumir um layout fixo.
+- Use o valor mais recente/atual disponível (ex: "Situação em 31/12/2025" na declaração de IR, saldo bruto atual na posição de corretora). Ignore colunas de valor histórico/ano anterior se houver as duas.
+- Ignore linhas de total/subtotal/resumo.
+- Some itens da MESMA classe entre si (ex: duas contas correntes de bancos diferentes → uma linha "Renda Fixa Pós-fixada" com a soma), a menos que o documento já venha agregado.
+- Se algum ativo estiver em dólar, euro ou outra moeda estrangeira (comum em ativos internacionais/cripto), converta para reais usando a cotação aproximada do dia de hoje (${new Date().toISOString().slice(0, 10)}) antes de somar — nunca deixe valores em moeda estrangeira misturados com reais no mesmo total.
+- "valor" sempre positivo, tipo número (não string), com ponto decimal, já em reais.
+- Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só). Formato:
+  {"itens": [{"classe": "<nome da classe>", "valor": <número>}, ...]}`
+      : `Você extrai dívidas e financiamentos a partir de documentos ou texto descrevendo passivos de usuárias brasileiras (financiamentos, empréstimos, faturas de cartão em aberto).
+
+Para cada dívida, identifique:
+- "nome": descrição curta (ex: "Financiamento apartamento", "Empréstimo consignado Banco X")
+- "tipo": exatamente um destes códigos — "financiamento" (imóvel), "carro" (veículo), "emprestimo" (empréstimo pessoal/consignado), "cartao" (fatura de cartão), "outro"
+- "saldo": saldo devedor atual (número positivo)
+- "parcela": valor da parcela/prestação mensal, se informado (número, ou 0 se não informado)
+- "termino": data ou período previsto de término, se informado, como texto livre (ex: "12/2028"), ou string vazia "" se não informado
+
+Regras obrigatórias:
+- Ignore linhas de total/resumo.
+- "saldo" e "parcela" sempre números (não string), com ponto decimal, nunca negativos.
+- Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só). Formato:
+  {"itens": [{"nome": "<texto>", "tipo": "financiamento"|"carro"|"emprestimo"|"cartao"|"outro", "saldo": <número>, "parcela": <número>, "termino": "<texto>"}, ...]}`;
+
+    const contentBlock = tipoConteudo === 'texto'
+      ? { type: 'text', text: conteudo }
+      : tipoConteudo === 'pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: conteudo } }
+        : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: conteudo } };
+
+    let respostaIA;
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': sAnthropic.value(),
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 8000,
+          system: systemPrompt,
+          messages: [{
+            role: 'user',
+            content: [contentBlock, {
+              type: 'text',
+              text: modo === 'ativos'
+                ? 'Extraia e classifique todos os ativos deste documento.'
+                : 'Extraia todas as dívidas/financiamentos deste documento.',
+            }],
+          }],
+        }),
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '');
+        console.error(`[categorizarPatrimonioIA] Erro API Anthropic (${resp.status}) uid=${uid} modo=${modo}: ${errText.slice(0, 500)}`);
+        if (/password protected/i.test(errText)) {
+          throw new HttpsError('invalid-argument', 'Este PDF está protegido por senha. Remova a senha do arquivo e envie de novo — ou cole o texto diretamente.');
+        }
+        throw new HttpsError('internal', 'Erro ao processar o documento. Tente novamente em instantes.');
+      }
+      respostaIA = await resp.json();
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      console.error(`[categorizarPatrimonioIA] Falha na chamada à API (uid=${uid}):`, err.message);
+      throw new HttpsError('internal', 'Erro ao processar o documento. Tente novamente em instantes.');
+    }
+
+    const textoResposta = respostaIA?.content?.[0]?.text || '';
+    let itensBrutos;
+    try {
+      const limpo = textoResposta.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+      const respostaParsed = JSON.parse(limpo);
+      if (!respostaParsed || !Array.isArray(respostaParsed.itens)) throw new Error('resposta não tem "itens" como array');
+      itensBrutos = respostaParsed.itens;
+    } catch (err) {
+      console.error(`[categorizarPatrimonioIA] Resposta da IA não é JSON válido (uid=${uid}):`, textoResposta.slice(0, 500));
+      throw new HttpsError('internal', 'Não consegui interpretar esse documento. Tente novamente ou envie um arquivo mais claro.');
+    }
+
+    if (itensBrutos.length === 0) {
+      throw new HttpsError('invalid-argument', modo === 'ativos' ? 'Nenhum ativo foi identificado neste documento.' : 'Nenhuma dívida foi identificada neste documento.');
+    }
+    if (itensBrutos.length > 200) {
+      throw new HttpsError('invalid-argument', 'Muitos itens identificados (limite de 200).');
+    }
+
+    let itens;
+    if (modo === 'ativos') {
+      itens = itensBrutos.map((it, i) => {
+        const valor = Number(it.valor);
+        if (!Number.isFinite(valor) || valor < 0) throw new HttpsError('internal', `Item ${i + 1}: valor inválido retornado pela IA.`);
+        const classe = typeof it.classe === 'string' ? it.classe.trim().slice(0, 60) : '';
+        if (!classe) throw new HttpsError('internal', `Item ${i + 1}: classe vazia retornada pela IA.`);
+        return { classe, valor };
+      });
+    } else {
+      const TIPOS_DIVIDA = new Set(['financiamento', 'carro', 'emprestimo', 'cartao', 'outro']);
+      itens = itensBrutos.map((it, i) => {
+        const saldo = Number(it.saldo);
+        if (!Number.isFinite(saldo) || saldo < 0) throw new HttpsError('internal', `Item ${i + 1}: saldo inválido retornado pela IA.`);
+        const nome = typeof it.nome === 'string' ? it.nome.trim().slice(0, 100) : '';
+        if (!nome) throw new HttpsError('internal', `Item ${i + 1}: nome vazio retornado pela IA.`);
+        const tipo = TIPOS_DIVIDA.has(it.tipo) ? it.tipo : 'outro';
+        const parcela = Number(it.parcela) || 0;
+        const termino = typeof it.termino === 'string' ? it.termino.trim().slice(0, 30) : '';
+        return { nome, tipo, saldo, parcela, termino };
+      });
+    }
+
+    console.log(`[categorizarPatrimonioIA] uid=${uid} modo=${modo} — ${itens.length} itens extraídos via IA (tipoConteudo=${tipoConteudo})`);
+    return { itens };
+  },
+);
+
+/**
  * Salva a categoria que a usuária confirmou manualmente para um estabelecimento
  * cuja categorização a IA marcou como incerta — essa mesma categoria passa a
  * ser aplicada automaticamente em futuras importações via categorizarExtratoIA.
@@ -3223,6 +3399,14 @@ exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) 
  * Não exige claim prévia — verifica o e-mail diretamente no token JWT.
  */
 const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
+
+/**
+ * Gate temporário de ambiente de teste: implementações novas em validação ficam
+ * visíveis só para a conta master e para a conta de teste da Luiza, até a Flávia
+ * confirmar e liberar para todas as mentoradas (mesmo padrão usado no Raio-X em
+ * 12/07/2026, agora aplicado à extensão de Patrimônio/Investimentos em 17/07/2026).
+ */
+const TEST_ACCESS_EMAILS = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
 
 /**
  * Verifica o escopo e validade da Service Account (diagnóstico de segurança).
