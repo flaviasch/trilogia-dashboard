@@ -3242,7 +3242,14 @@
     // próprio retrato de itens, garantindo que sempre reflita o estado mais
     // recente e que a ordem de conclusão siga a ordem de chamada.
     let _salvarChain = Promise.resolve();
+    // Bumped a cada chamada de salvarEAtualizar (qualquer mutação em currentData
+    // que a usuária fez, incluindo confirmar uma despesa fixa pendente). Usado
+    // pra detectar se uma releitura do servidor em voo (buscarPeriodo, chamada
+    // depois de autoLancarFixasCartao) ficou desatualizada por uma ação da
+    // usuária no meio do caminho — ver uso em autoLancarFixasCartao abaixo.
+    let _dataGen = 0;
     function salvarEAtualizar() {
+      _dataGen++;
       const proximo = _salvarChain.then(() => _salvarEAtualizarAgora());
       _salvarChain = proximo.catch(() => {}); // uma falha não trava as próximas
       return proximo;
@@ -3686,7 +3693,14 @@
       // ficam como pendentes virtuais até confirmação manual.
       carregarRecorrentes().then(async () => {
         if (await autoLancarFixasCartao(mes, ano)) {
-          currentData = await buscarPeriodo(mes, ano);
+          const genAntes = _dataGen;
+          const fresh = await buscarPeriodo(mes, ano);
+          // Se a usuária confirmou algo (ex: despesa fixa pendente) enquanto essa
+          // releitura estava em voo, o fetch pode ter capturado um instantâneo
+          // anterior a essa ação — aplicar mesmo assim apagaria a ação dela da
+          // tela, e qualquer salvamento seguinte apagaria do banco também
+          // (achado 18/07/2026, duas despesas fixas efetivadas sumiram assim).
+          if (_dataGen === genAntes) currentData = fresh;
         }
         render(currentData);
       });
@@ -6628,7 +6642,9 @@
       if (mes < 1) { mes = 12; ano--; }
       currentData = await buscarPeriodo(mes, ano);
       if (await autoLancarFixasCartao(mes, ano)) {
-        currentData = await buscarPeriodo(mes, ano);
+        const genAntes = _dataGen;
+        const fresh = await buscarPeriodo(mes, ano);
+        if (_dataGen === genAntes) currentData = fresh;
       }
       render(currentData);
       if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
@@ -6645,7 +6661,9 @@
       if (mes > 12) { mes = 1; ano++; }
       currentData = await buscarPeriodo(mes, ano);
       if (await autoLancarFixasCartao(mes, ano)) {
-        currentData = await buscarPeriodo(mes, ano);
+        const genAntes = _dataGen;
+        const fresh = await buscarPeriodo(mes, ano);
+        if (_dataGen === genAntes) currentData = fresh;
       }
       render(currentData);
       if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
