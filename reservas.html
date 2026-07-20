@@ -876,6 +876,8 @@
       int:  'Internacional',
       alt:  'Alternativos',
       imov: null, // Imóveis não entra na alocação sugerida por perfil
+      auto: null, // Automóveis não entra na alocação sugerida por perfil
+      bens: null, // Bens Móveis não entra na alocação sugerida por perfil
     };
 
     function alocacao(meses) {
@@ -1238,7 +1240,7 @@
       // ── Veículos e embarcações ─────────────────────────────────────────────
       'veiculos', 'veículos', 'veiculo', 'veículo',
       'veiculos e embarcacoes', 'veículos e embarcações',
-      'automovel', 'automóvel', 'carro', 'motocicleta', 'moto',
+      'automoveis', 'automóveis', 'automovel', 'automóvel', 'carro', 'motocicleta', 'moto',
       'caminhao', 'caminhão', 'onibus', 'ônibus',
       'embarcacao', 'embarcação', 'lancha', 'barco',
       'aeronave', 'aviao', 'avião',
@@ -1254,8 +1256,11 @@
 
     function ehNaoFinanceiro(a) {
       const codigo = resolverCodigo(a.classe);
-      // Código interno imov → sempre não financeiro
-      if (codigo === 'imov') return true;
+      // Códigos internos sempre não financeiros: Imóveis, Automóveis, Bens
+      // Móveis (achado 20/07/2026: Automóveis/Bens Móveis são classes novas,
+      // separadas de Alternativos — essa checagem não sabia delas e contava
+      // carro como patrimônio financeiro).
+      if (codigo === 'imov' || codigo === 'auto' || codigo === 'bens') return true;
       // Fallback: verifica pelo nome original (cobre variantes do IR não mapeadas)
       return CLASSES_NAO_FINANCEIRAS.has(a.classe.toLowerCase());
     }
