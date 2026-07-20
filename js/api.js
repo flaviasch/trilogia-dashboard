@@ -597,14 +597,16 @@ export const PATRIMONIO_COR = {
   'apartamento': 'imov', 'casa': 'imov',
   'terreno': 'imov', 'lote': 'imov', 'sala comercial': 'imov', 'imovel rural': 'imov',
   'imóvel rural': 'imov', 'galpao': 'imov', 'galpão': 'imov',
-  // ── Veículos ──────────────────────────────────────────────────────────────
-  'veiculos': 'alt', 'veículos': 'alt', 'veiculo': 'alt', 'veículo': 'alt',
-  'veiculos e embarcacoes': 'alt', 'veículos e embarcações': 'alt',
-  'automovel': 'alt', 'automóvel': 'alt', 'carro': 'alt', 'motocicleta': 'alt',
-  'moto': 'alt', 'caminhao': 'alt', 'caminhão': 'alt',
-  'onibus': 'alt', 'ônibus': 'alt',
-  'embarcacao': 'alt', 'embarcação': 'alt', 'lancha': 'alt', 'barco': 'alt',
-  'aeronave': 'alt', 'aviao': 'alt', 'avião': 'alt',
+  // ── Automóveis (classe própria — não é "Alternativos", achado 20/07/2026:
+  //    colidia com a classe de Alternativos financeiros) ──────────────────────
+  'automoveis': 'auto', 'automóveis': 'auto',
+  'veiculos': 'auto', 'veículos': 'auto', 'veiculo': 'auto', 'veículo': 'auto',
+  'veiculos e embarcacoes': 'auto', 'veículos e embarcações': 'auto',
+  'automovel': 'auto', 'automóvel': 'auto', 'carro': 'auto', 'motocicleta': 'auto',
+  'moto': 'auto', 'caminhao': 'auto', 'caminhão': 'auto',
+  'onibus': 'auto', 'ônibus': 'auto',
+  'embarcacao': 'auto', 'embarcação': 'auto', 'lancha': 'auto', 'barco': 'auto',
+  'aeronave': 'auto', 'aviao': 'auto', 'avião': 'auto',
   // ── Contas / liquidez ─────────────────────────────────────────────────────
   'conta corrente': 'pos', 'conta bancaria': 'pos', 'conta bancária': 'pos',
   'conta salario': 'pos', 'conta salário': 'pos', 'poupanca': 'pos', 'poupança': 'pos',
@@ -626,10 +628,17 @@ export const PATRIMONIO_COR = {
   // ── Internacional ─────────────────────────────────────────────────────────
   'ativos internacionais': 'int', 'investimentos internacionais': 'int',
   'bdr': 'int', 'bdrs': 'int', 'exterior': 'int', 'moeda estrangeira': 'int',
-  // ── Alternativos ──────────────────────────────────────────────────────────
+  // ── Alternativos (só ativos financeiros — cripto, ouro, COE, FIPs) ─────────
   'cripto': 'alt', 'criptomoedas': 'alt', 'bitcoin': 'alt',
-  'ouro': 'alt', 'coe': 'alt', 'joias': 'alt', 'jóias': 'alt',
-  'consorcio': 'alt', 'consórcio': 'alt', 'outros bens': 'alt', 'outros': 'alt',
+  'ouro': 'alt', 'coe': 'alt', 'fip': 'alt', 'fips': 'alt', 'private equity': 'alt',
+  // ── Bens Móveis (não financeiro — achado 20/07/2026, separado de
+  //    Alternativos pra não misturar bem físico com investimento) ────────────
+  'bens moveis': 'bens', 'bens móveis': 'bens',
+  'joias': 'bens', 'jóias': 'bens', 'joia': 'bens', 'jóia': 'bens',
+  'obras de arte': 'bens', 'obra de arte': 'bens',
+  'antiguidades': 'bens', 'objetos de valor': 'bens', 'colecionaveis': 'bens',
+  'consorcio': 'bens', 'consórcio': 'bens', 'consorcio nao contemplado': 'bens',
+  'outros bens': 'bens', 'outros': 'bens', 'outros bens e direitos': 'bens',
 };
 
 // ─── Utilitários de parse de CSV ───────────────────────────────────────────────
@@ -765,25 +774,27 @@ export function parsearCsvPatrimonio(csvText) {
     'imovel residencial': 'imov', 'imóvel residencial': 'imov',
     'imovel comercial': 'imov', 'imóvel comercial': 'imov',
 
-    // ════ BENS FÍSICOS / VEÍCULOS (→ alt) ════════════════════════════════
+    // ════ AUTOMÓVEIS (→ auto) — classe própria, achado 20/07/2026: não é
+    //      "Alternativos" pra não colidir com a classe financeira ═══════════
 
-    // Veículos
-    'veiculos': 'alt', 'veículos': 'alt', 'veiculo': 'alt', 'veículo': 'alt',
-    'automovel': 'alt', 'automóvel': 'alt', 'carro': 'alt',
-    'motocicleta': 'alt', 'moto': 'alt',
-    'caminhao': 'alt', 'caminhão': 'alt', 'onibus': 'alt', 'ônibus': 'alt',
-    'embarcacao': 'alt', 'embarcação': 'alt', 'lancha': 'alt', 'barco': 'alt',
-    'aeronave': 'alt', 'aviao': 'alt', 'avião': 'alt',
+    'automoveis': 'auto', 'automóveis': 'auto',
+    'veiculos': 'auto', 'veículos': 'auto', 'veiculo': 'auto', 'veículo': 'auto',
+    'automovel': 'auto', 'automóvel': 'auto', 'carro': 'auto',
+    'motocicleta': 'auto', 'moto': 'auto',
+    'caminhao': 'auto', 'caminhão': 'auto', 'onibus': 'auto', 'ônibus': 'auto',
+    'embarcacao': 'auto', 'embarcação': 'auto', 'lancha': 'auto', 'barco': 'auto',
+    'aeronave': 'auto', 'aviao': 'auto', 'avião': 'auto',
 
-    // Bens móveis / outros bens físicos
-    'bens moveis': 'alt', 'bens móveis': 'alt',
-    'joias': 'alt', 'jóias': 'alt', 'joia': 'alt', 'jóia': 'alt',
-    'obras de arte': 'alt', 'obra de arte': 'alt',
-    'antiguidades': 'alt', 'objetos de valor': 'alt', 'colecionaveis': 'alt',
-    'animais': 'alt', 'semoventes': 'alt', 'gado': 'alt',
-    'benfeitoria': 'alt', 'benfeitorias': 'alt',
-    'consorcio': 'alt', 'consórcio': 'alt', 'consorcio nao contemplado': 'alt',
-    'outros bens': 'alt', 'outros': 'alt', 'outros bens e direitos': 'alt',
+    // ════ BENS MÓVEIS (→ bens) — não financeiro ═══════════════════════════
+
+    'bens moveis': 'bens', 'bens móveis': 'bens',
+    'joias': 'bens', 'jóias': 'bens', 'joia': 'bens', 'jóia': 'bens',
+    'obras de arte': 'bens', 'obra de arte': 'bens',
+    'antiguidades': 'bens', 'objetos de valor': 'bens', 'colecionaveis': 'bens',
+    'animais': 'bens', 'semoventes': 'bens', 'gado': 'bens',
+    'benfeitoria': 'bens', 'benfeitorias': 'bens',
+    'consorcio': 'bens', 'consórcio': 'bens', 'consorcio nao contemplado': 'bens',
+    'outros bens': 'bens', 'outros': 'bens', 'outros bens e direitos': 'bens',
 
     // ════ RENDA VARIÁVEL (→ rv) ════════════════════════════════════════════
 

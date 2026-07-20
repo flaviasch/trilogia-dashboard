@@ -44,7 +44,9 @@
       --c-mm:   #fb7185;   /* Multimercado */
       --c-int:  #22d3ee;   /* Internacional */
       --c-imov: #f97316;   /* Imóveis */
-      --c-alt:  #c084fc;   /* Alternativos */
+      --c-alt:  #c084fc;   /* Alternativos (só financeiro: cripto, COE, FIPs, ouro) */
+      --c-auto: #facc15;   /* Automóveis */
+      --c-bens: #2dd4bf;   /* Bens Móveis (joias, obras de arte, consórcio, outros) */
     }
 
     body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
@@ -781,7 +783,7 @@
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
       categorizarPatrimonioIA,
-    } from './js/api.js?v=33';
+    } from './js/api.js?v=34';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
     // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se
@@ -926,7 +928,9 @@
       { id: 'mm',   label: 'Multimercado',             cor: 'var(--c-mm)',   desc: 'Fundos macro, long & short, hedge' },
       { id: 'int',  label: 'Internacional',            cor: 'var(--c-int)',  desc: 'BDRs, ETFs internacionais, fundos' },
       { id: 'imov', label: 'Imóveis',                  cor: 'var(--c-imov)', desc: 'Residencial, comercial, rural, terrenos' },
-      { id: 'alt',  label: 'Alternativos',             cor: 'var(--c-alt)',  desc: 'COE, FIPs, criptomoedas, veículos' },
+      { id: 'alt',  label: 'Alternativos',             cor: 'var(--c-alt)',  desc: 'COE, FIPs, criptomoedas, ouro (só ativos financeiros)' },
+      { id: 'auto', label: 'Automóveis',               cor: 'var(--c-auto)', desc: 'Carros, motos, embarcações, aeronaves' },
+      { id: 'bens', label: 'Bens Móveis',               cor: 'var(--c-bens)', desc: 'Joias, obras de arte, antiguidades, consórcio, outros bens' },
     ];
 
     /**

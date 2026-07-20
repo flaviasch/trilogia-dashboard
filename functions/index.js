@@ -1192,8 +1192,11 @@ IMPORTANTE — regra de escopo: extraia SOMENTE bens não financeiros. NÃO incl
 
 Classifique cada bem NÃO FINANCEIRO em UMA destas classes (use exatamente estes nomes em português):
 - "Imóveis" — casas, apartamentos, terrenos, salas comerciais, imóvel rural
-- "Alternativos" — veículos, motos, embarcações, joias, obras de arte, antiguidades, bens móveis, consórcio não contemplado, outros bens e direitos não financeiros
+- "Automóveis" — carros, motos, caminhões, ônibus, embarcações, aeronaves
+- "Bens Móveis" — joias, obras de arte, antiguidades, colecionáveis, consórcio não contemplado, outros bens e direitos não financeiros
 Se um item genuinamente não couber em nenhuma classe acima (e não for financeiro), use um nome curto e descritivo em português.
+
+Regra importante: NUNCA use "Alternativos" para bem físico — essa classe é reservada exclusivamente a ativos financeiros (criptomoedas, ouro, COE, private equity), que não entram por este documento.
 
 Regras obrigatórias:
 - Leia a estrutura real do documento (colunas "Discriminação"/"Situação em 31/12" ou similares) sem assumir um layout fixo.
