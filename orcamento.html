@@ -2617,6 +2617,7 @@
     // criar uma categoria "Lançamentos não identificados" e fazer o
     // realizado bater com o fluxo de caixa, em vez de só avisar a diferença.
     let _diffNaoIdentificadoMes = 0;
+    let _ehFuturoAtual = false;
     let _tabAtiva = 'resumo';
     const _periodoCache = new Map(); // { '2026-5': { data, cats } }
     const _invalPeriodo = (m, a) => _periodoCache.delete(`${a}-${m}`);
@@ -4034,6 +4035,7 @@
       // pelo módulo compartilhado acima. O Planejamento e o Detalhe usam isso
       // pra criar a categoria "Lançamentos não identificados".
       _diffNaoIdentificadoMes = _diffNaoIdentificadoMesCalculado;
+      _ehFuturoAtual = _ehFuturo;
 
       // ── Saldo Projetado ─────────────────────────────────────────────────────
       // Eventos conhecidos ainda não confirmados dentro do mês (faturas fechadas
@@ -5297,7 +5299,15 @@
       // base, outra embutida no ajuste. Por isso essa base exclui aberta,
       // igual a aba Detalhe já faz (achado 15/07/2026, Flávia: Realizado do
       // Planejamento não batia com Despesas do Resumo).
-      const totalReal = data.despesas.filter(d => contaComoComprometido(d) && !d._faturaAberta).reduce((s, d) => s + d.valor, 0)
+      //
+      // EXCEÇÃO — mês futuro: "fatura aberta" é sempre calculada em relação a
+      // HOJE, não ao mês em tela — então, olhando o Planejamento de um mês que
+      // ainda não chegou, a fatura "em aberto" hoje já vai estar fechada
+      // quando esse mês realmente acontecer, e por isso deve contar (Flávia,
+      // achado 20/07/2026: "só não vai contar em julho"). Sem risco de contar
+      // em dobro via o ajuste — em mês futuro diffNaoIdentificadoMes é sempre
+      // 0 (orcamento-calc.js), então temAjuste nunca é true aqui.
+      const totalReal = data.despesas.filter(d => contaComoComprometido(d) && (!d._faturaAberta || _ehFuturoAtual)).reduce((s, d) => s + d.valor, 0)
         + (temAjuste ? _valorAjustePlanejamento : 0);
 
       // Linhas da tabela
