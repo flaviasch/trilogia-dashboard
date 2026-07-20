@@ -221,12 +221,16 @@ export async function salvarCategoriaAprendida(descricao, categoria) {
  * @param {string} conteudo — texto colado, ou base64 (sem prefixo data:) de PDF/imagem
  * @param {'texto'|'pdf'|'imagem'} tipoConteudo
  * @param {'ativos'|'dividas'} modo
+ * @param {'ir'|'corretora'} [origem] — obrigatório quando modo === 'ativos'. 'ir' extrai
+ *   SÓ bens não financeiros (imóveis, bens móveis); 'corretora' extrai SÓ ativos
+ *   financeiros. De propósito, para o IR (1x/ano) nunca desatualizar o que a
+ *   corretora mantém mês a mês.
  * @returns {Promise<{itens: Array}>} modo 'ativos' → mesmo formato de parsearCsvPatrimonio
  *   ([{classe, valor}]); modo 'dividas' → mesmo formato de parsearCsvDividas, sem "id"
  *   (gere o id antes de chamar saveDivida, igual já se faz com o resultado do CSV).
  */
-export async function categorizarPatrimonioIA(conteudo, tipoConteudo, modo) {
-  return call('categorizarPatrimonioIA')({ uid: uidAtual(), conteudo, tipoConteudo, modo });
+export async function categorizarPatrimonioIA(conteudo, tipoConteudo, modo, origem) {
+  return call('categorizarPatrimonioIA')({ uid: uidAtual(), conteudo, tipoConteudo, modo, origem });
 }
 
 /**

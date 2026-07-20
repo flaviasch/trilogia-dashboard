@@ -527,7 +527,7 @@
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar declaração IR</strong>
-          <span>Cole o texto da sua declaração ou anexe o PDF — a IA extrai seus ativos automaticamente.</span>
+          <span>Cole o texto da sua declaração ou anexe o PDF — a IA extrai só os bens não financeiros (imóveis, veículos, bens móveis). Investimentos entram pela posição da corretora ao lado, para não ficarem desatualizados o ano todo.</span>
           <div class="import-card-meta">
             <span class="cadencia-badge">Anual · maio</span>
             <span class="import-last" id="lastImportIR"></span>
@@ -542,7 +542,7 @@
       <div class="import-card">
         <div class="import-card-text">
           <strong>Importar posição da corretora</strong>
-          <span>Cole o extrato da corretora ou anexe o PDF/foto — a IA organiza seus investimentos automaticamente.</span>
+          <span>Cole o extrato da corretora ou anexe o PDF/foto — a IA organiza só os ativos financeiros por classe, automaticamente.</span>
           <div class="import-card-meta">
             <span class="cadencia-badge">Mensal</span>
             <span class="import-last" id="lastImportCorretora"></span>
@@ -2060,11 +2060,11 @@
 
     document.getElementById('btnImportIRIA').addEventListener('click', () => abrirModalPatIa(
       'ativos', 'ir', 'Importar declaração de IR com IA',
-      'Cole o texto da sua declaração, ou envie o PDF. A IA extrai e classifica seus ativos automaticamente.'
+      'Cole o texto da sua declaração, ou envie o PDF. A IA extrai só os bens não financeiros (imóveis, veículos, bens móveis) — investimentos não entram por aqui.'
     ));
     document.getElementById('btnImportCorretoraIA').addEventListener('click', () => abrirModalPatIa(
       'ativos', 'corretora', 'Importar posição da corretora com IA',
-      'Cole o texto da posição consolidada, ou envie o PDF/foto. A IA organiza seus investimentos por classe automaticamente.'
+      'Cole o texto da posição consolidada, ou envie o PDF/foto. A IA extrai só os ativos financeiros e organiza por classe — imóveis e bens não entram por aqui.'
     ));
     document.getElementById('btnImportDividasIA').addEventListener('click', () => abrirModalPatIa(
       'dividas', null, 'Importar dívidas com IA',
@@ -2113,7 +2113,7 @@
           tipoConteudo = 'texto';
         }
 
-        const { itens } = await categorizarPatrimonioIA(conteudo, tipoConteudo, _patIaModo);
+        const { itens } = await categorizarPatrimonioIA(conteudo, tipoConteudo, _patIaModo, _patIaTipoOrigem);
 
         if (_patIaModo === 'ativos') {
           await salvarAtivosImportados(itens, _patIaTipoOrigem);

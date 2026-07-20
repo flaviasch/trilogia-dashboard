@@ -1147,9 +1147,12 @@ exports.categorizarPatrimonioIA = onCall(
   { secrets: [sAnthropic], timeoutSeconds: 120, memory: '512MiB' },
   async (request) => {
     const auth = requireAuth(request);
-    const { uid, conteudo, tipoConteudo, modo } = request.data;
+    const { uid, conteudo, tipoConteudo, modo, origem } = request.data;
     requireSelfOrAdmin(request, uid);
     // Ambiente de teste: só a conta master e a conta de teste da Luiza até validação.
+    // ATENÇÃO: remover este bloqueio explicitamente quando for liberar geral — não
+    // deixar esquecido (mesmo bug já corrigido 3x no categorizarExtratoIA e no
+    // webhook da Kiwify).
     if (!auth.token.admin && !TEST_ACCESS_EMAILS.includes(auth.token.email)) {
       throw new HttpsError('permission-denied', 'Recurso em fase de testes — ainda não liberado para esta conta.');
     }
@@ -1165,6 +1168,9 @@ exports.categorizarPatrimonioIA = onCall(
     if (!['ativos', 'dividas'].includes(modo)) {
       throw new HttpsError('invalid-argument', 'modo deve ser "ativos" ou "dividas".');
     }
+    if (modo === 'ativos' && !['ir', 'corretora'].includes(origem)) {
+      throw new HttpsError('invalid-argument', 'origem deve ser "ir" ou "corretora" quando modo é "ativos".');
+    }
     if (tipoConteudo === 'texto' && conteudo.length > 60_000) {
       throw new HttpsError('invalid-argument', 'Texto muito longo (máximo ~60.000 caracteres). Envie em partes menores.');
     }
@@ -1172,29 +1178,52 @@ exports.categorizarPatrimonioIA = onCall(
       throw new HttpsError('invalid-argument', 'Arquivo muito grande (máximo ~10MB).');
     }
 
+    // Importante: declaração de IR e posição de corretora usam prompts DIFERENTES,
+    // de propósito. A declaração de IR só entra 1x/ano — se ela também importasse
+    // aplicações financeiras, esses valores ficariam desatualizados o ano inteiro,
+    // competindo com a posição da corretora (atualizada mensalmente). Por isso o
+    // cartão "Importar declaração IR" só traz bens NÃO financeiros (imóveis, bens
+    // móveis); tudo que é investimento entra exclusivamente pela corretora.
     const systemPrompt = modo === 'ativos'
-      ? `Você extrai e classifica ativos patrimoniais a partir de declarações de Imposto de Renda (bens e direitos) ou posições consolidadas de corretora, de usuárias brasileiras.
+      ? (origem === 'ir'
+        ? `Você extrai bens patrimoniais NÃO FINANCEIROS a partir de declarações de Imposto de Renda (bens e direitos) de usuárias brasileiras.
+
+IMPORTANTE — regra de escopo: extraia SOMENTE bens não financeiros. NÃO inclua aplicações financeiras, ações, fundos, ETFs, FIIs, previdência (PGBL/VGBL), contas bancárias/poupança/conta investimento, criptomoedas, ou qualquer outro investimento — mesmo que apareçam na mesma declaração. Esses itens são atualizados separadamente, todo mês, pela importação da posição da corretora; incluí-los aqui os deixaria desatualizados (só seriam revistos 1x por ano). Se uma linha da declaração for claramente um investimento financeiro, IGNORE-A por completo — não a inclua no resultado.
+
+Classifique cada bem NÃO FINANCEIRO em UMA destas classes (use exatamente estes nomes em português):
+- "Imóveis" — casas, apartamentos, terrenos, salas comerciais, imóvel rural
+- "Alternativos" — veículos, motos, embarcações, joias, obras de arte, antiguidades, bens móveis, consórcio não contemplado, outros bens e direitos não financeiros
+Se um item genuinamente não couber em nenhuma classe acima (e não for financeiro), use um nome curto e descritivo em português.
+
+Regras obrigatórias:
+- Leia a estrutura real do documento (colunas "Discriminação"/"Situação em 31/12" ou similares) sem assumir um layout fixo.
+- Use o valor mais recente/atual disponível (ex: "Situação em 31/12/2025"). Ignore colunas de valor do ano anterior se houver as duas.
+- Ignore linhas de total/subtotal/resumo.
+- Some itens da MESMA classe entre si (ex: dois imóveis → uma linha "Imóveis" com a soma), a menos que o documento já venha agregado.
+- "valor" sempre positivo, tipo número (não string), com ponto decimal.
+- Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só). Formato:
+  {"itens": [{"classe": "<nome da classe>", "valor": <número>}, ...]}`
+        : `Você extrai e classifica ativos FINANCEIROS a partir de posições consolidadas de corretora de usuárias brasileiras.
 
 Classifique cada ativo em UMA destas classes (use exatamente estes nomes em português, escolhendo a mais próxima do que o documento descreve):
-- "Imóveis" — casas, apartamentos, terrenos, salas comerciais
-- "Renda Fixa Pós-fixada" — Tesouro Selic, CDB pós, LCI/LCA, conta corrente, poupança, conta investimento, caixa/disponibilidades
+- "Renda Fixa Pós-fixada" — Tesouro Selic, CDB pós, LCI/LCA, conta corrente, conta investimento, caixa/disponibilidades
 - "Renda Fixa Pré-fixada" — Tesouro Prefixado, LTN, NTN-F, CDB pré
 - "Renda Fixa Inflação" — Tesouro IPCA+, NTN-B, CDB IPCA, debêntures, CRI, CRA
 - "Multimercado" — fundos multimercado, previdência privada (PGBL/VGBL), fundo de pensão
 - "Renda Variável" — ações, FIIs, ETFs, participações societárias, cotas de LTDA
 - "Internacional" — ativos no exterior, BDRs, moeda estrangeira, dólar, euro
-- "Alternativos" — cripto, ouro, COE, FIPs, commodities, veículos, joias, obras de arte, outros bens móveis
-Se um item genuinamente não couber em nenhuma classe acima, use um nome curto e descritivo em português (o sistema aceita qualquer nome de classe).
+- "Alternativos" — criptomoedas, ouro (ativo financeiro), COE, FIPs, commodities
+Se um item genuinamente não couber em nenhuma classe acima, use um nome curto e descritivo em português (o sistema aceita qualquer nome de classe). Não classifique nada como "Imóveis" ou bem físico — este documento é só de ativos financeiros.
 
 Regras obrigatórias:
-- Documentos variam muito (declaração de IR com colunas "Discriminação"/"Situação em 31/12", ou posição de corretora com "Ativo"/"Saldo bruto"/"Instituição") — leia a estrutura real de cada documento, sem assumir um layout fixo.
-- Use o valor mais recente/atual disponível (ex: "Situação em 31/12/2025" na declaração de IR, saldo bruto atual na posição de corretora). Ignore colunas de valor histórico/ano anterior se houver as duas.
+- Leia a estrutura real do documento (colunas "Ativo"/"Saldo bruto"/"Instituição" ou similares) sem assumir um layout fixo.
+- Use o saldo bruto/atual disponível, não valores históricos.
 - Ignore linhas de total/subtotal/resumo.
 - Some itens da MESMA classe entre si (ex: duas contas correntes de bancos diferentes → uma linha "Renda Fixa Pós-fixada" com a soma), a menos que o documento já venha agregado.
-- Se algum ativo estiver em dólar, euro ou outra moeda estrangeira (comum em ativos internacionais/cripto), converta para reais usando a cotação aproximada do dia de hoje (${new Date().toISOString().slice(0, 10)}) antes de somar — nunca deixe valores em moeda estrangeira misturados com reais no mesmo total.
+- Se algum ativo estiver em dólar, euro ou outra moeda estrangeira, converta para reais usando a cotação aproximada do dia de hoje (${new Date().toISOString().slice(0, 10)}) antes de somar — nunca deixe valores em moeda estrangeira misturados com reais no mesmo total.
 - "valor" sempre positivo, tipo número (não string), com ponto decimal, já em reais.
 - Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só). Formato:
-  {"itens": [{"classe": "<nome da classe>", "valor": <número>}, ...]}`
+  {"itens": [{"classe": "<nome da classe>", "valor": <número>}, ...]}`)
       : `Você extrai dívidas e financiamentos a partir de documentos ou texto descrevendo passivos de usuárias brasileiras (financiamentos, empréstimos, faturas de cartão em aberto).
 
 Para cada dívida, identifique:
