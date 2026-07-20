@@ -31,7 +31,15 @@ export const CATEGORIA_AJUSTE = 'Lançamentos não identificados — verificar';
  *    validade). Só existe até a usuária confirmar (que apaga esse campo) ou
  *    excluir o item.
  *
- * 2. Fallback por data (comportamento legado, achado 09/07/2026) — para
+ * 2. Despesa fixa direta na conta (não cartão) — SEMPRE pendente até
+ *    confirmação manual, mesmo sem o campo `pendente` explícito (item
+ *    antigo/legado). Regra do produto (Flávia, achado 20/07/2026): "despesa
+ *    direta na conta sempre como pendente para ser confirmada manualmente",
+ *    sem exceção por data já ter passado — nunca cai no fallback por data
+ *    abaixo. Identificada por ter `recorrenteId` (é uma ocorrência de
+ *    despesa fixa) e não ser de cartão.
+ *
+ * 3. Fallback por data (comportamento legado, achado 09/07/2026) — para
  *    itens de antes dessa marcação existir (sem `pendente` explícito, ex.
  *    já materializados em produção): hoje ou futuro = pendente; passado =
  *    já aconteceu. Também é o que rege importação de extrato/fatura, que
@@ -41,6 +49,7 @@ export function isPendenteEfetivo(item, agora = new Date()) {
   if (item.confirmado) return false;
   if (!item.data) return false;
   if (item.pendente) return true;
+  if (item.recorrenteId && !item.cartao) return true;
   const hoje = new Date(agora); hoje.setHours(0, 0, 0, 0);
   return new Date(item.data + 'T00:00:00') >= hoje;
 }

@@ -60,6 +60,15 @@ test('isPendenteEfetivo', async (t) => {
   await t.test('sem data não é pendente', () => {
     assert.equal(isPendenteEfetivo({ data: '' }, HOJE), false);
   });
+  await t.test('despesa fixa direta na conta (recorrenteId, sem cartao) é sempre pendente, mesmo sem flag e com data passada (achado 20/07/2026)', () => {
+    assert.equal(isPendenteEfetivo({ data: '2026-07-01', recorrenteId: 'r1', cartao: false }, HOJE), true);
+  });
+  await t.test('despesa fixa de cartão (recorrenteId, com cartao) NÃO entra na regra acima — segue o fallback por data', () => {
+    assert.equal(isPendenteEfetivo({ data: '2026-07-01', recorrenteId: 'r1', cartao: true }, HOJE), false);
+  });
+  await t.test('despesa fixa direta na conta confirmada não é mais pendente, mesmo com recorrenteId', () => {
+    assert.equal(isPendenteEfetivo({ data: '2026-07-01', recorrenteId: 'r1', cartao: false, confirmado: true }, HOJE), false);
+  });
 });
 
 test('normCat', async (t) => {
