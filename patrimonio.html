@@ -2001,15 +2001,40 @@
 
     // ─── Import de dívidas ────────────────
 
+    function _normNomeDivida(s) {
+      return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+    }
+
     // Substitui todas as dívidas pelas informadas — usado tanto pelo CSV
-    // quanto pela importação com IA.
+    // quanto pela importação com IA. Avisa antes de substituir (achado
+    // 20/07/2026: sobrescrevia sem confirmação, diferente do Orçamento) e
+    // mescla por nome — dívida que já existia e continua no documento
+    // importado mantém o checklist manual de parcelas pagas (parcelasPagas/
+    // pagamentos/quitada); sem isso, reimportar zerava esse progresso pra
+    // TODAS as dívidas, mesmo as que continuavam existindo de verdade.
     async function salvarDividasImportadas(novasDividas) {
       if (!novasDividas.length) { toast('Nenhuma dívida encontrada.', 'warning'); return; }
-      // Apaga todas as dívidas existentes e substitui pelas novas
+
+      if (dividas.length > 0) {
+        const confirmou = await confirmDelete(
+          `Você já tem ${dividas.length} dívida${dividas.length > 1 ? 's' : ''} cadastrada${dividas.length > 1 ? 's' : ''}. Importar vai substituir pela lista nova — dívidas que baterem pelo nome mantêm o progresso de parcelas pagas; as demais são removidas. Continuar?`,
+          'Substituir',
+        );
+        if (!confirmou) { toast('Importação cancelada.', 'info'); return; }
+      }
+
+      const dividasMescladas = novasDividas.map((d, i) => {
+        const existente = dividas.find(ex => _normNomeDivida(ex.nome) === _normNomeDivida(d.nome));
+        return existente
+          ? { ...d, id: existente.id, parcelasPagas: existente.parcelasPagas || 0, pagamentos: existente.pagamentos || [], quitada: existente.quitada || false }
+          : { ...d, id: `d${Date.now()}_${i}` };
+      });
+
+      // Apaga todas as dívidas existentes e recria com a lista mesclada
       for (const d of dividas) {
         try { await deleteDivida(d.id); } catch { /* ignora erros individuais */ }
       }
-      dividas = novasDividas;
+      dividas = dividasMescladas;
       for (const d of dividas) {
         try { await saveDivida(d); } catch (err) { console.warn('Erro ao salvar dívida:', err); }
       }
