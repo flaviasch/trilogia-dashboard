@@ -1208,15 +1208,18 @@ Regras obrigatórias:
   {"itens": [{"classe": "<nome da classe>", "valor": <número>}, ...]}`
         : `Você extrai e classifica ativos FINANCEIROS a partir de posições consolidadas de corretora de usuárias brasileiras.
 
-Classifique cada ativo em UMA destas classes (use exatamente estes nomes em português, escolhendo a mais próxima do que o documento descreve):
-- "Renda Fixa Pós-fixada" — Tesouro Selic, CDB pós, LCI/LCA, conta corrente, conta investimento, caixa/disponibilidades
-- "Renda Fixa Pré-fixada" — Tesouro Prefixado, LTN, NTN-F, CDB pré
-- "Renda Fixa Inflação" — Tesouro IPCA+, NTN-B, CDB IPCA, debêntures, CRI, CRA
+Classifique cada ativo em UMA destas classes — use EXATAMENTE esta grafia
+(mesmo texto usado em todo o resto do sistema; qualquer variação, mesmo
+gramatical, faz o item não ser reconhecido e sumir de comparativos em
+outras telas — achado 20/07/2026):
+- "RF Pós (liquidez diária)" — Tesouro Selic, CDB pós, LCI/LCA, conta corrente, conta investimento, caixa/disponibilidades
+- "RF Pré-fixado" — Tesouro Prefixado, LTN, NTN-F, CDB pré
+- "RF Inflação" — Tesouro IPCA+, NTN-B, CDB IPCA, debêntures, CRI, CRA
 - "Multimercado" — fundos multimercado de verdade (macro, long & short, estratégias mistas), previdência privada (PGBL/VGBL), fundo de pensão
 - "Renda Variável" — ações, FIIs, ETFs, participações societárias, cotas de LTDA
 - "Internacional" — ativos no exterior, BDRs, moeda estrangeira, dólar, euro
 - "Alternativos" — criptomoedas, ouro (ativo financeiro), COE, FIPs, commodities
-Se um item genuinamente não couber em nenhuma classe acima, use um nome curto e descritivo em português (o sistema aceita qualquer nome de classe). Não classifique nada como "Imóveis" ou bem físico — este documento é só de ativos financeiros.
+Se um item genuinamente não couber em nenhuma classe acima, use um nome curto e descritivo em português (o sistema aceita qualquer nome de classe, mas não vai agrupar automaticamente com as classes padrão). Não classifique nada como "Imóveis", "Automóveis", "Bens Móveis" ou qualquer bem físico — este documento é só de ativos financeiros.
 
 IMPORTANTE — classifique pela estratégia REAL do fundo, não só pelo rótulo legal/regulatório impresso no documento. No Brasil, a sigla no nome ("FIM", "FIC FIM", "Fundo Multimercado") é o TIPO REGULATÓRIO (CVM/ANBIMA), que existe por motivos de estrutura/flexibilidade e frequentemente NÃO reflete a exposição real — é comum um fundo rotulado "Multimercado" ser, na prática, majoritariamente ações (ex: fundos de gestoras conhecidas por posições concentradas em renda variável, mesmo usando wrapper FIM). Quando você reconhecer o nome do fundo ou da gestora com confiança razoável (conhecimento geral sobre gestoras brasileiras conhecidas), classifique pela estratégia real, não pelo rótulo do documento. Quando NÃO reconhecer o fundo/gestora com confiança, ou não tiver certeza da estratégia real, marque "confianca": "baixa" e classifique pelo rótulo regulatório do documento como melhor palpite — a usuária vai revisar e confirmar os itens de baixa confiança antes de salvar, então não é grave errar aqui, só não minta confiança que você não tem.
 

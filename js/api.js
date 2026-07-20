@@ -598,10 +598,18 @@ export const PATRIMONIO_COR = {
   // adiciona ativos manualmente ou o agente exporta com os labels do dashboard.
   'rf pós': 'pos', 'rf pos': 'pos', 'renda fixa pos': 'pos', 'renda fixa pós': 'pos',
   'rf pós (liquidez diária)': 'pos', 'rf pos (liquidez diaria)': 'pos',
+  // "-fixada" (concordando com "Renda Fixa", feminino) além de "-fixado" —
+  // achado 20/07/2026: a IA de corretora gera "Renda Fixa Pós-fixada"/"Pré-
+  // fixada", que não batia com nenhuma entrada aqui (só existia "-fixado"),
+  // então ficava sem classe resolvida e sumia do comparativo em Reservas.
+  'rf pós-fixada': 'pos', 'rf pos-fixada': 'pos',
+  'renda fixa pós-fixada': 'pos', 'renda fixa pos-fixada': 'pos',
   'rf inflação': 'infl', 'rf inflacao': 'infl',
   'renda fixa inflação': 'infl', 'renda fixa inflacao': 'infl',
   'rf pré': 'pre', 'rf pre': 'pre', 'rf pré-fixado': 'pre', 'rf pre-fixado': 'pre',
   'renda fixa pré': 'pre', 'renda fixa pre': 'pre', 'renda fixa pré-fixado': 'pre',
+  'rf pré-fixada': 'pre', 'rf pre-fixada': 'pre',
+  'renda fixa pré-fixada': 'pre', 'renda fixa pre-fixada': 'pre',
   'renda variável': 'rv', 'renda variavel': 'rv',
   'multimercado': 'mm', 'multi': 'mm',
   'internacional': 'int', 'internacionais': 'int',
