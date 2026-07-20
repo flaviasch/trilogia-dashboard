@@ -177,7 +177,7 @@ export async function saveFaturaEstado(cartaoId, faturaKey, updates) {
 // ─── Patrimônio ───────────────────────────────────────────────────────────────
 
 /**
- * @returns {Promise<{ativos: Array, dividas: Array}>}
+ * @returns {Promise<{ativos: Array, dividas: Array, corretoraPosicoes: Array<{id, nome, itens, total, atualizadoEm}>}>}
  */
 export async function getPatrimonio() {
   return call('getPatrimonio')({ uid: uidAtual() });
@@ -234,12 +234,30 @@ export async function categorizarPatrimonioIA(conteudo, tipoConteudo, modo, orig
 }
 
 /**
- * Salva ativos importados do CSV (IR ou corretora).
+ * Salva ativos do IR (declaração, 1x/ano — sempre uma posição só).
+ * Corretora usa saveCorretoraPosicao (suporta mais de uma posição).
  * @param {Array<{classe, valor}>} itens
- * @param {'ir'|'corretora'} tipo
+ * @param {'ir'} tipo
  */
 export async function savePatrimonio(itens, tipo) {
   return call('savePatrimonio')({ uid: uidAtual(), itens, tipo });
+}
+
+/**
+ * Cria ou atualiza UMA posição nomeada da corretora — dá pra ter mais de
+ * uma (casal, mais de uma corretora) sem uma sobrescrever a outra.
+ * @param {Array<{classe, valor}>} itens
+ * @param {string} nome — nome da posição (ex: "XP - Flávia")
+ * @param {string} [posicaoId] — omitir pra criar nova; informar pra atualizar uma existente
+ * @returns {Promise<{ok: boolean, posicaoId: string}>}
+ */
+export async function saveCorretoraPosicao(itens, nome, posicaoId) {
+  return call('saveCorretoraPosicao')({ uid: uidAtual(), itens, nome, posicaoId });
+}
+
+/** Remove uma posição inteira da corretora, sem afetar as demais. */
+export async function deleteCorretoraPosicao(posicaoId) {
+  return call('deleteCorretoraPosicao')({ uid: uidAtual(), posicaoId });
 }
 
 /**

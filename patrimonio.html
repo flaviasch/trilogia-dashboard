@@ -574,6 +574,15 @@
       </div>
     </div>
 
+    <!-- Posições da corretora — mais de uma posição (casal, mais de uma corretora), sem uma sobrescrever a outra -->
+    <div id="corretoraPosicoesSection" style="display:none;margin-bottom:40px;">
+      <div class="section-header">
+        <h2 class="section-title">Posições da corretora</h2>
+        <span class="section-sub">Uma linha por pessoa/corretora — o total soma todas na tela principal</span>
+      </div>
+      <div id="corretoraPosicoesList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+
     <!-- Modal: importar via IA (substitui o Agente de Patrimônio / Agente de Investimentos do ChatGPT) -->
     <div id="modalImportarPatrimonioIA" class="modal-overlay hidden">
       <div class="modal-card wide">
@@ -582,6 +591,14 @@
         <div style="margin-bottom:14px;">
           <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Colar texto</label>
           <textarea id="patIaTexto" rows="8" placeholder="Cole aqui o texto..." style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+        </div>
+        <div id="patIaPosicaoSection" style="display:none;margin-bottom:18px;">
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Posição</label>
+          <select id="patIaPosicaoSelect" style="width:100%;box-sizing:border-box;padding:9px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;margin-bottom:8px;">
+            <option value="">+ Nova posição</option>
+          </select>
+          <input type="text" id="patIaPosicaoNome" placeholder="Nome da posição (ex: XP - Flávia)" style="width:100%;box-sizing:border-box;padding:9px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+          <p style="font-size:11px;color:var(--text-muted);margin:6px 0 0;">Casal ou mais de uma corretora? Cada posição fica separada — o total soma todas.</p>
         </div>
         <div style="text-align:center;margin:10px 0;color:var(--text-muted);font-size:12px;">— ou —</div>
         <div style="margin-bottom:18px;">
@@ -778,12 +795,12 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import {
-      getPatrimonio, savePatrimonio,
+      getPatrimonio, savePatrimonio, saveCorretoraPosicao, deleteCorretoraPosicao,
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
       categorizarPatrimonioIA,
-    } from './js/api.js?v=34';
+    } from './js/api.js?v=35';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
     // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se
@@ -975,6 +992,7 @@
     let ativos   = [];
     let dividas  = [];
     let historico = [];
+    let corretoraPosicoes = []; // posições nomeadas da corretora (achado 20/07/2026)
 
     // Ambiente de teste: importação por IA em Patrimônio só liberada para a conta
     // master e para a conta de teste da Luiza, até validação (17/07/2026).
@@ -998,12 +1016,14 @@
         if (patrimonioData.status === 'fulfilled') {
           ativos  = patrimonioData.value.ativos  || [];
           dividas = patrimonioData.value.dividas || [];
+          corretoraPosicoes = patrimonioData.value.corretoraPosicoes || [];
         }
         if (hist.status === 'fulfilled') historico = hist.value || [];
       } catch (err) {
         toast(msgErro(err), 'error');
       }
       render(ativos, dividas);
+      renderCorretoraPosicoes();
       renderLastImport();
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
@@ -1103,7 +1123,9 @@
               </div>
               <div class="ativo-value">${brl(a.valor)}</div>
               <div class="ativo-acoes">
-                <button class="btn-icon" data-edit-ativo="${a.classe}" title="Editar">${IC_EDIT}</button>
+                ${a.source === 'investimentos'
+                  ? `<button class="btn-icon" data-edit-corretora="${a.classe}" title="Editar via posições da corretora">${IC_EDIT}</button>`
+                  : `<button class="btn-icon" data-edit-ativo="${a.classe}" title="Editar">${IC_EDIT}</button>`}
                 <button class="btn-icon btn-delete" data-del-ativo="${a.classe}" title="Excluir">${IC_DELETE}</button>
               </div>
             </div>`;
@@ -1112,6 +1134,16 @@
       // Listeners dos botões de ativo
       lista.querySelectorAll('[data-edit-ativo]').forEach(btn =>
         btn.addEventListener('click', () => abrirModalAtivo(btn.dataset.editAtivo)));
+      // Ativo de corretora é a soma de 1+ posições — editar essa linha direto
+      // não sabe em qual posição mexer, e reescrever tudo a partir do total
+      // consolidado perderia os posicaoId/posicaoNome (achado 20/07/2026).
+      // Direciona pra Posições da corretora, onde dá pra reimportar/excluir
+      // cada posição sem ambiguidade.
+      lista.querySelectorAll('[data-edit-corretora]').forEach(btn =>
+        btn.addEventListener('click', () => {
+          toast('Esse valor soma uma ou mais posições da corretora — reimporte ou exclua a posição certa em "Posições da corretora", mais abaixo.', 'info', 6000);
+          document.getElementById('corretoraPosicoesSection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }));
       lista.querySelectorAll('[data-del-ativo]').forEach(btn =>
         btn.addEventListener('click', () => deletarAtivo(btn.dataset.delAtivo)));
 
@@ -1578,6 +1610,61 @@
       conciliarReservas(ativos);
     }
 
+    // Salva uma posição nomeada da corretora — usado tanto pela importação
+    // com IA quanto pelo CSV, pra dar suporte a mais de uma posição (casal,
+    // mais de uma corretora) sem uma sobrescrever a outra (achado 20/07/2026).
+    async function salvarPosicaoCorretora(itens, nome, posicaoId) {
+      await saveCorretoraPosicao(itens, nome, posicaoId);
+      const data = await getPatrimonio();
+      ativos  = data.ativos  || [];
+      dividas = data.dividas || [];
+      corretoraPosicoes = data.corretoraPosicoes || [];
+      render(ativos, dividas);
+      renderCorretoraPosicoes();
+      snapshotHistorico();
+      localStorage.setItem('lastImport_corretora', new Date().toISOString());
+      renderLastImport();
+      toast(posicaoId ? `Posição "${nome}" atualizada!` : `Posição "${nome}" importada!`, 'success');
+      registrarEvento('patrimonio_atualizado');
+      registrarEvento('corretora_importada');
+      localStorage.removeItem('patrimonio_extrato_pendente');
+      conciliarReservas(ativos);
+    }
+
+    function renderCorretoraPosicoes() {
+      const section = document.getElementById('corretoraPosicoesSection');
+      const list    = document.getElementById('corretoraPosicoesList');
+      if (!section || !list) return;
+      if (!corretoraPosicoes.length) { section.style.display = 'none'; return; }
+      section.style.display = '';
+      list.innerHTML = corretoraPosicoes
+        .slice()
+        .sort((a, b) => b.total - a.total)
+        .map(p => `
+          <div class="import-card" style="flex-direction:row;align-items:center;justify-content:space-between;padding:14px 20px;">
+            <div>
+              <strong style="display:block;font-size:13px;color:var(--gold);">${escapeHtml(p.nome)}</strong>
+              <span style="font-size:12px;color:var(--text-muted);">${p.itens.length} classe${p.itens.length > 1 ? 's' : ''} · ${brl(p.total)}</span>
+            </div>
+            <button class="btn-icon btn-delete" data-del-posicao="${escapeHtml(p.id)}" title="Excluir posição">${IC_DELETE}</button>
+          </div>`)
+        .join('');
+      list.querySelectorAll('[data-del-posicao]').forEach(btn =>
+        btn.addEventListener('click', () => deletarPosicaoCorretora(btn.dataset.delPosicao, btn.closest('.import-card')?.querySelector('strong')?.textContent || '')));
+    }
+
+    async function deletarPosicaoCorretora(posicaoId, nome) {
+      if (!(await confirmDelete(`Excluir a posição "${nome}"? Isso remove todos os ativos importados nela.`))) return;
+      await deleteCorretoraPosicao(posicaoId);
+      const data = await getPatrimonio();
+      ativos  = data.ativos  || [];
+      dividas = data.dividas || [];
+      corretoraPosicoes = data.corretoraPosicoes || [];
+      render(ativos, dividas);
+      renderCorretoraPosicoes();
+      toast('Posição excluída.', 'success');
+    }
+
     document.getElementById('btnImportIR').addEventListener('click', () =>
       document.getElementById('csvIR').click());
     document.getElementById('btnImportCorretora').addEventListener('click', () =>
@@ -1590,6 +1677,17 @@
         const tipo  = id === 'csvCorretora' ? 'corretora' : 'ir';
         const btnId = id === 'csvCorretora' ? 'btnImportCorretora' : 'btnImportIR';
         const btn   = document.getElementById(btnId);
+
+        // CSV de corretora também vira uma posição nomeada — pergunta o nome
+        // antes de processar o arquivo. CSV sempre cria posição nova (pra
+        // atualizar uma existente, usar a importação com IA ou excluir e
+        // reimportar).
+        let posicaoNomeCsv = null;
+        if (tipo === 'corretora') {
+          posicaoNomeCsv = (window.prompt('Nome dessa posição (ex: "XP - Flávia"):') || '').trim();
+          if (!posicaoNomeCsv) { e.target.value = ''; return; }
+        }
+
         e.target.value = '';
 
         setLoading(btn, true, 'Processando…');
@@ -1598,7 +1696,8 @@
         reader.onload = async (ev) => {
           try {
             const itens = parsearCsvPatrimonio(ev.target.result);
-            await salvarAtivosImportados(itens, tipo);
+            if (tipo === 'corretora') await salvarPosicaoCorretora(itens, posicaoNomeCsv);
+            else                      await salvarAtivosImportados(itens, tipo);
           } catch (err) {
             toast(`Erro ao importar CSV: ${msgErro(err)}`, 'error');
           } finally {
@@ -1633,15 +1732,16 @@
       editandoClasse = null;
     }
 
+    // Só grava o IR — corretora agora vive em posições nomeadas separadas
+    // (saveCorretoraPosicao/deleteCorretoraPosicao), nunca mais reescritas
+    // por esse fluxo de edição manual genérico (achado 20/07/2026: isso
+    // reescrevia a corretora inteira a partir da lista já consolidada —
+    // achatada, sem os posicaoId/posicaoNome — toda vez que qualquer ativo
+    // era editado, mesmo um item do IR).
     async function gravarAtivos() {
       try {
-        // Salva cada ativo na aba correta (IR ou corretora) conforme sua origem
-        const ativosIR        = ativos.filter(a => a.source !== 'investimentos');
-        const ativosCorretora = ativos.filter(a => a.source === 'investimentos');
-        const saves = [];
-        if (ativosIR.length > 0)        saves.push(savePatrimonio(ativosIR, 'ir'));
-        if (ativosCorretora.length > 0) saves.push(savePatrimonio(ativosCorretora, 'corretora'));
-        await Promise.all(saves);
+        const ativosIR = ativos.filter(a => a.source !== 'investimentos');
+        await savePatrimonio(ativosIR, 'ir');
       } catch (err) {
         toast(msgErro(err), 'error');
       }
@@ -2085,7 +2185,40 @@
       document.getElementById('patIaTexto').value = '';
       document.getElementById('patIaArquivoInput').value = '';
       document.getElementById('patIaArquivoNome').textContent = 'Nenhum arquivo selecionado';
+
+      const posicaoSection = document.getElementById('patIaPosicaoSection');
+      const posicaoSelect  = document.getElementById('patIaPosicaoSelect');
+      const posicaoNome    = document.getElementById('patIaPosicaoNome');
+      if (modo === 'ativos' && tipoOrigem === 'corretora') {
+        posicaoSection.style.display = '';
+        posicaoSelect.innerHTML = '<option value="">+ Nova posição</option>' +
+          corretoraPosicoes.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nome)} (${brl(p.total)})</option>`).join('');
+        posicaoSelect.value = '';
+        posicaoNome.value = '';
+        posicaoNome.disabled = false;
+      } else {
+        posicaoSection.style.display = 'none';
+      }
+
       document.getElementById('modalImportarPatrimonioIA').classList.remove('hidden');
+    }
+
+    document.getElementById('patIaPosicaoSelect')?.addEventListener('change', (e) => {
+      const nomeInput = document.getElementById('patIaPosicaoNome');
+      const selecionada = corretoraPosicoes.find(p => p.id === e.target.value);
+      if (selecionada) {
+        nomeInput.value = selecionada.nome;
+        nomeInput.disabled = true; // atualizar posição existente mantém o nome
+      } else {
+        nomeInput.value = '';
+        nomeInput.disabled = false;
+      }
+    });
+
+    // Escapa HTML básico pra uso em atributo/innerHTML — usado pelas opções
+    // do select de posição (nomes vêm de dado da própria usuária).
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
     document.getElementById('btnImportIRIA').addEventListener('click', () => abrirModalPatIa(
@@ -2122,6 +2255,13 @@
         toast('Cole o texto ou selecione um arquivo.', 'error');
         return;
       }
+      const ehCorretora = _patIaModo === 'ativos' && _patIaTipoOrigem === 'corretora';
+      const posicaoNomeVal = ehCorretora ? document.getElementById('patIaPosicaoNome').value.trim() : '';
+      if (ehCorretora && !posicaoNomeVal) {
+        toast('Dê um nome pra essa posição (ex: "XP - Flávia").', 'warning');
+        return;
+      }
+      const posicaoIdVal = ehCorretora ? (document.getElementById('patIaPosicaoSelect').value || undefined) : undefined;
 
       setLoading(btn, true, 'Processando…');
       try {
@@ -2145,7 +2285,9 @@
 
         const { itens } = await categorizarPatrimonioIA(conteudo, tipoConteudo, _patIaModo, _patIaTipoOrigem);
 
-        if (_patIaModo === 'ativos') {
+        if (ehCorretora) {
+          await salvarPosicaoCorretora(itens, posicaoNomeVal, posicaoIdVal);
+        } else if (_patIaModo === 'ativos') {
           await salvarAtivosImportados(itens, _patIaTipoOrigem);
         } else {
           const novasDividas = itens.map((d, i) => ({ id: `d${Date.now()}_${i}`, ...d }));

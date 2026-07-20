@@ -2123,12 +2123,12 @@ exports.getPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     .collection('patrimonio').doc('dados').get();
   if (docSnap.exists) {
     const { ir = [], corretora = [], dividas = [] } = docSnap.data();
-    return { ativos: consolidarAtivos(ir, corretora), dividas };
+    return { ativos: consolidarAtivos(ir, corretora), dividas, corretoraPosicoes: agruparPosicoesCorretora(corretora) };
   }
 
   // ── Fallback: Sheets + auto-migra ────────────────────────────────────────
   const sheetId = await getSheetId(db, uid);
-  if (!sheetId) return { ativos: [], dividas: [] };
+  if (!sheetId) return { ativos: [], dividas: [], corretoraPosicoes: [] };
   const sheets  = new SheetsClient(sheetId);
   const [ir, corretora, dividas] = await Promise.all([
     sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas(),
@@ -2137,20 +2137,122 @@ exports.getPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados')
     .set({ ir, corretora, dividas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() })
     .catch(e => console.warn('[getPatrimonio] Falha ao migrar:', e.message));
-  return { ativos: consolidarAtivos(ir, corretora), dividas };
+  return { ativos: consolidarAtivos(ir, corretora), dividas, corretoraPosicoes: agruparPosicoesCorretora(corretora) };
 });
 
+/**
+ * Cria ou atualiza UMA posição nomeada da corretora (achado 20/07/2026:
+ * antes, importar uma segunda posição — casal, mais de uma corretora —
+ * sobrescrevia a primeira por inteiro). Sem posicaoId = nova posição; com
+ * posicaoId = substitui só os itens dessa posição, sem tocar nas outras.
+ * Espera: { uid, posicaoId?, nome, itens: [{classe, valor}] }
+ */
+exports.saveCorretoraPosicao = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const { uid, posicaoId, nome, itens } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveCorretoraPosicao', 10, 60_000);
+
+  if (!nome || typeof nome !== 'string' || !nome.trim())
+    throw new HttpsError('invalid-argument', 'nome da posição é obrigatório.');
+  if (!Array.isArray(itens) || itens.length === 0)
+    throw new HttpsError('invalid-argument', 'itens deve ser um array não vazio.');
+  for (let i = 0; i < itens.length; i++) {
+    const it = itens[i];
+    if (!it.classe || typeof it.classe !== 'string' || it.classe.trim() === '')
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: classe é obrigatória.`);
+    if (typeof it.valor !== 'number' || isNaN(it.valor) || it.valor < 0)
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: valor deve ser número não-negativo.`);
+  }
+
+  const patRef  = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
+  const patSnap = await patRef.get();
+  const ir       = patSnap.exists ? (patSnap.data().ir       || []) : [];
+  const dividas  = patSnap.exists ? (patSnap.data().dividas  || []) : [];
+  let corretora  = patSnap.exists ? (patSnap.data().corretora || []) : [];
+
+  const idFinal = posicaoId || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  // Remove os itens antigos dessa MESMA posição (se for edição) — nunca mexe
+  // nos itens de outras posições.
+  corretora = corretora.filter(item => (item.posicaoId || '__legado__') !== idFinal);
+  const agora = new Date().toISOString();
+  corretora.push(...itens.map(it => ({
+    classe: it.classe, valor: it.valor,
+    posicaoId: idFinal, posicaoNome: nome.trim(), posicaoAtualizadoEm: agora,
+  })));
+
+  await patRef.set({ ir, corretora, dividas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+
+  const totalAtivos  = consolidarAtivos(ir, corretora).reduce((s, a) => s + a.valor, 0);
+  const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+  db.collection('mentoradas').doc(uid).update({
+    pl: totalAtivos - totalDividas,
+    dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(e => console.warn('[saveCorretoraPosicao] Cache PL falhou:', e.message));
+
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    return new SheetsClient(sheetId).saveInvestimentos(corretora);
+  }).catch(e => console.warn('[saveCorretoraPosicao] Backup Sheets falhou:', e.message));
+
+  return { ok: true, posicaoId: idFinal };
+});
+
+/**
+ * Remove uma posição inteira da corretora (todos os itens com esse
+ * posicaoId), sem afetar as demais posições.
+ */
+exports.deleteCorretoraPosicao = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const { uid, posicaoId } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!posicaoId || typeof posicaoId !== 'string')
+    throw new HttpsError('invalid-argument', 'posicaoId é obrigatório.');
+
+  const patRef  = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
+  const patSnap = await patRef.get();
+  if (!patSnap.exists) return { ok: true };
+
+  const ir       = patSnap.data().ir      || [];
+  const dividas  = patSnap.data().dividas || [];
+  const corretora = (patSnap.data().corretora || [])
+    .filter(item => (item.posicaoId || '__legado__') !== posicaoId);
+
+  await patRef.set({ ir, corretora, dividas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+
+  const totalAtivos  = consolidarAtivos(ir, corretora).reduce((s, a) => s + a.valor, 0);
+  const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+  db.collection('mentoradas').doc(uid).update({
+    pl: totalAtivos - totalDividas,
+    dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(e => console.warn('[deleteCorretoraPosicao] Cache PL falhou:', e.message));
+
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    return new SheetsClient(sheetId).saveInvestimentos(corretora);
+  }).catch(e => console.warn('[deleteCorretoraPosicao] Backup Sheets falhou:', e.message));
+
+  return { ok: true };
+});
+
+// Só cuida do patrimônio IR (bem físico, 1x/ano, sempre uma posição só —
+// não faz sentido "mais de uma declaração de IR" do mesmo jeito que faz
+// sentido mais de uma posição de corretora). Corretora tem posições
+// nomeadas independentes — ver saveCorretoraPosicao/deleteCorretoraPosicao
+// (achado 20/07/2026: savePatrimonio(tipo='corretora') sobrescrevia tudo,
+// perdendo a posição de quem já tinha importado antes).
 exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
-  const { uid, itens, tipo } = request.data; // tipo: 'ir' | 'corretora'
+  const { uid, itens, tipo } = request.data; // tipo: 'ir' (único suportado)
   requireSelfOrAdmin(request, uid);
   await checkRateLimit(uid, 'savePatrimonio', 10, 60_000); // 10/min
 
   // ── Validação ──────────────────────────────────────────────────────────────
   if (!Array.isArray(itens))
     throw new HttpsError('invalid-argument', 'itens deve ser um array.');
-  if (!['ir', 'corretora'].includes(tipo))
-    throw new HttpsError('invalid-argument', 'tipo deve ser "ir" ou "corretora".');
+  if (tipo !== 'ir')
+    throw new HttpsError('invalid-argument', 'tipo deve ser "ir" — corretora usa saveCorretoraPosicao.');
   if (itens.length > 200)
     throw new HttpsError('invalid-argument', 'Limite de 200 ativos excedido.');
 
@@ -2168,7 +2270,6 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
   // ── Lê estado atual do Firestore (ou Sheets como fallback) ──────────────
   const patRef  = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
   const patSnap = await patRef.get();
-  let ir        = patSnap.exists ? (patSnap.data().ir       || []) : [];
   let corretora = patSnap.exists ? (patSnap.data().corretora || []) : [];
   let dividas   = patSnap.exists ? (patSnap.data().dividas   || []) : [];
 
@@ -2178,16 +2279,14 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
       const sheetId = await getSheetId(db, uid);
       if (sheetId) {
         const sheets = new SheetsClient(sheetId);
-        [ir, corretora, dividas] = await Promise.all([
+        [, corretora, dividas] = await Promise.all([
           sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas(),
         ]);
       }
     } catch (e) { console.warn('[savePatrimonio] Fallback Sheets falhou:', e.message); }
   }
 
-  // Aplica a atualização
-  if (tipo === 'corretora') corretora = itens;
-  else                      ir        = itens;
+  const ir = itens;
 
   await patRef.set({
     ir, corretora, dividas,
@@ -2197,8 +2296,7 @@ exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => 
   // Backup no Sheets (fire-and-forget, não bloqueia resposta)
   getSheetId(db, uid).then(sheetId => {
     if (!sheetId) return;
-    const sheets = new SheetsClient(sheetId);
-    return tipo === 'corretora' ? sheets.saveInvestimentos(itens) : sheets.savePatrimonio(itens);
+    return new SheetsClient(sheetId).savePatrimonio(itens);
   }).catch(e => console.warn('[savePatrimonio] Backup Sheets falhou:', e.message));
 
   // Atualiza cache de PL
@@ -4553,12 +4651,40 @@ function consolidarAtivos(patrimonioIR, investimentos) {
     mapa[item.classe] = { ...item, source: 'ir' };
   }
 
+  // `investimentos` pode ter mais de um item pra mesma classe quando vêm de
+  // posições diferentes da corretora (casal, mais de uma corretora — achado
+  // 20/07/2026) — soma por classe em vez de sobrescrever, senão a segunda
+  // posição importada apagava o valor da primeira na tela consolidada.
+  const somaPorClasse = {};
   for (const item of investimentos) {
-    // Posição da corretora sobrescreve o IR para classes de ativos financeiros
-    if (item.valor > 0) mapa[item.classe] = { ...item, source: 'investimentos' };
+    if (item.valor > 0) somaPorClasse[item.classe] = (somaPorClasse[item.classe] || 0) + item.valor;
+  }
+  for (const classe in somaPorClasse) {
+    mapa[classe] = { classe, valor: somaPorClasse[classe], source: 'investimentos' };
   }
 
   return Object.values(mapa).filter(a => a.valor > 0);
+}
+
+/**
+ * Agrupa o array flat de `corretora` (itens com posicaoId/posicaoNome) em
+ * posições nomeadas, pra exibição/gestão na UI. Itens legados (importados
+ * antes dessa funcionalidade existir, sem posicaoId) caem numa posição
+ * implícita "legado" — nunca ficam invisíveis, só sem nome próprio até a
+ * usuária reimportar ou renomear.
+ */
+function agruparPosicoesCorretora(investimentos) {
+  const porPosicao = {};
+  for (const item of investimentos) {
+    const id   = item.posicaoId || '__legado__';
+    const nome = item.posicaoNome || 'Corretora (sem nome)';
+    if (!porPosicao[id]) porPosicao[id] = { id, nome, itens: [], atualizadoEm: item.posicaoAtualizadoEm || null };
+    porPosicao[id].itens.push({ classe: item.classe, valor: item.valor });
+  }
+  return Object.values(porPosicao).map(p => ({
+    ...p,
+    total: p.itens.reduce((s, i) => s + i.valor, 0),
+  }));
 }
 
 function gerarSenhaTemporaria() {
