@@ -616,6 +616,21 @@
       </div>
     </div>
 
+    <!-- Modal: revisar classe de fundos com baixa confiança (rótulo legal do
+         documento — ex: "Multimercado" — pode não bater com a estratégia
+         real do fundo; achado 20/07/2026) -->
+    <div id="modalRevisarFundos" class="modal-overlay hidden">
+      <div class="modal-card wide">
+        <h2 class="modal-title">Confirme a classe de alguns fundos</h2>
+        <p class="modal-sub">O rótulo do documento (ex: "Multimercado") nem sempre bate com a estratégia real do fundo — confira estes antes de importar. Os demais itens já entram automaticamente.</p>
+        <div id="revisarFundosLista" style="display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow-y:auto;margin-bottom:18px;"></div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="revisarFundosCancelar" style="flex:1;">Cancelar</button>
+          <button class="btn-save" id="revisarFundosConfirmar" style="flex:2;">Confirmar e importar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Balanço Patrimonial -->
     <div id="historicoBox"></div>
 
@@ -800,7 +815,7 @@
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
       categorizarPatrimonioIA,
-    } from './js/api.js?v=35';
+    } from './js/api.js?v=36';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
     // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se
@@ -1610,6 +1625,66 @@
       conciliarReservas(ativos);
     }
 
+    // Itens vindos da IA pra corretora chegam um a um (nome, classe, valor,
+    // confianca) — não agregados, pra dar pra revisar os de baixa confiança
+    // antes de somar por classe (achado 20/07/2026: rótulo legal do
+    // documento, ex: "Multimercado", pode não bater com a estratégia real
+    // do fundo). Se não tem nenhum de baixa confiança, agrega e resolve
+    // direto, sem abrir modal. Retorna null se a usuária cancelar.
+    async function revisarClassesFundos(itensIA) {
+      const incertos = itensIA.filter(i => i.confianca === 'baixa');
+      const agregarPorClasse = (lista) => {
+        const soma = {};
+        lista.forEach(i => { soma[i.classe] = (soma[i.classe] || 0) + i.valor; });
+        return Object.entries(soma).map(([classe, valor]) => ({ classe, valor }));
+      };
+
+      if (!incertos.length) return agregarPorClasse(itensIA);
+
+      const modal = document.getElementById('modalRevisarFundos');
+      const lista = document.getElementById('revisarFundosLista');
+      const opcoesClasse = CLASSES.map(c => `<option value="${escapeHtml(c.label)}">${escapeHtml(c.label)}</option>`).join('');
+      lista.innerHTML = incertos.map((item, idx) => `
+        <div style="background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:8px;">
+            <strong style="font-size:13px;">${escapeHtml(item.nome)}</strong>
+            <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap;">${brl(item.valor)}</span>
+          </div>
+          <select data-revisar-idx="${idx}" style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--navy);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+            ${opcoesClasse}
+          </select>
+        </div>`).join('');
+      // Pré-seleciona a classe sugerida pela IA em cada select
+      incertos.forEach((item, idx) => {
+        const sel = lista.querySelector(`[data-revisar-idx="${idx}"]`);
+        if (sel) sel.value = item.classe;
+      });
+
+      modal.classList.remove('hidden');
+
+      return new Promise((resolve) => {
+        const fechar = (resultado) => {
+          modal.classList.add('hidden');
+          btnCancelar.removeEventListener('click', onCancelar);
+          btnConfirmar.removeEventListener('click', onConfirmar);
+          resolve(resultado);
+        };
+        const onCancelar  = () => fechar(null);
+        const onConfirmar = () => {
+          const revisados = incertos.map((item, idx) => {
+            const sel = lista.querySelector(`[data-revisar-idx="${idx}"]`);
+            return { classe: sel?.value || item.classe, valor: item.valor };
+          });
+          const confiantes = itensIA.filter(i => i.confianca !== 'baixa').map(i => ({ classe: i.classe, valor: i.valor }));
+          fechar(agregarPorClasse([...confiantes, ...revisados]));
+        };
+        const btnCancelar  = document.getElementById('revisarFundosCancelar');
+        const btnConfirmar = document.getElementById('revisarFundosConfirmar');
+        btnCancelar.addEventListener('click', onCancelar);
+        btnConfirmar.addEventListener('click', onConfirmar);
+      });
+    }
+
     // Salva uma posição nomeada da corretora — usado tanto pela importação
     // com IA quanto pelo CSV, pra dar suporte a mais de uma posição (casal,
     // mais de uma corretora) sem uma sobrescrever a outra (achado 20/07/2026).
@@ -2286,7 +2361,11 @@
         const { itens } = await categorizarPatrimonioIA(conteudo, tipoConteudo, _patIaModo, _patIaTipoOrigem);
 
         if (ehCorretora) {
-          await salvarPosicaoCorretora(itens, posicaoNomeVal, posicaoIdVal);
+          // Itens vêm um a um, com confiança da classificação — revisa os
+          // de baixa confiança antes de somar por classe e salvar.
+          const itensAgregados = await revisarClassesFundos(itens);
+          if (!itensAgregados) { toast('Importação cancelada.', 'info'); return; }
+          await salvarPosicaoCorretora(itensAgregados, posicaoNomeVal, posicaoIdVal);
         } else if (_patIaModo === 'ativos') {
           await salvarAtivosImportados(itens, _patIaTipoOrigem);
         } else {

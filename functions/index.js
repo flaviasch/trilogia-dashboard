@@ -1212,21 +1212,25 @@ Classifique cada ativo em UMA destas classes (use exatamente estes nomes em port
 - "Renda Fixa Pós-fixada" — Tesouro Selic, CDB pós, LCI/LCA, conta corrente, conta investimento, caixa/disponibilidades
 - "Renda Fixa Pré-fixada" — Tesouro Prefixado, LTN, NTN-F, CDB pré
 - "Renda Fixa Inflação" — Tesouro IPCA+, NTN-B, CDB IPCA, debêntures, CRI, CRA
-- "Multimercado" — fundos multimercado, previdência privada (PGBL/VGBL), fundo de pensão
+- "Multimercado" — fundos multimercado de verdade (macro, long & short, estratégias mistas), previdência privada (PGBL/VGBL), fundo de pensão
 - "Renda Variável" — ações, FIIs, ETFs, participações societárias, cotas de LTDA
 - "Internacional" — ativos no exterior, BDRs, moeda estrangeira, dólar, euro
 - "Alternativos" — criptomoedas, ouro (ativo financeiro), COE, FIPs, commodities
 Se um item genuinamente não couber em nenhuma classe acima, use um nome curto e descritivo em português (o sistema aceita qualquer nome de classe). Não classifique nada como "Imóveis" ou bem físico — este documento é só de ativos financeiros.
 
+IMPORTANTE — classifique pela estratégia REAL do fundo, não só pelo rótulo legal/regulatório impresso no documento. No Brasil, a sigla no nome ("FIM", "FIC FIM", "Fundo Multimercado") é o TIPO REGULATÓRIO (CVM/ANBIMA), que existe por motivos de estrutura/flexibilidade e frequentemente NÃO reflete a exposição real — é comum um fundo rotulado "Multimercado" ser, na prática, majoritariamente ações (ex: fundos de gestoras conhecidas por posições concentradas em renda variável, mesmo usando wrapper FIM). Quando você reconhecer o nome do fundo ou da gestora com confiança razoável (conhecimento geral sobre gestoras brasileiras conhecidas), classifique pela estratégia real, não pelo rótulo do documento. Quando NÃO reconhecer o fundo/gestora com confiança, ou não tiver certeza da estratégia real, marque "confianca": "baixa" e classifique pelo rótulo regulatório do documento como melhor palpite — a usuária vai revisar e confirmar os itens de baixa confiança antes de salvar, então não é grave errar aqui, só não minta confiança que você não tem.
+
 Regras obrigatórias:
 - Leia a estrutura real do documento (colunas "Ativo"/"Saldo bruto"/"Instituição" ou similares) sem assumir um layout fixo.
 - Use o saldo bruto/atual disponível, não valores históricos.
 - Ignore linhas de total/subtotal/resumo.
-- Some itens da MESMA classe entre si (ex: duas contas correntes de bancos diferentes → uma linha "Renda Fixa Pós-fixada" com a soma), a menos que o documento já venha agregado.
+- NÃO agregue itens de nomes diferentes numa linha só, mesmo que a classe pareça igual — cada ativo/fundo do documento vira um item individual próprio (com seu nome), mesmo que dois acabem na mesma classe. A soma final por classe é feita depois, fora deste passo.
 - Se algum ativo estiver em dólar, euro ou outra moeda estrangeira, converta para reais usando a cotação aproximada do dia de hoje (${new Date().toISOString().slice(0, 10)}) antes de somar — nunca deixe valores em moeda estrangeira misturados com reais no mesmo total.
 - "valor" sempre positivo, tipo número (não string), com ponto decimal, já em reais.
+- "nome": nome do ativo/fundo como aparece no documento (curto, até 80 caracteres).
+- "confianca": "alta" quando você tem certeza razoável da classe real (inclusive por reconhecer o fundo/gestora), "baixa" quando está no melhor palpite (documento ambíguo, fundo desconhecido, ou rótulo regulatório pode não bater com a estratégia real).
 - Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só). Formato:
-  {"itens": [{"classe": "<nome da classe>", "valor": <número>}, ...]}`)
+  {"itens": [{"nome": "<nome do ativo/fundo>", "classe": "<nome da classe>", "valor": <número>, "confianca": "alta"|"baixa"}, ...]}`)
       : `Você extrai dívidas e financiamentos a partir de documentos ou texto descrevendo passivos de usuárias brasileiras (financiamentos, empréstimos, faturas de cartão em aberto).
 
 Para cada dívida, identifique:
@@ -1307,7 +1311,22 @@ Regras obrigatórias:
     }
 
     let itens;
-    if (modo === 'ativos') {
+    if (modo === 'ativos' && origem === 'corretora') {
+      // Corretora: item a item (não agregado), com nome do fundo/ativo e
+      // confiança da classificação — rótulo legal (FIM/FIC) nem sempre bate
+      // com a estratégia real do fundo. Baixa confiança fica pra usuária
+      // revisar antes de salvar (achado 20/07/2026, Flávia: fundo Alaska
+      // aparecendo como Multimercado quando na prática é Renda Variável).
+      itens = itensBrutos.map((it, i) => {
+        const valor = Number(it.valor);
+        if (!Number.isFinite(valor) || valor < 0) throw new HttpsError('internal', `Item ${i + 1}: valor inválido retornado pela IA.`);
+        const classe = typeof it.classe === 'string' ? it.classe.trim().slice(0, 60) : '';
+        if (!classe) throw new HttpsError('internal', `Item ${i + 1}: classe vazia retornada pela IA.`);
+        const nome = typeof it.nome === 'string' && it.nome.trim() ? it.nome.trim().slice(0, 80) : classe;
+        const confianca = it.confianca === 'baixa' ? 'baixa' : 'alta';
+        return { nome, classe, valor, confianca };
+      });
+    } else if (modo === 'ativos') {
       itens = itensBrutos.map((it, i) => {
         const valor = Number(it.valor);
         if (!Number.isFinite(valor) || valor < 0) throw new HttpsError('internal', `Item ${i + 1}: valor inválido retornado pela IA.`);

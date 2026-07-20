@@ -225,9 +225,12 @@ export async function salvarCategoriaAprendida(descricao, categoria) {
  *   SÓ bens não financeiros (imóveis, bens móveis); 'corretora' extrai SÓ ativos
  *   financeiros. De propósito, para o IR (1x/ano) nunca desatualizar o que a
  *   corretora mantém mês a mês.
- * @returns {Promise<{itens: Array}>} modo 'ativos' → mesmo formato de parsearCsvPatrimonio
- *   ([{classe, valor}]); modo 'dividas' → mesmo formato de parsearCsvDividas, sem "id"
- *   (gere o id antes de chamar saveDivida, igual já se faz com o resultado do CSV).
+ * @returns {Promise<{itens: Array}>} modo 'ativos' + origem 'ir' → mesmo formato de
+ *   parsearCsvPatrimonio ([{classe, valor}]); modo 'ativos' + origem 'corretora' → item a
+ *   item, não agregado, com confiança da classificação ([{nome, classe, valor, confianca:
+ *   'alta'|'baixa'}]) — some por classe só depois da usuária revisar os de baixa confiança;
+ *   modo 'dividas' → mesmo formato de parsearCsvDividas, sem "id" (gere o id antes de
+ *   chamar saveDivida, igual já se faz com o resultado do CSV).
  */
 export async function categorizarPatrimonioIA(conteudo, tipoConteudo, modo, origem) {
   return call('categorizarPatrimonioIA')({ uid: uidAtual(), conteudo, tipoConteudo, modo, origem });
