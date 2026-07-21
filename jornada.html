@@ -1582,6 +1582,211 @@
       modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
     }
 
+    // ── Desafio 7 Dias da Consciência Financeira ──
+    const D7_DIAS = [
+      { id: 'dia1', tarefa: 'Anote todos os gastos do dia (sem exceção).', pergunta: 'O que chamou mais sua atenção ao olhar isso?' },
+      { id: 'dia2', tarefa: 'Use dinheiro vivo para uma compra simples.', pergunta: 'Como foi a sensação ao pagar?' },
+      { id: 'dia3', tarefa: 'Revise os últimos 5 dias de extrato.', pergunta: 'Algum gasto te surpreendeu?' },
+      { id: 'dia4', tarefa: 'Escreva o que você mais valoriza na sua vida.', pergunta: 'Seus gastos refletem isso?' },
+      { id: 'dia5', tarefa: 'Passe 24h sem consumir nada por impulso.', pergunta: 'Qual foi o momento mais difícil?' },
+      { id: 'dia6', tarefa: 'Escolha 1 compra futura e adie por 3 dias.', pergunta: 'Como se sente em relação a ela agora?' },
+      { id: 'dia7', tarefa: 'Visualize sua meta financeira mais importante.', pergunta: 'Que pequena atitude pode te aproximar dela hoje?' },
+    ];
+
+    function initModalDesafio7Dias(salvo) {
+      const modal = document.getElementById('modalDesafio7Dias');
+      const r = salvo?.respostas || {};
+      const dias = r.dias || {};
+
+      document.getElementById('d7Dias').innerHTML = D7_DIAS.map((d, i) => {
+        const dado = dias[d.id] || {};
+        return `
+          <div class="fj-dia-item ${dado.resposta ? '' : ''}" data-dia="${d.id}">
+            <div class="fj-dia-header" onclick="this.closest('.fj-dia-item').classList.toggle('aberto')">
+              <input type="checkbox" class="fj-dia-check" ${dado.feito ? 'checked' : ''} onclick="event.stopPropagation()" />
+              <div>
+                <div class="fj-dia-numero">Dia ${i + 1}</div>
+                <div class="fj-dia-tarefa">${d.tarefa}</div>
+              </div>
+            </div>
+            <div class="fj-dia-corpo">
+              <div class="fj-dia-pergunta">${d.pergunta}</div>
+              <textarea rows="2">${dado.resposta || ''}</textarea>
+            </div>
+          </div>`;
+      }).join('');
+
+      document.getElementById('d7Observacoes').value = r.observacoesFinais || '';
+
+      document.getElementById('d7BtnSalvar').addEventListener('click', async () => {
+        const diasResp = {};
+        D7_DIAS.forEach(d => {
+          const item = modal.querySelector(`.fj-dia-item[data-dia="${d.id}"]`);
+          diasResp[d.id] = {
+            feito: item.querySelector('.fj-dia-check').checked,
+            resposta: item.querySelector('textarea').value.trim(),
+          };
+        });
+        const respostas = { dias: diasResp, observacoesFinais: document.getElementById('d7Observacoes').value.trim() };
+        const info = document.getElementById('d7SalvoInfo');
+        try {
+          await salvarMaterialJornada('desafio-7-dias', respostas, 'concluido');
+          atualizarStatusCard('desafio-7-dias', 'concluido');
+          info.textContent = 'Salvo ✓';
+          setTimeout(() => { info.textContent = ''; }, 2500);
+        } catch (err) {
+          info.textContent = 'Erro ao salvar — tenta de novo.';
+          console.warn('Erro ao salvar desafio 7 dias:', err.message);
+        }
+      });
+
+      document.getElementById('d7BtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
+    }
+
+    // ── Antes de Decidir: P.A.R.I.S. + Anti-Impulso (log recorrente) ──
+    const DF_PARIS = [
+      { id: 'proposito',    letra: 'P', conceito: 'Propósito',    pergunta: 'Isso está alinhado com meus objetivos?' },
+      { id: 'alternativas', letra: 'A', conceito: 'Alternativas', pergunta: 'Eu considerei outras opções possíveis?' },
+      { id: 'realidade',    letra: 'R', conceito: 'Realidade',    pergunta: 'Essa decisão cabe no meu momento financeiro atual?' },
+      { id: 'impulso',      letra: 'I', conceito: 'Impulso',      pergunta: 'Estou agindo por ansiedade, pressa ou comparação?' },
+      { id: 'satisfacao',   letra: 'S', conceito: 'Satisfação',   pergunta: 'Como vou me sentir depois? Isso realmente vale a pena?' },
+    ];
+    const DF_ANTI_IMPULSO = [
+      'Esperei pelo menos 24 horas antes de decidir.',
+      'Passei pelo checklist P.A.R.I.S.',
+      'Essa compra estava planejada ou surgiu no impulso.',
+      'Cabe no meu momento financeiro atual.',
+      'Se isso virar padrão, meu plano financeiro aguenta.',
+      'Estou cansada, emocional ou buscando alívio.',
+      'O valor dessa compra afasta ou aproxima meus objetivos.',
+      'Posso adiar essa decisão sem prejuízo real.',
+      'Transformei esse valor em impacto futuro (meta ou horas de trabalho).',
+      'Essa compra reflete prioridade ou impulso.',
+    ];
+
+    let _dfDecisaoSelecionada = null;
+
+    function initModalDecisaoFinanceira() {
+      const modal = document.getElementById('modalDecisaoFinanceira');
+
+      document.getElementById('dfParisPerguntas').innerHTML = DF_PARIS.map(p => `
+        <div style="margin-bottom:12px">
+          <label style="display:block; font-size:12px; color:var(--text-secondary); margin-bottom:5px">
+            <strong style="color:var(--gold)">${p.letra} · ${p.conceito}</strong> — ${p.pergunta}
+          </label>
+          <textarea id="dfParis_${p.id}" rows="2"></textarea>
+        </div>`).join('');
+
+      document.getElementById('dfAntiImpulsoItens').innerHTML = DF_ANTI_IMPULSO.map((texto, i) => `
+        <div class="fj-anti-impulso-item">
+          <input type="checkbox" id="dfAi_${i}" />
+          <label for="dfAi_${i}">${texto}</label>
+        </div>`).join('');
+
+      function resetarFluxo() {
+        document.getElementById('dfDescricao').value = '';
+        DF_PARIS.forEach(p => { document.getElementById(`dfParis_${p.id}`).value = ''; });
+        DF_ANTI_IMPULSO.forEach((_, i) => { document.getElementById(`dfAi_${i}`).checked = false; });
+        _dfDecisaoSelecionada = null;
+        modal.querySelectorAll('.fj-radio-opcao').forEach(b => b.classList.remove('selecionada'));
+        document.getElementById('dfPasso1').style.display = '';
+        document.getElementById('dfPasso2').style.display = 'none';
+        document.getElementById('dfDot1').classList.add('ativo');
+        document.getElementById('dfDot2').classList.remove('ativo');
+      }
+
+      document.getElementById('dfBtnProximo').addEventListener('click', () => {
+        document.getElementById('dfPasso1').style.display = 'none';
+        document.getElementById('dfPasso2').style.display = '';
+        document.getElementById('dfDot1').classList.remove('ativo');
+        document.getElementById('dfDot2').classList.add('ativo');
+      });
+
+      document.getElementById('dfBtnVoltar').addEventListener('click', () => {
+        document.getElementById('dfPasso1').style.display = '';
+        document.getElementById('dfPasso2').style.display = 'none';
+        document.getElementById('dfDot1').classList.add('ativo');
+        document.getElementById('dfDot2').classList.remove('ativo');
+      });
+
+      modal.querySelectorAll('#dfDecisaoOpcoes .fj-radio-opcao').forEach(btn => {
+        btn.addEventListener('click', () => {
+          _dfDecisaoSelecionada = btn.dataset.decisao;
+          modal.querySelectorAll('#dfDecisaoOpcoes .fj-radio-opcao').forEach(b => b.classList.toggle('selecionada', b === btn));
+        });
+      });
+
+      document.getElementById('dfVerDicas').addEventListener('click', () => {
+        document.getElementById('modalDicasAntiImpulso').classList.add('aberto');
+      });
+
+      document.getElementById('dfBtnRegistrar').addEventListener('click', async () => {
+        const descricaoCompra = document.getElementById('dfDescricao').value.trim();
+        if (!descricaoCompra) {
+          document.getElementById('dfPasso1').style.display = '';
+          document.getElementById('dfPasso2').style.display = 'none';
+          document.getElementById('dfDot1').classList.add('ativo');
+          document.getElementById('dfDot2').classList.remove('ativo');
+          document.getElementById('dfDescricao').focus();
+          return;
+        }
+        const paris = {};
+        DF_PARIS.forEach(p => { paris[p.id] = document.getElementById(`dfParis_${p.id}`).value.trim(); });
+        const antiImpulso = {};
+        DF_ANTI_IMPULSO.forEach((texto, i) => { antiImpulso[`item${i}`] = document.getElementById(`dfAi_${i}`).checked; });
+
+        const info = document.getElementById('dfSalvoInfo');
+        try {
+          await registrarDecisaoFinanceira(descricaoCompra, paris, antiImpulso, _dfDecisaoSelecionada);
+          info.textContent = 'Decisão registrada ✓';
+          resetarFluxo();
+          carregarHistoricoDecisoes();
+          setTimeout(() => { info.textContent = ''; }, 2500);
+        } catch (err) {
+          info.textContent = 'Erro ao registrar — tenta de novo.';
+          console.warn('Erro ao registrar decisão financeira:', err.message);
+        }
+      });
+
+      document.getElementById('dfBtnFechar1').addEventListener('click', () => modal.classList.remove('aberto'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
+    }
+
+    async function carregarHistoricoDecisoes() {
+      const container = document.getElementById('dfHistorico');
+      container.innerHTML = '<div class="fj-historico-vazio">Carregando...</div>';
+      try {
+        const { decisoes } = await getDecisoesFinanceiras();
+        if (!decisoes?.length) {
+          container.innerHTML = '<div class="fj-historico-vazio">Nenhuma decisão registrada ainda.</div>';
+          return;
+        }
+        const decisaoTexto = { comprei: 'Comprou', adiei: 'Adiou', desisti: 'Desistiu' };
+        container.innerHTML = decisoes.map(d => {
+          const data = d.criadoEm?._seconds
+            ? new Date(d.criadoEm._seconds * 1000).toLocaleDateString('pt-BR')
+            : '';
+          return `
+            <div class="fj-historico-item">
+              <strong>${d.descricaoCompra}</strong> — ${decisaoTexto[d.decisao] || 'sem decisão registrada'}
+              ${data ? ` · ${data}` : ''}
+            </div>`;
+        }).join('');
+      } catch (err) {
+        container.innerHTML = '<div class="fj-historico-vazio">Erro ao carregar histórico.</div>';
+        console.warn('Erro ao carregar decisões financeiras:', err.message);
+      }
+    }
+
+    // ── Dicas Práticas Anti-Impulso (conteúdo estático) ──
+    document.getElementById('daBtnFechar').addEventListener('click', () => {
+      document.getElementById('modalDicasAntiImpulso').classList.remove('aberto');
+    });
+    document.getElementById('modalDicasAntiImpulso').addEventListener('click', e => {
+      if (e.target === document.getElementById('modalDicasAntiImpulso')) e.currentTarget.classList.remove('aberto');
+    });
+
     async function init() {
       let data;
       try {
