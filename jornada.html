@@ -282,6 +282,74 @@
     .fj-btn-secundario { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
     .fj-btn:hover { opacity: .85; }
     .fj-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .fj-modal-largo { max-width: 560px; }
+
+    /* ─── Quiz (Sim/Não) ─────────────────────── */
+    .fj-quiz-pergunta { margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .fj-quiz-pergunta:last-of-type { border-bottom: none; }
+    .fj-quiz-vies {
+      display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--gold); background: var(--gold-dim);
+      border-radius: 20px; padding: 2px 9px; margin-bottom: 6px;
+    }
+    .fj-quiz-texto { font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
+    .fj-quiz-opcoes { display: flex; gap: 8px; }
+    .fj-quiz-opcao {
+      flex: 1; padding: 9px; text-align: center; border-radius: 8px; font-size: 13px; font-weight: 600;
+      border: 1px solid var(--border); background: transparent; color: var(--text-secondary);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all .15s;
+    }
+    .fj-quiz-opcao.selecionada { border-color: var(--gold); background: var(--gold-dim); color: var(--gold); }
+    .fj-quiz-progresso { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+    .fj-quiz-interpretacao-titulo { font-size: 13px; color: var(--text-secondary); margin-bottom: 2px; }
+
+    /* ─── Formulário de reflexão (seções, listas dinâmicas) ─────────── */
+    .fj-secao { margin-bottom: 22px; }
+    .fj-secao:last-child { margin-bottom: 0; }
+    .fj-secao-titulo { font-size: 14px; font-weight: 600; color: var(--white); margin-bottom: 4px; }
+    .fj-secao-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.5; }
+    .fj-secao textarea, .fj-secao input[type="text"] {
+      width: 100%; background: var(--navy-dark); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; color: var(--white); font-size: 13px;
+      font-family: 'Inter', sans-serif; resize: vertical;
+    }
+    .fj-secao textarea:focus, .fj-secao input:focus { outline: none; border-color: var(--border-gold); }
+    .fj-exemplos { font-size: 12px; color: var(--text-muted); font-style: italic; margin-bottom: 8px; line-height: 1.7; }
+    .fj-lista-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .fj-lista-item input[type="text"] { flex: 1; }
+    .fj-lista-item input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--gold); }
+    .fj-lista-remover {
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      font-size: 16px; padding: 2px 6px; flex-shrink: 0;
+    }
+    .fj-lista-remover:hover { color: var(--negative); }
+    .fj-lista-adicionar {
+      background: none; border: 1px dashed var(--border); color: var(--text-secondary);
+      border-radius: 8px; padding: 7px 12px; font-size: 12px; cursor: pointer; width: 100%;
+      font-family: 'Inter', sans-serif; margin-top: 2px;
+    }
+    .fj-lista-adicionar:hover { border-color: var(--border-gold); color: var(--gold); }
+    .fj-meta-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .fj-meta-row span { font-size: 12px; color: var(--text-muted); width: 16px; flex-shrink: 0; }
+    .fj-meta-row input:first-of-type { flex: 2; }
+    .fj-meta-row input:last-of-type { flex: 1; }
+    .fj-salvo-info { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 4px; }
+    .fj-intro { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 20px; }
+    .fj-citacao {
+      font-family: 'Playfair Display', serif; font-style: italic; font-size: 14px;
+      color: var(--gold-light); text-align: center; line-height: 1.6; padding: 16px 8px;
+      border-top: 1px solid var(--border); margin-top: 22px;
+    }
+    .fj-tabela-ref {
+      width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px;
+      border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    }
+    .fj-tabela-ref th, .fj-tabela-ref td {
+      border: 1px solid var(--border); padding: 8px; text-align: left; vertical-align: top;
+      color: var(--text-secondary); line-height: 1.4;
+    }
+    .fj-tabela-ref th { color: var(--gold); font-weight: 600; background: rgba(207,174,101,0.06); }
+    .fj-quadrante-titulo { font-size: 13px; font-weight: 600; color: var(--gold); margin-bottom: 8px; }
 
     /* ─── Bottom nav ─────────────────────────── */
     .bottom-nav {
@@ -461,6 +529,138 @@
     </div>
   </div>
 
+  <!-- Modal: Quiz dos Vieses Comportamentais -->
+  <div class="fj-modal-backdrop" id="modalQuizVieses">
+    <div class="fj-modal fj-modal-largo">
+      <div class="fj-modal-titulo">Quiz dos Vieses Comportamentais</div>
+      <div class="fj-modal-desc">Este quiz ajuda você a identificar como os vieses cognitivos e emocionais podem estar influenciando suas decisões financeiras. Para cada pergunta, responda com Sim ou Não.</div>
+
+      <div class="fj-quiz-progresso" id="qvProgresso">0 de 8 respondidas</div>
+      <div id="qvPerguntas"></div>
+
+      <div class="fj-resultado" id="qvResultado">
+        <div class="fj-resultado-linha"><span>Pontuação final</span><strong id="qvPontuacao">0</strong></div>
+        <div class="fj-quiz-interpretacao-titulo" id="qvFaixaTitulo"></div>
+        <div style="font-size:13px; color:var(--text-secondary); line-height:1.5; margin-top:2px" id="qvInterpretacao"></div>
+      </div>
+
+      <div class="fj-modal-acoes">
+        <button class="fj-btn fj-btn-secundario" id="qvBtnFechar">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Plano Financeiro Comportamental -->
+  <div class="fj-modal-backdrop" id="modalPlanoComportamental">
+    <div class="fj-modal fj-modal-largo">
+      <div class="fj-modal-titulo">Plano Financeiro Comportamental</div>
+      <div class="fj-modal-desc">Um bom plano não é o mais completo, é o que você consegue seguir. Aqui você estrutura sua nova relação com o dinheiro em metas, hábitos e ações possíveis.</div>
+
+      <div class="fj-secao">
+        <div class="fj-secao-titulo">1. Minha Motivação Emocional</div>
+        <div class="fj-secao-desc">Qual o verdadeiro motivo pra mudar? (Ex: liberdade, paz, segurança, etc.)</div>
+        <textarea id="pcMotivacao" rows="2"></textarea>
+      </div>
+
+      <div class="fj-secao">
+        <div class="fj-secao-titulo">2. Metas Principais (3 a 6 meses)</div>
+        <div class="fj-secao-desc">Liste até 3 metas claras e viáveis.</div>
+        <div id="pcMetas"></div>
+      </div>
+
+      <div class="fj-secao">
+        <div class="fj-secao-titulo">3. Micro-Hábitos Financeiros</div>
+        <div class="fj-secao-desc">Ações simples e repetitivas que sustentarão suas metas.</div>
+        <div class="fj-exemplos">Ex: Registrar todos os gastos imediatamente<br>Ex: Transferir X% do salário no dia do pagamento</div>
+        <div id="pcMicroHabitos"></div>
+        <button class="fj-lista-adicionar" data-lista="pcMicroHabitos">+ Adicionar hábito</button>
+      </div>
+
+      <div class="fj-secao">
+        <div class="fj-secao-titulo">4. Gatilhos de Alerta</div>
+        <div class="fj-secao-desc">Sinais de que você está se sabotando ou saindo do plano.</div>
+        <div class="fj-exemplos">Ex: Usar o cartão de crédito sem registrar antes<br>Ex: Navegar em lojas online por mais de 10 minutos</div>
+        <div id="pcGatilhos"></div>
+        <button class="fj-lista-adicionar" data-lista="pcGatilhos">+ Adicionar gatilho</button>
+      </div>
+
+      <div class="fj-secao">
+        <div class="fj-secao-titulo">5. Ações de Recuperação</div>
+        <div class="fj-secao-desc">O que você pode fazer para voltar ao plano quando "escorregar".</div>
+        <div id="pcAcoesRecuperacao"></div>
+        <button class="fj-lista-adicionar" data-lista="pcAcoesRecuperacao">+ Adicionar ação</button>
+      </div>
+
+      <div class="fj-secao">
+        <div class="fj-secao-titulo">6. Reforço Positivo</div>
+        <div class="fj-secao-desc">Como você celebrará seus avanços e manterá a motivação.</div>
+        <div class="fj-exemplos">Ex: Comprar algo simbólico com um valor predefinido ao atingir a Meta 1<br>Ex: Tirar um dia de folga merecido</div>
+        <div id="pcReforcoPositivo"></div>
+        <button class="fj-lista-adicionar" data-lista="pcReforcoPositivo">+ Adicionar</button>
+      </div>
+
+      <div class="fj-modal-acoes">
+        <button class="fj-btn fj-btn-secundario" id="pcBtnFechar">Fechar</button>
+        <button class="fj-btn fj-btn-primario" id="pcBtnSalvar">Salvar</button>
+      </div>
+      <div class="fj-salvo-info" id="pcSalvoInfo"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Diário das Histórias com o Dinheiro -->
+  <div class="fj-modal-backdrop" id="modalDiarioHistorias">
+    <div class="fj-modal fj-modal-largo">
+      <div class="fj-modal-titulo">Diário das Histórias com o Dinheiro</div>
+      <div class="fj-intro">
+        Este diário é um espaço de escrita íntima e reflexiva. Ele serve para observar suas histórias financeiras com compaixão, entender o que te trouxe até aqui e abrir espaço para um novo capítulo com o dinheiro.<br><br>
+        Não existe certo ou errado. Apenas escreva com sinceridade. Você está segura aqui.
+      </div>
+
+      <div id="dhPerguntas"></div>
+
+      <div class="fj-citacao">"Você não precisa apagar a história antiga. Só precisa assumir a caneta a partir de agora."</div>
+
+      <div class="fj-modal-acoes">
+        <button class="fj-btn fj-btn-secundario" id="dhBtnFechar">Fechar</button>
+        <button class="fj-btn fj-btn-primario" id="dhBtnSalvar">Salvar</button>
+      </div>
+      <div class="fj-salvo-info" id="dhSalvoInfo"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Mapa do Ambiente Financeiro -->
+  <div class="fj-modal-backdrop" id="modalMapaAmbiente">
+    <div class="fj-modal fj-modal-largo">
+      <div class="fj-modal-titulo">Mapa do Ambiente Financeiro</div>
+      <div class="fj-intro">
+        <strong>Princípio:</strong> seu ambiente influencia suas decisões mais do que sua força de vontade. Este mapa vai te ajudar a ver, de forma clara, o que ao seu redor está te empurrando para escolhas conscientes — ou impulsivas.
+      </div>
+
+      <table class="fj-tabela-ref">
+        <tr><th>Área</th><th>Tipo de gatilho</th><th>Exemplos</th></tr>
+        <tr><td>1. Ambiente Físico</td><td>Positivos: facilitam controle e planejamento</td><td>Metas visíveis, caderno de controle, lugar calmo para planejar</td></tr>
+        <tr><td>2. Ambiente Digital</td><td>Positivos: incentivam o acompanhamento</td><td>App de finanças, lembretes de revisão, bloqueadores de tempo</td></tr>
+        <tr><td>3. Ambiente Físico</td><td>Negativos: obstáculos que levam a gastos</td><td>Cartão visível, loja por perto, desorganização</td></tr>
+        <tr><td>4. Ambiente Digital</td><td>Negativos: geram impulso de compra ou comparação</td><td>Apps de compra salvos, anúncios, redes de comparação</td></tr>
+      </table>
+
+      <div class="fj-secao-desc" style="margin-bottom:14px">Preencha os quadrantes com o que é real no seu dia a dia.</div>
+      <div id="maQuadrantes"></div>
+
+      <div class="fj-secao">
+        <div class="fj-secao-titulo">Reflexão Final</div>
+        <div class="fj-secao-desc">O que você pode ajustar HOJE para que seu ambiente jogue a seu favor?</div>
+        <textarea id="maReflexao" rows="3"></textarea>
+      </div>
+
+      <div class="fj-modal-acoes">
+        <button class="fj-btn fj-btn-secundario" id="maBtnFechar">Fechar</button>
+        <button class="fj-btn fj-btn-primario" id="maBtnSalvar">Salvar</button>
+      </div>
+      <div class="fj-salvo-info" id="maSalvoInfo"></div>
+    </div>
+  </div>
+
   <nav class="bottom-nav">
     <a href="index.html" class="bnav-item">
       <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -627,6 +827,26 @@
         titulo: 'Calculadora do Preço Real da Decisão',
         desc: 'Antes de comprar, veja o que isso custa na sua liberdade financeira.',
       },
+      {
+        id: 'quiz-vieses',
+        titulo: 'Quiz dos Vieses Comportamentais',
+        desc: 'Identifique como vieses cognitivos e emocionais influenciam suas decisões com dinheiro.',
+      },
+      {
+        id: 'plano-comportamental',
+        titulo: 'Plano Financeiro Comportamental',
+        desc: 'Estruture sua nova relação com o dinheiro em metas, hábitos e ações possíveis.',
+      },
+      {
+        id: 'diario-historias',
+        titulo: 'Diário das Histórias com o Dinheiro',
+        desc: 'Um espaço de escrita íntima pra entender o que te trouxe até aqui.',
+      },
+      {
+        id: 'mapa-ambiente',
+        titulo: 'Mapa do Ambiente Financeiro',
+        desc: 'Veja o que ao seu redor te empurra para escolhas conscientes — ou impulsivas.',
+      },
     ];
 
     function brlSimples(v) {
@@ -673,11 +893,19 @@
 
       initModalReservaIdeal(materiaisSalvos['calculadora-reserva']);
       initModalPrecoReal(materiaisSalvos['preco-real-decisao']);
+      initModalQuizVieses(materiaisSalvos['quiz-vieses']);
+      initModalPlanoComportamental(materiaisSalvos['plano-comportamental']);
+      initModalDiarioHistorias(materiaisSalvos['diario-historias']);
+      initModalMapaAmbiente(materiaisSalvos['mapa-ambiente']);
     }
 
     function abrirFerramenta(id) {
-      if (id === 'calculadora-reserva') document.getElementById('modalReservaIdeal').classList.add('aberto');
-      if (id === 'preco-real-decisao') document.getElementById('modalPrecoReal').classList.add('aberto');
+      if (id === 'calculadora-reserva')   document.getElementById('modalReservaIdeal').classList.add('aberto');
+      if (id === 'preco-real-decisao')    document.getElementById('modalPrecoReal').classList.add('aberto');
+      if (id === 'quiz-vieses')           document.getElementById('modalQuizVieses').classList.add('aberto');
+      if (id === 'plano-comportamental')  document.getElementById('modalPlanoComportamental').classList.add('aberto');
+      if (id === 'diario-historias')      document.getElementById('modalDiarioHistorias').classList.add('aberto');
+      if (id === 'mapa-ambiente')         document.getElementById('modalMapaAmbiente').classList.add('aberto');
     }
 
     // ── Calculadora de Reserva Ideal ──
@@ -775,10 +1003,14 @@
       // campo vazio = 0% e o resultado sai errado silenciosamente.
       elTaxa.value = '0,8';
 
-      // Prefill da renda com a receita do mês atual (Orçamento), editável — mesmo
-      // padrão usado no gasto da Calculadora de Reserva Ideal.
+      // Prefill de renda (receita do Orçamento) e patrimônio (PL cacheado: ativos
+      // menos dívidas, mesmo valor que aparece nos outros cards do Dashboard) —
+      // editável, mesmo padrão usado no gasto da Calculadora de Reserva Ideal.
+      // Usa o PL total (não só ativos financeiros) pra não duplicar a lógica de
+      // classificação de ativo que já existe em reservas.html/patrimonio.html.
       getDashboardHome({}).then(d => {
         if (!salvo?.respostas?.renda && d?.orcamento?.receita) setMoneyFj(elRenda, d.orcamento.receita);
+        if (!salvo?.respostas?.patrimonio && d?.plCacheado != null) setMoneyFj(elPatrimonio, d.plCacheado);
       }).catch(() => {});
 
       if (salvo?.respostas) {
@@ -848,6 +1080,309 @@
       });
 
       document.getElementById('prBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
+    }
+
+    // ── Quiz dos Vieses Comportamentais ──
+    const QV_PERGUNTAS = [
+      { id: 'p1', texto: 'Quando você ganha um valor extra (bônus, reembolso), você o trata de forma diferente (mais livre) do seu salário normal?', vies: 'Contabilidade mental' },
+      { id: 'p2', texto: "Você evita vender algo que comprou, mesmo sabendo que foi um erro, só para não 'sair no prejuízo'?", vies: 'Aversão à perda' },
+      { id: 'p3', texto: 'Você tende a comprar mais quando vê que outras pessoas também estão comprando, mesmo que não precise?', vies: 'Efeito manada' },
+      { id: 'p4', texto: 'Você já adiou uma decisão importante porque não conseguia escolher entre duas opções com muitas informações?', vies: 'Paralisação por excesso de informação' },
+      { id: 'p5', texto: "Você costuma superestimar sua capacidade de 'compensar depois' quando gasta por impulso?", vies: 'Excesso de confiança' },
+      { id: 'p6', texto: "Já disse a si mesmo 'é só dessa vez' ao fazer uma compra fora do orçamento?", vies: 'Desconto hiperbólico' },
+      { id: 'p7', texto: 'Você evita olhar seu extrato ou conta bancária quando sabe que gastou além do planejado?', vies: 'Viés da avestruz' },
+      { id: 'p8', texto: 'Você confia mais em sua intuição do que em dados (números) ao tomar uma decisão com dinheiro?', vies: 'Heurística da representatividade' },
+    ];
+    const QV_FAIXAS = [
+      { min: 0, max: 2, titulo: 'Alta racionalidade', texto: 'Baixa influência emocional. Cuidado para não cair na rigidez.' },
+      { min: 3, max: 5, titulo: 'Influência moderada', texto: 'Há espaço para mais consciência e estrutura no seu planejamento.' },
+      { min: 6, max: 8, titulo: 'Forte impacto dos vieses', texto: 'Suas decisões podem estar sendo guiadas no automático.' },
+    ];
+
+    function initModalQuizVieses(salvo) {
+      const modal = document.getElementById('modalQuizVieses');
+      const respostas = { ...(salvo?.respostas?.respostas || {}) };
+
+      document.getElementById('qvPerguntas').innerHTML = QV_PERGUNTAS.map(p => `
+        <div class="fj-quiz-pergunta">
+          <span class="fj-quiz-vies">${p.vies}</span>
+          <div class="fj-quiz-texto">${p.texto}</div>
+          <div class="fj-quiz-opcoes">
+            <button type="button" class="fj-quiz-opcao" data-pergunta="${p.id}" data-valor="sim">Sim</button>
+            <button type="button" class="fj-quiz-opcao" data-pergunta="${p.id}" data-valor="nao">Não</button>
+          </div>
+        </div>`).join('');
+
+      function atualizarSelecoes() {
+        QV_PERGUNTAS.forEach(p => {
+          const val = respostas[p.id];
+          modal.querySelectorAll(`[data-pergunta="${p.id}"]`).forEach(btn => {
+            const ehValorAtual = (btn.dataset.valor === 'sim' && val === true) || (btn.dataset.valor === 'nao' && val === false);
+            btn.classList.toggle('selecionada', ehValorAtual);
+          });
+        });
+        const respondidas = Object.keys(respostas).length;
+        document.getElementById('qvProgresso').textContent = `${respondidas} de 8 respondidas`;
+      }
+
+      async function avaliarResultado() {
+        const respondidas = Object.keys(respostas).length;
+        if (respondidas < QV_PERGUNTAS.length) {
+          document.getElementById('qvResultado').classList.remove('mostrar');
+          return;
+        }
+        const pontuacao = Object.values(respostas).filter(v => v === true).length;
+        const faixa = QV_FAIXAS.find(f => pontuacao >= f.min && pontuacao <= f.max);
+        document.getElementById('qvPontuacao').textContent = `${pontuacao} / 8`;
+        document.getElementById('qvFaixaTitulo').textContent = faixa.titulo;
+        document.getElementById('qvInterpretacao').textContent = faixa.texto;
+        document.getElementById('qvResultado').classList.add('mostrar');
+
+        try {
+          await salvarMaterialJornada('quiz-vieses', { respostas, pontuacao, faixa: faixa.titulo }, 'concluido');
+        } catch (err) {
+          console.warn('Erro ao salvar quiz de vieses:', err.message);
+        }
+      }
+
+      modal.querySelectorAll('.fj-quiz-opcao').forEach(btn => {
+        btn.addEventListener('click', () => {
+          respostas[btn.dataset.pergunta] = btn.dataset.valor === 'sim';
+          atualizarSelecoes();
+          avaliarResultado();
+        });
+      });
+
+      atualizarSelecoes();
+      avaliarResultado();
+
+      document.getElementById('qvBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
+    }
+
+    // ── Plano Financeiro Comportamental ──
+    function initModalPlanoComportamental(salvo) {
+      const modal = document.getElementById('modalPlanoComportamental');
+      const r = salvo?.respostas || {};
+
+      const elMotivacao = document.getElementById('pcMotivacao');
+      elMotivacao.value = r.motivacao || '';
+
+      // Metas: sempre 3 linhas fixas (o material limita a 3 metas)
+      const metas = [0, 1, 2].map(i => r.metas?.[i] || { meta: '', prazo: '' });
+      document.getElementById('pcMetas').innerHTML = metas.map((m, i) => `
+        <div class="fj-meta-row">
+          <span>${i + 1}.</span>
+          <input type="text" class="pcMetaTexto" placeholder="Meta" value="${(m.meta || '').replace(/"/g, '&quot;')}" />
+          <input type="text" class="pcMetaPrazo" placeholder="Prazo" value="${(m.prazo || '').replace(/"/g, '&quot;')}" />
+        </div>`).join('');
+
+      // Listas dinâmicas simples (texto livre)
+      function montarListaSimples(containerId, itens) {
+        const container = document.getElementById(containerId);
+        const lista = (itens && itens.length) ? itens : ['', ''];
+        container.innerHTML = lista.map(texto => `
+          <div class="fj-lista-item">
+            <input type="text" value="${(texto || '').replace(/"/g, '&quot;')}" />
+            <button type="button" class="fj-lista-remover" title="Remover">×</button>
+          </div>`).join('');
+        container.querySelectorAll('.fj-lista-remover').forEach(btn => {
+          btn.addEventListener('click', () => btn.closest('.fj-lista-item').remove());
+        });
+      }
+      function adicionarLinhaSimples(containerId) {
+        const container = document.getElementById(containerId);
+        const div = document.createElement('div');
+        div.className = 'fj-lista-item';
+        div.innerHTML = `<input type="text" value="" /><button type="button" class="fj-lista-remover" title="Remover">×</button>`;
+        container.appendChild(div);
+        div.querySelector('.fj-lista-remover').addEventListener('click', () => div.remove());
+        div.querySelector('input').focus();
+      }
+      function lerListaSimples(containerId) {
+        return [...document.querySelectorAll(`#${containerId} input[type="text"]`)]
+          .map(el => el.value.trim()).filter(Boolean);
+      }
+
+      montarListaSimples('pcMicroHabitos', r.microHabitos);
+      montarListaSimples('pcGatilhos', r.gatilhos);
+      montarListaSimples('pcReforcoPositivo', r.reforcoPositivo);
+
+      // Ações de Recuperação: lista com checkbox, pré-populada com os 2 itens padrão
+      // do material (não são "Ex:", são sugestões reais de ação).
+      const ACOES_PADRAO = ['Revisar o extrato bancário imediatamente', "Fazer um dia de \"desintoxicação\" de compras"];
+      function montarListaAcoes(itens) {
+        const container = document.getElementById('pcAcoesRecuperacao');
+        const lista = (itens && itens.length) ? itens : ACOES_PADRAO.map(texto => ({ texto, feito: false }));
+        container.innerHTML = lista.map(item => `
+          <div class="fj-lista-item">
+            <input type="checkbox" ${item.feito ? 'checked' : ''} />
+            <input type="text" value="${(item.texto || '').replace(/"/g, '&quot;')}" />
+            <button type="button" class="fj-lista-remover" title="Remover">×</button>
+          </div>`).join('');
+        container.querySelectorAll('.fj-lista-remover').forEach(btn => {
+          btn.addEventListener('click', () => btn.closest('.fj-lista-item').remove());
+        });
+      }
+      montarListaAcoes(r.acoesRecuperacao);
+
+      modal.querySelectorAll('.fj-lista-adicionar').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const listaId = btn.dataset.lista;
+          if (listaId === 'pcAcoesRecuperacao') {
+            const container = document.getElementById(listaId);
+            const div = document.createElement('div');
+            div.className = 'fj-lista-item';
+            div.innerHTML = `<input type="checkbox" /><input type="text" value="" /><button type="button" class="fj-lista-remover" title="Remover">×</button>`;
+            container.appendChild(div);
+            div.querySelector('.fj-lista-remover').addEventListener('click', () => div.remove());
+            div.querySelector('input[type="text"]').focus();
+          } else {
+            adicionarLinhaSimples(listaId);
+          }
+        });
+      });
+
+      document.getElementById('pcBtnSalvar').addEventListener('click', async () => {
+        const respostas = {
+          motivacao: elMotivacao.value.trim(),
+          metas: [...document.querySelectorAll('#pcMetas .fj-meta-row')].map(row => ({
+            meta: row.querySelector('.pcMetaTexto').value.trim(),
+            prazo: row.querySelector('.pcMetaPrazo').value.trim(),
+          })),
+          microHabitos: lerListaSimples('pcMicroHabitos'),
+          gatilhos: lerListaSimples('pcGatilhos'),
+          acoesRecuperacao: [...document.querySelectorAll('#pcAcoesRecuperacao .fj-lista-item')].map(row => ({
+            texto: row.querySelector('input[type="text"]').value.trim(),
+            feito: row.querySelector('input[type="checkbox"]').checked,
+          })).filter(a => a.texto),
+          reforcoPositivo: lerListaSimples('pcReforcoPositivo'),
+        };
+
+        const info = document.getElementById('pcSalvoInfo');
+        try {
+          await salvarMaterialJornada('plano-comportamental', respostas, 'concluido');
+          info.textContent = 'Salvo ✓';
+          setTimeout(() => { info.textContent = ''; }, 2500);
+        } catch (err) {
+          info.textContent = 'Erro ao salvar — tenta de novo.';
+          console.warn('Erro ao salvar plano comportamental:', err.message);
+        }
+      });
+
+      document.getElementById('pcBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
+    }
+
+    // ── Diário das Histórias com o Dinheiro ──
+    const DH_ESTRUTURA = [
+      { parte: 'Parte 1 — As Primeiras Lembranças', desc: 'Este bloco busca entender as origens das suas crenças financeiras.', perguntas: [
+        { id: 'q1', texto: 'Qual é a sua primeira memória relacionada ao dinheiro?' },
+        { id: 'q2', texto: 'Quando criança, como você via o dinheiro sendo tratado na sua casa?' },
+        { id: 'q3', texto: 'Existia alguma frase ou ideia que se repetia sobre dinheiro na sua família?' },
+        { id: 'q4', texto: 'Você lembra de alguma experiência que gerou medo, vergonha ou orgulho em relação ao dinheiro?' },
+      ]},
+      { parte: 'Parte 2 — Dinheiro e Emoções', desc: 'Aqui, a ideia é conectar sua vida financeira ao seu estado emocional atual.', perguntas: [
+        { id: 'q5', texto: 'Hoje, o que o dinheiro representa para você? (Ex: segurança, liberdade, ansiedade, status, tabu)' },
+        { id: 'q6', texto: 'Quais emoções você sente ao lidar com o dinheiro (ou com a falta dele)?' },
+        { id: 'q7', texto: 'Você já percebeu algum padrão repetitivo nas suas decisões financeiras? (Ex: gastos por impulso, adiar decisões, ignorar extratos)' },
+      ]},
+      { parte: 'Parte 3 — Crenças e Identidade', desc: 'Questões para explorar como você se vê em relação às suas finanças.', perguntas: [
+        { id: 'q8', texto: 'Que tipo de pessoa você acredita que é com dinheiro?' },
+        { id: 'q9', texto: 'Se você fosse um personagem financeiro, como se descreveria?' },
+        { id: 'q10', texto: 'Que tipo de pessoa você gostaria de se tornar em relação ao dinheiro?' },
+      ]},
+      { parte: 'Parte 4 — Reescrevendo sua História', desc: 'Momento de definir o futuro e o primeiro passo prático.', perguntas: [
+        { id: 'q11', texto: 'Se você pudesse conversar com seu "eu do passado" sobre dinheiro, o que diria?' },
+        { id: 'q12', texto: 'O que você mais deseja curar ou mudar na sua relação com o dinheiro?' },
+        { id: 'q13', texto: 'O que seria um pequeno, mas poderoso, primeiro passo?' },
+      ]},
+    ];
+
+    function initModalDiarioHistorias(salvo) {
+      const modal = document.getElementById('modalDiarioHistorias');
+      const r = salvo?.respostas || {};
+
+      document.getElementById('dhPerguntas').innerHTML = DH_ESTRUTURA.map(parte => `
+        <div class="fj-secao">
+          <div class="fj-secao-titulo">${parte.parte}</div>
+          <div class="fj-secao-desc">${parte.desc}</div>
+          ${parte.perguntas.map(p => `
+            <div style="margin-bottom:12px">
+              <label style="display:block; font-size:12px; color:var(--text-secondary); margin-bottom:5px">${p.texto}</label>
+              <textarea id="dh_${p.id}" rows="2">${(r[p.id] || '')}</textarea>
+            </div>`).join('')}
+        </div>`).join('');
+
+      document.getElementById('dhBtnSalvar').addEventListener('click', async () => {
+        const respostas = {};
+        DH_ESTRUTURA.forEach(parte => parte.perguntas.forEach(p => {
+          respostas[p.id] = document.getElementById(`dh_${p.id}`).value.trim();
+        }));
+        const info = document.getElementById('dhSalvoInfo');
+        try {
+          await salvarMaterialJornada('diario-historias', respostas, 'concluido');
+          info.textContent = 'Salvo ✓';
+          setTimeout(() => { info.textContent = ''; }, 2500);
+        } catch (err) {
+          info.textContent = 'Erro ao salvar — tenta de novo.';
+          console.warn('Erro ao salvar diário das histórias:', err.message);
+        }
+      });
+
+      document.getElementById('dhBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
+    }
+
+    // ── Mapa do Ambiente Financeiro ──
+    const MA_QUADRANTES = [
+      { id: 'positivoFisico',  titulo: '1. Positivo Físico' },
+      { id: 'positivoDigital', titulo: '2. Positivo Digital' },
+      { id: 'negativoFisico',  titulo: '3. Negativo Físico' },
+      { id: 'negativoDigital', titulo: '4. Negativo Digital' },
+    ];
+
+    function initModalMapaAmbiente(salvo) {
+      const modal = document.getElementById('modalMapaAmbiente');
+      const r = salvo?.respostas || {};
+      const quadrantes = r.quadrantes || {};
+
+      document.getElementById('maQuadrantes').innerHTML = MA_QUADRANTES.map(q => {
+        const dados = quadrantes[q.id] || {};
+        return `
+          <div class="fj-secao">
+            <div class="fj-quadrante-titulo">${q.titulo}</div>
+            <label style="display:block; font-size:12px; color:var(--text-secondary); margin-bottom:5px">O que está na minha realidade?</label>
+            <textarea id="ma_${q.id}_realidade" rows="2" style="margin-bottom:8px">${(dados.realidade || '')}</textarea>
+            <label style="display:block; font-size:12px; color:var(--text-secondary); margin-bottom:5px">Ação (manter ou mudar)</label>
+            <textarea id="ma_${q.id}_acao" rows="2">${(dados.acao || '')}</textarea>
+          </div>`;
+      }).join('');
+
+      document.getElementById('maReflexao').value = r.reflexao || '';
+
+      document.getElementById('maBtnSalvar').addEventListener('click', async () => {
+        const quadrantesResp = {};
+        MA_QUADRANTES.forEach(q => {
+          quadrantesResp[q.id] = {
+            realidade: document.getElementById(`ma_${q.id}_realidade`).value.trim(),
+            acao: document.getElementById(`ma_${q.id}_acao`).value.trim(),
+          };
+        });
+        const respostas = { quadrantes: quadrantesResp, reflexao: document.getElementById('maReflexao').value.trim() };
+        const info = document.getElementById('maSalvoInfo');
+        try {
+          await salvarMaterialJornada('mapa-ambiente', respostas, 'concluido');
+          info.textContent = 'Salvo ✓';
+          setTimeout(() => { info.textContent = ''; }, 2500);
+        } catch (err) {
+          info.textContent = 'Erro ao salvar — tenta de novo.';
+          console.warn('Erro ao salvar mapa do ambiente:', err.message);
+        }
+      });
+
+      document.getElementById('maBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
       modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
     }
 
