@@ -224,11 +224,11 @@
           </div>
           <div class="step">
             <div class="step-dot">3</div>
-            <p>A IA identifica seus bens (imóveis, veículos, investimentos, previdência, contas) e classifica cada um automaticamente.</p>
+            <p>A IA identifica só os bens <strong>não financeiros</strong> (imóveis, veículos, joias, outros bens) e classifica cada um automaticamente — investimentos, previdência e contas ficam de fora de propósito, porque quem mantém isso atualizado é a importação da posição da corretora, mês a mês.</p>
           </div>
           <div class="step">
             <div class="step-dot">4</div>
-            <p>Confirme a importação. O Patrimônio Líquido é recalculado na hora — sem arquivo CSV nem passo intermediário. Dívidas seguem no cartão ao lado, com o mesmo botão de IA.</p>
+            <p>Confirme a importação. O Patrimônio Líquido é recalculado na hora — sem arquivo CSV nem passo intermediário. Dívidas seguem no cartão ao lado, com o mesmo botão de IA — reimportar avisa antes de substituir a lista, e preserva o checklist de parcelas já pagas das dívidas que continuam existindo.</p>
           </div>
         </div>
         <span class="tag tag-anual">uso anual · direto no dashboard</span>
@@ -256,11 +256,11 @@
           </div>
           <div class="step">
             <div class="step-dot">2</div>
-            <p>Na seção <strong>Patrimônio</strong>, clique em "Importar posição da corretora" → "🤖 Importar com IA" e anexe o arquivo. Se tiver mais de uma corretora, importe um de cada vez.</p>
+            <p>Na seção <strong>Patrimônio</strong>, clique em "Importar posição da corretora" → "🤖 Importar com IA" e anexe o arquivo. Dê um nome pra essa posição (ex: "XP - Flávia"). Se tiver mais de uma corretora, ou for casal, cada uma vira uma posição separada — importar uma nova não apaga as outras, e o total soma todas. Pra atualizar uma posição já existente, escolha o nome dela em vez de criar uma nova.</p>
           </div>
           <div class="step">
             <div class="step-dot">3</div>
-            <p>A IA classifica cada ativo por classe (Renda Fixa Pós, Renda Fixa Inflação, Renda Fixa Pré, Multimercado, Renda Variável, Internacional, Alternativos).</p>
+            <p>A IA classifica cada ativo por classe (RF Pós, RF Inflação, RF Pré, Multimercado, Renda Variável, Internacional, Alternativos) olhando a estratégia real do fundo, não só o rótulo do documento — um fundo "Multimercado" no papel pode ser, na prática, majoritariamente ações. Quando não tem certeza, a IA para e pede pra você confirmar a classe certa antes de salvar.</p>
           </div>
           <div class="step">
             <div class="step-dot">4</div>
@@ -300,6 +300,16 @@
       <div class="faq-item">
         <p class="faq-q">A importação funciona com qualquer corretora?</p>
         <p class="faq-a">Funciona com qualquer corretora que gere um PDF digital de posição consolidada — XP, BTG, Rico, Nu Invest, entre outras. Também aceita foto ou texto colado. O único requisito para PDF é que seja digital (texto selecionável), não escaneado.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Posso importar mais de uma corretora, ou a posição do meu cônjuge?</p>
+        <p class="faq-a">Sim. Cada importação da corretora vira uma posição nomeada — dê um nome que identifique cada uma (ex: "XP - Flávia", "Rico - Marido"). Elas ficam separadas: importar uma nova não apaga as outras, e o Patrimônio soma todas juntas. Na seção "Posições da corretora", em Patrimônio, dá pra ver o total de cada uma e excluir se precisar. Pra atualizar uma posição já existente com um extrato mais recente, escolha o nome dela na importação em vez de criar uma nova.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Por que às vezes a importação da corretora pede pra eu confirmar a classe de um fundo?</p>
+        <p class="faq-a">O rótulo que aparece no extrato da corretora (ex: "Multimercado") é o tipo regulatório do fundo, que nem sempre reflete a estratégia real — é comum um fundo rotulado assim ser, na prática, majoritariamente ações. Quando a IA reconhece o fundo ou a gestora com confiança, já classifica pela estratégia real; quando não tem certeza, para e mostra só esses itens pra você confirmar ou corrigir a classe antes de salvar.</p>
       </div>
 
       <div class="faq-item">
@@ -402,6 +412,11 @@
       <div class="faq-item">
         <p class="faq-q">Por que o gráfico de Evolução do Patrimônio às vezes não muda de um mês pro outro?</p>
         <p class="faq-a">Esse gráfico só grava um novo ponto quando você importa um extrato atualizado (CSV), ou automaticamente nos dias 1 e 28 de cada mês. Editar um ativo manualmente não altera o histórico, pra um ajuste pontual não distorcer a tendência.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Qual a diferença entre "Alternativos", "Automóveis" e "Bens Móveis"?</p>
+        <p class="faq-a">"Alternativos" é só ativo financeiro (criptomoedas, ouro, COE, fundos de private equity). Carro, moto e embarcação entram em "Automóveis"; joias, obras de arte e outros bens físicos entram em "Bens Móveis". Essa separação existe pra um carro não contar junto com investimento financeiro na tela de Patrimônio nem na cobertura das suas Reservas.</p>
       </div>
 
       <p class="steps-title" style="margin-top:32px;margin-bottom:14px;">reservas</p>
