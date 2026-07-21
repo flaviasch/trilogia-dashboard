@@ -351,6 +351,50 @@
     .fj-tabela-ref th { color: var(--gold); font-weight: 600; background: rgba(207,174,101,0.06); }
     .fj-quadrante-titulo { font-size: 13px; font-weight: 600; color: var(--gold); margin-bottom: 8px; }
 
+    /* ─── Desafio 7 Dias ─────────────────────── */
+    .fj-dia-item { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+    .fj-dia-header { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+    .fj-dia-check { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; accent-color: var(--gold); }
+    .fj-dia-numero { font-size: 11px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: .04em; }
+    .fj-dia-tarefa { font-size: 13px; color: var(--white); margin-top: 2px; }
+    .fj-dia-corpo { display: none; margin-top: 10px; padding-left: 28px; }
+    .fj-dia-item.aberto .fj-dia-corpo { display: block; }
+    .fj-dia-pergunta { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+
+    /* ─── Fluxo de decisão (P.A.R.I.S. + Anti-Impulso) ─────────── */
+    .fj-passos { display: flex; gap: 6px; margin-bottom: 18px; }
+    .fj-passo-dot {
+      flex: 1; height: 4px; border-radius: 4px; background: var(--border);
+    }
+    .fj-passo-dot.ativo { background: var(--gold); }
+    .fj-passo-titulo { font-size: 13px; font-weight: 600; color: var(--gold); margin-bottom: 12px; }
+    .fj-anti-impulso-item {
+      display: flex; align-items: flex-start; gap: 10px; padding: 8px 0;
+      border-bottom: 1px solid var(--border); font-size: 13px; line-height: 1.5;
+    }
+    .fj-anti-impulso-item:last-child { border-bottom: none; }
+    .fj-anti-impulso-item input[type="checkbox"] { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; accent-color: var(--gold); }
+    .fj-link-dicas { font-size: 12px; color: var(--gold-light); text-decoration: underline; cursor: pointer; display: inline-block; margin-top: 10px; }
+    .fj-radio-row { display: flex; gap: 8px; margin-top: 4px; }
+    .fj-radio-opcao {
+      flex: 1; padding: 9px; text-align: center; border-radius: 8px; font-size: 12px; font-weight: 600;
+      border: 1px solid var(--border); background: transparent; color: var(--text-secondary);
+      cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+    .fj-radio-opcao.selecionada { border-color: var(--gold); background: var(--gold-dim); color: var(--gold); }
+    .fj-historico-item {
+      border-top: 1px solid var(--border); padding: 10px 0; font-size: 12px; color: var(--text-secondary);
+    }
+    .fj-historico-item strong { color: var(--white); font-size: 13px; }
+    .fj-historico-vazio { font-size: 12px; color: var(--text-muted); text-align: center; padding: 12px 0; }
+    .fj-dicas-lista { list-style: none; padding: 0; margin: 0 0 16px; }
+    .fj-dicas-lista li {
+      font-size: 13px; line-height: 1.6; padding: 8px 0 8px 20px; position: relative;
+      border-bottom: 1px solid var(--border); color: var(--text-secondary);
+    }
+    .fj-dicas-lista li:last-child { border-bottom: none; }
+    .fj-dicas-lista li::before { content: '•'; position: absolute; left: 4px; color: var(--gold); }
+
     /* ─── Bottom nav ─────────────────────────── */
     .bottom-nav {
       display: none; position: fixed; bottom: 0; left: 0; right: 0;
@@ -661,6 +705,107 @@
     </div>
   </div>
 
+  <!-- Modal: Desafio 7 Dias da Consciência Financeira -->
+  <div class="fj-modal-backdrop" id="modalDesafio7Dias">
+    <div class="fj-modal fj-modal-largo">
+      <div class="fj-modal-titulo">Desafio 7 Dias de Consciência Financeira</div>
+      <div class="fj-intro">Este desafio propõe 7 ações simples para você observar sua relação com o dinheiro de forma mais presente. Cada dia traz uma pequena tarefa prática e uma pergunta para te ajudar a refletir. O objetivo não é perfeição, e sim consciência.</div>
+
+      <div id="d7Dias"></div>
+
+      <div class="fj-secao">
+        <div class="fj-secao-titulo">Observações Finais</div>
+        <div class="fj-secao-desc">Use este espaço para anotar o seu maior aprendizado ao longo do desafio.</div>
+        <textarea id="d7Observacoes" rows="3"></textarea>
+      </div>
+
+      <div class="fj-modal-acoes">
+        <button class="fj-btn fj-btn-secundario" id="d7BtnFechar">Fechar</button>
+        <button class="fj-btn fj-btn-primario" id="d7BtnSalvar">Salvar</button>
+      </div>
+      <div class="fj-salvo-info" id="d7SalvoInfo"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Antes de Decidir (P.A.R.I.S. + Anti-Impulso) -->
+  <div class="fj-modal-backdrop" id="modalDecisaoFinanceira">
+    <div class="fj-modal fj-modal-largo">
+      <div class="fj-modal-titulo">Antes de Decidir</div>
+      <div class="fj-modal-desc">Uma pausa de 2 passos antes de uma compra importante. Use quantas vezes precisar — cada decisão fica registrada no seu histórico.</div>
+
+      <div class="fj-passos">
+        <div class="fj-passo-dot ativo" id="dfDot1"></div>
+        <div class="fj-passo-dot" id="dfDot2"></div>
+      </div>
+
+      <!-- Passo 1: P.A.R.I.S. -->
+      <div id="dfPasso1">
+        <div class="fj-passo-titulo">Passo 1 de 2 — Checklist P.A.R.I.S.</div>
+        <div class="fj-field">
+          <label for="dfDescricao">O que você está pensando em comprar?</label>
+          <input type="text" id="dfDescricao" placeholder="Ex: tênis novo, curso online..." />
+        </div>
+        <div class="fj-secao-desc" style="margin-bottom:14px">Pausar por alguns segundos antes de decidir pode evitar impulsos, arrependimentos e reforçar seu controle emocional.</div>
+        <div id="dfParisPerguntas"></div>
+        <div class="fj-modal-acoes">
+          <button class="fj-btn fj-btn-secundario" id="dfBtnFechar1">Fechar</button>
+          <button class="fj-btn fj-btn-primario" id="dfBtnProximo">Próximo</button>
+        </div>
+      </div>
+
+      <!-- Passo 2: Anti-Impulso -->
+      <div id="dfPasso2" style="display:none">
+        <div class="fj-passo-titulo">Passo 2 de 2 — Checklist Anti-Impulso</div>
+        <div class="fj-secao-desc">Antes de comprar, faça uma pausa e revise:</div>
+        <div id="dfAntiImpulsoItens"></div>
+        <span class="fj-link-dicas" id="dfVerDicas">Ver dicas práticas anti-impulso →</span>
+
+        <div class="fj-secao" style="margin-top:16px">
+          <div class="fj-secao-titulo">O que você decidiu?</div>
+          <div class="fj-radio-row" id="dfDecisaoOpcoes">
+            <button type="button" class="fj-radio-opcao" data-decisao="comprei">Comprei</button>
+            <button type="button" class="fj-radio-opcao" data-decisao="adiei">Adiei</button>
+            <button type="button" class="fj-radio-opcao" data-decisao="desisti">Desisti</button>
+          </div>
+        </div>
+
+        <div class="fj-modal-acoes">
+          <button class="fj-btn fj-btn-secundario" id="dfBtnVoltar">Voltar</button>
+          <button class="fj-btn fj-btn-primario" id="dfBtnRegistrar">Registrar decisão</button>
+        </div>
+        <div class="fj-salvo-info" id="dfSalvoInfo"></div>
+      </div>
+
+      <div class="fj-secao" style="margin-top:24px; border-top:1px solid var(--border); padding-top:16px">
+        <div class="fj-secao-titulo">Histórico de decisões</div>
+        <div id="dfHistorico"><div class="fj-historico-vazio">Carregando...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Dicas Práticas Anti-Impulso (conteúdo estático) -->
+  <div class="fj-modal-backdrop" id="modalDicasAntiImpulso">
+    <div class="fj-modal">
+      <div class="fj-modal-titulo">Dicas Práticas para Evitar Compras Impulsivas</div>
+      <ul class="fj-dicas-lista">
+        <li>Crie uma pausa obrigatória antes de qualquer compra não essencial.</li>
+        <li>Evite comprar quando estiver cansada, estressada ou emocional.</li>
+        <li>Retire cartões salvos e compras em um clique dos aplicativos.</li>
+        <li>Defina limites claros para gastos não planejados.</li>
+        <li>Use listas fechadas de compras e evite exceções.</li>
+        <li>Visualize seu objetivo financeiro antes de comprar.</li>
+        <li>Automatize aportes e reservas para tirar a decisão da emoção.</li>
+        <li>Troque o gesto de comprar por outra ação automática.</li>
+        <li>Adie compras desejadas e revise depois de alguns dias.</li>
+        <li>Revise semanalmente impulsos evitados e aprendizados.</li>
+      </ul>
+      <div class="fj-citacao" style="margin-top:0; border-top:none; padding-top:0">"Impulso não some. Ele enfraquece quando você cria estrutura."</div>
+      <div class="fj-modal-acoes">
+        <button class="fj-btn fj-btn-primario" id="daBtnFechar" style="flex:none; width:100%">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <nav class="bottom-nav">
     <a href="index.html" class="bnav-item">
       <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -690,7 +835,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getMinhaJornada, marcarLicaoCasa, getNivelAcesso, getMateriaisJornada, salvarMaterialJornada, getDashboardHome } from './js/api.js?v=39';
+    import { getMinhaJornada, marcarLicaoCasa, getNivelAcesso, getMateriaisJornada, salvarMaterialJornada, getDashboardHome, registrarDecisaoFinanceira, getDecisoesFinanceiras } from './js/api.js?v=40';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -847,6 +992,23 @@
         titulo: 'Mapa do Ambiente Financeiro',
         desc: 'Veja o que ao seu redor te empurra para escolhas conscientes — ou impulsivas.',
       },
+      {
+        id: 'desafio-7-dias',
+        titulo: 'Desafio 7 Dias da Consciência Financeira',
+        desc: 'Uma tarefa por dia pra construir consciência financeira na prática.',
+      },
+      {
+        id: 'decisao-financeira',
+        titulo: 'Antes de Decidir: P.A.R.I.S. + Anti-Impulso',
+        desc: 'Pausa de 2 passos antes de uma compra importante — use quantas vezes quiser.',
+        semStatusPadrao: true,
+      },
+      {
+        id: 'dicas-anti-impulso',
+        titulo: 'Dicas Práticas Anti-Impulso',
+        desc: 'Referência rápida pra consultar quando o impulso bater.',
+        semStatusPadrao: true,
+      },
     ];
 
     function brlSimples(v) {
@@ -877,6 +1039,14 @@
 
       const grid = document.getElementById('ferramentasGrid');
       grid.innerHTML = FERRAMENTAS.map(f => {
+        if (f.semStatusPadrao) {
+          return `
+            <div class="ferramenta-card" data-ferramenta="${f.id}">
+              <div class="ferramenta-card-titulo">${f.titulo}</div>
+              <div class="ferramenta-card-desc">${f.desc}</div>
+              <span class="ferramenta-status" id="badge-${f.id}"></span>
+            </div>`;
+        }
         const status = materiaisSalvos[f.id]?.status || 'nao_iniciado';
         const statusTexto = { nao_iniciado: 'Não iniciado', em_andamento: 'Em andamento', concluido: 'Concluído' }[status];
         return `
@@ -886,6 +1056,9 @@
             <span class="ferramenta-status ${status}">${statusTexto}</span>
           </div>`;
       }).join('');
+
+      document.getElementById('badge-dicas-anti-impulso').className = 'ferramenta-status em_andamento';
+      document.getElementById('badge-dicas-anti-impulso').textContent = 'Referência';
 
       grid.querySelectorAll('.ferramenta-card').forEach(card => {
         card.addEventListener('click', () => abrirFerramenta(card.dataset.ferramenta));
@@ -897,6 +1070,8 @@
       initModalPlanoComportamental(materiaisSalvos['plano-comportamental']);
       initModalDiarioHistorias(materiaisSalvos['diario-historias']);
       initModalMapaAmbiente(materiaisSalvos['mapa-ambiente']);
+      initModalDesafio7Dias(materiaisSalvos['desafio-7-dias']);
+      initModalDecisaoFinanceira();
     }
 
     function abrirFerramenta(id) {
@@ -906,6 +1081,21 @@
       if (id === 'plano-comportamental')  document.getElementById('modalPlanoComportamental').classList.add('aberto');
       if (id === 'diario-historias')      document.getElementById('modalDiarioHistorias').classList.add('aberto');
       if (id === 'mapa-ambiente')         document.getElementById('modalMapaAmbiente').classList.add('aberto');
+      if (id === 'desafio-7-dias')        document.getElementById('modalDesafio7Dias').classList.add('aberto');
+      if (id === 'decisao-financeira')    { document.getElementById('modalDecisaoFinanceira').classList.add('aberto'); carregarHistoricoDecisoes(); }
+      if (id === 'dicas-anti-impulso')    document.getElementById('modalDicasAntiImpulso').classList.add('aberto');
+    }
+
+    // Atualiza o badge de status no card da grade sem precisar recarregar a página.
+    // Chamado logo após qualquer salvarMaterialJornada() bem-sucedido.
+    function atualizarStatusCard(ferramentaId, status) {
+      const card = document.querySelector(`.ferramenta-card[data-ferramenta="${ferramentaId}"]`);
+      if (!card) return;
+      const badge = card.querySelector('.ferramenta-status');
+      if (!badge) return;
+      const textos = { nao_iniciado: 'Não iniciado', em_andamento: 'Em andamento', concluido: 'Concluído' };
+      badge.className = `ferramenta-status ${status}`;
+      badge.textContent = textos[status] || textos.nao_iniciado;
     }
 
     // ── Calculadora de Reserva Ideal ──
@@ -974,6 +1164,7 @@
         const { gasto, meses, valor } = recalcular();
         try {
           await salvarMaterialJornada('calculadora-reserva', { gasto, perfil: elPerfil.value, meses }, 'concluido');
+          atualizarStatusCard('calculadora-reserva', 'concluido');
         } catch (err) {
           console.warn('Erro ao salvar calculadora de reserva:', err.message);
         }
@@ -1074,6 +1265,7 @@
 
         try {
           await salvarMaterialJornada('preco-real-decisao', { patrimonio, objetivo, aporte, taxa: taxaPct, compra, renda, horasSemana }, 'concluido');
+          atualizarStatusCard('preco-real-decisao', 'concluido');
         } catch (err) {
           console.warn('Erro ao salvar calculadora do preço real:', err.message);
         }
@@ -1141,6 +1333,7 @@
 
         try {
           await salvarMaterialJornada('quiz-vieses', { respostas, pontuacao, faixa: faixa.titulo }, 'concluido');
+          atualizarStatusCard('quiz-vieses', 'concluido');
         } catch (err) {
           console.warn('Erro ao salvar quiz de vieses:', err.message);
         }
@@ -1263,6 +1456,7 @@
         const info = document.getElementById('pcSalvoInfo');
         try {
           await salvarMaterialJornada('plano-comportamental', respostas, 'concluido');
+          atualizarStatusCard('plano-comportamental', 'concluido');
           info.textContent = 'Salvo ✓';
           setTimeout(() => { info.textContent = ''; }, 2500);
         } catch (err) {
@@ -1323,6 +1517,7 @@
         const info = document.getElementById('dhSalvoInfo');
         try {
           await salvarMaterialJornada('diario-historias', respostas, 'concluido');
+          atualizarStatusCard('diario-historias', 'concluido');
           info.textContent = 'Salvo ✓';
           setTimeout(() => { info.textContent = ''; }, 2500);
         } catch (err) {
@@ -1374,6 +1569,7 @@
         const info = document.getElementById('maSalvoInfo');
         try {
           await salvarMaterialJornada('mapa-ambiente', respostas, 'concluido');
+          atualizarStatusCard('mapa-ambiente', 'concluido');
           info.textContent = 'Salvo ✓';
           setTimeout(() => { info.textContent = ''; }, 2500);
         } catch (err) {

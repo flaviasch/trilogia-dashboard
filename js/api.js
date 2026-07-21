@@ -504,6 +504,16 @@ export async function salvarMaterialJornada(ferramentaId, respostas, status) {
   return call('salvarMaterialJornada')({ uid: uidAtual(), ferramentaId, respostas, status });
 }
 
+/** Registra uma nova decisão financeira (fluxo P.A.R.I.S. + Anti-Impulso). */
+export async function registrarDecisaoFinanceira(descricaoCompra, paris, antiImpulso, decisao) {
+  return call('registrarDecisaoFinanceira')({ uid: uidAtual(), descricaoCompra, paris, antiImpulso, decisao });
+}
+
+/** Lista o histórico de decisões financeiras já registradas. */
+export async function getDecisoesFinanceiras() {
+  return call('getDecisoesFinanceiras')({ uid: uidAtual() });
+}
+
 /** Registra acesso da aluna (chamar no load do dashboard). */
 export const registrarAcesso = call('registrarAcesso');
 
