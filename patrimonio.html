@@ -537,7 +537,7 @@
           </div>
         </div>
         <div class="import-card-buttons">
-          <button class="btn-import" id="btnImportIRIA" style="display:none;">🤖 Importar com IA</button>
+          <button class="btn-import" id="btnImportIRIA">🤖 Importar com IA</button>
           <input type="file" id="csvIR" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
           <button class="btn-import" id="btnImportIR" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" title="Formato antigo — CSV já categorizado">Importar CSV</button>
         </div>
@@ -552,7 +552,7 @@
           </div>
         </div>
         <div class="import-card-buttons">
-          <button class="btn-import" id="btnImportCorretoraIA" style="display:none;">🤖 Importar com IA</button>
+          <button class="btn-import" id="btnImportCorretoraIA">🤖 Importar com IA</button>
           <input type="file" id="csvCorretora" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
           <button class="btn-import" id="btnImportCorretora" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" title="Formato antigo — CSV já categorizado">Importar CSV</button>
         </div>
@@ -567,7 +567,7 @@
           </div>
         </div>
         <div class="import-card-buttons">
-          <button class="btn-import" id="btnImportDividasIA" style="display:none;">🤖 Importar com IA</button>
+          <button class="btn-import" id="btnImportDividasIA">🤖 Importar com IA</button>
           <input type="file" id="csvDividas" class="file-input" accept=".csv,.txt,.md,text/plain,text/csv,text/markdown" />
           <button class="btn-import" id="btnImportDividas" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" title="Formato antigo — CSV já categorizado">Importar CSV</button>
         </div>
@@ -815,7 +815,7 @@
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
       categorizarPatrimonioIA,
-    } from './js/api.js?v=37';
+    } from './js/api.js?v=38';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
     // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se
@@ -1009,19 +1009,10 @@
     let historico = [];
     let corretoraPosicoes = []; // posições nomeadas da corretora (achado 20/07/2026)
 
-    // Ambiente de teste: importação por IA em Patrimônio só liberada para a conta
-    // master e para a conta de teste da Luiza, até validação (17/07/2026).
-    const TEST_ACCESS_EMAILS = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
-
     async function init(user) {
       const _admin = await isAdmin();
       if (!VIEW_AS_UID && _admin && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
       if (_admin) document.getElementById('linkAdmin').style.display = 'inline';
-      if (_admin || TEST_ACCESS_EMAILS.includes(user.email)) {
-        document.getElementById('btnImportIRIA').style.display = '';
-        document.getElementById('btnImportCorretoraIA').style.display = '';
-        document.getElementById('btnImportDividasIA').style.display = '';
-      }
 
       try {
         const [patrimonioData, hist] = await Promise.allSettled([

@@ -54,6 +54,7 @@ const {
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
   emailRaioXJul2026,
+  emailPatrimonioIAJul2026,
   emailJornadaDashboard,
   emailIR,
   emailReenvioAcesso,
@@ -1149,13 +1150,9 @@ exports.categorizarPatrimonioIA = onCall(
     const auth = requireAuth(request);
     const { uid, conteudo, tipoConteudo, modo, origem } = request.data;
     requireSelfOrAdmin(request, uid);
-    // Ambiente de teste: só a conta master e a conta de teste da Luiza até validação.
-    // ATENÇÃO: remover este bloqueio explicitamente quando for liberar geral — não
-    // deixar esquecido (mesmo bug já corrigido 3x no categorizarExtratoIA e no
-    // webhook da Kiwify).
-    if (!auth.token.admin && !TEST_ACCESS_EMAILS.includes(auth.token.email)) {
-      throw new HttpsError('permission-denied', 'Recurso em fase de testes — ainda não liberado para esta conta.');
-    }
+    // Liberado geral em 20/07/2026 (achado: era exatamente esse gate esquecido
+    // que já tinha causado bug 3x no categorizarExtratoIA e no webhook da
+    // Kiwify — removido por completo, não só desativado).
     await checkRateLimit(uid, 'categorizarPatrimonioIA', 10, 600_000);
 
     if (!conteudo || typeof conteudo !== 'string') {
@@ -3553,14 +3550,6 @@ exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) 
 const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
 
 /**
- * Gate temporário de ambiente de teste: implementações novas em validação ficam
- * visíveis só para a conta master e para a conta de teste da Luiza, até a Flávia
- * confirmar e liberar para todas as mentoradas (mesmo padrão usado no Raio-X em
- * 12/07/2026, agora aplicado à extensão de Patrimônio/Investimentos em 17/07/2026).
- */
-const TEST_ACCESS_EMAILS = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
-
-/**
  * Verifica o escopo e validade da Service Account (diagnóstico de segurança).
  * Retorna: email da SA, escopos configurados, se o secret existe.
  */
@@ -5079,6 +5068,31 @@ exports.anunciarRaioXJul2026 = onCall({ secrets: SECRETS_EMAIL }, async (request
   }
   await db.collection('config').doc('comunicados').set(
     { raioXJul2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+exports.anunciarPatrimonioIAJul2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Chegou: importe seu Patrimônio com IA',
+        html:    emailPatrimonioIAJul2026(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarPatrimonioIAJul2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { patrimonioIAJul2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };

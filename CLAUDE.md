@@ -434,3 +434,25 @@ const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
 - Página: `🌙 Mentoria Trilogia Financeira - [Nome]`
 - Estrutura: `Encontro N | Tema | Data` (heading_2) → sub-seções (heading_3) → checkboxes de lição de casa
 - `getNotionCRM` lê e cacheia no Firestore; painel admin exibe no detalhe da mentorada
+
+---
+
+## Ideias em espera — pausadas, sem trabalho iniciado
+
+**Dashboard PJ (empresa da mentorada) — produto separado por assinatura.** Reaproveitar
+a estrutura atual do Dashboard para gerar um segundo login para a mentorada usar na
+pessoa jurídica dela, com categorias próprias de Orçamento no estilo DRE (distribuição
+de lucro, reserva de impostos futuros — diferente das categorias pessoais de hoje). No
+primeiro momento seriam duas contas separadas (pessoa física e PJ), com possível
+unificação de visão no futuro. Resto do desenho fica em aberto, a construir do zero.
+Flávia pediu para **segurar** essa ideia até a leva de Patrimônio/Investimentos (ver
+`raio-x-no-dashboard/BLUEPRINT.md` e `raio-x-no-dashboard/RESUMO-PROJETO.md`) estar
+validada em produção.
+
+**Materiais de jornada dentro do Dashboard.** Trazer para dentro do produto os
+materiais que hoje só existem fora dele: Mapa da Liberdade Financeira (calculadora),
+Mapa da Reserva, Checklist P.A.R.I.S., quiz de vieses comportamentais, checklist
+antiimpulso, desafio dos 7 dias da consciência, diário das histórias com dinheiro,
+plano financeiro comportamental, ambiente financeiro, entregáveis finais. Ainda sem
+decisão de formato (novo módulo? dentro de "Minha Jornada"? like referências que já
+fluem pelo campo `materiais` via Notion?) — discussão parada, não retomada.

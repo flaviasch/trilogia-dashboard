@@ -668,6 +668,50 @@ function emailRaioXJul2026(nome) {
   `);
 }
 
+// ─── Importar Patrimônio com IA — IR, corretora e dívidas — Jul/2026 ──────────
+
+function emailPatrimonioIAJul2026(nome) {
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  const secao = (titulo) =>
+    `<tr><td style="padding:18px 0 6px;">
+      <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Chegou: importe seu Patrimônio com IA</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Declaração de IR, posição da corretora e dívidas agora entram no seu Dashboard do mesmo jeito que o extrato do Orçamento: cole o texto ou envie o PDF/foto, e a IA organiza tudo — sem planilha, sem CSV.
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('🏦 O que mudou')}
+      ${item('🏠','IR e corretora não se misturam mais','A declaração de IR só traz bens não financeiros (imóveis, veículos, bens móveis) — investimentos entram só pela posição da corretora, sempre atualizados.')}
+      ${item('🏦','Mais de uma posição de corretora','Casal ou mais de uma corretora? Cada posição fica separada e nomeada — importar uma nova não apaga a outra, e o total soma todas.')}
+      ${item('🚗','Automóveis e Bens Móveis, separados de Alternativos','Um carro não conta mais como cripto ou COE na tela de patrimônio nem na cobertura das suas Reservas.')}
+      ${item('🔍','Classificação de fundos mais criteriosa','A IA olha a estratégia real do fundo, não só o rótulo do documento — quando não tem certeza, pede pra você confirmar antes de salvar.')}
+      ${item('💳','Dívidas: mais seguro reimportar','Agora avisa antes de substituir a lista, e preserva o checklist de parcelas já pagas das dívidas que continuam existindo.')}
+
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com/patrimonio.html" style="${S.btn}">
+      Ver o Patrimônio →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 // ─── Comunicado Técnico ───────────────────────────────────────────────────────
 
 function emailComunicadoTecnico(nome) {
@@ -1033,6 +1077,7 @@ module.exports = {
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
   emailRaioXJul2026,
+  emailPatrimonioIAJul2026,
   emailJornadaDashboard,
   emailComunicadoTecnico,
   emailIR,

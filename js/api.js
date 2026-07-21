@@ -1006,6 +1006,11 @@ export async function anunciarRaioXJul2026() {
   return call('anunciarRaioXJul2026')({});
 }
 
+/** Dispara e-mail de importar Patrimônio com IA (IR, corretora, dívidas) — Jul/2026. Admin only. */
+export async function anunciarPatrimonioIAJul2026() {
+  return call('anunciarPatrimonioIAJul2026')({});
+}
+
 /** Marca/desmarca lição de casa no Notion. */
 export async function marcarLicaoCasa({ blockId, checked, uid }) {
   return call('marcarLicaoCasa')({ blockId, checked, uid });

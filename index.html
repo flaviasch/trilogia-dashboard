@@ -890,7 +890,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=37';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=38';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
     import { calcularAgregadosOrcamento } from './js/orcamento-calc.js';
@@ -1700,6 +1700,22 @@
           titulo: 'Importe extratos e faturas com IA, direto no Orçamento',
           desc: 'Chega de planilha separada: agora você importa o extrato ou a fatura do cartão direto na aba Orçamento, e a IA classifica cada lançamento automaticamente.',
           cta: { label: 'Importar agora', href: 'orcamento.html' },
+        });
+      }
+
+      // ⓪-h Importar Patrimônio com IA — IR, corretora e dívidas (Jul/2026)
+      if (!localStorage.getItem('notif_patrimonio_ia_jul2026')) {
+        notifs.unshift({ id: 'patrimonio-ia-jul2026', type: 'novidades', key: 'notif_patrimonio_ia_jul2026', icon: '🏦', _expansivel: true,
+          titulo: 'Importe seu Patrimônio com IA — declaração de IR, corretora e dívidas',
+          desc: 'Cole o texto ou envie o PDF/foto: a IA extrai e organiza automaticamente, sem planilha nem CSV.',
+          cta: { label: 'Ver Patrimônio', href: 'patrimonio.html' },
+          itens: [
+            { emoji: '🏠', titulo: 'IR e corretora não se misturam mais', desc: 'A declaração de IR só traz bens não financeiros (imóveis, veículos, bens móveis); investimentos entram só pela corretora, sempre atualizados.' },
+            { emoji: '🏦', titulo: 'Mais de uma posição de corretora', desc: 'Casal ou mais de uma corretora? Cada posição fica separada, nomeada — importar uma nova não apaga a outra.' },
+            { emoji: '🚗', titulo: 'Automóveis e Bens Móveis, separados de Alternativos', desc: 'Carro não conta mais como cripto/COE na tela de patrimônio nem na cobertura das Reservas.' },
+            { emoji: '🔍', titulo: 'Classificação de fundos mais criteriosa', desc: 'A IA olha a estratégia real do fundo, não só o rótulo do documento — quando não tem certeza, pede pra você confirmar antes de salvar.' },
+            { emoji: '💳', titulo: 'Dívidas: mais seguro reimportar', desc: 'Agora avisa antes de substituir, e preserva o checklist de parcelas já pagas das dívidas que continuam existindo.' },
+          ],
         });
       }
 
