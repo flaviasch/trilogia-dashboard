@@ -436,11 +436,22 @@
         <label for="prCompra">Valor da compra em avaliação (R$)</label>
         <input type="text" inputmode="numeric" id="prCompra" placeholder="0" />
       </div>
+      <div class="fj-field-row">
+        <div class="fj-field">
+          <label for="prRenda">Renda mensal líquida (R$) — opcional</label>
+          <input type="text" inputmode="numeric" id="prRenda" placeholder="0" />
+        </div>
+        <div class="fj-field">
+          <label for="prHoras">Horas trabalhadas por semana</label>
+          <input type="text" inputmode="numeric" id="prHoras" placeholder="40" />
+        </div>
+      </div>
 
       <div class="fj-resultado" id="prResultado">
         <div class="fj-resultado-linha"><span>Meses a mais até seu objetivo</span><strong id="prMesesAdicionais">0</strong></div>
         <div class="fj-resultado-linha"><span>Valor futuro se investido</span><strong id="prValorFuturo">R$ 0</strong></div>
         <div class="fj-resultado-linha"><span>% do seu objetivo</span><strong id="prPercentual">0%</strong></div>
+        <div class="fj-resultado-linha" id="prLinhaHoras" style="display:none"><span>Isso equivale a</span><strong id="prHorasTrabalho">0h</strong></div>
       </div>
 
       <div class="fj-modal-acoes">
@@ -753,9 +764,22 @@
       const elAporte     = document.getElementById('prAporte');
       const elTaxa       = document.getElementById('prTaxa');
       const elCompra     = document.getElementById('prCompra');
+      const elRenda      = document.getElementById('prRenda');
+      const elHoras      = document.getElementById('prHoras');
       const elResultado  = document.getElementById('prResultado');
+      const elLinhaHoras = document.getElementById('prLinhaHoras');
 
-      [elPatrimonio, elObjetivo, elAporte, elCompra].forEach(bindMoneyInputFj);
+      [elPatrimonio, elObjetivo, elAporte, elCompra, elRenda].forEach(bindMoneyInputFj);
+
+      // Default de rentabilidade: preenche de verdade (não só placeholder), senão
+      // campo vazio = 0% e o resultado sai errado silenciosamente.
+      elTaxa.value = '0,8';
+
+      // Prefill da renda com a receita do mês atual (Orçamento), editável — mesmo
+      // padrão usado no gasto da Calculadora de Reserva Ideal.
+      getDashboardHome({}).then(d => {
+        if (!salvo?.respostas?.renda && d?.orcamento?.receita) setMoneyFj(elRenda, d.orcamento.receita);
+      }).catch(() => {});
 
       if (salvo?.respostas) {
         const r = salvo.respostas;
@@ -764,6 +788,8 @@
         if (r.aporte)     setMoneyFj(elAporte, r.aporte);
         if (r.compra)     setMoneyFj(elCompra, r.compra);
         if (r.taxa != null) elTaxa.value = String(r.taxa).replace('.', ',');
+        if (r.renda)      setMoneyFj(elRenda, r.renda);
+        if (r.horasSemana) elHoras.value = r.horasSemana;
       }
 
       // Meses até atingir "objetivo" partindo de "patrimonioInicial", com aporte
@@ -784,7 +810,9 @@
         const objetivo   = readMoneyFj(elObjetivo);
         const aporte     = readMoneyFj(elAporte);
         const compra     = readMoneyFj(elCompra);
-        const taxaPct    = parseFloat((elTaxa.value || '0').replace(',', '.')) || 0;
+        const taxaPct    = parseFloat((elTaxa.value || '0,8').replace(',', '.')) || 0.8;
+        const renda      = readMoneyFj(elRenda);
+        const horasSemana = parseFloat((elHoras.value || '').replace(',', '.')) || 40;
         const i = taxaPct / 100;
 
         const mesesA = mesesParaAtingir(patrimonio - compra, objetivo, aporte, i);
@@ -796,10 +824,24 @@
         document.getElementById('prMesesAdicionais').textContent = mesesAdicionais == null ? '—' : `${mesesAdicionais} meses`;
         document.getElementById('prValorFuturo').textContent = brlSimples(valorFuturo);
         document.getElementById('prPercentual').textContent = `${percentual.toFixed(1)}%`;
+
+        // Horas de trabalho: só mostra se ela informou a renda. Semanas/mês = 4,345
+        // (52 semanas ÷ 12 meses), padrão de conversão salário → valor-hora.
+        if (renda > 0 && horasSemana > 0 && compra > 0) {
+          const horasMes  = horasSemana * 4.345;
+          const valorHora = renda / horasMes;
+          const horasCompra = compra / valorHora;
+          document.getElementById('prHorasTrabalho').textContent =
+            horasCompra >= 8 ? `${(horasCompra / 8).toFixed(1)} dias de trabalho` : `${horasCompra.toFixed(1)}h de trabalho`;
+          elLinhaHoras.style.display = '';
+        } else {
+          elLinhaHoras.style.display = 'none';
+        }
+
         elResultado.classList.add('mostrar');
 
         try {
-          await salvarMaterialJornada('preco-real-decisao', { patrimonio, objetivo, aporte, taxa: taxaPct, compra }, 'concluido');
+          await salvarMaterialJornada('preco-real-decisao', { patrimonio, objetivo, aporte, taxa: taxaPct, compra, renda, horasSemana }, 'concluido');
         } catch (err) {
           console.warn('Erro ao salvar calculadora do preço real:', err.message);
         }
