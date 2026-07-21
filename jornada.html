@@ -215,6 +215,74 @@
     }
     .sem-dados strong { color: var(--white); display: block; margin-bottom: 8px; font-size: 16px; }
 
+    /* ─── Ferramentas da Jornada ────────────── */
+    .ferramentas-secao { margin-bottom: 40px; }
+    .ferramentas-titulo {
+      font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .ferramentas-subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+    .ferramentas-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .ferramenta-card {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px; cursor: pointer; transition: border-color .2s, opacity .15s;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .ferramenta-card:hover { border-color: var(--border-gold); opacity: .95; }
+    .ferramenta-card-titulo { font-size: 14px; font-weight: 600; color: var(--white); line-height: 1.4; }
+    .ferramenta-card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; flex: 1; }
+    .ferramenta-status {
+      align-self: flex-start; font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; padding: 3px 9px; border-radius: 20px;
+    }
+    .ferramenta-status.nao_iniciado { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+    .ferramenta-status.em_andamento { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(207,174,101,0.2); }
+    .ferramenta-status.concluido { background: var(--positive-dim); color: var(--positive); border: 1px solid rgba(74,222,128,0.2); }
+
+    /* ─── Modal genérico (ferramentas) ──────── */
+    .fj-modal-backdrop {
+      display: none; position: fixed; inset: 0; z-index: 950;
+      background: rgba(8,15,25,0.7); backdrop-filter: blur(2px);
+      align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto;
+    }
+    .fj-modal-backdrop.aberto { display: flex; }
+    .fj-modal {
+      background: var(--navy); border: 1px solid var(--border-gold); border-radius: 16px;
+      max-width: 480px; width: 100%; padding: 24px; margin-bottom: 40px;
+    }
+    .fj-modal-titulo { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+    .fj-modal-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
+    .fj-field { margin-bottom: 16px; }
+    .fj-field label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+    .fj-field input[type="text"], .fj-field input[type="number"], .fj-field select {
+      width: 100%; background: var(--navy-dark); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; color: var(--white); font-size: 14px;
+      font-family: 'Inter', sans-serif;
+    }
+    .fj-field input:focus, .fj-field select:focus { outline: none; border-color: var(--border-gold); }
+    .fj-field-row { display: flex; gap: 12px; }
+    .fj-field-row .fj-field { flex: 1; }
+    .fj-resultado {
+      background: linear-gradient(135deg, rgba(207,174,101,0.12) 0%, rgba(207,174,101,0.05) 100%);
+      border: 1px solid var(--border-gold); border-radius: 12px; padding: 16px; margin-top: 16px;
+      display: none;
+    }
+    .fj-resultado.mostrar { display: block; }
+    .fj-resultado-linha { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; font-size: 13px; }
+    .fj-resultado-linha strong { color: var(--gold); font-size: 16px; }
+    .fj-modal-acoes { display: flex; gap: 10px; margin-top: 20px; }
+    .fj-btn {
+      flex: 1; padding: 11px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: opacity .15s; border: none;
+    }
+    .fj-btn-primario { background: var(--gold); color: var(--navy); }
+    .fj-btn-secundario { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
+    .fj-btn:hover { opacity: .85; }
+    .fj-btn:disabled { opacity: .4; cursor: not-allowed; }
+
     /* ─── Bottom nav ─────────────────────────── */
     .bottom-nav {
       display: none; position: fixed; bottom: 0; left: 0; right: 0;
@@ -276,6 +344,13 @@
       <div class="sync-info" id="syncInfo"></div>
     </div>
 
+    <!-- Ferramentas da Jornada -->
+    <div class="ferramentas-secao">
+      <div class="ferramentas-titulo">Ferramentas da sua Jornada</div>
+      <div class="ferramentas-subtitulo">Os materiais que você usa nos encontros, agora direto no Dashboard.</div>
+      <div class="ferramentas-grid" id="ferramentasGrid"></div>
+    </div>
+
     <!-- Lições pendentes do último encontro -->
     <div id="cardPendentes" style="display:none" class="card-pendentes">
       <div class="card-pendentes-titulo">
@@ -295,6 +370,85 @@
     <div class="timeline" id="timeline"></div>
 
   </main>
+
+  <!-- Modal: Calculadora de Reserva Ideal -->
+  <div class="fj-modal-backdrop" id="modalReservaIdeal">
+    <div class="fj-modal">
+      <div class="fj-modal-titulo">Calculadora de Reserva Ideal</div>
+      <div class="fj-modal-desc">Quanto você precisa guardar pra ter uma reserva de emergência que te dá segurança de verdade.</div>
+
+      <div class="fj-field">
+        <label for="riGasto">Gasto mensal médio (R$)</label>
+        <input type="text" inputmode="numeric" id="riGasto" placeholder="0" />
+      </div>
+
+      <div class="fj-field">
+        <label for="riPerfil">Seu tipo de renda</label>
+        <select id="riPerfil">
+          <option value="clt">CLT (3 a 6 meses de reserva)</option>
+          <option value="pj">PJ ou autônoma (6 a 12 meses de reserva)</option>
+        </select>
+      </div>
+
+      <div class="fj-field">
+        <label for="riMeses">Meses de cobertura: <span id="riMesesValor">4</span></label>
+        <input type="range" id="riMeses" min="3" max="6" step="1" style="width:100%" />
+      </div>
+
+      <div class="fj-resultado" id="riResultado">
+        <div class="fj-resultado-linha"><span>Reserva sugerida</span><strong id="riValorSugerido">R$ 0</strong></div>
+      </div>
+
+      <div class="fj-modal-acoes">
+        <button class="fj-btn fj-btn-secundario" id="riBtnFechar">Fechar</button>
+        <button class="fj-btn fj-btn-primario" id="riBtnUsar" style="display:none">Usar como minha meta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Calculadora do Preço Real da Decisão -->
+  <div class="fj-modal-backdrop" id="modalPrecoReal">
+    <div class="fj-modal">
+      <div class="fj-modal-titulo">Calculadora do Preço Real da Decisão</div>
+      <div class="fj-modal-desc">Antes de uma compra, veja o que ela custa de verdade: quanto tempo a mais até sua liberdade financeira.</div>
+
+      <div class="fj-field-row">
+        <div class="fj-field">
+          <label for="prPatrimonio">Patrimônio atual (R$)</label>
+          <input type="text" inputmode="numeric" id="prPatrimonio" placeholder="0" />
+        </div>
+        <div class="fj-field">
+          <label for="prObjetivo">Objetivo financeiro (R$)</label>
+          <input type="text" inputmode="numeric" id="prObjetivo" placeholder="0" />
+        </div>
+      </div>
+      <div class="fj-field-row">
+        <div class="fj-field">
+          <label for="prAporte">Aporte mensal (R$)</label>
+          <input type="text" inputmode="numeric" id="prAporte" placeholder="0" />
+        </div>
+        <div class="fj-field">
+          <label for="prTaxa">Rentabilidade mensal (%)</label>
+          <input type="text" inputmode="decimal" id="prTaxa" placeholder="0,8" />
+        </div>
+      </div>
+      <div class="fj-field">
+        <label for="prCompra">Valor da compra em avaliação (R$)</label>
+        <input type="text" inputmode="numeric" id="prCompra" placeholder="0" />
+      </div>
+
+      <div class="fj-resultado" id="prResultado">
+        <div class="fj-resultado-linha"><span>Meses a mais até seu objetivo</span><strong id="prMesesAdicionais">0</strong></div>
+        <div class="fj-resultado-linha"><span>Valor futuro se investido</span><strong id="prValorFuturo">R$ 0</strong></div>
+        <div class="fj-resultado-linha"><span>% do seu objetivo</span><strong id="prPercentual">0%</strong></div>
+      </div>
+
+      <div class="fj-modal-acoes">
+        <button class="fj-btn fj-btn-secundario" id="prBtnFechar">Fechar</button>
+        <button class="fj-btn fj-btn-primario" id="prBtnCalcular">Calcular</button>
+      </div>
+    </div>
+  </div>
 
   <nav class="bottom-nav">
     <a href="index.html" class="bnav-item">
@@ -325,7 +479,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getMinhaJornada, marcarLicaoCasa, getNivelAcesso } from './js/api.js?v=38';
+    import { getMinhaJornada, marcarLicaoCasa, getNivelAcesso, getMateriaisJornada, salvarMaterialJornada, getDashboardHome } from './js/api.js?v=39';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -373,6 +527,7 @@
       if (await isAdmin()) document.getElementById('linkAdmin').style.display = 'inline';
 
       init();
+      initFerramentas();
     });
 
     document.getElementById('btnLogout').addEventListener('click', async () => {
@@ -445,6 +600,214 @@
       }
     }
     window.marcarLicao = marcarLicao;
+
+    // ─── Ferramentas da Jornada (Bloco 1: calculadoras) ─────────────────────
+    // Ver dashboard/MATERIAIS_JORNADA_SPEC.md — só as 2 calculadoras desta
+    // primeira leva. As outras 9 ferramentas entram em blocos seguintes.
+
+    const FERRAMENTAS = [
+      {
+        id: 'calculadora-reserva',
+        titulo: 'Calculadora de Reserva Ideal',
+        desc: 'Descubra quanto você precisa guardar pra ter segurança de verdade.',
+      },
+      {
+        id: 'preco-real-decisao',
+        titulo: 'Calculadora do Preço Real da Decisão',
+        desc: 'Antes de comprar, veja o que isso custa na sua liberdade financeira.',
+      },
+    ];
+
+    function brlSimples(v) {
+      return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    }
+    function bindMoneyInputFj(el) {
+      el.addEventListener('input', () => {
+        const raw = el.value.replace(/\D/g, '');
+        el.value = raw ? parseInt(raw, 10).toLocaleString('pt-BR') : '';
+      });
+    }
+    function readMoneyFj(el) {
+      return parseFloat((el.value || '').replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    function setMoneyFj(el, v) {
+      el.value = (v == null || v === '' || isNaN(+v)) ? '' : Math.round(+v).toLocaleString('pt-BR');
+    }
+
+    async function initFerramentas() {
+      // Renderiza os cards com status salvo
+      let materiaisSalvos = {};
+      try {
+        const r = await getMateriaisJornada();
+        materiaisSalvos = r?.materiais || {};
+      } catch (err) {
+        console.warn('Erro ao carregar materiais da jornada:', err.message);
+      }
+
+      const grid = document.getElementById('ferramentasGrid');
+      grid.innerHTML = FERRAMENTAS.map(f => {
+        const status = materiaisSalvos[f.id]?.status || 'nao_iniciado';
+        const statusTexto = { nao_iniciado: 'Não iniciado', em_andamento: 'Em andamento', concluido: 'Concluído' }[status];
+        return `
+          <div class="ferramenta-card" data-ferramenta="${f.id}">
+            <div class="ferramenta-card-titulo">${f.titulo}</div>
+            <div class="ferramenta-card-desc">${f.desc}</div>
+            <span class="ferramenta-status ${status}">${statusTexto}</span>
+          </div>`;
+      }).join('');
+
+      grid.querySelectorAll('.ferramenta-card').forEach(card => {
+        card.addEventListener('click', () => abrirFerramenta(card.dataset.ferramenta));
+      });
+
+      initModalReservaIdeal(materiaisSalvos['calculadora-reserva']);
+      initModalPrecoReal(materiaisSalvos['preco-real-decisao']);
+    }
+
+    function abrirFerramenta(id) {
+      if (id === 'calculadora-reserva') document.getElementById('modalReservaIdeal').classList.add('aberto');
+      if (id === 'preco-real-decisao') document.getElementById('modalPrecoReal').classList.add('aberto');
+    }
+
+    // ── Calculadora de Reserva Ideal ──
+    function initModalReservaIdeal(salvo) {
+      const modal      = document.getElementById('modalReservaIdeal');
+      const elGasto     = document.getElementById('riGasto');
+      const elPerfil     = document.getElementById('riPerfil');
+      const elMeses      = document.getElementById('riMeses');
+      const elMesesValor = document.getElementById('riMesesValor');
+      const elResultado  = document.getElementById('riResultado');
+      const elValorSugerido = document.getElementById('riValorSugerido');
+      const btnUsar      = document.getElementById('riBtnUsar');
+
+      bindMoneyInputFj(elGasto);
+
+      // Prefill com gasto do mês atual (Orçamento), se disponível
+      getDashboardHome({}).then(d => {
+        if (!elGasto.value && d?.orcamento?.despesa) setMoneyFj(elGasto, d.orcamento.despesa);
+        recalcular();
+      }).catch(() => {});
+
+      // Prefill com o que já foi salvo antes
+      if (salvo?.respostas) {
+        if (salvo.respostas.gasto) setMoneyFj(elGasto, salvo.respostas.gasto);
+        if (salvo.respostas.perfil) elPerfil.value = salvo.respostas.perfil;
+        if (salvo.respostas.meses) elMeses.value = salvo.respostas.meses;
+      }
+
+      function ajustarRangeMeses() {
+        const pj = elPerfil.value === 'pj';
+        elMeses.min = pj ? 6 : 3;
+        elMeses.max = pj ? 12 : 6;
+        if (+elMeses.value < +elMeses.min || +elMeses.value > +elMeses.max) {
+          elMeses.value = pj ? 9 : 4;
+        }
+        elMesesValor.textContent = elMeses.value;
+      }
+
+      function recalcular() {
+        ajustarRangeMeses();
+        const gasto = readMoneyFj(elGasto);
+        const meses = +elMeses.value;
+        const valor = gasto * meses;
+        elMesesValor.textContent = meses;
+        if (gasto > 0) {
+          elValorSugerido.textContent = brlSimples(valor);
+          elResultado.classList.add('mostrar');
+          btnUsar.style.display = '';
+        } else {
+          elResultado.classList.remove('mostrar');
+          btnUsar.style.display = 'none';
+        }
+        return { gasto, meses, valor };
+      }
+
+      elGasto.addEventListener('input', recalcular);
+      elPerfil.addEventListener('change', recalcular);
+      elMeses.addEventListener('input', recalcular);
+      ajustarRangeMeses();
+      recalcular();
+
+      document.getElementById('riBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
+
+      btnUsar.addEventListener('click', async () => {
+        const { gasto, meses, valor } = recalcular();
+        try {
+          await salvarMaterialJornada('calculadora-reserva', { gasto, perfil: elPerfil.value, meses }, 'concluido');
+        } catch (err) {
+          console.warn('Erro ao salvar calculadora de reserva:', err.message);
+        }
+        const va = new URLSearchParams(window.location.search).get('viewAs') || localStorage.getItem('viewAsUid');
+        const params = new URLSearchParams({ metaSugerida: String(Math.round(valor)), nomeSugerido: 'Reserva de Emergência' });
+        if (va) params.set('viewAs', va);
+        window.location.href = `reservas.html?${params.toString()}`;
+      });
+    }
+
+    // ── Calculadora do Preço Real da Decisão ──
+    function initModalPrecoReal(salvo) {
+      const modal = document.getElementById('modalPrecoReal');
+      const elPatrimonio = document.getElementById('prPatrimonio');
+      const elObjetivo   = document.getElementById('prObjetivo');
+      const elAporte     = document.getElementById('prAporte');
+      const elTaxa       = document.getElementById('prTaxa');
+      const elCompra     = document.getElementById('prCompra');
+      const elResultado  = document.getElementById('prResultado');
+
+      [elPatrimonio, elObjetivo, elAporte, elCompra].forEach(bindMoneyInputFj);
+
+      if (salvo?.respostas) {
+        const r = salvo.respostas;
+        if (r.patrimonio) setMoneyFj(elPatrimonio, r.patrimonio);
+        if (r.objetivo)   setMoneyFj(elObjetivo, r.objetivo);
+        if (r.aporte)     setMoneyFj(elAporte, r.aporte);
+        if (r.compra)     setMoneyFj(elCompra, r.compra);
+        if (r.taxa != null) elTaxa.value = String(r.taxa).replace('.', ',');
+      }
+
+      // Meses até atingir "objetivo" partindo de "patrimonioInicial", com aporte
+      // mensal constante e taxa mensal i (fração, não %). Fórmula de valor futuro
+      // de anuidade resolvida para n. Ver MATERIAIS_JORNADA_SPEC.md seção 2.
+      function mesesParaAtingir(patrimonioInicial, objetivo, aporteMensal, i) {
+        if (patrimonioInicial >= objetivo) return 0;
+        if (i === 0) return aporteMensal > 0 ? (objetivo - patrimonioInicial) / aporteMensal : Infinity;
+        const numerador   = objetivo * i + aporteMensal;
+        const denominador = patrimonioInicial * i + aporteMensal;
+        if (denominador <= 0 || numerador <= 0) return Infinity;
+        const n = Math.log(numerador / denominador) / Math.log(1 + i);
+        return n > 0 ? n : 0;
+      }
+
+      document.getElementById('prBtnCalcular').addEventListener('click', async () => {
+        const patrimonio = readMoneyFj(elPatrimonio);
+        const objetivo   = readMoneyFj(elObjetivo);
+        const aporte     = readMoneyFj(elAporte);
+        const compra     = readMoneyFj(elCompra);
+        const taxaPct    = parseFloat((elTaxa.value || '0').replace(',', '.')) || 0;
+        const i = taxaPct / 100;
+
+        const mesesA = mesesParaAtingir(patrimonio - compra, objetivo, aporte, i);
+        const mesesB = mesesParaAtingir(patrimonio, objetivo, aporte, i);
+        const mesesAdicionais = (isFinite(mesesA) && isFinite(mesesB)) ? Math.round(mesesA - mesesB) : null;
+        const valorFuturo = compra * Math.pow(1 + i, isFinite(mesesB) ? mesesB : 0);
+        const percentual = objetivo > 0 ? (valorFuturo / objetivo) * 100 : 0;
+
+        document.getElementById('prMesesAdicionais').textContent = mesesAdicionais == null ? '—' : `${mesesAdicionais} meses`;
+        document.getElementById('prValorFuturo').textContent = brlSimples(valorFuturo);
+        document.getElementById('prPercentual').textContent = `${percentual.toFixed(1)}%`;
+        elResultado.classList.add('mostrar');
+
+        try {
+          await salvarMaterialJornada('preco-real-decisao', { patrimonio, objetivo, aporte, taxa: taxaPct, compra }, 'concluido');
+        } catch (err) {
+          console.warn('Erro ao salvar calculadora do preço real:', err.message);
+        }
+      });
+
+      document.getElementById('prBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
+    }
 
     async function init() {
       let data;

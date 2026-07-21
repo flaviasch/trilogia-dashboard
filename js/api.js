@@ -492,6 +492,18 @@ export async function getMinhaJornada(uid) {
   return adminCall('getMinhaJornada')(uid ? { uid } : {});
 }
 
+// ─── Materiais da Jornada (jornada.html — seção "Ferramentas da sua Jornada") ──
+
+/** Retorna o status/respostas salvas de todas as ferramentas da mentorada. */
+export async function getMateriaisJornada() {
+  return call('getMateriaisJornada')({ uid: uidAtual() });
+}
+
+/** Salva (upsert) o progresso de uma ferramenta da Jornada. */
+export async function salvarMaterialJornada(ferramentaId, respostas, status) {
+  return call('salvarMaterialJornada')({ uid: uidAtual(), ferramentaId, respostas, status });
+}
+
 /** Registra acesso da aluna (chamar no load do dashboard). */
 export const registrarAcesso = call('registrarAcesso');
 

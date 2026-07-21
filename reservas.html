@@ -1015,6 +1015,20 @@
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
       }
+
+      // Veio da Calculadora de Reserva Ideal (jornada.html) com um valor sugerido →
+      // abre o modal de nova reserva já preenchido.
+      const _params = new URLSearchParams(window.location.search);
+      const _metaSugerida = _params.get('metaSugerida');
+      if (_metaSugerida) {
+        requestAnimationFrame(() => {
+          abrirModal();
+          const nomeSugerido = _params.get('nomeSugerido');
+          if (nomeSugerido) document.getElementById('rNome').value = nomeSugerido;
+          setMoney(document.getElementById('rMeta'), +_metaSugerida);
+          atualizarPreview();
+        });
+      }
     }
 
     // ─── Cobertura: patrimônio financeiro × soma de acumulados ───────────────
