@@ -551,7 +551,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboardHome, getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira, getMinhaJornada } from './js/api.js?v=40';
+    import { getDashboardHome, getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira, getMinhaJornada, PATRIMONIO_COR } from './js/api.js?v=40';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -566,10 +566,35 @@
     let _souAdmin = false;
 
     // Patrimônio considerado no Mapa da Liberdade é só o financeiro (investimentos),
-    // valor bruto — mesma whitelist de classes usada em patrimonio.html. Imóveis,
-    // veículos, bens e dívidas não entram (22/07/2026).
-    const CLASSES_FINANCEIRAS = new Set(['pos', 'infl', 'pre', 'rv', 'mm', 'int']);
-    const CLASSE_LABEL = { pos: 'RF Pós', infl: 'RF Inflação', pre: 'RF Pré', mm: 'Multimercado', rv: 'Renda Variável', int: 'Internacional' };
+    // valor bruto. Imóveis, veículos, bens e dívidas não entram (22/07/2026).
+    //
+    // Achado 22/07/2026 (bug real, reportado por Flávia com conta que tinha
+    // investimentos detalhados por classe e ainda assim via R$0 aqui): o campo
+    // `classe` de um ativo raramente é só o código curto ('rv','pos'...) — a
+    // extração por IA em patrimonio.html grava a classe como o rótulo completo
+    // ("Renda Variável", "RF Pós (liquidez diária)" etc, ver systemPrompt de
+    // `categorizarPatrimonioIA` em functions/index.js), e itens revisados
+    // manualmente também podem vir com esse rótulo. O resto do sistema
+    // (resolverClasse em patrimonio.html, resolverCodigo em reservas.html) já
+    // resolve isso via PATRIMONIO_COR (mapa de variantes → código curto) — o
+    // Mapa da Liberdade nunca tinha adotado esse padrão, então comparava só o
+    // código exato e perdia praticamente todo investimento importado por IA.
+    // Mesmo padrão de reservas.html: CLASS_TO_LABEL (código → label, null pra
+    // não-financeiro) + resolverCodigo (código direto → PATRIMONIO_COR).
+    const CLASS_TO_LABEL = {
+      pos: 'RF Pós', infl: 'RF Inflação', pre: 'RF Pré', rv: 'Renda Variável',
+      mm: 'Multimercado', int: 'Internacional', alt: 'Alternativos',
+      imov: null, auto: null, bens: null, // não-financeiro, nunca entra no motor
+    };
+    function resolverCodigoClasse(classe) {
+      const classeLC = String(classe || '').toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(CLASS_TO_LABEL, classeLC)) return classeLC;
+      return PATRIMONIO_COR[classeLC] || null;
+    }
+    function ehAtivoFinanceiro(a) {
+      const codigo = resolverCodigoClasse(a.classe);
+      return !!codigo && CLASS_TO_LABEL[codigo] != null;
+    }
 
     // Propaga viewAs para links de volta ao dashboard, mesmo padrão de jornada.html
     {
@@ -955,7 +980,7 @@
       try {
         const p = await getPatrimonio();
         const ativos = Array.isArray(p?.ativos) ? p.ativos : [];
-        const financeiros = ativos.filter(a => CLASSES_FINANCEIRAS.has(a.classe));
+        const financeiros = ativos.filter(ehAtivoFinanceiro);
         const totalFinanceiro = financeiros.reduce((s, a) => s + (a.valor || 0), 0);
         const elPatrimonioNota = document.getElementById('investimentosNota');
 
@@ -966,12 +991,18 @@
           document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Nenhum investimento detalhado por classe ainda.</span></div>';
           if (elPatrimonioNota) elPatrimonioNota.textContent = 'Você ainda não detalhou seus investimentos por classe em Patrimônio, então não dá pra puxar automático. Preencha o valor manualmente no campo abaixo, ou detalhe por classe em Patrimônio pra isso vir automático da próxima vez.';
         } else {
-          if (elPatrimonioNota) elPatrimonioNota.textContent = 'Só ativos financeiros (RF, multimercado, renda variável, internacional) — é este valor que entra como base no motor de simulação.';
+          if (elPatrimonioNota) elPatrimonioNota.textContent = 'Só ativos financeiros (RF, multimercado, renda variável, internacional, alternativos) — é este valor que entra como base no motor de simulação.';
+          // Agrupa pelo CÓDIGO resolvido (não pela string crua de a.classe) —
+          // senão "Renda Variável", "RENDA VARIAVEL" e "rv" apareciam como 3
+          // linhas separadas em vez de somadas numa só.
           const porClasse = {};
-          financeiros.forEach(a => { porClasse[a.classe] = (porClasse[a.classe] || 0) + (a.valor || 0); });
+          financeiros.forEach(a => {
+            const codigo = resolverCodigoClasse(a.classe);
+            porClasse[codigo] = (porClasse[codigo] || 0) + (a.valor || 0);
+          });
           document.getElementById('investimentosLista').innerHTML = Object.entries(porClasse)
             .sort((a, b) => b[1] - a[1])
-            .map(([classe, valor]) => `<div class="info-readonly"><span>${CLASSE_LABEL[classe] || classe}</span><strong>${brl(valor)}</strong></div>`)
+            .map(([codigo, valor]) => `<div class="info-readonly"><span>${CLASS_TO_LABEL[codigo] || codigo}</span><strong>${brl(valor)}</strong></div>`)
             .join('');
         }
       } catch (err) {
@@ -1270,6 +1301,16 @@
 
         renderizarGrafico(r, pessoas);
         _ultimoPatrimonioConsumo = r.patrimonioConsumo;
+        // Data objetivo sugerida pra reserva = data da aposentadoria (Pessoa 1
+        // como referência, mesmo critério usado no resto da ferramenta pra
+        // casal). Formato YYYY-MM, mesmo formato do campo "Data objetivo" em
+        // reservas.html (input type="month").
+        {
+          const anos = Math.max(0, p1IdadeAposentadoria - p1IdadeAtual);
+          const hoje = new Date();
+          const dataAlvo = new Date(hoje.getFullYear() + anos, hoje.getMonth(), 1);
+          _ultimaDataAposentadoria = `${dataAlvo.getFullYear()}-${String(dataAlvo.getMonth() + 1).padStart(2, '0')}`;
+        }
 
         document.getElementById('resultadoCard').classList.add('mostrar');
         document.getElementById('resultadoCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1288,10 +1329,21 @@
     // o Patrimônio necessário (consumo) como meta sugerida — é o mínimo pra
     // não ficar "Inadequado", mais acionável que a preservação/perpetuidade.
     let _ultimoPatrimonioConsumo = null;
+    let _ultimaDataAposentadoria = null;
     document.getElementById('btnUsarComoReserva').addEventListener('click', () => {
       if (!_ultimoPatrimonioConsumo) return;
       const va = new URLSearchParams(window.location.search).get('viewAs') || localStorage.getItem('viewAsUid');
-      const params = new URLSearchParams({ metaSugerida: String(Math.round(_ultimoPatrimonioConsumo)), nomeSugerido: 'Liberdade Financeira' });
+      // origemLiberdade=1 diz pra reservas.html: se já existir reserva chamada
+      // "Liberdade Financeira", atualiza ela (meta + data) em vez de criar uma
+      // nova; senão, oferece a opção de vincular a alguma reserva já existente
+      // (ex: uma "Aposentadoria" cadastrada manualmente antes desta ferramenta
+      // existir) — achado 22/07/2026, Flávia testando com reserva já criada.
+      const params = new URLSearchParams({
+        metaSugerida: String(Math.round(_ultimoPatrimonioConsumo)),
+        nomeSugerido: 'Liberdade Financeira',
+        origemLiberdade: '1',
+      });
+      if (_ultimaDataAposentadoria) params.set('dataSugerida', _ultimaDataAposentadoria);
       if (va) params.set('viewAs', va);
       window.location.href = `reservas.html?${params.toString()}`;
     });

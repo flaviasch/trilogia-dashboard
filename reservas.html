@@ -544,6 +544,19 @@
       <h2 class="modal-title" id="modalTitle">Nova reserva</h2>
       <p class="modal-sub">A alocação sugerida é calculada automaticamente pelo prazo.</p>
 
+      <!-- Só aparece vindo do Mapa da Liberdade Financeira, quando ainda não
+           existe reserva "Liberdade Financeira" pra atualizar direto — deixa
+           escolher vincular a uma reserva já existente (ex: uma reserva de
+           aposentadoria criada manualmente antes desta ferramenta) em vez de
+           criar uma duplicada. -->
+      <div class="field-group hidden" id="fgVincularLiberdade">
+        <label for="rVincularExistente">Já tem uma reserva pra isso?</label>
+        <select id="rVincularExistente">
+          <option value="">+ Criar reserva nova</option>
+        </select>
+        <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Se escolher uma reserva existente, ela é atualizada (nome, meta e data) em vez de criar uma nova.</p>
+      </div>
+
       <div class="field-group" id="fgNome">
         <label for="rNome">Nome da reserva</label>
         <input type="text" id="rNome" placeholder="ex: Viagem Europa, Fundo de emergência…" />
@@ -1016,20 +1029,75 @@
         });
       }
 
-      // Veio da Calculadora de Reserva Ideal (jornada.html) com um valor sugerido →
-      // abre o modal de nova reserva já preenchido.
+      // Veio da Calculadora de Reserva Ideal (jornada.html) ou do Mapa da
+      // Liberdade Financeira (liberdade.html) com um valor sugerido → abre o
+      // modal já preenchido.
       const _params = new URLSearchParams(window.location.search);
       const _metaSugerida = _params.get('metaSugerida');
       if (_metaSugerida) {
-        requestAnimationFrame(() => {
-          abrirModal();
-          const nomeSugerido = _params.get('nomeSugerido');
+        const nomeSugerido  = _params.get('nomeSugerido') || '';
+        const dataSugerida  = _params.get('dataSugerida') || '';
+        const origemLiberdade = _params.get('origemLiberdade') === '1';
+
+        const aplicarSugestao = () => {
           if (nomeSugerido) document.getElementById('rNome').value = nomeSugerido;
           setMoney(document.getElementById('rMeta'), +_metaSugerida);
+          if (dataSugerida) document.getElementById('rDataMeta').value = dataSugerida;
           atualizarPreview();
+        };
+
+        requestAnimationFrame(() => {
+          if (!origemLiberdade) {
+            abrirModal();
+            aplicarSugestao();
+            return;
+          }
+
+          // Mapa da Liberdade: acha reserva já chamada "Liberdade Financeira"
+          // (achado 22/07/2026, Flávia: quer que recálculos sucessivos
+          // atualizem a MESMA reserva em vez de duplicar a cada clique).
+          const existente = reservas.find(r => r.nome.trim().toLowerCase() === 'liberdade financeira');
+          if (existente) {
+            abrirModal(existente.id);
+            aplicarSugestao();
+            return;
+          }
+
+          // Primeira vez: sem reserva "Liberdade Financeira" ainda. Abre nova,
+          // mas oferece vincular a alguma reserva já existente (ex: uma
+          // "Aposentadoria" cadastrada manualmente antes desta ferramenta) —
+          // nesse caso ela é renomeada e atualizada, não duplicada.
+          abrirModal();
+          aplicarSugestao();
+          if (reservas.length) {
+            const sel = document.getElementById('rVincularExistente');
+            sel.innerHTML = '<option value="">+ Criar reserva nova</option>' +
+              reservas.map(r => `<option value="${r.id}">${r.nome} (${brl(r.meta)})</option>`).join('');
+            sel.value = '';
+            document.getElementById('fgVincularLiberdade').classList.remove('hidden');
+          }
         });
       }
     }
+
+    // Ao escolher uma reserva existente no seletor "Já tem uma reserva pra
+    // isso?", troca o modal pra modo edição daquela reserva, mantendo a
+    // sugestão (nome/meta/data) vinda do Mapa da Liberdade.
+    document.getElementById('rVincularExistente')?.addEventListener('change', function() {
+      const _params = new URLSearchParams(window.location.search);
+      const nomeSugerido = _params.get('nomeSugerido') || '';
+      const metaSugerida = _params.get('metaSugerida') || '';
+      const dataSugerida = _params.get('dataSugerida') || '';
+      abrirModal(this.value || null);
+      if (nomeSugerido) document.getElementById('rNome').value = nomeSugerido;
+      if (metaSugerida) setMoney(document.getElementById('rMeta'), +metaSugerida);
+      if (dataSugerida) document.getElementById('rDataMeta').value = dataSugerida;
+      atualizarPreview();
+      // abrirModal() re-mostra o modal do zero — mantém o seletor visível,
+      // já que resetModal() não mexe nele (o próprio navegador preserva a
+      // seleção do dropdown sozinho, não precisa reatribuir).
+      document.getElementById('fgVincularLiberdade').classList.remove('hidden');
+    });
 
     // ─── Cobertura: patrimônio financeiro × soma de acumulados ───────────────
     function totalFinanceiro() {
