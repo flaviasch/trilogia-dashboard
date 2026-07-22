@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mapa da Liberdade Financeira — Trilogia Dashboard</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45;
+      --navy-dark: #081e30;
+      --navy-mid: #0f3352;
+      --gold: #CFAE65;
+      --gold-light: #e8d49b;
+      --gold-dim: rgba(207,174,101,0.15);
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.08);
+      --border-gold: rgba(207,174,101,0.2);
+      --positive: #4ade80;
+      --positive-dim: rgba(74,222,128,0.12);
+      --negative: #f87171;
+      --negative-dim: rgba(248,113,113,0.12);
+      --text-muted: rgba(255,255,255,0.45);
+      --text-secondary: rgba(255,255,255,0.65);
+    }
+
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+
+    /* ─── Navbar ─────────────────────────────── */
+    .navbar {
+      background: var(--navy); border-bottom: 1px solid var(--border);
+      padding: 0 32px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--white); }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0; }
+    .navbar-right { display: flex; align-items: center; gap: 16px; }
+    .user-name { font-size: 14px; color: var(--text-secondary); }
+    .btn-logout {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 14px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
+    }
+    .btn-logout:hover { border-color: var(--border-gold); color: var(--gold); }
+
+    /* ─── Layout ─────────────────────────────── */
+    .main { max-width: 720px; margin: 0 auto; padding: 40px 24px 120px; }
+
+    /* ─── Loading ────────────────────────────── */
+    .loading-overlay {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: calc(100vh - 64px);
+      gap: 16px; color: var(--text-muted); font-size: 14px;
+    }
+    .spinner {
+      width: 32px; height: 32px; border: 2px solid var(--border);
+      border-top-color: var(--gold); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Page header ────────────────────────── */
+    .page-header { margin-bottom: 28px; }
+    .page-header h1 { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+    .page-header p { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+
+    /* ─── Tabs ───────────────────────────────── */
+    .tabs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+    .tab-btn {
+      background: none; border: none; color: var(--text-muted); font-family: 'Inter', sans-serif;
+      font-size: 13px; font-weight: 600; padding: 10px 14px; cursor: pointer; white-space: nowrap;
+      border-bottom: 2px solid transparent; transition: all .15s;
+    }
+    .tab-btn.ativa { color: var(--gold); border-bottom-color: var(--gold); }
+    .tab-btn:hover { color: var(--gold-light); }
+    .tab-painel { display: none; }
+    .tab-painel.ativa { display: block; }
+
+    /* ─── Cards / campos ─────────────────────── */
+    .card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+    .card-titulo { font-size: 14px; font-weight: 600; color: var(--gold); margin-bottom: 12px; }
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; }
+    .field input[type="text"], .field input[type="number"], .field input[type="date"], .field select {
+      width: 100%; background: var(--navy-dark); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; color: var(--white); font-size: 13px;
+      font-family: 'Inter', sans-serif;
+    }
+    .field input:focus, .field select:focus { outline: none; border-color: var(--border-gold); }
+    .field-row { display: flex; gap: 10px; }
+    .field-row .field { flex: 1; }
+    .field-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; cursor: pointer; }
+    .field-check input { width: 17px; height: 17px; accent-color: var(--gold); }
+
+    .info-readonly {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+    }
+    .info-readonly:last-child { border-bottom: none; }
+    .info-readonly strong { color: var(--gold); font-size: 15px; }
+    .info-link { font-size: 12px; color: var(--gold-light); text-decoration: underline; }
+
+    .item-lista { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; position: relative; }
+    .item-lista-remover {
+      position: absolute; top: 10px; right: 10px; background: none; border: none;
+      color: var(--text-muted); cursor: pointer; font-size: 16px;
+    }
+    .item-lista-remover:hover { color: var(--negative); }
+    .btn-adicionar {
+      background: none; border: 1px dashed var(--border); color: var(--text-secondary);
+      border-radius: 8px; padding: 9px 14px; font-size: 12px; cursor: pointer; width: 100%;
+      font-family: 'Inter', sans-serif;
+    }
+    .btn-adicionar:hover { border-color: var(--border-gold); color: var(--gold); }
+
+    .btn-primario {
+      background: var(--gold); color: var(--navy); border: none; border-radius: 8px;
+      padding: 13px; font-size: 14px; font-weight: 700; cursor: pointer; width: 100%;
+      font-family: 'Inter', sans-serif; margin-top: 8px;
+    }
+    .btn-primario:hover { opacity: .9; }
+    .btn-primario:disabled { opacity: .5; cursor: not-allowed; }
+
+    .resultado-card {
+      background: linear-gradient(135deg, rgba(207,174,101,0.12) 0%, rgba(207,174,101,0.05) 100%);
+      border: 1px solid var(--border-gold); border-radius: 16px; padding: 22px; margin-top: 24px; display: none;
+    }
+    .resultado-card.mostrar { display: block; }
+    .resultado-diagnostico { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+    .resultado-diagnostico.inadequado { color: var(--negative); }
+    .resultado-diagnostico.adequado { color: var(--gold); }
+    .resultado-diagnostico.confortavel { color: var(--positive); }
+    .resultado-texto { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px; }
+    .resultado-linha { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .resultado-linha:last-child { border-bottom: none; }
+    .resultado-linha strong { color: var(--white); }
+    .resultado-nota { font-size: 11px; color: var(--text-muted); margin-top: 14px; line-height: 1.5; }
+
+    .erro-msg { font-size: 12px; color: var(--negative); margin-top: 10px; text-align: center; }
+
+    /* ─── Bottom nav ─────────────────────────── */
+    .bottom-nav {
+      display: none; position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--navy); border-top: 1px solid var(--border);
+      padding: 8px 0 12px; z-index: 100;
+      justify-content: space-around; align-items: center;
+    }
+    .bnav-item {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      font-size: 11px; color: var(--text-muted); text-decoration: none;
+      transition: color 0.2s; padding: 4px 12px;
+    }
+    .bnav-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+    .bnav-item.active, .bnav-item:hover { color: var(--gold); }
+    .bnav-item:visited { color: var(--text-muted); }
+    .bnav-item.active:visited { color: var(--gold); }
+
+    @media (max-width: 640px) {
+      .bottom-nav { display: flex; }
+      .main { padding-bottom: 100px; }
+      .navbar { padding: 0 16px; }
+      .user-name { display: none; }
+    }
+  </style>
+  <script>window.sentryOnLoad=function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0,allowUrls:['dashboard.flaviaschusciman.com','localhost'],ignoreErrors:['Script error.','Script error','Non-Error promise rejection captured']});};</script>
+  <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div style="display:flex;align-items:center;gap:20px">
+      <span class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>Dashboard</span></span>
+      <a href="jornada.html" style="font-size:13px;color:var(--text-muted);text-decoration:none;transition:color .2s" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">← Jornada</a>
+    </div>
+    <div class="navbar-right">
+      <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
+      <span class="user-name" id="userDisplayName"></span>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </nav>
+
+  <div id="viewAsBanner" style="display:none; background:rgba(207,174,101,0.12); border-bottom:1px solid rgba(207,174,101,0.3); padding:10px 32px; font-size:13px; color:#CFAE65; gap:12px; align-items:center;">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html" style="color:#CFAE65; text-decoration:underline; margin-left:auto">← Voltar ao admin</a>
+  </div>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Carregando...</span>
+  </div>
+
+  <main class="main" id="mainContent" style="display:none">
+
+    <div class="page-header">
+      <h1>Mapa da <span style="color:var(--gold)">Liberdade Financeira</span></h1>
+      <p>Preencha os dados abaixo e veja se seu planejamento atual te leva até a liberdade financeira — e o que falta pra chegar lá.</p>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab-btn ativa" data-tab="pessoal">Informações Pessoais</button>
+      <button class="tab-btn" data-tab="patrimonio">Patrimônio</button>
+      <button class="tab-btn" data-tab="investimentos">Investimentos</button>
+      <button class="tab-btn" data-tab="objetivos">Objetivos</button>
+      <button class="tab-btn" data-tab="rendas">Rendas e Despesas</button>
+      <button class="tab-btn" data-tab="premissas">Premissas</button>
+    </div>
+
+    <!-- Aba: Informações Pessoais -->
+    <div class="tab-painel ativa" id="painel-pessoal">
+      <label class="field-check">
+        <input type="checkbox" id="temParceiro" />
+        Fazer o planejamento em casal (2 pessoas)
+      </label>
+
+      <div class="card">
+        <div class="card-titulo" id="p1Titulo">Você</div>
+        <div class="field">
+          <label for="p1Nome">Nome (opcional)</label>
+          <input type="text" id="p1Nome" placeholder="Seu nome" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="p1IdadeAtual">Idade atual</label>
+            <input type="number" id="p1IdadeAtual" min="18" max="100" />
+          </div>
+          <div class="field">
+            <label for="p1IdadeAposentadoria">Idade-alvo p/ liberdade</label>
+            <input type="number" id="p1IdadeAposentadoria" min="18" max="100" />
+          </div>
+          <div class="field">
+            <label for="p1ExpectativaVida">Expectativa de vida</label>
+            <input type="number" id="p1ExpectativaVida" min="18" max="120" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="cardPessoa2" style="display:none">
+        <div class="card-titulo">Parceiro(a)</div>
+        <div class="field">
+          <label for="p2Nome">Nome (opcional)</label>
+          <input type="text" id="p2Nome" placeholder="Nome do parceiro(a)" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="p2IdadeAtual">Idade atual</label>
+            <input type="number" id="p2IdadeAtual" min="18" max="100" />
+          </div>
+          <div class="field">
+            <label for="p2IdadeAposentadoria">Idade-alvo p/ liberdade</label>
+            <input type="number" id="p2IdadeAposentadoria" min="18" max="100" />
+          </div>
+          <div class="field">
+            <label for="p2ExpectativaVida">Expectativa de vida</label>
+            <input type="number" id="p2ExpectativaVida" min="18" max="120" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-titulo">Aposentadoria (obrigatório)</div>
+        <div class="field">
+          <label for="rendaDesejada">Renda mensal desejada na aposentadoria (R$)</label>
+          <input type="text" inputmode="numeric" id="rendaDesejada" placeholder="0" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba: Patrimônio -->
+    <div class="tab-painel" id="painel-patrimonio">
+      <div class="card">
+        <div class="card-titulo">Patrimônio atual</div>
+        <div class="info-readonly">
+          <span>Patrimônio líquido total (ativos − dívidas)</span>
+          <strong id="patrimonioValor">—</strong>
+        </div>
+        <div class="field" style="margin-top:14px">
+          <label for="patrimonioAjuste">Ajustar valor pra esta simulação (opcional)</label>
+          <input type="text" inputmode="numeric" id="patrimonioAjuste" placeholder="Deixe em branco pra usar o valor acima" />
+        </div>
+        <a class="info-link" href="patrimonio.html" target="_blank">Ver detalhe no Patrimônio →</a>
+      </div>
+    </div>
+
+    <!-- Aba: Investimentos -->
+    <div class="tab-painel" id="painel-investimentos">
+      <div class="card">
+        <div class="card-titulo">Investimentos e bens (referência)</div>
+        <div id="investimentosLista"><div class="info-readonly"><span>Carregando...</span></div></div>
+        <a class="info-link" href="patrimonio.html" target="_blank" style="margin-top:12px; display:inline-block">Ver detalhe no Patrimônio →</a>
+      </div>
+    </div>
+
+    <!-- Aba: Objetivos -->
+    <div class="tab-painel" id="painel-objetivos">
+      <div class="card">
+        <div class="card-titulo">Objetivos extras (até 3, além da aposentadoria)</div>
+        <div id="objetivosLista"></div>
+        <button class="btn-adicionar" id="btnAdicionarObjetivo">+ Adicionar objetivo</button>
+      </div>
+    </div>
+
+    <!-- Aba: Rendas e Despesas -->
+    <div class="tab-painel" id="painel-rendas">
+      <div class="card">
+        <div class="card-titulo">Rendas e despesas</div>
+        <div id="rendasLista"></div>
+        <button class="btn-adicionar" id="btnAdicionarRenda">+ Adicionar renda ou despesa</button>
+      </div>
+    </div>
+
+    <!-- Aba: Premissas -->
+    <div class="tab-painel" id="painel-premissas">
+      <div class="card">
+        <div class="card-titulo">Premissas da simulação</div>
+        <div class="field">
+          <label for="taxaReal">Taxa real de retorno esperada (% ao mês)</label>
+          <input type="text" inputmode="decimal" id="taxaReal" placeholder="0,8" />
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-primario" id="btnCalcular">Calcular meu planejamento</button>
+    <div class="erro-msg" id="erroMsg"></div>
+
+    <div class="resultado-card" id="resultadoCard">
+      <div class="resultado-diagnostico" id="resDiagnostico"></div>
+      <div class="resultado-texto" id="resTexto"></div>
+      <div class="resultado-linha"><span>Patrimônio projetado na aposentadoria</span><strong id="resPatrimonioAposentadoria">—</strong></div>
+      <div class="resultado-linha"><span>Patrimônio necessário (consumo até expectativa de vida)</span><strong id="resPatrimonioConsumo">—</strong></div>
+      <div class="resultado-linha"><span>Patrimônio necessário (preservação/perpetuidade)</span><strong id="resPatrimonioPreservacao">—</strong></div>
+      <div class="resultado-linha" id="resLinhaAporte" style="display:none"><span>Aporte mensal adicional sugerido</span><strong id="resAporteAdicional">—</strong></div>
+      <div class="resultado-nota">Gráfico de evolução do patrimônio ao longo do tempo chega numa próxima atualização.</div>
+    </div>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="index.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Início
+    </a>
+    <a href="orcamento.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/></svg>
+      Orçamento
+    </a>
+    <a href="patrimonio.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Patrimônio
+    </a>
+    <a href="reservas.html" class="bnav-item">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Reservas
+    </a>
+    <a href="jornada.html" class="bnav-item active">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Jornada
+    </a>
+    <a href="clube.html" class="bnav-item link-clube" id="linkClube" style="display:none">
+      <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Clube
+    </a>
+  </nav>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getDashboardHome, getPatrimonio, getMateriaisJornada, simularLiberdadeFinanceira } from './js/api.js?v=40';
+    import { isAdmin } from './js/admin-guard.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+    // Propaga viewAs para links de volta ao dashboard, mesmo padrão de jornada.html
+    {
+      const _vaSync = new URLSearchParams(window.location.search).get('viewAs')
+                   || localStorage.getItem('viewAsUid');
+      if (_vaSync) {
+        document.querySelectorAll('a[href^="jornada.html"]').forEach(a => {
+          const h = a.getAttribute('href');
+          if (!h.includes('viewAs=')) a.setAttribute('href', h + (h.includes('?') ? '&' : '?') + `viewAs=${_vaSync}`);
+        });
+      }
+    }
+
+    function brl(v) {
+      return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    }
+    function bindMoneyInput(el) {
+      el.addEventListener('input', () => {
+        const raw = el.value.replace(/\D/g, '');
+        el.value = raw ? parseInt(raw, 10).toLocaleString('pt-BR') : '';
+      });
+    }
+    function readMoney(el) {
+      return parseFloat((el.value || '').replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    function setMoney(el, v) {
+      el.value = (v == null || v === '' || isNaN(+v)) ? '' : Math.round(+v).toLocaleString('pt-BR');
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login.html'; return; }
+      document.getElementById('userDisplayName').textContent = user.displayName || user.email;
+
+      const _va = new URLSearchParams(window.location.search).get('viewAs')
+               || localStorage.getItem('viewAsUid');
+      if (_va) {
+        document.getElementById('viewAsBanner').style.display = 'flex';
+        document.querySelectorAll('a[href]').forEach(a => {
+          const href = a.getAttribute('href') || '';
+          if (!href || href.startsWith('http') || href.includes('viewAs=')) return;
+          a.setAttribute('href', href + (href.includes('?') ? '&' : '?') + `viewAs=${_va}`);
+        });
+      }
+
+      if (await isAdmin()) document.getElementById('linkAdmin').style.display = 'inline';
+
+      init();
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login.html';
+    });
+
+    // ─── Tabs ────────────────────────────────────────────────────────────────
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('ativa'));
+        document.querySelectorAll('.tab-painel').forEach(p => p.classList.remove('ativa'));
+        btn.classList.add('ativa');
+        document.getElementById(`painel-${btn.dataset.tab}`).classList.add('ativa');
+      });
+    });
+
+    // ─── Casal toggle ────────────────────────────────────────────────────────
+    document.getElementById('temParceiro').addEventListener('change', (e) => {
+      document.getElementById('cardPessoa2').style.display = e.target.checked ? '' : 'none';
+      document.getElementById('p1Titulo').textContent = e.target.checked ? 'Você' : 'Você';
+    });
+
+    bindMoneyInput(document.getElementById('rendaDesejada'));
+    bindMoneyInput(document.getElementById('patrimonioAjuste'));
+
+    // ─── Objetivos extras (até 3) ────────────────────────────────────────────
+    let _objetivoSeq = 0;
+    function criarLinhaObjetivo(dados = {}) {
+      const id = `obj_${_objetivoSeq++}`;
+      const div = document.createElement('div');
+      div.className = 'item-lista';
+      div.dataset.id = id;
+      div.innerHTML = `
+        <button type="button" class="item-lista-remover" title="Remover">×</button>
+        <div class="field">
+          <label>Descrição</label>
+          <input type="text" class="objDescricao" placeholder="Ex: comprar imóvel, faculdade dos filhos..." value="${(dados.descricao || '').replace(/"/g, '&quot;')}" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Atribuído a</label>
+            <select class="objAtribuidoA">
+              <option value="p1">Pessoa 1</option>
+              <option value="p2">Pessoa 2</option>
+              <option value="casal">Casal</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Valor (R$)</label>
+            <input type="text" inputmode="numeric" class="objValor" placeholder="0" />
+          </div>
+          <div class="field">
+            <label>Idade de atingimento</label>
+            <input type="number" class="objIdade" min="0" max="120" value="${dados.idadeAtingimento || ''}" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Frequência</label>
+            <select class="objFrequencia">
+              <option value="unica">Única</option>
+              <option value="parcelada">Parcelada (anual)</option>
+            </select>
+          </div>
+          <div class="field objNumOcorrenciasWrap" style="display:none">
+            <label>Nº de parcelas</label>
+            <input type="number" class="objNumOcorrencias" min="1" max="30" value="${dados.numOcorrencias || 1}" />
+          </div>
+        </div>`;
+      document.getElementById('objetivosLista').appendChild(div);
+      const elValor = div.querySelector('.objValor');
+      bindMoneyInput(elValor);
+      if (dados.valor) setMoney(elValor, dados.valor);
+      if (dados.atribuidoA) div.querySelector('.objAtribuidoA').value = dados.atribuidoA;
+      if (dados.frequencia) div.querySelector('.objFrequencia').value = dados.frequencia;
+      div.querySelector('.objFrequencia').addEventListener('change', (e) => {
+        div.querySelector('.objNumOcorrenciasWrap').style.display = e.target.value === 'parcelada' ? '' : 'none';
+      });
+      if (dados.frequencia === 'parcelada') div.querySelector('.objNumOcorrenciasWrap').style.display = '';
+      div.querySelector('.item-lista-remover').addEventListener('click', () => div.remove());
+    }
+    document.getElementById('btnAdicionarObjetivo').addEventListener('click', () => {
+      if (document.querySelectorAll('#objetivosLista .item-lista').length >= 3) {
+        alert('Máximo de 3 objetivos extras nesta versão.');
+        return;
+      }
+      criarLinhaObjetivo();
+    });
+
+    // ─── Rendas e Despesas ───────────────────────────────────────────────────
+    let _rendaSeq = 0;
+    function criarLinhaRenda(dados = {}) {
+      const id = `rd_${_rendaSeq++}`;
+      const div = document.createElement('div');
+      div.className = 'item-lista';
+      div.dataset.id = id;
+      div.innerHTML = `
+        <button type="button" class="item-lista-remover" title="Remover">×</button>
+        <div class="field">
+          <label>Descrição</label>
+          <input type="text" class="rdDescricao" placeholder="Ex: salário, aluguel, aporte..." value="${(dados.descricao || '').replace(/"/g, '&quot;')}" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Tipo</label>
+            <select class="rdTipo">
+              <option value="renda">Renda</option>
+              <option value="despesa">Despesa</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Atribuído a</label>
+            <select class="rdAtribuidoA">
+              <option value="p1">Pessoa 1</option>
+              <option value="p2">Pessoa 2</option>
+              <option value="casal">Casal</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Valor bruto (R$)</label>
+            <input type="text" inputmode="numeric" class="rdValor" placeholder="0" />
+          </div>
+          <div class="field rdImpostoWrap">
+            <label>Imposto (%)</label>
+            <input type="text" inputmode="decimal" class="rdImposto" placeholder="0" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Frequência</label>
+            <select class="rdFrequencia">
+              <option value="mensal">Mensal</option>
+              <option value="anual">Anual</option>
+              <option value="unica">Única</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Data de início</label>
+            <input type="date" class="rdDataInicio" value="${dados.dataInicio || ''}" />
+          </div>
+          <div class="field">
+            <label>Data de fim (opcional)</label>
+            <input type="date" class="rdDataFim" value="${dados.dataFim || ''}" />
+          </div>
+        </div>`;
+      document.getElementById('rendasLista').appendChild(div);
+      const elValor = div.querySelector('.rdValor');
+      bindMoneyInput(elValor);
+      if (dados.valorBruto) setMoney(elValor, dados.valorBruto);
+      if (dados.impostoPct != null) div.querySelector('.rdImposto').value = String(dados.impostoPct).replace('.', ',');
+      if (dados.tipo) div.querySelector('.rdTipo').value = dados.tipo;
+      if (dados.atribuidoA) div.querySelector('.rdAtribuidoA').value = dados.atribuidoA;
+      if (dados.frequencia) div.querySelector('.rdFrequencia').value = dados.frequencia;
+      div.querySelector('.item-lista-remover').addEventListener('click', () => div.remove());
+    }
+    document.getElementById('btnAdicionarRenda').addEventListener('click', () => criarLinhaRenda());
+
+    // ─── Carregamento inicial ────────────────────────────────────────────────
+    async function init() {
+      let salvo = null;
+      try {
+        const { materiais } = await getMateriaisJornada();
+        salvo = materiais?.['mapa-liberdade']?.respostas || null;
+      } catch (err) {
+        console.warn('Erro ao carregar dados salvos:', err.message);
+      }
+
+      // Patrimônio (puxa de getDashboardHome, mesmo padrão da Calculadora do Preço Real)
+      try {
+        const d = await getDashboardHome({});
+        if (d?.plCacheado != null) {
+          document.getElementById('patrimonioValor').textContent = brl(d.plCacheado);
+          document.getElementById('patrimonioValor').dataset.valor = d.plCacheado;
+        } else {
+          document.getElementById('patrimonioValor').textContent = 'Sem dado ainda';
+        }
+      } catch (err) {
+        document.getElementById('patrimonioValor').textContent = 'Erro ao carregar';
+        console.warn('Erro ao carregar patrimônio:', err.message);
+      }
+
+      // Investimentos (breakdown simples por classe, só como referência)
+      try {
+        const p = await getPatrimonio();
+        const ativos = Array.isArray(p?.ativos) ? p.ativos : [];
+        if (!ativos.length) {
+          document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Nenhum ativo cadastrado ainda.</span></div>';
+        } else {
+          const porClasse = {};
+          ativos.forEach(a => { porClasse[a.classe] = (porClasse[a.classe] || 0) + (a.valor || 0); });
+          document.getElementById('investimentosLista').innerHTML = Object.entries(porClasse)
+            .sort((a, b) => b[1] - a[1])
+            .map(([classe, valor]) => `<div class="info-readonly"><span>${classe}</span><strong>${brl(valor)}</strong></div>`)
+            .join('');
+        }
+      } catch (err) {
+        document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Erro ao carregar.</span></div>';
+        console.warn('Erro ao carregar investimentos:', err.message);
+      }
+
+      // Prefill com dados salvos anteriormente
+      if (salvo) {
+        const [pessoa1, pessoa2] = salvo.pessoas || [];
+        if (pessoa1) {
+          document.getElementById('p1Nome').value = pessoa1.nome || '';
+          document.getElementById('p1IdadeAtual').value = pessoa1.idadeAtual || '';
+          document.getElementById('p1IdadeAposentadoria').value = pessoa1.idadeAposentadoria || '';
+          document.getElementById('p1ExpectativaVida').value = pessoa1.expectativaVida || '';
+        }
+        if (pessoa2) {
+          document.getElementById('temParceiro').checked = true;
+          document.getElementById('cardPessoa2').style.display = '';
+          document.getElementById('p2Nome').value = pessoa2.nome || '';
+          document.getElementById('p2IdadeAtual').value = pessoa2.idadeAtual || '';
+          document.getElementById('p2IdadeAposentadoria').value = pessoa2.idadeAposentadoria || '';
+          document.getElementById('p2ExpectativaVida').value = pessoa2.expectativaVida || '';
+        }
+        if (salvo.rendaMensalDesejadaAposentadoria) setMoney(document.getElementById('rendaDesejada'), salvo.rendaMensalDesejadaAposentadoria);
+        if (salvo.patrimonioInicial) setMoney(document.getElementById('patrimonioAjuste'), salvo.patrimonioInicial);
+        (salvo.objetivosExtras || []).forEach(o => criarLinhaObjetivo(o));
+        (salvo.rendasDespesas || []).forEach(r => criarLinhaRenda(r));
+        if (salvo.premissas?.taxaRealMensalPct != null) {
+          document.getElementById('taxaReal').value = String(salvo.premissas.taxaRealMensalPct).replace('.', ',');
+        }
+      }
+      if (!document.getElementById('taxaReal').value) document.getElementById('taxaReal').value = '0,8';
+
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+    }
+
+    // ─── Calcular ────────────────────────────────────────────────────────────
+    document.getElementById('btnCalcular').addEventListener('click', async () => {
+      const erroEl = document.getElementById('erroMsg');
+      erroEl.textContent = '';
+
+      const p1IdadeAtual = +document.getElementById('p1IdadeAtual').value;
+      const p1IdadeAposentadoria = +document.getElementById('p1IdadeAposentadoria').value;
+      const p1ExpectativaVida = +document.getElementById('p1ExpectativaVida').value;
+      const rendaDesejada = readMoney(document.getElementById('rendaDesejada'));
+
+      if (!p1IdadeAtual || !p1IdadeAposentadoria || !p1ExpectativaVida || !rendaDesejada) {
+        erroEl.textContent = 'Preencha idade atual, idade-alvo, expectativa de vida e renda desejada na aposentadoria (aba Informações Pessoais).';
+        document.querySelector('.tab-btn[data-tab="pessoal"]').click();
+        return;
+      }
+
+      const pessoas = [{ id: 'p1', nome: document.getElementById('p1Nome').value.trim() || 'Pessoa 1', idadeAtual: p1IdadeAtual, idadeAposentadoria: p1IdadeAposentadoria, expectativaVida: p1ExpectativaVida }];
+      if (document.getElementById('temParceiro').checked) {
+        const p2IdadeAtual = +document.getElementById('p2IdadeAtual').value;
+        const p2IdadeAposentadoria = +document.getElementById('p2IdadeAposentadoria').value;
+        const p2ExpectativaVida = +document.getElementById('p2ExpectativaVida').value;
+        if (p2IdadeAtual && p2IdadeAposentadoria && p2ExpectativaVida) {
+          pessoas.push({ id: 'p2', nome: document.getElementById('p2Nome').value.trim() || 'Pessoa 2', idadeAtual: p2IdadeAtual, idadeAposentadoria: p2IdadeAposentadoria, expectativaVida: p2ExpectativaVida });
+        }
+      }
+
+      const patrimonioAjuste = document.getElementById('patrimonioAjuste').value;
+      const patrimonioInicial = patrimonioAjuste ? readMoney(document.getElementById('patrimonioAjuste')) : (+document.getElementById('patrimonioValor').dataset.valor || 0);
+
+      const objetivosExtras = [...document.querySelectorAll('#objetivosLista .item-lista')].map(div => ({
+        descricao: div.querySelector('.objDescricao').value.trim(),
+        atribuidoA: div.querySelector('.objAtribuidoA').value,
+        valor: readMoney(div.querySelector('.objValor')),
+        idadeAtingimento: +div.querySelector('.objIdade').value || 0,
+        frequencia: div.querySelector('.objFrequencia').value,
+        numOcorrencias: +div.querySelector('.objNumOcorrencias')?.value || 1,
+      })).filter(o => o.descricao && o.valor > 0 && o.idadeAtingimento > 0);
+
+      const rendasDespesas = [...document.querySelectorAll('#rendasLista .item-lista')].map(div => ({
+        descricao: div.querySelector('.rdDescricao').value.trim(),
+        tipo: div.querySelector('.rdTipo').value,
+        atribuidoA: div.querySelector('.rdAtribuidoA').value,
+        valorBruto: readMoney(div.querySelector('.rdValor')),
+        impostoPct: parseFloat((div.querySelector('.rdImposto').value || '0').replace(',', '.')) || 0,
+        frequencia: div.querySelector('.rdFrequencia').value,
+        dataInicio: div.querySelector('.rdDataInicio').value || new Date().toISOString().slice(0, 10),
+        dataFim: div.querySelector('.rdDataFim').value || null,
+      })).filter(r => r.descricao && r.valorBruto > 0);
+
+      const taxaRealMensalPct = parseFloat((document.getElementById('taxaReal').value || '0,8').replace(',', '.')) || 0.8;
+
+      const btn = document.getElementById('btnCalcular');
+      btn.disabled = true;
+      btn.textContent = 'Calculando...';
+
+      try {
+        const r = await simularLiberdadeFinanceira({
+          pessoas, patrimonioInicial, rendaMensalDesejadaAposentadoria: rendaDesejada,
+          objetivosExtras, rendasDespesas, premissas: { taxaRealMensalPct },
+        });
+
+        const textos = {
+          inadequado: { titulo: 'Planejamento Inadequado', texto: 'No ritmo atual, seu patrimônio na idade de liberdade fica abaixo do necessário até pra consumir o principal ao longo da aposentadoria.' },
+          adequado: { titulo: 'Planejamento Adequado', texto: 'Seu patrimônio na idade de liberdade é suficiente pra viver da renda desejada, consumindo o principal ao longo da aposentadoria.' },
+          confortavel: { titulo: 'Planejamento Confortável', texto: 'Seu patrimônio na idade de liberdade é suficiente pra viver da renda desejada preservando o principal — e ainda deixar herança.' },
+        };
+        const t = textos[r.diagnostico.classificacao] || textos.adequado;
+
+        document.getElementById('resDiagnostico').textContent = t.titulo;
+        document.getElementById('resDiagnostico').className = `resultado-diagnostico ${r.diagnostico.classificacao}`;
+        document.getElementById('resTexto').textContent = t.texto;
+        document.getElementById('resPatrimonioAposentadoria').textContent = brl(r.patrimonioNaAposentadoria);
+        document.getElementById('resPatrimonioConsumo').textContent = brl(r.patrimonioConsumo);
+        document.getElementById('resPatrimonioPreservacao').textContent = r.patrimonioPreservacao != null ? brl(r.patrimonioPreservacao) : '—';
+
+        if (r.diagnostico.classificacao === 'inadequado' && r.diagnostico.aporteAdicionalSugerido > 0) {
+          document.getElementById('resAporteAdicional').textContent = brl(r.diagnostico.aporteAdicionalSugerido) + '/mês';
+          document.getElementById('resLinhaAporte').style.display = '';
+        } else {
+          document.getElementById('resLinhaAporte').style.display = 'none';
+        }
+
+        document.getElementById('resultadoCard').classList.add('mostrar');
+        document.getElementById('resultadoCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (err) {
+        erroEl.textContent = 'Erro ao calcular: ' + (err.message || 'tente novamente.');
+        console.warn('Erro ao simular liberdade financeira:', err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Calcular meu planejamento';
+      }
+    });
+  </script>
+
+</body>
+</html>

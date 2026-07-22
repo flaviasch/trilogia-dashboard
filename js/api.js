@@ -514,6 +514,11 @@ export async function getDecisoesFinanceiras() {
   return call('getDecisoesFinanceiras')({ uid: uidAtual() });
 }
 
+/** Roda o motor de simulação do Mapa da Liberdade Financeira e salva os inputs. */
+export async function simularLiberdadeFinanceira(dados) {
+  return call('simularLiberdadeFinanceira')({ uid: uidAtual(), ...dados });
+}
+
 /** Registra acesso da aluna (chamar no load do dashboard). */
 export const registrarAcesso = call('registrarAcesso');
 

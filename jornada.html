@@ -998,6 +998,12 @@
         desc: 'Uma tarefa por dia pra construir consciência financeira na prática.',
       },
       {
+        id: 'mapa-liberdade',
+        titulo: 'Mapa da Liberdade Financeira',
+        desc: 'Simule se o seu planejamento hoje te leva até a liberdade financeira — objetivos, casal e cenários completos.',
+        link: 'liberdade.html',
+      },
+      {
         id: 'decisao-financeira',
         titulo: 'Antes de Decidir: P.A.R.I.S. + Anti-Impulso',
         desc: 'Pausa de 2 passos antes de uma compra importante — use quantas vezes quiser.',
@@ -1075,6 +1081,11 @@
     }
 
     function abrirFerramenta(id) {
+      if (id === 'mapa-liberdade') {
+        const va = new URLSearchParams(window.location.search).get('viewAs') || localStorage.getItem('viewAsUid');
+        window.location.href = 'liberdade.html' + (va ? '?viewAs=' + va : '');
+        return;
+      }
       if (id === 'calculadora-reserva')   document.getElementById('modalReservaIdeal').classList.add('aberto');
       if (id === 'preco-real-decisao')    document.getElementById('modalPrecoReal').classList.add('aberto');
       if (id === 'quiz-vieses')           document.getElementById('modalQuizVieses').classList.add('aberto');
