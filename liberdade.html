@@ -666,8 +666,12 @@
       // Mapa da Liberdade só libera depois do 1º encontro de mentoria — mesmo
       // gate de acesso do card em jornada.html (achado 22/07/2026: dava pra
       // chegar direto por aqui digitando a URL, pulando o bloqueio de lá).
-      // Em viewAs, Flávia está inspecionando a conta e precisa ver tudo.
-      if (!_va) {
+      // Em viewAs, Flávia está inspecionando a conta e precisa ver tudo. Sua
+      // PRÓPRIA conta admin (sem viewAs) também precisa bypassar — ela nunca
+      // vai ter "encontro" registrado (é a mentora, não mentee de ninguém),
+      // então sem esse bypass ela mesma ficava presa no redirect ao tentar
+      // testar a página logada direto, sem "Ver como" (achado 23/07/2026).
+      if (!_va && !_souAdmin) {
         try {
           const { encontros = [], semDados } = await getMinhaJornada();
           if (semDados || !encontros.length) {

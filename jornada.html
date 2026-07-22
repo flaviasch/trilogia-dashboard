@@ -880,13 +880,18 @@
         });
       }
 
-      if (await isAdmin()) document.getElementById('linkAdmin').style.display = 'inline';
+      const _souAdmin = await isAdmin();
+      if (_souAdmin) document.getElementById('linkAdmin').style.display = 'inline';
 
       // Materiais da Jornada só liberam depois do 1º encontro — exceto em
       // viewAs, onde Flávia (admin) está inspecionando a conta da mentorada
       // e precisa ver tudo, igual ao bypass já existente pro gate raio-x.
+      // Sua PRÓPRIA conta admin (sem viewAs) também precisa bypassar — ela
+      // nunca vai ter "encontro" registrado, então sem isso ela mesma ficava
+      // vendo as ferramentas escondidas ao testar logada direto, sem "Ver
+      // como" (achado 23/07/2026).
       const jaTeveEncontro = await init();
-      if (jaTeveEncontro || _va) {
+      if (jaTeveEncontro || _va || _souAdmin) {
         initFerramentas();
       } else {
         mostrarFerramentasBloqueadas();
