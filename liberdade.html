@@ -185,6 +185,7 @@
   <script>window.sentryOnLoad=function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0,allowUrls:['dashboard.flaviaschusciman.com','localhost'],ignoreErrors:['Script error.','Script error','Non-Error promise rejection captured']});};</script>
   <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js" crossorigin="anonymous" defer></script>
 </head>
 <body>
 
@@ -311,7 +312,7 @@
           <label for="patrimonioAjuste">Ajustar valor pra esta simulação (opcional)</label>
           <input type="text" inputmode="numeric" id="patrimonioAjuste" placeholder="Deixe em branco pra usar o valor acima" />
         </div>
-        <p class="premissa-nota">Só ativos financeiros (RF, multimercado, renda variável, internacional) — é este valor que entra como base no motor de simulação.</p>
+        <p class="premissa-nota" id="investimentosNota">Só ativos financeiros (RF, multimercado, renda variável, internacional) — é este valor que entra como base no motor de simulação.</p>
         <div id="investimentosLista" style="margin-top:14px"><div class="info-readonly"><span>Carregando...</span></div></div>
         <a class="info-link" href="patrimonio.html" target="_blank" style="margin-top:12px; display:inline-block">Ver detalhe no Patrimônio →</a>
       </div>
@@ -361,6 +362,7 @@
         <span class="legenda-item"><i class="legenda-cor" style="background:var(--gold)"></i>Planejamento Atual</span>
         <span class="legenda-item"><i class="legenda-cor legenda-tracejada" style="border-color:var(--negative)"></i>Consumo do Patrimônio</span>
         <span class="legenda-item"><i class="legenda-cor legenda-tracejada" style="border-color:var(--positive)"></i>Preservação do Patrimônio</span>
+        <span class="legenda-item" id="legendaObjetivos" style="display:none"><i class="legenda-cor" style="background:var(--gold);border-radius:50%;width:9px;height:9px"></i>🎯 Objetivo (número = ordem no tempo)</span>
       </div>
 
       <div class="resultado-linha" id="resLinhaDespesaContinua" style="display:none"><span>+ Despesas que continuam após a aposentadoria</span><strong id="resDespesaContinua">—</strong></div>
@@ -369,6 +371,8 @@
       <div class="resultado-linha"><span>Patrimônio necessário (consumo até expectativa de vida)</span><strong id="resPatrimonioConsumo">—</strong></div>
       <div class="resultado-linha"><span>Patrimônio necessário (preservação/perpetuidade)</span><strong id="resPatrimonioPreservacao">—</strong></div>
       <div class="resultado-linha" id="resLinhaAporte" style="display:none"><span>Aporte mensal adicional sugerido</span><strong id="resAporteAdicional">—</strong></div>
+
+      <button class="btn-primario" id="btnUsarComoReserva" style="margin-top:18px">Registrar como reserva de Liberdade Financeira</button>
     </div>
 
   </main>
@@ -753,9 +757,11 @@
 
       // Patrimônio total (referência geral, não entra no cálculo) — mesmo
       // plCacheado usado nas outras calculadoras da Jornada.
+      let plCacheado = null;
       try {
         const d = await getDashboardHome({});
-        document.getElementById('patrimonioTotalValor').textContent = d?.plCacheado != null ? brl(d.plCacheado) : 'Sem dado ainda';
+        plCacheado = d?.plCacheado ?? null;
+        document.getElementById('patrimonioTotalValor').textContent = plCacheado != null ? brl(plCacheado) : 'Sem dado ainda';
       } catch (err) {
         document.getElementById('patrimonioTotalValor').textContent = 'Erro ao carregar';
         console.warn('Erro ao carregar patrimônio total:', err.message);
@@ -764,24 +770,36 @@
       // Investimentos: só ativos financeiros (mesma whitelist de patrimonio.html —
       // pos/infl/pre/rv/mm/int), valor bruto, sem descontar dívidas nem contar
       // imóveis/bens/veículos. Este é o valor que alimenta o motor de simulação.
+      // Fallback (22/07/2026, achado no teste ao vivo): se a mentorada nunca
+      // detalhou os investimentos por classe em Patrimônio (ativos itemizados
+      // vazio), usar o patrimônio total (plCacheado) como estimativa em vez de
+      // travar em R$0 — deixa claro que é estimativa e ainda editável.
       try {
         const p = await getPatrimonio();
         const ativos = Array.isArray(p?.ativos) ? p.ativos : [];
         const financeiros = ativos.filter(a => CLASSES_FINANCEIRAS.has(a.classe));
         const totalFinanceiro = financeiros.reduce((s, a) => s + (a.valor || 0), 0);
+        const elPatrimonioNota = document.getElementById('investimentosNota');
 
-        document.getElementById('patrimonioValor').textContent = brl(totalFinanceiro);
-        document.getElementById('patrimonioValor').dataset.valor = totalFinanceiro;
-
-        if (!financeiros.length) {
-          document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Nenhum investimento cadastrado ainda.</span></div>';
+        if (!financeiros.length && plCacheado > 0) {
+          document.getElementById('patrimonioValor').textContent = brl(plCacheado);
+          document.getElementById('patrimonioValor').dataset.valor = plCacheado;
+          document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Nenhum investimento detalhado por classe ainda.</span></div>';
+          if (elPatrimonioNota) elPatrimonioNota.textContent = `Você ainda não detalhou seus investimentos por classe em Patrimônio — por enquanto, usamos seu patrimônio total (${brl(plCacheado)}) como estimativa. Ajuste no campo abaixo se quiser refinar, ou detalhe por classe em Patrimônio pra um cálculo mais preciso.`;
         } else {
-          const porClasse = {};
-          financeiros.forEach(a => { porClasse[a.classe] = (porClasse[a.classe] || 0) + (a.valor || 0); });
-          document.getElementById('investimentosLista').innerHTML = Object.entries(porClasse)
-            .sort((a, b) => b[1] - a[1])
-            .map(([classe, valor]) => `<div class="info-readonly"><span>${CLASSE_LABEL[classe] || classe}</span><strong>${brl(valor)}</strong></div>`)
-            .join('');
+          document.getElementById('patrimonioValor').textContent = brl(totalFinanceiro);
+          document.getElementById('patrimonioValor').dataset.valor = totalFinanceiro;
+          if (elPatrimonioNota) elPatrimonioNota.textContent = 'Só ativos financeiros (RF, multimercado, renda variável, internacional) — é este valor que entra como base no motor de simulação.';
+          if (!financeiros.length) {
+            document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Nenhum investimento cadastrado ainda.</span></div>';
+          } else {
+            const porClasse = {};
+            financeiros.forEach(a => { porClasse[a.classe] = (porClasse[a.classe] || 0) + (a.valor || 0); });
+            document.getElementById('investimentosLista').innerHTML = Object.entries(porClasse)
+              .sort((a, b) => b[1] - a[1])
+              .map(([classe, valor]) => `<div class="info-readonly"><span>${CLASSE_LABEL[classe] || classe}</span><strong>${brl(valor)}</strong></div>`)
+              .join('');
+          }
         }
       } catch (err) {
         document.getElementById('patrimonioValor').textContent = 'Erro ao carregar';
@@ -845,6 +863,7 @@
 
     // ─── Gráfico (Bloco C) ───────────────────────────────────────────────────
     let _grafico = null;
+    let _datalabelsRegistrado = false;
 
     function brlCompacto(v) {
       return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 }).format(v || 0);
@@ -861,18 +880,35 @@
       document.querySelector('.grafico-legenda').style.display = '';
 
       const serie = r.serieAtual || [];
+      const marcadores = r.marcadores || [];
       const idadeInicial = pessoas[0].idadeAtual;
       const totalMeses = serie.length ? serie[serie.length - 1].mes : 0;
 
       // Amostra 1 ponto por ano (12 meses) pra não sobrecarregar o gráfico numa
-      // simulação de décadas — sempre inclui o primeiro e o último ponto.
+      // simulação de décadas — sempre inclui primeiro, último, mês da
+      // aposentadoria e o mês exato de cada objetivo (senão o marcador cairia
+      // fora do eixo X amostrado).
       const passo = 12;
-      const pontos = serie.filter((p, idx) => idx === 0 || idx === serie.length - 1 || p.mes % passo === 0);
+      const mesesExtras = new Set([0, totalMeses, r.mesAposentadoria, ...marcadores.map(m => m.mes)]);
+      const mesesIncluidos = new Set(serie.filter(p => p.mes % passo === 0).map(p => p.mes));
+      mesesExtras.forEach(m => { if (m >= 0 && m <= totalMeses) mesesIncluidos.add(m); });
+      const pontos = serie.filter(p => mesesIncluidos.has(p.mes)).sort((a, b) => a.mes - b.mes);
 
       const labels = pontos.map(p => Math.round(idadeInicial + p.mes / 12));
       const dadosAtual = pontos.map(p => p.patrimonio);
       const dadosConsumo = pontos.map(() => r.patrimonioConsumo);
       const dadosPreservacao = r.patrimonioPreservacao != null ? pontos.map(() => r.patrimonioPreservacao) : null;
+
+      // Marcadores de objetivos: null em todo ponto, exceto no mês exato de
+      // cada objetivo — igual ao gráfico da XP, que numera o momento em que
+      // cada objetivo é realizado/sacado do patrimônio.
+      const dadosObjetivos = pontos.map(p => {
+        const m = marcadores.find(mk => mk.mes === p.mes);
+        return m ? m.patrimonio : null;
+      });
+      const objetivosPorMes = {};
+      marcadores.forEach(m => { objetivosPorMes[m.mes] = m; });
+      document.getElementById('legendaObjetivos').style.display = marcadores.length ? '' : 'none';
 
       const datasets = [
         {
@@ -906,6 +942,35 @@
           borderWidth: 1.5,
         });
       }
+      if (marcadores.length) {
+        datasets.push({
+          label: 'Objetivos',
+          data: dadosObjetivos,
+          borderColor: 'transparent',
+          backgroundColor: '#CFAE65',
+          pointBackgroundColor: '#CFAE65',
+          pointBorderColor: '#0D2B45',
+          pointBorderWidth: 2,
+          pointRadius: 9,
+          pointHoverRadius: 10,
+          showLine: false,
+          datalabels: {
+            display: (ctx) => ctx.dataset.data[ctx.dataIndex] != null,
+            color: '#0D2B45',
+            font: { weight: 'bold', size: 11 },
+            formatter: (value, ctx) => {
+              const mes = pontos[ctx.dataIndex]?.mes;
+              const marcador = objetivosPorMes[mes];
+              return marcador ? String(marcador.numero) : '';
+            },
+          },
+        });
+      }
+
+      if (typeof ChartDataLabels !== 'undefined' && !_datalabelsRegistrado) {
+        Chart.register(ChartDataLabels);
+        _datalabelsRegistrado = true;
+      }
 
       const ctx = document.getElementById('graficoLiberdade').getContext('2d');
       if (_grafico) _grafico.destroy();
@@ -918,10 +983,18 @@
           interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { display: false },
+            datalabels: { display: false }, // desligado por padrão; só o dataset "Objetivos" liga o próprio
             tooltip: {
               callbacks: {
                 title: (items) => `${items[0].label} anos`,
-                label: (item) => `${item.dataset.label}: ${brl(item.parsed.y)}`,
+                label: (item) => {
+                  if (item.dataset.label === 'Objetivos') {
+                    const mes = pontos[item.dataIndex]?.mes;
+                    const marcador = objetivosPorMes[mes];
+                    return marcador ? `🎯 ${marcador.numero}. ${marcador.descricao}: ${brl(marcador.valor)}` : '';
+                  }
+                  return `${item.dataset.label}: ${brl(item.parsed.y)}`;
+                },
               },
             },
           },
@@ -1023,6 +1096,7 @@
         }
 
         renderizarGrafico(r, pessoas);
+        _ultimoPatrimonioConsumo = r.patrimonioConsumo;
 
         document.getElementById('resultadoCard').classList.add('mostrar');
         document.getElementById('resultadoCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1033,6 +1107,20 @@
         btn.disabled = false;
         btn.textContent = 'Calcular meu planejamento';
       }
+    });
+
+    // ─── Encadeia com o registro de reserva (mesmo padrão da Calculadora de
+    // Reserva Ideal em jornada.html: passa metaSugerida/nomeSugerido por query
+    // string e reservas.html abre o modal de nova reserva já preenchido). Usa
+    // o Patrimônio necessário (consumo) como meta sugerida — é o mínimo pra
+    // não ficar "Inadequado", mais acionável que a preservação/perpetuidade.
+    let _ultimoPatrimonioConsumo = null;
+    document.getElementById('btnUsarComoReserva').addEventListener('click', () => {
+      if (!_ultimoPatrimonioConsumo) return;
+      const va = new URLSearchParams(window.location.search).get('viewAs') || localStorage.getItem('viewAsUid');
+      const params = new URLSearchParams({ metaSugerida: String(Math.round(_ultimoPatrimonioConsumo)), nomeSugerido: 'Liberdade Financeira' });
+      if (va) params.set('viewAs', va);
+      window.location.href = `reservas.html?${params.toString()}`;
     });
   </script>
 
