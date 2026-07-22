@@ -97,6 +97,10 @@
     .field input[readonly] { color: var(--text-secondary); cursor: not-allowed; opacity: 0.75; }
     .field input.editavel-admin { color: var(--white); cursor: text; opacity: 1; border-color: var(--border-gold); }
     .premissa-nota { font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
+
+    .radio-grupo { display: flex; flex-direction: column; gap: 8px; }
+    .radio-opcao { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+    .radio-opcao input[type="radio"] { width: 15px; height: 15px; accent-color: var(--gold); cursor: pointer; margin: 0; }
     .field-row { display: flex; gap: 10px; }
     .field-row .field { flex: 1; }
     .field-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; cursor: pointer; }
@@ -275,27 +279,33 @@
       </div>
     </div>
 
-    <!-- Aba: Patrimônio -->
+    <!-- Aba: Patrimônio (referência geral — tudo, não entra no cálculo) -->
     <div class="tab-painel" id="painel-patrimonio">
       <div class="card">
-        <div class="card-titulo">Patrimônio atual</div>
+        <div class="card-titulo">Patrimônio total (referência)</div>
         <div class="info-readonly">
-          <span>Patrimônio financeiro (investimentos)</span>
+          <span>Patrimônio líquido total (todos os ativos − dívidas)</span>
+          <strong id="patrimonioTotalValor">—</strong>
+        </div>
+        <p class="premissa-nota">Inclui imóveis, veículos e bens, além do financeiro — é só uma referência geral, não entra na simulação. Quem alimenta o cálculo é a aba Investimentos.</p>
+        <a class="info-link" href="patrimonio.html" target="_blank">Ver detalhe no Patrimônio →</a>
+      </div>
+    </div>
+
+    <!-- Aba: Investimentos (só financeiro — é o que alimenta o motor de simulação) -->
+    <div class="tab-painel" id="painel-investimentos">
+      <div class="card">
+        <div class="card-titulo">Investimentos financeiros</div>
+        <div class="info-readonly">
+          <span>Total financeiro (investimentos)</span>
           <strong id="patrimonioValor">—</strong>
         </div>
         <div class="field" style="margin-top:14px">
           <label for="patrimonioAjuste">Ajustar valor pra esta simulação (opcional)</label>
           <input type="text" inputmode="numeric" id="patrimonioAjuste" placeholder="Deixe em branco pra usar o valor acima" />
         </div>
-        <a class="info-link" href="patrimonio.html" target="_blank">Ver detalhe no Patrimônio →</a>
-      </div>
-    </div>
-
-    <!-- Aba: Investimentos -->
-    <div class="tab-painel" id="painel-investimentos">
-      <div class="card">
-        <div class="card-titulo">Investimentos financeiros (referência)</div>
-        <div id="investimentosLista"><div class="info-readonly"><span>Carregando...</span></div></div>
+        <p class="premissa-nota">Só ativos financeiros (RF, multimercado, renda variável, internacional) — é este valor que entra como base no motor de simulação.</p>
+        <div id="investimentosLista" style="margin-top:14px"><div class="info-readonly"><span>Carregando...</span></div></div>
         <a class="info-link" href="patrimonio.html" target="_blank" style="margin-top:12px; display:inline-block">Ver detalhe no Patrimônio →</a>
       </div>
     </div>
@@ -374,7 +384,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira } from './js/api.js?v=40';
+    import { getDashboardHome, getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira } from './js/api.js?v=40';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -420,6 +430,27 @@
     }
     function setMoney(el, v) {
       el.value = (v == null || v === '' || isNaN(+v)) ? '' : Math.round(+v).toLocaleString('pt-BR');
+    }
+
+    // Lê as pessoas preenchidas na aba Informações Pessoais. Usado tanto no
+    // Calcular quanto no cálculo de "Ao se aposentar" das Rendas e Despesas.
+    function coletarPessoas() {
+      const p1IdadeAtual = +document.getElementById('p1IdadeAtual').value;
+      const p1IdadeAposentadoria = +document.getElementById('p1IdadeAposentadoria').value;
+      const p1ExpectativaVida = +document.getElementById('p1ExpectativaVida').value;
+      const pessoas = [];
+      if (p1IdadeAtual && p1IdadeAposentadoria && p1ExpectativaVida) {
+        pessoas.push({ id: 'p1', nome: document.getElementById('p1Nome').value.trim() || 'Pessoa 1', idadeAtual: p1IdadeAtual, idadeAposentadoria: p1IdadeAposentadoria, expectativaVida: p1ExpectativaVida });
+      }
+      if (document.getElementById('temParceiro').checked) {
+        const p2IdadeAtual = +document.getElementById('p2IdadeAtual').value;
+        const p2IdadeAposentadoria = +document.getElementById('p2IdadeAposentadoria').value;
+        const p2ExpectativaVida = +document.getElementById('p2ExpectativaVida').value;
+        if (p2IdadeAtual && p2IdadeAposentadoria && p2ExpectativaVida) {
+          pessoas.push({ id: 'p2', nome: document.getElementById('p2Nome').value.trim() || 'Pessoa 2', idadeAtual: p2IdadeAtual, idadeAposentadoria: p2IdadeAposentadoria, expectativaVida: p2ExpectativaVida });
+        }
+      }
+      return pessoas;
     }
 
     onAuthStateChanged(auth, async (user) => {
@@ -532,6 +563,20 @@
     });
 
     // ─── Rendas e Despesas ───────────────────────────────────────────────────
+    // Layout inspirado na tela "Adicionar renda" da XP (22/07/2026): valor
+    // líquido calculado ao vivo + "Previsão de término" no lugar de uma data de
+    // fim livre (menos chance de a mentorada esquecer de preencher/errar).
+    function addMesesISO(dataISO, n) {
+      const d = new Date(dataISO + 'T00:00:00');
+      d.setMonth(d.getMonth() + n);
+      return d.toISOString().slice(0, 10);
+    }
+    function addAnosISO(dataISO, n) {
+      const d = new Date(dataISO + 'T00:00:00');
+      d.setFullYear(d.getFullYear() + n);
+      return d.toISOString().slice(0, 10);
+    }
+
     let _rendaSeq = 0;
     function criarLinhaRenda(dados = {}) {
       const id = `rd_${_rendaSeq++}`;
@@ -571,6 +616,10 @@
             <input type="text" inputmode="decimal" class="rdImposto" placeholder="0" />
           </div>
         </div>
+        <div class="field">
+          <label>Valor líquido (R$)</label>
+          <input type="text" class="rdValorLiquido" readonly />
+        </div>
         <div class="field-row">
           <div class="field">
             <label>Frequência</label>
@@ -584,19 +633,92 @@
             <label>Data de início</label>
             <input type="date" class="rdDataInicio" value="${dados.dataInicio || ''}" />
           </div>
-          <div class="field">
-            <label>Data de fim (opcional)</label>
-            <input type="date" class="rdDataFim" value="${dados.dataFim || ''}" />
+        </div>
+        <div class="field rdPrevisaoWrap">
+          <label>Previsão de término</label>
+          <div class="radio-grupo">
+            <label class="radio-opcao"><input type="radio" name="rdPrevisao_${id}" class="rdPrevisao" value="sem_previsao" checked /> Sem previsão</label>
+            <label class="radio-opcao"><input type="radio" name="rdPrevisao_${id}" class="rdPrevisao" value="ocorrencias" /> Após algumas ocorrências</label>
+            <label class="radio-opcao"><input type="radio" name="rdPrevisao_${id}" class="rdPrevisao" value="aposentadoria" /> Ao se aposentar</label>
           </div>
-        </div>`;
+          <div class="field rdOcorrenciasWrap" style="display:none; margin-top:10px">
+            <label>Número de ocorrências</label>
+            <input type="number" class="rdNumOcorrencias" min="1" max="600" value="1" />
+          </div>
+        </div>
+        <input type="hidden" class="rdDataFimComputado" value="${dados.dataFim || ''}" />`;
       document.getElementById('rendasLista').appendChild(div);
-      const elValor = div.querySelector('.rdValor');
+
+      const elValor        = div.querySelector('.rdValor');
+      const elImposto       = div.querySelector('.rdImposto');
+      const elValorLiquido  = div.querySelector('.rdValorLiquido');
+      const elTipo          = div.querySelector('.rdTipo');
+      const elFrequencia    = div.querySelector('.rdFrequencia');
+      const elDataInicio    = div.querySelector('.rdDataInicio');
+      const elAtribuidoA    = div.querySelector('.rdAtribuidoA');
+      const elPrevisaoWrap  = div.querySelector('.rdPrevisaoWrap');
+      const elOcorWrap      = div.querySelector('.rdOcorrenciasWrap');
+      const elNumOcor       = div.querySelector('.rdNumOcorrencias');
+      const elDataFimComp   = div.querySelector('.rdDataFimComputado');
+      const elImpostoWrap   = div.querySelector('.rdImpostoWrap');
+
       bindMoneyInput(elValor);
+
+      function atualizarValorLiquido() {
+        const bruto = readMoney(elValor);
+        const imposto = parseFloat((elImposto.value || '0').replace(',', '.')) || 0;
+        const liquido = elTipo.value === 'despesa' ? bruto : bruto * (1 - imposto / 100);
+        elValorLiquido.value = brl(liquido);
+      }
+      function atualizarImpostoVisivel() {
+        elImpostoWrap.style.display = elTipo.value === 'despesa' ? 'none' : '';
+      }
+      function atualizarPrevisaoVisivel() {
+        elPrevisaoWrap.style.display = elFrequencia.value === 'unica' ? 'none' : '';
+        if (elFrequencia.value === 'unica') elDataFimComp.value = '';
+      }
+      function recomputarDataFim() {
+        const previsao = div.querySelector('.rdPrevisao:checked')?.value || 'sem_previsao';
+        const dataInicio = elDataInicio.value || new Date().toISOString().slice(0, 10);
+        if (previsao === 'sem_previsao') {
+          elDataFimComp.value = '';
+        } else if (previsao === 'ocorrencias') {
+          const n = Math.max(1, +elNumOcor.value || 1);
+          elDataFimComp.value = elFrequencia.value === 'anual' ? addAnosISO(dataInicio, n - 1) : addMesesISO(dataInicio, n - 1);
+        } else if (previsao === 'aposentadoria') {
+          const pessoas = coletarPessoas();
+          const pessoa = elAtribuidoA.value === 'casal' ? pessoas[0] : (pessoas.find(p => p.id === elAtribuidoA.value) || pessoas[0]);
+          if (pessoa) {
+            const anos = Math.max(0, pessoa.idadeAposentadoria - pessoa.idadeAtual);
+            elDataFimComp.value = addAnosISO(new Date().toISOString().slice(0, 10), anos);
+          } else {
+            elDataFimComp.value = '';
+          }
+        }
+      }
+
+      elValor.addEventListener('input', atualizarValorLiquido);
+      elImposto.addEventListener('input', atualizarValorLiquido);
+      elTipo.addEventListener('change', () => { atualizarImpostoVisivel(); atualizarValorLiquido(); });
+      elFrequencia.addEventListener('change', () => { atualizarPrevisaoVisivel(); recomputarDataFim(); });
+      elDataInicio.addEventListener('change', recomputarDataFim);
+      elAtribuidoA.addEventListener('change', recomputarDataFim);
+      elNumOcor.addEventListener('input', recomputarDataFim);
+      div.querySelectorAll('.rdPrevisao').forEach(r => r.addEventListener('change', () => {
+        elOcorWrap.style.display = div.querySelector('.rdPrevisao:checked')?.value === 'ocorrencias' ? '' : 'none';
+        recomputarDataFim();
+      }));
+
       if (dados.valorBruto) setMoney(elValor, dados.valorBruto);
-      if (dados.impostoPct != null) div.querySelector('.rdImposto').value = String(dados.impostoPct).replace('.', ',');
-      if (dados.tipo) div.querySelector('.rdTipo').value = dados.tipo;
-      if (dados.atribuidoA) div.querySelector('.rdAtribuidoA').value = dados.atribuidoA;
-      if (dados.frequencia) div.querySelector('.rdFrequencia').value = dados.frequencia;
+      if (dados.impostoPct != null) elImposto.value = String(dados.impostoPct).replace('.', ',');
+      if (dados.tipo) elTipo.value = dados.tipo;
+      if (dados.atribuidoA) elAtribuidoA.value = dados.atribuidoA;
+      if (dados.frequencia) elFrequencia.value = dados.frequencia;
+
+      atualizarImpostoVisivel();
+      atualizarValorLiquido();
+      atualizarPrevisaoVisivel();
+
       div.querySelector('.item-lista-remover').addEventListener('click', () => div.remove());
     }
     document.getElementById('btnAdicionarRenda').addEventListener('click', () => criarLinhaRenda());
@@ -611,9 +733,19 @@
         console.warn('Erro ao carregar dados salvos:', err.message);
       }
 
-      // Patrimônio + Investimentos: só ativos financeiros (mesma whitelist de
-      // patrimonio.html — pos/infl/pre/rv/mm/int), valor bruto, sem descontar
-      // dívidas nem contar imóveis/bens/veículos.
+      // Patrimônio total (referência geral, não entra no cálculo) — mesmo
+      // plCacheado usado nas outras calculadoras da Jornada.
+      try {
+        const d = await getDashboardHome({});
+        document.getElementById('patrimonioTotalValor').textContent = d?.plCacheado != null ? brl(d.plCacheado) : 'Sem dado ainda';
+      } catch (err) {
+        document.getElementById('patrimonioTotalValor').textContent = 'Erro ao carregar';
+        console.warn('Erro ao carregar patrimônio total:', err.message);
+      }
+
+      // Investimentos: só ativos financeiros (mesma whitelist de patrimonio.html —
+      // pos/infl/pre/rv/mm/int), valor bruto, sem descontar dívidas nem contar
+      // imóveis/bens/veículos. Este é o valor que alimenta o motor de simulação.
       try {
         const p = await getPatrimonio();
         const ativos = Array.isArray(p?.ativos) ? p.ativos : [];
@@ -709,15 +841,7 @@
         return;
       }
 
-      const pessoas = [{ id: 'p1', nome: document.getElementById('p1Nome').value.trim() || 'Pessoa 1', idadeAtual: p1IdadeAtual, idadeAposentadoria: p1IdadeAposentadoria, expectativaVida: p1ExpectativaVida }];
-      if (document.getElementById('temParceiro').checked) {
-        const p2IdadeAtual = +document.getElementById('p2IdadeAtual').value;
-        const p2IdadeAposentadoria = +document.getElementById('p2IdadeAposentadoria').value;
-        const p2ExpectativaVida = +document.getElementById('p2ExpectativaVida').value;
-        if (p2IdadeAtual && p2IdadeAposentadoria && p2ExpectativaVida) {
-          pessoas.push({ id: 'p2', nome: document.getElementById('p2Nome').value.trim() || 'Pessoa 2', idadeAtual: p2IdadeAtual, idadeAposentadoria: p2IdadeAposentadoria, expectativaVida: p2ExpectativaVida });
-        }
-      }
+      const pessoas = coletarPessoas();
 
       const patrimonioAjuste = document.getElementById('patrimonioAjuste').value;
       const patrimonioInicial = patrimonioAjuste ? readMoney(document.getElementById('patrimonioAjuste')) : (+document.getElementById('patrimonioValor').dataset.valor || 0);
@@ -739,7 +863,7 @@
         impostoPct: parseFloat((div.querySelector('.rdImposto').value || '0').replace(',', '.')) || 0,
         frequencia: div.querySelector('.rdFrequencia').value,
         dataInicio: div.querySelector('.rdDataInicio').value || new Date().toISOString().slice(0, 10),
-        dataFim: div.querySelector('.rdDataFim').value || null,
+        dataFim: div.querySelector('.rdDataFimComputado').value || null,
       })).filter(r => r.descricao && r.valorBruto > 0);
 
       const taxaRealMensalPct = parseFloat((document.getElementById('taxaReal').value || '').replace(',', '.')) || TAXA_PADRAO;
