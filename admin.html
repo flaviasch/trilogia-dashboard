@@ -1178,6 +1178,16 @@
         <button id="btnFecharHoje" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;margin-left:auto;line-height:1;">×</button>
       </div>
 
+      <!-- Banner: leads Fechado Ganho sem mentorada criada ainda (achado
+           23/07/2026: marcar como Fechado Ganho não cria a conta sozinho —
+           só abre um confirm() fácil de fechar sem perceber, e depois disso
+           não sobrava nenhum aviso de que o passo final ainda faltava). -->
+      <div id="leadPendenteContaBanner" style="display:none;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);border-radius:10px;padding:12px 18px;margin-bottom:16px;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:13px;color:var(--negative);">⚠️ <strong id="leadPendenteContaCount">0</strong> lead(s) fechado(s) sem mentorada criada ainda</span>
+        <button id="btnVerPendenteConta" style="background:var(--negative);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Ver</button>
+        <button id="btnFecharPendenteConta" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;margin-left:auto;line-height:1;">×</button>
+      </div>
+
       <!-- Sub-abas do Pipeline -->
       <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:0;">
         <button class="pipeline-subtab ativo" data-vista="ativos"  style="background:transparent;border:none;border-bottom:2px solid var(--gold);padding:8px 18px;font-size:13px;font-weight:600;color:var(--gold);cursor:pointer;font-family:'Inter',sans-serif;">Ativos <span id="cntAtivos" style="font-size:11px;opacity:.7"></span></button>
@@ -3402,6 +3412,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
             await updateLead(leadOrigemId, { convertidoEm: new Date().toISOString().split('T')[0] });
             const li = pipelineLeads.find(x => x.id === leadOrigemId);
             if (li) li.convertidoEm = new Date().toISOString().split('T')[0];
+            verificarLeadsPendentesConta();
           } catch (e) { console.warn('Não foi possível marcar lead como convertido:', e.message); }
           document.getElementById('modalNova').removeAttribute('data-lead-origem-id');
         }
@@ -4362,6 +4373,27 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       document.getElementById('leadHojeBanner').style.display = 'none';
     });
 
+    // ─── Banner: leads Fechado Ganho sem mentorada criada ──────────────────────
+    function verificarLeadsPendentesConta() {
+      const pendentes = pipelineLeads.filter(l => l.estagio === 'Fechado Ganho' && !l.convertidoEm);
+      const banner = document.getElementById('leadPendenteContaBanner');
+      if (pendentes.length > 0) {
+        document.getElementById('leadPendenteContaCount').textContent = pendentes.length;
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    document.getElementById('btnFecharPendenteConta').addEventListener('click', () => {
+      document.getElementById('leadPendenteContaBanner').style.display = 'none';
+    });
+
+    document.getElementById('btnVerPendenteConta').addEventListener('click', () => {
+      document.querySelector('.pipeline-subtab[data-vista="ganhos"]').click();
+      document.getElementById('leadPendenteContaBanner').style.display = 'none';
+    });
+
     // ─── Estatísticas ─────────────────────────────────────────────────────────
     function barStat(label, count, max, cor) {
       const pct = max > 0 ? Math.round((count / max) * 100) : 0;
@@ -4551,6 +4583,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       atualizarContadoresSubAbas();
       renderTabelaPipeline();
       verificarLeadsHoje();
+      verificarLeadsPendentesConta();
       if (document.getElementById('statsPanel').style.display !== 'none') renderEstatisticas();
     }
 
@@ -4870,6 +4903,9 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
           const leadId = id || pipelineLeads[0]?.id;
           const lead   = pipelineLeads.find(l => l.id === leadId);
           if (lead && !lead.convertidoEm) {
+            // Mostra o banner antes do confirm() — se ela fechar o diálogo sem
+            // querer (achado 23/07/2026), o aviso continua visível depois.
+            verificarLeadsPendentesConta();
             const querer = confirm(`🎉 "${lead.nome}" marcada como Fechado Ganho!\n\nDeseja criar a mentorada agora?`);
             if (querer) abrirModalConverterLead(leadId);
           }
