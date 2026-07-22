@@ -181,6 +181,7 @@ export function pertenceAConta(item, contaId) {
  *   gruposFechadaCaixa: object, totalFaturas: number, totalCartaoPago: number, totalCartaoCaixa: number,
  *   despesasPendentes: object[], totalPendente: number,
  *   fixasVirtuais: object[], totalFixasVirtuais: number,
+ *   fixasVirtuaisReceita: object[], totalFixasVirtuaisReceita: number,
  *   receitasPendentes: object[], totalReceitaPendente: number, receitaComprometida: number,
  *   despesaCaixa: number, despesaComprometida: number, totalComprometidoMes: number,
  *   diffNaoIdentificadoMes: number,
@@ -302,6 +303,21 @@ export function calcularAgregadosOrcamento({
   });
   const totalFixasVirtuais = fixasVirtuais.reduce((s, v) => s + v.valor, 0);
 
+  // Receita fixa — mesma ideia da despesa fixa acima (projeção virtual até a
+  // usuária confirmar uma por uma), espelhando data.receitas em vez de
+  // data.despesas. Adicionado em 23/07/2026: a v1 (achado 22/07/2026) só
+  // tinha o botão manual "Lançar agora" no modal, sem projeção automática
+  // nos meses futuros — pedido da Flávia pra igualar ao comportamento da
+  // despesa fixa.
+  const fixasVirtuaisReceita = [];
+  (recorrentes || []).filter(r => r.ativo && !r.cartao && r.tipo === 'receita').forEach(r => {
+    diasFaltantesRecorrente(r, data.receitas, mes, ano).forEach(dia => {
+      if (puladas.includes(chaveFixaPulada(r.id, ano, mes, dia))) return;
+      fixasVirtuaisReceita.push({ recorrenteId: r.id, categoria: r.categoria, descricao: r.descricao || '', valor: r.valor, dia });
+    });
+  });
+  const totalFixasVirtuaisReceita = fixasVirtuaisReceita.reduce((s, v) => s + v.valor, 0);
+
   const receitasPendentes = data.receitas.filter(r => isPendenteEfetivo(r, agora));
   const totalReceitaPendente = receitasPendentes.reduce((s, r) => s + r.valor, 0);
 
@@ -336,6 +352,7 @@ export function calcularAgregadosOrcamento({
     gruposFechadaCaixa, totalFaturas, totalCartaoPago, totalCartaoCaixa,
     despesasPendentes, totalPendente,
     fixasVirtuais, totalFixasVirtuais,
+    fixasVirtuaisReceita, totalFixasVirtuaisReceita,
     receitasPendentes, totalReceitaPendente,
     despesaCaixa, despesaComprometida, totalComprometidoMes,
     diffNaoIdentificadoMes,

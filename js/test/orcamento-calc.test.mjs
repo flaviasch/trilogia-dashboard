@@ -286,10 +286,22 @@ test('calcularAgregadosOrcamento', async (t) => {
       { id: 'r3', ativo: true, cartao: false, categoria: 'Aluguel', valor: 1500, dia: 5, frequencia: 'mensal' }, // sem tipo (legado) = despesa
     ];
     const r = calcularAgregadosOrcamento({ data, recorrentes, agora: HOJE });
-    // Só as duas de despesa (r2 + r3) entram — a receita (r1) fica de fora,
-    // ela materializa só manualmente via "Lançar agora" em orcamento.html.
+    // Só as duas de despesa (r2 + r3) entram em fixasVirtuais — a receita (r1)
+    // fica de fora dali, mas entra em fixasVirtuaisReceita (achado 23/07/2026:
+    // igualada à despesa fixa, projeta sozinha nos meses futuros).
     assert.equal(r.totalFixasVirtuais, 60 + 1500);
     assert.ok(!r.fixasVirtuais.some(v => v.recorrenteId === 'r1'));
+    assert.equal(r.totalFixasVirtuaisReceita, 21800);
+    assert.ok(r.fixasVirtuaisReceita.some(v => v.recorrenteId === 'r1'));
+    assert.ok(!r.fixasVirtuaisReceita.some(v => v.recorrenteId === 'r2' || v.recorrenteId === 'r3'));
+  });
+
+  await t.test('achado 23/07/2026: receita fixa já lançada neste mês (recorrenteId em data.receitas) não duplica em fixasVirtuaisReceita', () => {
+    const data = periodo([], [{ recorrenteId: 'r1', categoria: 'Salário', valor: 21800, data: '2026-07-10', pendente: true }]);
+    const recorrentes = [{ id: 'r1', ativo: true, cartao: false, categoria: 'Salário', valor: 21800, dia: 10, frequencia: 'mensal', tipo: 'receita' }];
+    const r = calcularAgregadosOrcamento({ data, recorrentes, agora: HOJE });
+    assert.equal(r.totalFixasVirtuaisReceita, 0);
+    assert.equal(r.totalReceitaPendente, 21800, 'já entra como receita pendente de verdade, não mais como virtual');
   });
 
   await t.test('recorrente pulada neste mês não gera fixaVirtual', () => {

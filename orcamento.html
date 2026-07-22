@@ -4011,6 +4011,7 @@
         gruposFechadaCaixa, totalFaturas, totalCartaoPago, totalCartaoCaixa,
         despesasPendentes, totalPendente,
         fixasVirtuais, totalFixasVirtuais,
+        fixasVirtuaisReceita, totalFixasVirtuaisReceita,
         receitasPendentes, totalReceitaPendente,
         despesaCaixa: totalDespesa,
         sobra, sobraPct, totalAp, saldoFinal,
@@ -4080,10 +4081,10 @@
       }
 
       const pendCardRec = document.getElementById('pendCardReceitas');
-      if (receitasPendentes.length > 0) {
+      if (receitasPendentes.length > 0 || fixasVirtuaisReceita.length > 0) {
         pendCardRec.style.display = '';
-        document.getElementById('pendReceitasBadge').textContent = receitasPendentes.length;
-        document.getElementById('pendReceitasValor').textContent = brl(totalReceitaPendente);
+        document.getElementById('pendReceitasBadge').textContent = receitasPendentes.length + fixasVirtuaisReceita.length;
+        document.getElementById('pendReceitasValor').textContent = brl(totalReceitaPendente + totalFixasVirtuaisReceita);
       } else {
         pendCardRec.style.display = 'none';
       }
@@ -4102,15 +4103,16 @@
       // fatura em aberto — o ciclo ainda não fechou, valor/data não estão
       // definidos, por isso o Saldo Projetado também não antecipa isso.
       const pendCardSaldoFuturo = document.getElementById('pendCardSaldoFuturo');
-      if (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || totalFixasVirtuais > 0) {
+      if (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || totalFixasVirtuais > 0 || totalFixasVirtuaisReceita > 0) {
         // totalFixasVirtuais entra aqui também — o card "Despesas Pendentes"
         // ao lado já soma totalPendente + totalFixasVirtuais (achado
         // 04/07/2026); sem incluir aqui também, o Saldo Projetado ficava
         // maior do que devia (achado em 06/07/2026, Flávia: "fórmula: saldo
         // inicial - despesa total - despesas pendentes + receitas pendentes
         // - faturas a vencer" — usando o valor de despesas pendentes que já
-        // inclui as fixas).
-        const saldoFuturo = saldoFinal + totalReceitaPendente - totalPendente - totalFaturas - totalFixasVirtuais;
+        // inclui as fixas). totalFixasVirtuaisReceita entra do lado positivo,
+        // mesmo raciocínio espelhado (achado 23/07/2026).
+        const saldoFuturo = saldoFinal + totalReceitaPendente + totalFixasVirtuaisReceita - totalPendente - totalFaturas - totalFixasVirtuais;
         pendCardSaldoFuturo.style.display = '';
         const elSaldoFuturo = document.getElementById('pendSaldoFuturoValor');
         elSaldoFuturo.textContent = brl(saldoFuturo);
@@ -4120,7 +4122,7 @@
       }
 
       document.getElementById('pendenciasSection').style.display =
-        (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || fixasVirtuais.length > 0) ? '' : 'none';
+        (despesasPendentes.length > 0 || receitasPendentes.length > 0 || totalFaturas > 0 || fixasVirtuais.length > 0 || fixasVirtuaisReceita.length > 0) ? '' : 'none';
 
       // Diferença entre comprometido e a reconciliação de caixa — já calculada
       // pelo módulo compartilhado acima. O Planejamento e o Detalhe usam isso
@@ -4172,6 +4174,17 @@
           dia: v.dia,
         });
       });
+      fixasVirtuaisReceita.forEach(v => {
+        eventosProjecao.push({
+          data: new Date(data.periodo.ano, data.periodo.mes - 1, v.dia),
+          label: v.descricao || v.categoria,
+          valor: v.valor,
+          tipo: 'receita',
+          virtual: true,
+          recorrenteId: v.recorrenteId,
+          dia: v.dia,
+        });
+      });
       eventosProjecao.sort((a, b) => a.data - b.data);
 
       const projecaoSection = document.getElementById('projecaoSection');
@@ -4191,7 +4204,7 @@
           const acaoHtml = ev.tipo === 'fatura'
             ? `<button class="btn-item" data-proj-fatura="${ev.acao.estadoKey}" data-proj-fatura-total="${ev.acao.total}" data-proj-fatura-nome="${escapeHtml(ev.acao.nomeCartao)}" data-proj-fatura-mes="${escapeHtml(ev.acao.mesFatura)}" title="Confirmar pagamento" style="color:var(--positive)">✓</button>`
             : ev.virtual
-            ? `<button class="btn-item" data-proj-materializar="${ev.recorrenteId}:${ev.dia}" title="Lançar essa despesa fixa" style="color:var(--positive)">✓</button>
+            ? `<button class="btn-item" data-proj-materializar="${ev.recorrenteId}:${ev.dia}" title="${ev.tipo === 'receita' ? 'Lançar essa receita fixa' : 'Lançar essa despesa fixa'}" style="color:var(--positive)">✓</button>
                <button class="btn-item" data-proj-pular="${ev.recorrenteId}:${ev.dia}" title="Pular este mês (a recorrência continua ativa)" style="color:var(--text-muted)">⏭</button>`
             : `<button class="btn-item" data-proj-confirmar="${ev.tipo}:${ev.idx}" title="Confirmar" style="color:var(--positive)">✓</button>
                <button class="btn-item" data-proj-editar="${ev.tipo}:${ev.idx}" title="Editar">✎</button>
@@ -8990,6 +9003,36 @@
       if (!r) return;
       const { mes, ano } = currentData.periodo;
       const dataStr = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+
+      // Receita fixa: sem suporte a cartão/fatura (nunca teve esse campo no
+      // cadastro), então é sempre o caminho simples — cria a ocorrência
+      // pendente direto no mês corrente. Adicionado em 23/07/2026 pra dar à
+      // receita fixa a mesma projeção automática em meses futuros que a
+      // despesa fixa já tinha (antes só existia o botão manual "Lançar agora"
+      // do modal, sem aparecer sozinha ao navegar pra frente).
+      if (r.tipo === 'receita') {
+        currentData.receitas.push({
+          categoria:    r.categoria,
+          tipo:         'receita',
+          valor:        r.valor,
+          descricao:    r.descricao || '',
+          data:         dataStr,
+          origem:       'recorrente',
+          recorrenteId: r.id,
+          pendente:     true,
+          ...(r.contaId ? { contaId: r.contaId } : {}),
+        });
+        await salvarEAtualizar();
+        if (r.mesesRestantes != null) {
+          const novoMeses = r.mesesRestantes - 1;
+          await saveRecorrente({ ...r, mesesRestantes: novoMeses, ativo: novoMeses > 0 });
+          await carregarRecorrentes();
+        }
+        render(currentData);
+        toast('Receita fixa lançada!', 'success');
+        return;
+      }
+
       const cartaoObj = r.cartao ? _cartoes.find(c => c.id === r.cartaoId) : null;
       const faturaAtual = `${ano}-${String(mes).padStart(2, '0')}`;
       const faturaCalc = (r.cartao && cartaoObj?.diaCorte)
@@ -9234,13 +9277,14 @@
       }
     }
 
-    // ── Receitas fixas (v1 enxuta) ──────────────────────────────────────
-    // Mesma ideia de cadastro da despesa fixa, mas SEM lançamento automático:
-    // não entra em fixasVirtuais/Saldo Projetado/Detalhe (isso é território de
-    // js/orcamento-calc.js, módulo compartilhado com index.html e delicado
-    // demais pra estender nesta v1). Em vez disso, cada recorrente de receita
-    // tem um botão "Lançar agora" que cria uma receita real com pendente:true,
-    // reaproveitando o fluxo já existente de confirmarPendente('receita', ...).
+    // ── Receitas fixas ────────────────────────────────────────────────────
+    // Mesma ideia de cadastro da despesa fixa. Desde 23/07/2026 também entra
+    // em fixasVirtuaisReceita/Saldo Projetado/Pendências (js/orcamento-calc.js),
+    // projetando sozinha nos meses futuros igual à despesa fixa. O botão
+    // "Lançar agora" aqui no modal continua existindo à parte, pra lançar na
+    // hora sem precisar navegar até a Projeção — cria uma receita real com
+    // pendente:true, reaproveitando o fluxo já existente de
+    // confirmarPendente('receita', ...).
     function renderListaFixasReceita() {
       const el = document.getElementById('listaFixasReceita');
       const receitas = _recorrentes.filter(r => r.tipo === 'receita');
