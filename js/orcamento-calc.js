@@ -285,7 +285,16 @@ export function calcularAgregadosOrcamento({
   // com a fatura, então não entram aqui.
   const puladas = fixasPuladas ?? getFixasPuladas();
   const fixasVirtuais = [];
-  (recorrentes || []).filter(r => r.ativo && !r.cartao).forEach(r => {
+  // Achado 22/07/2026: com a chegada de receita fixa (tipo:'receita'), esse
+  // filtro passou a pegar TAMBÉM as recorrentes de receita — que não têm
+  // projeção virtual própria (materializam só manualmente, via "Lançar
+  // agora" em orcamento.html) — e jogava elas aqui dentro como se fossem
+  // despesa fixa pendente, aparecendo como débito negativo no Saldo
+  // Projetado. `tipo` não existia quando este filtro foi escrito, então
+  // toda recorrente ativa e sem cartão era despesa por definição; agora
+  // filtra explicitamente só despesa (recorrentes antigas, sem `tipo`
+  // salvo, continuam contando como despesa — comportamento inalterado).
+  (recorrentes || []).filter(r => r.ativo && !r.cartao && (r.tipo || 'despesa') === 'despesa').forEach(r => {
     diasFaltantesRecorrente(r, data.despesas, mes, ano).forEach(dia => {
       if (puladas.includes(chaveFixaPulada(r.id, ano, mes, dia))) return;
       fixasVirtuais.push({ recorrenteId: r.id, categoria: r.categoria, descricao: r.descricao || '', valor: r.valor, dia });

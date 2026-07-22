@@ -2490,7 +2490,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida } from './js/api.js?v=40';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida } from './js/api.js?v=41';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -6168,9 +6168,10 @@
       const nomeAnterior = editandoLimiteCat;
       const renomeando = nomeAnterior && normCat(nomeCat) !== normCat(nomeAnterior);
 
-      modalLimite.classList.add('hidden');
-      editandoLimiteCat = null;
-
+      // Só fecha o modal depois do salvamento confirmado — fechar antes (como
+      // era até 22/07/2026) escondia o botão junto com o setLoading logo
+      // abaixo, deixando a espera sem NENHUM feedback visível, parecendo que
+      // nada tinha acontecido (mesmo achado 14/07/2026 do modal de lançamento).
       setLoading(btn, true);
       try {
         let nomeFinal = nomeCat;
@@ -6193,6 +6194,8 @@
           // com dados desatualizados na memória sobrescreva esta edição.
           await upsertCategoriaLimite(mes, ano, nomeCat, limite);
         }
+        modalLimite.classList.add('hidden');
+        editandoLimiteCat = null;
         _invalPeriodo(mes, ano);
         // Busca os limites de novo do banco em vez de confiar só no retorno da
         // mutação — garante que a tela reflita exatamente o que foi persistido
@@ -6438,9 +6441,17 @@
       const valor = readMoney(document.getElementById('aeValor'));
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
       currentData.aportes[editandoAporteIdx] = { ...currentData.aportes[editandoAporteIdx], nota, valor };
-      modalAporteEdit.classList.add('hidden');
-      editandoAporteIdx = null;
-      await salvarEAtualizar();
+      const btnSalvarAporteEdit = document.getElementById('btnSalvarAporteEdit');
+      setLoading(btnSalvarAporteEdit, true);
+      try {
+        await salvarEAtualizar();
+        // Só fecha depois do salvamento confirmado — mesmo achado 14/07/2026
+        // do modal de lançamento (fechar antes deixava a espera sem feedback).
+        modalAporteEdit.classList.add('hidden');
+        editandoAporteIdx = null;
+      } finally {
+        setLoading(btnSalvarAporteEdit, false);
+      }
     });
 
     async function deletarAporte(idx) {
@@ -9192,8 +9203,7 @@
       }
 
       const btnSalvar = document.getElementById('btnSalvarFixa');
-      btnSalvar.disabled = true;
-      btnSalvar.textContent = 'Salvando…';
+      setLoading(btnSalvar, true);
       try {
         await saveRecorrente({ id, tipo: 'despesa', categoria, valor, descricao, dia, frequencia, mesesRestantes, ativo: true, cartao, cartaoId });
         await carregarRecorrentes();
@@ -9208,8 +9218,7 @@
       } catch (e) {
         mostrarToast('Erro ao salvar: ' + e.message);
       } finally {
-        btnSalvar.disabled = false;
-        btnSalvar.textContent = 'Salvar';
+        setLoading(btnSalvar, false);
       }
     }
 

@@ -278,6 +278,20 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.equal(r.despesaCaixa, 0);
   });
 
+  await t.test('achado 22/07/2026: recorrente de receita fixa (tipo:\'receita\') não vira fixaVirtual de despesa', () => {
+    const data = periodo([]);
+    const recorrentes = [
+      { id: 'r1', ativo: true, cartao: false, categoria: 'Salário', valor: 21800, dia: 10, frequencia: 'mensal', tipo: 'receita' },
+      { id: 'r2', ativo: true, cartao: false, categoria: 'Assinaturas', valor: 60, dia: 20, frequencia: 'mensal', tipo: 'despesa' },
+      { id: 'r3', ativo: true, cartao: false, categoria: 'Aluguel', valor: 1500, dia: 5, frequencia: 'mensal' }, // sem tipo (legado) = despesa
+    ];
+    const r = calcularAgregadosOrcamento({ data, recorrentes, agora: HOJE });
+    // Só as duas de despesa (r2 + r3) entram — a receita (r1) fica de fora,
+    // ela materializa só manualmente via "Lançar agora" em orcamento.html.
+    assert.equal(r.totalFixasVirtuais, 60 + 1500);
+    assert.ok(!r.fixasVirtuais.some(v => v.recorrenteId === 'r1'));
+  });
+
   await t.test('recorrente pulada neste mês não gera fixaVirtual', () => {
     localStorage.clear();
     const chave = chaveFixaPulada('r1', 2026, 7, 20);
