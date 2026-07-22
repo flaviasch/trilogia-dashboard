@@ -94,6 +94,9 @@
       font-family: 'Inter', sans-serif;
     }
     .field input:focus, .field select:focus { outline: none; border-color: var(--border-gold); }
+    .field input[readonly] { color: var(--text-secondary); cursor: not-allowed; opacity: 0.75; }
+    .field input.editavel-admin { color: var(--white); cursor: text; opacity: 1; border-color: var(--border-gold); }
+    .premissa-nota { font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
     .field-row { display: flex; gap: 10px; }
     .field-row .field { flex: 1; }
     .field-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; cursor: pointer; }
@@ -320,9 +323,10 @@
       <div class="card">
         <div class="card-titulo">Premissas da simulação</div>
         <div class="field">
-          <label for="taxaReal">Taxa real de retorno esperada (% ao mês)</label>
-          <input type="text" inputmode="decimal" id="taxaReal" placeholder="0,8" />
+          <label for="taxaReal">Taxa real de retorno esperada (% ao mês, já descontada a inflação)</label>
+          <input type="text" inputmode="decimal" id="taxaReal" placeholder="0,8" readonly />
         </div>
+        <p class="premissa-nota" id="premissaNota">Definida automaticamente pelo seu perfil de investidor.</p>
       </div>
     </div>
 
@@ -370,9 +374,19 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboardHome, getPatrimonio, getMateriaisJornada, simularLiberdadeFinanceira } from './js/api.js?v=40';
+    import { getDashboardHome, getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira } from './js/api.js?v=40';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+    // Taxa real mensal (já líquida de inflação) por perfil de investidor —
+    // definida pela Flávia (22/07/2026): 4% / 5% / 6% ao ano real.
+    const TAXA_POR_PERFIL = {
+      conservador: 0.33, // (1,04)^(1/12)-1
+      moderado:    0.41, // (1,05)^(1/12)-1
+      arrojado:    0.49, // (1,06)^(1/12)-1
+    };
+    const TAXA_PADRAO = TAXA_POR_PERFIL.moderado; // fallback quando não há perfil cadastrado
+    let _souAdmin = false;
 
     // Propaga viewAs para links de volta ao dashboard, mesmo padrão de jornada.html
     {
@@ -417,7 +431,8 @@
         });
       }
 
-      if (await isAdmin()) document.getElementById('linkAdmin').style.display = 'inline';
+      _souAdmin = await isAdmin();
+      if (_souAdmin) document.getElementById('linkAdmin').style.display = 'inline';
 
       init();
     });
@@ -623,6 +638,33 @@
         console.warn('Erro ao carregar investimentos:', err.message);
       }
 
+      // Taxa real mensal: travada pelo perfil de investidor da mentorada — só admin edita.
+      let perfilInvestidor = null;
+      try {
+        const r = await getPerfil();
+        perfilInvestidor = r?.perfil || null;
+      } catch (err) {
+        console.warn('Erro ao carregar perfil de investidor:', err.message);
+      }
+      const taxaPadraoPerfil = TAXA_POR_PERFIL[perfilInvestidor] ?? TAXA_PADRAO;
+      const elTaxa = document.getElementById('taxaReal');
+      const elNota = document.getElementById('premissaNota');
+      const nomePerfil = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' }[perfilInvestidor];
+
+      if (_souAdmin) {
+        elTaxa.removeAttribute('readonly');
+        elTaxa.classList.add('editavel-admin');
+        elTaxa.value = String(salvo?.premissas?.taxaRealMensalPct ?? taxaPadraoPerfil).replace('.', ',');
+        elNota.textContent = nomePerfil
+          ? `Perfil de investidor: ${nomePerfil} (padrão ${String(taxaPadraoPerfil).replace('.', ',')}% a.m.). Como admin, você pode editar manualmente.`
+          : `Sem perfil de investidor cadastrado (padrão ${String(taxaPadraoPerfil).replace('.', ',')}% a.m.). Como admin, você pode editar manualmente.`;
+      } else {
+        elTaxa.value = String(taxaPadraoPerfil).replace('.', ',');
+        elNota.textContent = nomePerfil
+          ? `Definida automaticamente pelo seu perfil de investidor (${nomePerfil}).`
+          : 'Definida automaticamente pela sua mentora.';
+      }
+
       // Prefill com dados salvos anteriormente
       if (salvo) {
         const [pessoa1, pessoa2] = salvo.pessoas || [];
@@ -644,11 +686,7 @@
         if (salvo.patrimonioInicial) setMoney(document.getElementById('patrimonioAjuste'), salvo.patrimonioInicial);
         (salvo.objetivosExtras || []).forEach(o => criarLinhaObjetivo(o));
         (salvo.rendasDespesas || []).forEach(r => criarLinhaRenda(r));
-        if (salvo.premissas?.taxaRealMensalPct != null) {
-          document.getElementById('taxaReal').value = String(salvo.premissas.taxaRealMensalPct).replace('.', ',');
-        }
       }
-      if (!document.getElementById('taxaReal').value) document.getElementById('taxaReal').value = '0,8';
 
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
@@ -703,7 +741,7 @@
         dataFim: div.querySelector('.rdDataFim').value || null,
       })).filter(r => r.descricao && r.valorBruto > 0);
 
-      const taxaRealMensalPct = parseFloat((document.getElementById('taxaReal').value || '0,8').replace(',', '.')) || 0.8;
+      const taxaRealMensalPct = parseFloat((document.getElementById('taxaReal').value || '').replace(',', '.')) || TAXA_PADRAO;
 
       const btn = document.getElementById('btnCalcular');
       btn.disabled = true;
