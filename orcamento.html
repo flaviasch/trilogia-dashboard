@@ -2432,8 +2432,9 @@
       <p class="modal-sub" id="modalLimiteSub">—</p>
       <div class="field-group" id="modalLimiteNomeWrap">
         <label for="mLimiteNome">Categoria</label>
-        <input type="text" id="mLimiteNome" placeholder="ex: Alimentação, Lazer…" />
-        <span id="mLimiteNomeHint" style="display:none;font-size:11px;color:var(--text-muted);margin-top:4px;">Mudar o nome renomeia a categoria neste mês. Se já existir outra com esse nome, os limites são somados automaticamente.</span>
+        <input type="text" id="mLimiteNome" list="mLimiteNomeLista" placeholder="ex: Alimentação, Lazer…" autocomplete="off" />
+        <datalist id="mLimiteNomeLista"></datalist>
+        <span id="mLimiteNomeHint" style="display:none;font-size:11px;color:var(--text-muted);margin-top:4px;">Mudar o nome renomeia a categoria neste mês. Se já existir outra com esse nome, os limites são somados automaticamente — escolha na lista pra evitar erro de digitação.</span>
       </div>
       <div class="field-group">
         <label for="mLimiteValor">Limite mensal (R$) — deixe 0 para remover</label>
@@ -6160,12 +6161,29 @@
 
     bindMoneyInput(document.getElementById('mLimiteValor'));
 
+    // Lista de nomes de categoria já usados neste mês (limites + lançamentos),
+    // pra popular o datalist do campo Categoria — evita erro de digitação ao
+    // renomear/mesclar (achado 23/07/2026: "Ajuste" digitado à mão não bateu
+    // com nenhuma categoria salva, gerando "não encontrada"). Exclui a
+    // própria categoria em edição, sem sentido sugerir renomear pra si mesma.
+    function _listarNomesCategorias(excluir) {
+      const nomes = new Set();
+      (categoriasMes || []).forEach(c => c.nome && nomes.add(c.nome));
+      (currentData?.despesas || []).forEach(d => d.categoria && nomes.add(d.categoria));
+      (currentData?.receitas || []).forEach(r => r.categoria && nomes.add(r.categoria));
+      if (excluir) nomes.delete(excluir);
+      return [...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }
+
     function abrirModalLimite(cat, modo = 'limite') {
       editandoLimiteCat = cat || null;
       _modalLimiteModo = cat ? modo : 'nova';
       const catObj      = categoriasMes.find(c => normCat(c.nome) === normCat(cat));
       const limiteAtual = catObj?.limite || 0;
       limiteOriginalEdicao = limiteAtual;
+
+      document.getElementById('mLimiteNomeLista').innerHTML =
+        _listarNomesCategorias(cat).map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
 
       const elNome  = document.getElementById('mLimiteNome');
       const elValor = document.getElementById('mLimiteValor');
