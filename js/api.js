@@ -1110,6 +1110,14 @@ export async function upsertCategoriaLimite(mes, ano, nome, limite) {
 }
 
 /**
+ * Renomeia uma categoria do Planejamento do mês. Se o novo nome já existir,
+ * o servidor soma os limites automaticamente. Retorna { categorias, mesclou, nomeDestino }.
+ */
+export async function renomearCategoriaLimite(mes, ano, nomeAntigo, nomeNovo) {
+  return call('renomearCategoriaLimite')({ uid: uidAtual(), mes, ano, nomeAntigo, nomeNovo });
+}
+
+/**
  * Retorna a renda planejada e o percentual planejado do mês (parte do mesmo
  * documento de planejamento, não sobrepõe getCategoriasMes).
  * @param {number} mes

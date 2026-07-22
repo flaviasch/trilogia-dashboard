@@ -67,8 +67,48 @@
 
     /* ─── Page header ────────────────────────── */
     .page-header { margin-bottom: 28px; }
+    .page-header-top { display: flex; align-items: center; gap: 10px; }
     .page-header h1 { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; margin-bottom: 6px; }
     .page-header p { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+    .btn-ajuda {
+      display: flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+      background: none; border: 1px solid var(--border-gold); color: var(--gold);
+      font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 700;
+      cursor: pointer; margin-bottom: 6px; transition: background .15s;
+    }
+    .btn-ajuda:hover { background: rgba(207,174,101,0.12); }
+
+    /* ─── Modal de ajuda / FAQ ────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      display: flex; align-items: flex-start; justify-content: center;
+      z-index: 300; padding: 24px; overflow-y: auto;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-card-ajuda {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 16px;
+      padding: 28px; width: 100%; max-width: 560px; margin: auto 0;
+    }
+    .modal-ajuda-topo { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+    .modal-ajuda-titulo { font-family: 'Playfair Display', serif; font-size: 19px; }
+    .modal-ajuda-fechar { background: none; border: none; color: var(--text-muted); font-size: 22px; cursor: pointer; line-height: 1; }
+    .modal-ajuda-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
+    .faq-item { border-bottom: 1px solid var(--border); }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-pergunta {
+      width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+      padding: 13px 0; font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 600;
+      color: var(--white); display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .faq-pergunta:hover { color: var(--gold); }
+    .faq-seta { color: var(--gold); font-size: 12px; transition: transform .15s; flex-shrink: 0; }
+    .faq-item.aberto .faq-seta { transform: rotate(180deg); }
+    .faq-resposta {
+      display: none; font-size: 13px; color: var(--text-secondary); line-height: 1.6;
+      padding: 0 0 14px;
+    }
+    .faq-item.aberto .faq-resposta { display: block; }
 
     /* ─── Tabs ───────────────────────────────── */
     .tabs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
@@ -214,8 +254,113 @@
   <main class="main" id="mainContent" style="display:none">
 
     <div class="page-header">
-      <h1>Mapa da <span style="color:var(--gold)">Liberdade Financeira</span></h1>
+      <div class="page-header-top">
+        <h1>Mapa da <span style="color:var(--gold)">Liberdade Financeira</span></h1>
+        <button type="button" class="btn-ajuda" id="btnAjudaLiberdade" title="Como funciona / Dúvidas frequentes">?</button>
+      </div>
       <p>Preencha os dados abaixo e veja se seu planejamento atual te leva até a liberdade financeira — e o que falta pra chegar lá.</p>
+    </div>
+
+    <!-- Modal de ajuda / dúvidas frequentes -->
+    <div class="modal-overlay hidden" id="modalAjudaLiberdade">
+      <div class="modal-card-ajuda">
+        <div class="modal-ajuda-topo">
+          <div class="modal-ajuda-titulo">Como funciona o Mapa da Liberdade Financeira</div>
+          <button type="button" class="modal-ajuda-fechar" id="btnFecharAjudaLiberdade">×</button>
+        </div>
+        <div class="modal-ajuda-sub">
+          Clique em cada pergunta pra abrir a resposta. Se ainda ficar dúvida depois de ler, é só chamar a Flávia.
+        </div>
+        <div id="faqLiberdadeLista">
+          <div class="faq-item aberto">
+            <button type="button" class="faq-pergunta">O que é essa ferramenta, no fim das contas?<span class="faq-seta">▾</span></button>
+            <div class="faq-resposta">
+              É uma simulação: com base no que você ganha, gasta, já tem guardado e planeja fazer até se aposentar,
+              ela projeta se o seu dinheiro vai durar — e mostra isso num gráfico. Não é uma promessa nem uma conta
+              exata do futuro, é um retrato do seu plano <em>hoje</em>, pra você enxergar se está no caminho certo
+              ou se precisa ajustar algo (poupar mais, adiar um objetivo, rever a aposentadoria).
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-pergunta">Preciso preencher tudo de uma vez?<span class="faq-seta">▾</span></button>
+            <div class="faq-resposta">
+              Não precisa ser perfeito na primeira tentativa. Preencha com o que você sabe agora, clique em
+              "Calcular" e veja o resultado — depois você pode voltar, ajustar qualquer campo e calcular de novo
+              quantas vezes quiser. Nada é perdido.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-pergunta">Qual a diferença entre a aba "Patrimônio" e a aba "Investimentos"?<span class="faq-seta">▾</span></button>
+            <div class="faq-resposta">
+              "Patrimônio" mostra <strong>tudo</strong> que você tem — imóveis, carro, investimentos, menos as
+              dívidas. É só uma referência, pra você ter uma visão geral; esse número não entra direto na conta.
+              "Investimentos" mostra só o que é <strong>dinheiro aplicado</strong> (renda fixa, fundos, ações etc) —
+              coisas que rendem e que dá pra usar aos poucos na aposentadoria. É esse segundo valor que a simulação
+              usa como ponto de partida, porque um imóvel ou um carro não vira renda mensal do dia pra noite.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-pergunta">Por que o "Total financeiro" da aba Investimentos aparece R$ 0?<span class="faq-seta">▾</span></button>
+            <div class="faq-resposta">
+              Isso acontece quando você ainda não detalhou seus investimentos por tipo (renda fixa, fundos, ações...)
+              na aba Patrimônio do Dashboard. Você pode digitar o valor manualmente ali na aba Investimentos pra não
+              travar a simulação, ou preencher o detalhamento em Patrimônio uma vez — daí esse valor passa a vir
+              automático sempre que você abrir o Mapa da Liberdade de novo.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-pergunta">O que quer dizer "Idade de atingimento" e "parcelada" num Objetivo?<span class="faq-seta">▾</span></button>
+            <div class="faq-resposta">
+              "Idade de atingimento" é a idade que você (ou seu parceiro) vai ter quando esse objetivo acontecer —
+              por exemplo, "comprar uma casa aos 40 anos". "Parcelada" é quando o objetivo não sai do seu bolso de
+              uma vez só, mas em partes — por exemplo, a faculdade de um filho paga em parcelas anuais por 4 anos,
+              em vez de um valor único.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-pergunta">O que é "Previsão de término" em Rendas e Despesas?<span class="faq-seta">▾</span></button>
+            <div class="faq-resposta">
+              É até quando aquela renda ou despesa continua acontecendo. "Sem previsão" quer dizer que ela continua
+              pra sempre (ex: conta de luz). "Após algumas ocorrências" é quando ela tem um número certo de parcelas
+              e depois acaba (ex: financiamento de 24 meses). "Ao se aposentar" é quando ela some automaticamente
+              na data da sua aposentadoria (ex: o salário do trabalho, que para quando você se aposenta).
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-pergunta">Por que não consigo editar a "Taxa real mensal" em Premissas?<span class="faq-seta">▾</span></button>
+            <div class="faq-resposta">
+              Essa taxa representa o quanto seu dinheiro investido rende por mês, já descontada a inflação — e ela
+              muda o resultado da simulação inteira. Pra evitar que um número digitado errado distorça o resultado,
+              o Dashboard usa automaticamente a taxa que combina com o seu perfil de investidor (conservador,
+              moderado ou arrojado), definido lá em Perfil. Se você acha que seu perfil está desatualizado, fale
+              com a Flávia pra revisar.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-pergunta">O que são as 3 linhas do gráfico?<span class="faq-seta">▾</span></button>
+            <div class="faq-resposta">
+              <strong>Planejamento Atual</strong> (linha dourada) é a projeção real do seu dinheiro, com tudo que
+              você preencheu. <strong>Consumo do Patrimônio</strong> (linha vermelha tracejada) mostra o mínimo que
+              você precisaria ter guardado pra viver da renda desejada até o fim da expectativa de vida, gastando
+              aos poucos o que guardou. <strong>Preservação do Patrimônio</strong> (linha verde tracejada) mostra
+              quanto seria necessário pra viver só do rendimento, sem nunca gastar o valor guardado — deixando esse
+              valor como herança. Os números dourados marcados no gráfico indicam o momento em que cada objetivo
+              (viagem, casa, faculdade...) é retirado do patrimônio.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-pergunta">O que significa "Planejamento Inadequado", "Adequado" ou "Confortável"?<span class="faq-seta">▾</span></button>
+            <div class="faq-resposta">
+              É o diagnóstico comparando sua linha dourada (Planejamento Atual) com as duas linhas de referência na
+              idade da aposentadoria. <strong>Inadequado</strong> quer dizer que, do jeito que está hoje, o dinheiro
+              não seria suficiente — o resultado mostra quanto a mais você precisaria poupar por mês pra resolver
+              isso. <strong>Adequado</strong> quer dizer que dá pra viver da forma desejada, mas consumindo aos
+              poucos o patrimônio guardado. <strong>Confortável</strong> quer dizer que você consegue viver da
+              renda desejada sem nunca gastar o principal, podendo até deixar herança.
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="tabs" id="tabs">
@@ -406,7 +551,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboardHome, getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira } from './js/api.js?v=40';
+    import { getDashboardHome, getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira, getMinhaJornada } from './js/api.js?v=40';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -493,12 +638,44 @@
       _souAdmin = await isAdmin();
       if (_souAdmin) document.getElementById('linkAdmin').style.display = 'inline';
 
+      // Mapa da Liberdade só libera depois do 1º encontro de mentoria — mesmo
+      // gate de acesso do card em jornada.html (achado 22/07/2026: dava pra
+      // chegar direto por aqui digitando a URL, pulando o bloqueio de lá).
+      // Em viewAs, Flávia está inspecionando a conta e precisa ver tudo.
+      if (!_va) {
+        try {
+          const { encontros = [], semDados } = await getMinhaJornada();
+          if (semDados || !encontros.length) {
+            window.location.replace('jornada.html');
+            return;
+          }
+        } catch (err) {
+          console.warn('[liberdade] Falha ao checar encontros, liberando por padrão:', err.message);
+        }
+      }
+
       init();
     });
 
     document.getElementById('btnLogout').addEventListener('click', async () => {
       await signOut(auth);
       window.location.href = 'login.html';
+    });
+
+    // ─── Ajuda / FAQ (achado 22/07/2026: ferramenta tem termos que não são
+    // óbvios pra quem não é da área financeira — "patrimônio" vs "investimentos",
+    // "consumo" vs "preservação" etc. Acordeão simples, sem dependência externa) ──
+    document.getElementById('btnAjudaLiberdade')?.addEventListener('click', () => {
+      document.getElementById('modalAjudaLiberdade').classList.remove('hidden');
+    });
+    document.getElementById('btnFecharAjudaLiberdade')?.addEventListener('click', () => {
+      document.getElementById('modalAjudaLiberdade').classList.add('hidden');
+    });
+    document.getElementById('modalAjudaLiberdade')?.addEventListener('click', e => {
+      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
+    document.querySelectorAll('#faqLiberdadeLista .faq-pergunta').forEach(btn => {
+      btn.addEventListener('click', () => btn.closest('.faq-item').classList.toggle('aberto'));
     });
 
     // ─── Tabs ────────────────────────────────────────────────────────────────
@@ -770,10 +947,11 @@
       // Investimentos: só ativos financeiros (mesma whitelist de patrimonio.html —
       // pos/infl/pre/rv/mm/int), valor bruto, sem descontar dívidas nem contar
       // imóveis/bens/veículos. Este é o valor que alimenta o motor de simulação.
-      // Fallback (22/07/2026, achado no teste ao vivo): se a mentorada nunca
-      // detalhou os investimentos por classe em Patrimônio (ativos itemizados
-      // vazio), usar o patrimônio total (plCacheado) como estimativa em vez de
-      // travar em R$0 — deixa claro que é estimativa e ainda editável.
+      // Decidido em 22/07/2026 (revertido o fallback de plCacheado testado antes):
+      // NÃO cai pro patrimônio total quando não há itens detalhados — misturaria
+      // ativo não-financeiro (imóveis etc.) no valor que alimenta o motor,
+      // contrariando a regra de que Investimentos é só a parte financeira. Sem
+      // itens, fica R$0 mesmo, com orientação clara pra preencher manualmente.
       try {
         const p = await getPatrimonio();
         const ativos = Array.isArray(p?.ativos) ? p.ativos : [];
@@ -781,25 +959,20 @@
         const totalFinanceiro = financeiros.reduce((s, a) => s + (a.valor || 0), 0);
         const elPatrimonioNota = document.getElementById('investimentosNota');
 
-        if (!financeiros.length && plCacheado > 0) {
-          document.getElementById('patrimonioValor').textContent = brl(plCacheado);
-          document.getElementById('patrimonioValor').dataset.valor = plCacheado;
+        document.getElementById('patrimonioValor').textContent = brl(totalFinanceiro);
+        document.getElementById('patrimonioValor').dataset.valor = totalFinanceiro;
+
+        if (!financeiros.length) {
           document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Nenhum investimento detalhado por classe ainda.</span></div>';
-          if (elPatrimonioNota) elPatrimonioNota.textContent = `Você ainda não detalhou seus investimentos por classe em Patrimônio — por enquanto, usamos seu patrimônio total (${brl(plCacheado)}) como estimativa. Ajuste no campo abaixo se quiser refinar, ou detalhe por classe em Patrimônio pra um cálculo mais preciso.`;
+          if (elPatrimonioNota) elPatrimonioNota.textContent = 'Você ainda não detalhou seus investimentos por classe em Patrimônio, então não dá pra puxar automático. Preencha o valor manualmente no campo abaixo, ou detalhe por classe em Patrimônio pra isso vir automático da próxima vez.';
         } else {
-          document.getElementById('patrimonioValor').textContent = brl(totalFinanceiro);
-          document.getElementById('patrimonioValor').dataset.valor = totalFinanceiro;
           if (elPatrimonioNota) elPatrimonioNota.textContent = 'Só ativos financeiros (RF, multimercado, renda variável, internacional) — é este valor que entra como base no motor de simulação.';
-          if (!financeiros.length) {
-            document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Nenhum investimento cadastrado ainda.</span></div>';
-          } else {
-            const porClasse = {};
-            financeiros.forEach(a => { porClasse[a.classe] = (porClasse[a.classe] || 0) + (a.valor || 0); });
-            document.getElementById('investimentosLista').innerHTML = Object.entries(porClasse)
-              .sort((a, b) => b[1] - a[1])
-              .map(([classe, valor]) => `<div class="info-readonly"><span>${CLASSE_LABEL[classe] || classe}</span><strong>${brl(valor)}</strong></div>`)
-              .join('');
-          }
+          const porClasse = {};
+          financeiros.forEach(a => { porClasse[a.classe] = (porClasse[a.classe] || 0) + (a.valor || 0); });
+          document.getElementById('investimentosLista').innerHTML = Object.entries(porClasse)
+            .sort((a, b) => b[1] - a[1])
+            .map(([classe, valor]) => `<div class="info-readonly"><span>${CLASSE_LABEL[classe] || classe}</span><strong>${brl(valor)}</strong></div>`)
+            .join('');
         }
       } catch (err) {
         document.getElementById('patrimonioValor').textContent = 'Erro ao carregar';

@@ -1385,6 +1385,7 @@
       <button id="btnAddDespesaRapida" class="btn-acao">+ Lançar manualmente</button>
       <button id="btnLancarNoCartao" class="btn-acao" style="display:none;">💳 Lançar no cartão</button>
       <button id="btnGerenciarFixasTop" class="btn-acao">⚙️ Despesas fixas</button>
+      <button id="btnGerenciarFixasReceitaTop" class="btn-acao">💰 Receitas fixas</button>
       <button id="btnGerenciarCartoesTop" class="btn-acao">💳 Cartões</button>
       <button id="btnSeletorConta" class="btn-acao" onclick="window._abrirModalContas()">🏦 Contas</button>
     </div>
@@ -1887,6 +1888,9 @@
         <button id="btnGerenciarFixas" style="background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;opacity:0.8;padding:4px 0;white-space:nowrap;">
           ⚙️ Gerenciar despesas fixas
         </button>
+        <button id="btnGerenciarFixasReceita" style="background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;opacity:0.8;padding:4px 0;white-space:nowrap;">
+          💰 Gerenciar receitas fixas
+        </button>
       </div>
       <div id="detalheContent"></div>
     </div>
@@ -2037,6 +2041,92 @@
         <div style="display:flex;gap:10px;">
           <button id="btnSalvarFixa" class="btn-primary" style="flex:1;font-size:14px;">Salvar</button>
           <button id="btnCancelarFixa" class="btn-secondary" style="font-size:14px;padding:10px 18px;">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de receitas fixas — v1 enxuta: cadastro + lançamento manual
+       (pendente até confirmar). Não tem cartão (receita não existe no
+       cartão de crédito) e não entra na projeção automática de "Saldo
+       Projetado"/Detalhe como a despesa fixa; a mentorada clica em
+       "Lançar agora" quando o valor efetivamente cair na conta, e o
+       item nasce pendente, igual a qualquer outra receita manual. -->
+  <div id="modalFixasReceita" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width:520px;width:94%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0;">Receitas fixas mensais</h3>
+        <button id="btnFecharModalFixasReceita" style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;line-height:1;">×</button>
+      </div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        Cadastre aqui suas receitas fixas (salário, aluguel recebido, etc). Elas não são lançadas
+        sozinhas — quando o valor cair na conta, clique em "Lançar agora" e confirme, igual a um
+        lançamento manual.
+      </p>
+      <div id="listaFixasReceita" style="margin-bottom:16px;max-height:320px;overflow-y:auto;"></div>
+      <button id="btnAddFixaReceita" class="btn-primary" style="width:100%;font-size:14px;">+ Adicionar receita fixa</button>
+
+      <!-- Formulário inline de nova/editar recorrente de receita -->
+      <div id="formFixaReceita" class="hidden" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+        <input type="hidden" id="fixaReceitaId">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Categoria *</label>
+            <select id="fixaReceitaCategoria" style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;"></select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Valor (R$) *</label>
+            <input type="number" id="fixaReceitaValor" min="0" step="0.01" placeholder="0,00"
+              style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Descrição</label>
+            <input type="text" id="fixaReceitaDescricao" maxlength="200" placeholder="Ex: Salário, Aluguel recebido…"
+              style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);">Frequência *</label>
+            <select id="fixaReceitaFrequencia" style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;">
+              <option value="mensal">Mensal</option>
+              <option value="quinzenal">Quinzenal</option>
+              <option value="semanal">Semanal</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div>
+            <label id="fixaReceitaDiaLabel" style="font-size:12px;color:var(--text-secondary);">Dia do mês *</label>
+            <input type="number" id="fixaReceitaDia" min="1" max="28" placeholder="1–28"
+              style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+            <select id="fixaReceitaDiaSemana" style="display:none;width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;">
+              <option value="1">Segunda-feira</option>
+              <option value="2">Terça-feira</option>
+              <option value="3">Quarta-feira</option>
+              <option value="4">Quinta-feira</option>
+              <option value="5">Sexta-feira</option>
+              <option value="6">Sábado</option>
+              <option value="0">Domingo</option>
+            </select>
+            <div id="fixaReceitaDiaHint" style="display:none;font-size:10px;color:var(--text-muted);margin-top:3px;"></div>
+          </div>
+          <div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;margin-top:2px;user-select:none;">
+              <input type="checkbox" id="fixaReceitaLimitado" style="accent-color:var(--gold);width:14px;height:14px;" />
+              Por tempo determinado
+            </label>
+            <div id="fgFixaReceitaMeses" style="display:none;margin-top:8px;">
+              <label style="font-size:11px;color:var(--text-secondary);">Quantos meses?</label>
+              <input type="number" id="fixaReceitaMeses" min="1" max="60" placeholder="Ex: 6"
+                style="width:100%;margin-top:3px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;box-sizing:border-box;">
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;">
+          <button id="btnSalvarFixaReceita" class="btn-primary" style="flex:1;font-size:14px;">Salvar</button>
+          <button id="btnCancelarFixaReceita" class="btn-secondary" style="font-size:14px;padding:10px 18px;">Cancelar</button>
         </div>
       </div>
     </div>
@@ -2340,9 +2430,10 @@
     <div class="modal-card">
       <h2 class="modal-title">Limite de orçamento</h2>
       <p class="modal-sub" id="modalLimiteSub">—</p>
-      <div class="field-group" id="modalLimiteNomeWrap" style="display:none">
+      <div class="field-group" id="modalLimiteNomeWrap">
         <label for="mLimiteNome">Categoria</label>
         <input type="text" id="mLimiteNome" placeholder="ex: Alimentação, Lazer…" />
+        <span id="mLimiteNomeHint" style="display:none;font-size:11px;color:var(--text-muted);margin-top:4px;">Mudar o nome renomeia a categoria neste mês. Se já existir outra com esse nome, os limites são somados automaticamente.</span>
       </div>
       <div class="field-group">
         <label for="mLimiteValor">Limite mensal (R$) — deixe 0 para remover</label>
@@ -2399,7 +2490,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida } from './js/api.js?v=38';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida } from './js/api.js?v=39';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -6037,6 +6128,7 @@
     // ─── Modal de limite de categoria ────────────────────────────────────────
     const modalLimite = document.getElementById('modalLimite');
     let editandoLimiteCat = null;
+    let limiteOriginalEdicao = 0;
 
     bindMoneyInput(document.getElementById('mLimiteValor'));
 
@@ -6044,21 +6136,17 @@
       editandoLimiteCat = cat || null;
       const catObj      = categoriasMes.find(c => normCat(c.nome) === normCat(cat));
       const limiteAtual = catObj?.limite || 0;
-      document.getElementById('modalLimiteSub').textContent = cat ? `Categoria: ${cat}` : 'Nova categoria';
-      if (!cat) {
-        // Nova categoria: mostrar campo de nome
-        document.getElementById('modalLimiteNomeWrap').style.display = '';
-        document.getElementById('mLimiteNome').value = '';
-      } else {
-        document.getElementById('modalLimiteNomeWrap').style.display = 'none';
-      }
+      limiteOriginalEdicao = limiteAtual;
+      document.getElementById('modalLimiteSub').textContent = cat ? 'Editar categoria' : 'Nova categoria';
+      document.getElementById('mLimiteNome').value = cat || '';
+      document.getElementById('mLimiteNomeHint').style.display = cat ? '' : 'none';
       if (limiteAtual > 0) {
         setMoney(document.getElementById('mLimiteValor'), limiteAtual);
       } else {
         document.getElementById('mLimiteValor').value = '';
       }
       modalLimite.classList.remove('hidden');
-      setTimeout(() => document.getElementById(cat ? 'mLimiteValor' : 'mLimiteNome').focus(), 80);
+      setTimeout(() => document.getElementById('mLimiteNome').focus(), 80);
     }
 
     document.getElementById('btnCancelarLimite').addEventListener('click', () => {
@@ -6072,20 +6160,39 @@
     document.getElementById('btnSalvarLimite').addEventListener('click', async () => {
       const btn    = document.getElementById('btnSalvarLimite');
       const limite = readMoney(document.getElementById('mLimiteValor'));
-      const nomeCat = editandoLimiteCat || document.getElementById('mLimiteNome')?.value.trim();
+      const nomeCat = document.getElementById('mLimiteNome')?.value.trim();
 
       if (!nomeCat) { toast('Preencha o nome da categoria.', 'warning'); return; }
 
       const { mes, ano } = currentData.periodo;
+      const nomeAnterior = editandoLimiteCat;
+      const renomeando = nomeAnterior && normCat(nomeCat) !== normCat(nomeAnterior);
 
       modalLimite.classList.add('hidden');
       editandoLimiteCat = null;
 
       setLoading(btn, true);
       try {
-        // Merge feito no servidor (transaction) — evita que outra aba/dispositivo
-        // com dados desatualizados na memória sobrescreva esta edição.
-        await upsertCategoriaLimite(mes, ano, nomeCat, limite);
+        let nomeFinal = nomeCat;
+        if (renomeando) {
+          // Renomeia (e mescla automaticamente se já existir categoria com esse
+          // nome — soma os limites no servidor via transaction).
+          const resultado = await renomearCategoriaLimite(mes, ano, nomeAnterior, nomeCat);
+          nomeFinal = resultado.nomeDestino || nomeCat;
+          if (resultado.mesclou) {
+            const catFinal = (resultado.categorias || []).find(c => normCat(c.nome) === normCat(nomeFinal));
+            toast(`"${nomeAnterior}" foi juntada com "${nomeFinal}" — limites somados (${brl(catFinal?.limite || 0)}/mês).`, 'success', 6000);
+          }
+          // Se além de renomear o valor do limite também mudou nesta mesma
+          // edição, aplica por cima do resultado da mesclagem/renomeação.
+          if (limite !== limiteOriginalEdicao) {
+            await upsertCategoriaLimite(mes, ano, nomeFinal, limite);
+          }
+        } else {
+          // Merge feito no servidor (transaction) — evita que outra aba/dispositivo
+          // com dados desatualizados na memória sobrescreva esta edição.
+          await upsertCategoriaLimite(mes, ano, nomeCat, limite);
+        }
         _invalPeriodo(mes, ano);
         // Busca os limites de novo do banco em vez de confiar só no retorno da
         // mutação — garante que a tela reflita exatamente o que foi persistido
@@ -6096,7 +6203,9 @@
         render(currentData);
         if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
         if (_tabAtiva === 'detalhe')      renderDespesasGrupos(currentData, currentData.despesas.filter(d=>!(d.cartao&&d.fatura)).reduce((s,d)=>s+d.valor,0));
-        toast(limite > 0 ? `Limite de ${brl(limite)}/mês definido.` : 'Limite removido.', 'success');
+        if (!renomeando) {
+          toast(limite > 0 ? `Limite de ${brl(limite)}/mês definido.` : 'Limite removido.', 'success');
+        }
         if (limite > 0) registrarEvento('planejamento_configurado');
       } catch (err) {
         toast('Erro ao salvar limite. Tente novamente.', 'error');
@@ -8919,28 +9028,33 @@
       catch (e) { console.warn('[recorrentes]', e.message); _recorrentes = []; }
     }
 
+    // nomeSemana/infoFreq/infoPrazo são usados tanto pela lista de despesas
+    // fixas quanto pela de receitas fixas — mantidos aqui em escopo de módulo
+    // pra evitar duplicar a lógica de formatação nas duas listas.
+    const _nomeSemanaFixa = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    function _infoFreqFixa(r) {
+      const freq = r.frequencia || 'mensal';
+      if (freq === 'semanal')   return `Semanal · ${_nomeSemanaFixa[r.dia] || '?'}`;
+      if (freq === 'quinzenal') return `Quinzenal · dias ${r.dia} e ${r.dia + 14}`;
+      return `Mensal · dia ${r.dia}`;
+    }
+    function _infoPrazoFixa(r) {
+      if (r.mesesRestantes == null) return '';
+      return ` · <span style="color:var(--gold);">${r.mesesRestantes} ${r.mesesRestantes === 1 ? 'mês restante' : 'meses restantes'}</span>`;
+    }
+
     function renderListaFixas() {
       const el = document.getElementById('listaFixas');
-      if (!_recorrentes.length) {
+      const despesas = _recorrentes.filter(r => (r.tipo || 'despesa') === 'despesa');
+      if (!despesas.length) {
         el.innerHTML = `<p style="font-size:13px;color:var(--text-secondary);text-align:center;padding:16px 0;">Nenhuma despesa fixa cadastrada ainda.</p>`;
         return;
       }
-      const nomeSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-      function infoFreq(r) {
-        const freq = r.frequencia || 'mensal';
-        if (freq === 'semanal')   return `Semanal · ${nomeSemana[r.dia] || '?'}`;
-        if (freq === 'quinzenal') return `Quinzenal · dias ${r.dia} e ${r.dia + 14}`;
-        return `Mensal · dia ${r.dia}`;
-      }
-      function infoPrazo(r) {
-        if (r.mesesRestantes == null) return '';
-        return ` · <span style="color:var(--gold);">${r.mesesRestantes} ${r.mesesRestantes === 1 ? 'mês restante' : 'meses restantes'}</span>`;
-      }
-      el.innerHTML = _recorrentes.map(r => `
+      el.innerHTML = despesas.map(r => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
           <div>
             <div style="font-size:14px;font-weight:600;">${escapeHtml(r.descricao || r.categoria)}</div>
-            <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(r.categoria)} · ${infoFreq(r)} · ${r.ativo ? '✅ Ativa' : '⏸ Pausada'}${infoPrazo(r)}</div>
+            <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(r.categoria)} · ${_infoFreqFixa(r)} · ${r.ativo ? '✅ Ativa' : '⏸ Pausada'}${_infoPrazoFixa(r)}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-weight:700;color:var(--negative);">${brl(r.valor)}</span>
@@ -9081,7 +9195,7 @@
       btnSalvar.disabled = true;
       btnSalvar.textContent = 'Salvando…';
       try {
-        await saveRecorrente({ id, categoria, valor, descricao, dia, frequencia, mesesRestantes, ativo: true, cartao, cartaoId });
+        await saveRecorrente({ id, tipo: 'despesa', categoria, valor, descricao, dia, frequencia, mesesRestantes, ativo: true, cartao, cartaoId });
         await carregarRecorrentes();
         renderListaFixas();
         mostrarToast('Despesa fixa salva!');
@@ -9109,6 +9223,209 @@
       } catch (e) {
         mostrarToast('Erro: ' + e.message);
       }
+    }
+
+    // ── Receitas fixas (v1 enxuta) ──────────────────────────────────────
+    // Mesma ideia de cadastro da despesa fixa, mas SEM lançamento automático:
+    // não entra em fixasVirtuais/Saldo Projetado/Detalhe (isso é território de
+    // js/orcamento-calc.js, módulo compartilhado com index.html e delicado
+    // demais pra estender nesta v1). Em vez disso, cada recorrente de receita
+    // tem um botão "Lançar agora" que cria uma receita real com pendente:true,
+    // reaproveitando o fluxo já existente de confirmarPendente('receita', ...).
+    function renderListaFixasReceita() {
+      const el = document.getElementById('listaFixasReceita');
+      const receitas = _recorrentes.filter(r => r.tipo === 'receita');
+      if (!receitas.length) {
+        el.innerHTML = `<p style="font-size:13px;color:var(--text-secondary);text-align:center;padding:16px 0;">Nenhuma receita fixa cadastrada ainda.</p>`;
+        return;
+      }
+      el.innerHTML = receitas.map(r => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:14px;font-weight:600;">${escapeHtml(r.descricao || r.categoria)}</div>
+            <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(r.categoria)} · ${_infoFreqFixa(r)} · ${r.ativo ? '✅ Ativa' : '⏸ Pausada'}${_infoPrazoFixa(r)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-weight:700;color:var(--positive);">${brl(r.valor)}</span>
+            <button class="btn-item" data-lancar-fixa-receita="${r.id}" title="Lançar agora">💰</button>
+            <button class="btn-item" data-edit-fixa-receita="${r.id}" title="Editar">✎</button>
+            <button class="btn-item del" data-del-fixa-receita="${r.id}" title="Excluir">🗑</button>
+          </div>
+        </div>`).join('');
+      el.querySelectorAll('[data-lancar-fixa-receita]').forEach(b => b.addEventListener('click', () => lancarFixaReceitaAgora(b.dataset.lancarFixaReceita)));
+      el.querySelectorAll('[data-edit-fixa-receita]').forEach(b => b.addEventListener('click', () => abrirFormFixaReceita(b.dataset.editFixaReceita)));
+      el.querySelectorAll('[data-del-fixa-receita]').forEach(b => b.addEventListener('click', () => excluirFixaReceita(b.dataset.delFixaReceita)));
+    }
+
+    async function abrirModalFixasReceita() {
+      await carregarRecorrentes();
+      renderListaFixasReceita();
+      const sel = document.getElementById('fixaReceitaCategoria');
+      const cats = [...new Set((currentData?.receitas || []).map(d => d.categoria))].sort();
+      const padrao = ['Salário', 'Aluguel recebido', 'Freelance', 'Pró-labore', 'Outros'];
+      const todas = [...new Set([...padrao, ...cats])].sort();
+      sel.innerHTML = todas.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      document.getElementById('formFixaReceita').classList.add('hidden');
+      document.getElementById('modalFixasReceita').classList.remove('hidden');
+    }
+
+    function fecharModalFixasReceita() {
+      document.getElementById('modalFixasReceita').classList.add('hidden');
+    }
+
+    function atualizarFixaReceitaDiaUI(freq) {
+      const inputDia  = document.getElementById('fixaReceitaDia');
+      const selSemana = document.getElementById('fixaReceitaDiaSemana');
+      const label     = document.getElementById('fixaReceitaDiaLabel');
+      const hint      = document.getElementById('fixaReceitaDiaHint');
+      if (freq === 'semanal') {
+        inputDia.style.display  = 'none';
+        selSemana.style.display = '';
+        label.textContent = 'Dia da semana *';
+        hint.style.display = 'none';
+      } else if (freq === 'quinzenal') {
+        inputDia.style.display  = '';
+        selSemana.style.display = 'none';
+        label.textContent = '1º dia do mês *';
+        inputDia.max = '14'; inputDia.placeholder = '1–14';
+        const d = parseInt(inputDia.value);
+        hint.textContent = (!isNaN(d) && d >= 1 && d <= 14) ? `2º lançamento: dia ${d + 14}` : '2º lançamento: +14 dias';
+        hint.style.display = '';
+      } else {
+        inputDia.style.display  = '';
+        selSemana.style.display = 'none';
+        label.textContent = 'Dia do mês *';
+        inputDia.max = '28'; inputDia.placeholder = '1–28';
+        hint.style.display = 'none';
+      }
+    }
+
+    function limparFormFixaReceita() {
+      document.getElementById('fixaReceitaId').value               = '';
+      document.getElementById('fixaReceitaCategoria').selectedIndex = 0;
+      document.getElementById('fixaReceitaValor').value            = '';
+      document.getElementById('fixaReceitaDescricao').value        = '';
+      document.getElementById('fixaReceitaFrequencia').value       = 'mensal';
+      document.getElementById('fixaReceitaDia').value              = '';
+      document.getElementById('fixaReceitaDiaSemana').selectedIndex = 0;
+      document.getElementById('fixaReceitaLimitado').checked       = false;
+      document.getElementById('fixaReceitaMeses').value            = '';
+      document.getElementById('fgFixaReceitaMeses').style.display  = 'none';
+      atualizarFixaReceitaDiaUI('mensal');
+    }
+
+    function abrirFormFixaReceita(id) {
+      const form = document.getElementById('formFixaReceita');
+      form.classList.remove('hidden');
+      document.getElementById('fixaReceitaId').value = id || '';
+      if (id) {
+        const r = _recorrentes.find(x => x.id === id);
+        if (r) {
+          document.getElementById('fixaReceitaCategoria').value = r.categoria;
+          document.getElementById('fixaReceitaValor').value     = r.valor;
+          document.getElementById('fixaReceitaDescricao').value = r.descricao || '';
+          const freq = r.frequencia || 'mensal';
+          document.getElementById('fixaReceitaFrequencia').value = freq;
+          atualizarFixaReceitaDiaUI(freq);
+          if (freq === 'semanal') {
+            document.getElementById('fixaReceitaDiaSemana').value = String(r.dia ?? 1);
+          } else {
+            document.getElementById('fixaReceitaDia').value = r.dia;
+          }
+          const limitado = r.mesesRestantes != null;
+          document.getElementById('fixaReceitaLimitado').checked = limitado;
+          document.getElementById('fgFixaReceitaMeses').style.display = limitado ? '' : 'none';
+          if (limitado) document.getElementById('fixaReceitaMeses').value = r.mesesRestantes;
+        }
+      } else {
+        limparFormFixaReceita();
+      }
+      form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function salvarFixaReceita() {
+      const id         = document.getElementById('fixaReceitaId').value || undefined;
+      const categoria  = document.getElementById('fixaReceitaCategoria').value;
+      const valor      = parseFloat(document.getElementById('fixaReceitaValor').value);
+      const descricao  = document.getElementById('fixaReceitaDescricao').value.trim();
+      const frequencia = document.getElementById('fixaReceitaFrequencia').value || 'mensal';
+      const limitado   = document.getElementById('fixaReceitaLimitado').checked;
+      const mesesRestantes = limitado ? parseInt(document.getElementById('fixaReceitaMeses').value, 10) : null;
+
+      let dia;
+      if (frequencia === 'semanal') {
+        dia = parseInt(document.getElementById('fixaReceitaDiaSemana').value, 10);
+      } else {
+        dia = parseInt(document.getElementById('fixaReceitaDia').value, 10);
+      }
+
+      if (!categoria) return mostrarToast('Selecione uma categoria.');
+      if (isNaN(valor) || valor < 0) return mostrarToast('Informe um valor válido.');
+      if (frequencia === 'semanal') {
+        if (isNaN(dia) || dia < 0 || dia > 6) return mostrarToast('Selecione o dia da semana.');
+      } else if (frequencia === 'quinzenal') {
+        if (!dia || dia < 1 || dia > 14) return mostrarToast('Para quinzenal, o 1º dia deve ser entre 1 e 14.');
+      } else {
+        if (!dia || dia < 1 || dia > 28) return mostrarToast('O dia deve ser entre 1 e 28.');
+      }
+      if (limitado && (isNaN(mesesRestantes) || mesesRestantes < 1)) {
+        return mostrarToast('Informe quantos meses a receita vai durar.');
+      }
+
+      const btnSalvar = document.getElementById('btnSalvarFixaReceita');
+      btnSalvar.disabled = true;
+      btnSalvar.textContent = 'Salvando…';
+      try {
+        await saveRecorrente({ id, tipo: 'receita', categoria, valor, descricao, dia, frequencia, mesesRestantes, ativo: true });
+        await carregarRecorrentes();
+        renderListaFixasReceita();
+        mostrarToast('Receita fixa salva!');
+        registrarEvento('fixa_receita_cadastrada');
+        if (id) {
+          document.getElementById('formFixaReceita').classList.add('hidden');
+        } else {
+          limparFormFixaReceita();
+        }
+      } catch (e) {
+        mostrarToast('Erro ao salvar: ' + e.message);
+      } finally {
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = 'Salvar';
+      }
+    }
+
+    async function excluirFixaReceita(id) {
+      if (!confirm('Excluir esta receita fixa? Ela não será mais sugerida nos próximos meses.')) return;
+      try {
+        await deleteRecorrente(id);
+        await carregarRecorrentes();
+        renderListaFixasReceita();
+        mostrarToast('Receita fixa removida.');
+      } catch (e) {
+        mostrarToast('Erro: ' + e.message);
+      }
+    }
+
+    // Lança manualmente a ocorrência do mês de uma receita fixa: cria uma
+    // receita real (pendente até confirmar), igual a um lançamento manual —
+    // não mexe em js/orcamento-calc.js nem em fixasVirtuais/Saldo Projetado.
+    async function lancarFixaReceitaAgora(id) {
+      const r = _recorrentes.find(x => x.id === id);
+      if (!r) return;
+      const hoje = new Date();
+      const dataHoje = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+      currentData.receitas.push({
+        categoria: r.categoria,
+        tipo: 'receita',
+        valor: r.valor,
+        data: dataHoje,
+        descricao: r.descricao || '',
+        origem: 'recorrente',
+        recorrenteId: r.id,
+        pendente: true,
+      });
+      await salvarEAtualizar();
+      mostrarToast('Receita lançada como pendente — confirme quando cair na conta.');
     }
 
     // ── Dialog edição de item recorrente no mês ────────────────────────────
@@ -9393,6 +9710,34 @@
         hint.style.display = '';
       }
     });
+    // Listeners do modal de receitas fixas
+    document.getElementById('btnGerenciarFixasReceita')?.addEventListener('click', abrirModalFixasReceita);
+    document.getElementById('btnGerenciarFixasReceitaTop')?.addEventListener('click', abrirModalFixasReceita);
+    document.getElementById('btnFecharModalFixasReceita')?.addEventListener('click', fecharModalFixasReceita);
+    document.getElementById('modalFixasReceita')?.addEventListener('click', e => { if (e.target === e.currentTarget) fecharModalFixasReceita(); });
+    document.getElementById('btnAddFixaReceita')?.addEventListener('click', () => abrirFormFixaReceita(null));
+    document.getElementById('btnSalvarFixaReceita')?.addEventListener('click', salvarFixaReceita);
+    document.getElementById('btnCancelarFixaReceita')?.addEventListener('click', () => {
+      document.getElementById('formFixaReceita').classList.add('hidden');
+      limparFormFixaReceita();
+    });
+    document.getElementById('fixaReceitaFrequencia')?.addEventListener('change', function() {
+      atualizarFixaReceitaDiaUI(this.value);
+      document.getElementById('fixaReceitaDia').value = '';
+      document.getElementById('fixaReceitaDiaSemana').selectedIndex = 0;
+    });
+    document.getElementById('fixaReceitaLimitado')?.addEventListener('change', function() {
+      document.getElementById('fgFixaReceitaMeses').style.display = this.checked ? '' : 'none';
+    });
+    document.getElementById('fixaReceitaDia')?.addEventListener('input', function() {
+      if ((document.getElementById('fixaReceitaFrequencia')?.value || 'mensal') === 'quinzenal') {
+        const d = parseInt(this.value);
+        const hint = document.getElementById('fixaReceitaDiaHint');
+        hint.textContent = (!isNaN(d) && d >= 1 && d <= 14) ? `2º lançamento: dia ${d + 14}` : '2º lançamento: +14 dias';
+        hint.style.display = '';
+      }
+    });
+
     document.getElementById('btnEditRecSoMes')?.addEventListener('click', e => aplicarEditRecorrente('soeste', e.currentTarget));
     document.getElementById('btnEditRecEProximos')?.addEventListener('click', e => aplicarEditRecorrente('proximos', e.currentTarget));
     document.getElementById('btnEditRecTodos')?.addEventListener('click', e => aplicarEditRecorrente('todos', e.currentTarget));

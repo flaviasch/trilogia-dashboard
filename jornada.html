@@ -882,8 +882,15 @@
 
       if (await isAdmin()) document.getElementById('linkAdmin').style.display = 'inline';
 
-      init();
-      initFerramentas();
+      // Materiais da Jornada só liberam depois do 1º encontro — exceto em
+      // viewAs, onde Flávia (admin) está inspecionando a conta da mentorada
+      // e precisa ver tudo, igual ao bypass já existente pro gate raio-x.
+      const jaTeveEncontro = await init();
+      if (jaTeveEncontro || _va) {
+        initFerramentas();
+      } else {
+        mostrarFerramentasBloqueadas();
+      }
     });
 
     document.getElementById('btnLogout').addEventListener('click', async () => {
@@ -1810,7 +1817,7 @@
             Erro ao carregar sua jornada.<br>
             <a href="" onclick="location.reload();return false" style="color:var(--negative);text-decoration:underline">Tentar novamente</a>
           </p>`;
-        return;
+        return false;
       }
 
       document.getElementById('loadingOverlay').style.display = 'none';
@@ -1830,11 +1837,11 @@
           `<strong>Página não encontrada no Notion</strong>
           Peça à Flávia para abrir seu acompanhamento no painel admin — isso vai sincronizar sua página automaticamente.`;
         document.getElementById('semDados').style.display = 'block';
-        return;
+        return false;
       }
       if (!encontros.length) {
         document.getElementById('semDados').style.display = 'block';
-        return;
+        return false;
       }
 
       // Card de lições pendentes — só do encontro mais recente (não ressurgir lições antigas)
@@ -1939,6 +1946,20 @@
             </div>
           </div>`;
       }).join('');
+
+      return true;
+    }
+
+    // Materiais da Jornada (ferramentas + Mapa da Liberdade) só ficam
+    // disponíveis depois do primeiro encontro de mentoria — antes disso a
+    // mentorada ainda não teve o diagnóstico inicial que dá sentido a esses
+    // materiais. Achado 22/07/2026: mentorada recém-cadastrada (0 encontros)
+    // já enxergava e clicava em todas as ferramentas, incluindo o Mapa da
+    // Liberdade. O gate usa o mesmo sinal que a timeline de encontros já
+    // calcula (encontros.length > 0), sem chamada extra ao Notion.
+    function mostrarFerramentasBloqueadas() {
+      const secao = document.querySelector('.ferramentas-secao');
+      if (secao) secao.style.display = 'none';
     }
 
     window.toggleEncontro = function(idx) {
