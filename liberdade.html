@@ -280,7 +280,7 @@
       <div class="card">
         <div class="card-titulo">Patrimônio atual</div>
         <div class="info-readonly">
-          <span>Patrimônio líquido total (ativos − dívidas)</span>
+          <span>Patrimônio financeiro (investimentos)</span>
           <strong id="patrimonioValor">—</strong>
         </div>
         <div class="field" style="margin-top:14px">
@@ -294,7 +294,7 @@
     <!-- Aba: Investimentos -->
     <div class="tab-painel" id="painel-investimentos">
       <div class="card">
-        <div class="card-titulo">Investimentos e bens (referência)</div>
+        <div class="card-titulo">Investimentos financeiros (referência)</div>
         <div id="investimentosLista"><div class="info-readonly"><span>Carregando...</span></div></div>
         <a class="info-link" href="patrimonio.html" target="_blank" style="margin-top:12px; display:inline-block">Ver detalhe no Patrimônio →</a>
       </div>
@@ -374,7 +374,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboardHome, getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira } from './js/api.js?v=40';
+    import { getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira } from './js/api.js?v=40';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -387,6 +387,12 @@
     };
     const TAXA_PADRAO = TAXA_POR_PERFIL.moderado; // fallback quando não há perfil cadastrado
     let _souAdmin = false;
+
+    // Patrimônio considerado no Mapa da Liberdade é só o financeiro (investimentos),
+    // valor bruto — mesma whitelist de classes usada em patrimonio.html. Imóveis,
+    // veículos, bens e dívidas não entram (22/07/2026).
+    const CLASSES_FINANCEIRAS = new Set(['pos', 'infl', 'pre', 'rv', 'mm', 'int']);
+    const CLASSE_LABEL = { pos: 'RF Pós', infl: 'RF Inflação', pre: 'RF Pré', mm: 'Multimercado', rv: 'Renda Variável', int: 'Internacional' };
 
     // Propaga viewAs para links de volta ao dashboard, mesmo padrão de jornada.html
     {
@@ -605,37 +611,32 @@
         console.warn('Erro ao carregar dados salvos:', err.message);
       }
 
-      // Patrimônio (puxa de getDashboardHome, mesmo padrão da Calculadora do Preço Real)
-      try {
-        const d = await getDashboardHome({});
-        if (d?.plCacheado != null) {
-          document.getElementById('patrimonioValor').textContent = brl(d.plCacheado);
-          document.getElementById('patrimonioValor').dataset.valor = d.plCacheado;
-        } else {
-          document.getElementById('patrimonioValor').textContent = 'Sem dado ainda';
-        }
-      } catch (err) {
-        document.getElementById('patrimonioValor').textContent = 'Erro ao carregar';
-        console.warn('Erro ao carregar patrimônio:', err.message);
-      }
-
-      // Investimentos (breakdown simples por classe, só como referência)
+      // Patrimônio + Investimentos: só ativos financeiros (mesma whitelist de
+      // patrimonio.html — pos/infl/pre/rv/mm/int), valor bruto, sem descontar
+      // dívidas nem contar imóveis/bens/veículos.
       try {
         const p = await getPatrimonio();
         const ativos = Array.isArray(p?.ativos) ? p.ativos : [];
-        if (!ativos.length) {
-          document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Nenhum ativo cadastrado ainda.</span></div>';
+        const financeiros = ativos.filter(a => CLASSES_FINANCEIRAS.has(a.classe));
+        const totalFinanceiro = financeiros.reduce((s, a) => s + (a.valor || 0), 0);
+
+        document.getElementById('patrimonioValor').textContent = brl(totalFinanceiro);
+        document.getElementById('patrimonioValor').dataset.valor = totalFinanceiro;
+
+        if (!financeiros.length) {
+          document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Nenhum investimento cadastrado ainda.</span></div>';
         } else {
           const porClasse = {};
-          ativos.forEach(a => { porClasse[a.classe] = (porClasse[a.classe] || 0) + (a.valor || 0); });
+          financeiros.forEach(a => { porClasse[a.classe] = (porClasse[a.classe] || 0) + (a.valor || 0); });
           document.getElementById('investimentosLista').innerHTML = Object.entries(porClasse)
             .sort((a, b) => b[1] - a[1])
-            .map(([classe, valor]) => `<div class="info-readonly"><span>${classe}</span><strong>${brl(valor)}</strong></div>`)
+            .map(([classe, valor]) => `<div class="info-readonly"><span>${CLASSE_LABEL[classe] || classe}</span><strong>${brl(valor)}</strong></div>`)
             .join('');
         }
       } catch (err) {
+        document.getElementById('patrimonioValor').textContent = 'Erro ao carregar';
         document.getElementById('investimentosLista').innerHTML = '<div class="info-readonly"><span>Erro ao carregar.</span></div>';
-        console.warn('Erro ao carregar investimentos:', err.message);
+        console.warn('Erro ao carregar patrimônio/investimentos:', err.message);
       }
 
       // Taxa real mensal: travada pelo perfil de investidor da mentorada — só admin edita.
