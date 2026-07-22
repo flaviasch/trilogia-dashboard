@@ -5426,7 +5426,8 @@
         const planCell = limite > 0
           ? `<div class="plan-plan-wrap">
                <span class="plan-valor-plan" data-cat-plan="${escapeHtml(cat)}">${brl(limite)}</span>
-               <button class="btn-edit-plan" onclick="editarLimitePlan('${escapeHtml(cat)}')" title="Editar">✎</button>
+               <button class="btn-edit-plan" onclick="editarLimitePlan('${escapeHtml(cat)}')" title="Editar limite">✎</button>
+               <button class="btn-edit-plan" style="width:auto;padding:0 4px" onclick="renomearCategoriaPlan('${escapeHtml(cat)}')" title="Renomear categoria">Aa</button>
              </div>`
           : `<div class="plan-plan-wrap">
                <span style="color:var(--text-muted);font-size:12px;font-style:italic">não definido</span>
@@ -5624,8 +5625,15 @@
     }
 
     function editarLimitePlan(cat) {
-      // Abre o modal de limite (já existente) com a categoria
-      abrirModalLimite(cat);
+      // Abre o modal de limite (já existente) com a categoria — só o valor
+      // fica editável, nome travado (sem risco de renomear sem querer).
+      abrirModalLimite(cat, 'limite');
+    }
+
+    function renomearCategoriaPlan(cat) {
+      // Mesmo modal, mas só o nome fica editável — sem risco de mudar o
+      // limite sem querer ao renomear (achado 23/07/2026).
+      abrirModalLimite(cat, 'nome');
     }
 
     async function copiarMesAnterior() {
@@ -6142,24 +6150,43 @@
     const modalLimite = document.getElementById('modalLimite');
     let editandoLimiteCat = null;
     let limiteOriginalEdicao = 0;
+    // 'limite' | 'nome' | 'nova' — controla qual campo fica travado. Achado
+    // 23/07/2026 (Flávia): o modal único (nome + limite juntos) confundia —
+    // difícil saber se um clique ia só ajustar o valor ou também renomear.
+    // Agora cada botão da tabela abre com só o campo relevante editável; o
+    // outro fica travado no valor atual, então salvar nunca dispara a ação
+    // errada por engano.
+    let _modalLimiteModo = 'limite';
 
     bindMoneyInput(document.getElementById('mLimiteValor'));
 
-    function abrirModalLimite(cat) {
+    function abrirModalLimite(cat, modo = 'limite') {
       editandoLimiteCat = cat || null;
+      _modalLimiteModo = cat ? modo : 'nova';
       const catObj      = categoriasMes.find(c => normCat(c.nome) === normCat(cat));
       const limiteAtual = catObj?.limite || 0;
       limiteOriginalEdicao = limiteAtual;
-      document.getElementById('modalLimiteSub').textContent = cat ? 'Editar categoria' : 'Nova categoria';
+
+      const elNome  = document.getElementById('mLimiteNome');
+      const elValor = document.getElementById('mLimiteValor');
+      const nomeTravado  = _modalLimiteModo === 'limite';
+      const valorTravado = _modalLimiteModo === 'nome';
+      elNome.disabled  = nomeTravado;
+      elValor.disabled = valorTravado;
+      elNome.style.opacity  = nomeTravado  ? '.55' : '';
+      elValor.style.opacity = valorTravado ? '.55' : '';
+
+      const subtitulos = { limite: 'Editar limite', nome: 'Renomear categoria', nova: 'Nova categoria' };
+      document.getElementById('modalLimiteSub').textContent = subtitulos[_modalLimiteModo];
       document.getElementById('mLimiteNome').value = cat || '';
-      document.getElementById('mLimiteNomeHint').style.display = cat ? '' : 'none';
+      document.getElementById('mLimiteNomeHint').style.display = (cat && !nomeTravado) ? '' : 'none';
       if (limiteAtual > 0) {
         setMoney(document.getElementById('mLimiteValor'), limiteAtual);
       } else {
         document.getElementById('mLimiteValor').value = '';
       }
       modalLimite.classList.remove('hidden');
-      setTimeout(() => document.getElementById('mLimiteNome').focus(), 80);
+      setTimeout(() => (nomeTravado ? elValor : elNome).focus(), 80);
     }
 
     document.getElementById('btnCancelarLimite').addEventListener('click', () => {
@@ -6224,7 +6251,7 @@
         }
         if (limite > 0) registrarEvento('planejamento_configurado');
       } catch (err) {
-        toast('Erro ao salvar limite. Tente novamente.', 'error');
+        toast(msgErro(err), 'error');
       } finally {
         setLoading(btn, false);
       }
@@ -7511,6 +7538,7 @@
     window.toggleDespesas   = toggleDespesas;
     window.copiarMesAnterior = copiarMesAnterior;
     window.editarLimitePlan = editarLimitePlan;
+    window.renomearCategoriaPlan = renomearCategoriaPlan;
 
     // Debug temporário — checar duplicação nova no Bradesco
     window._debugRaw = async (mes, ano) => {
