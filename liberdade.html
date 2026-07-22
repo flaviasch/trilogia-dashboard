@@ -150,6 +150,12 @@
     .resultado-linha strong { color: var(--white); }
     .resultado-nota { font-size: 11px; color: var(--text-muted); margin-top: 14px; line-height: 1.5; }
 
+    .grafico-wrap { margin: 18px 0 10px; position: relative; height: 220px; }
+    .grafico-legenda { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .legenda-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+    .legenda-cor { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+    .legenda-cor.legenda-tracejada { background: none; border-top: 2px dashed; height: 0; }
+
     .erro-msg { font-size: 12px; color: var(--negative); margin-top: 10px; text-align: center; }
 
     /* ─── Bottom nav ─────────────────────────── */
@@ -178,6 +184,7 @@
   </style>
   <script>window.sentryOnLoad=function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0,allowUrls:['dashboard.flaviaschusciman.com','localhost'],ignoreErrors:['Script error.','Script error','Non-Error promise rejection captured']});};</script>
   <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js" crossorigin="anonymous" defer></script>
 </head>
 <body>
 
@@ -346,13 +353,22 @@
     <div class="resultado-card" id="resultadoCard">
       <div class="resultado-diagnostico" id="resDiagnostico"></div>
       <div class="resultado-texto" id="resTexto"></div>
+
+      <div class="grafico-wrap">
+        <canvas id="graficoLiberdade" height="220"></canvas>
+      </div>
+      <div class="grafico-legenda">
+        <span class="legenda-item"><i class="legenda-cor" style="background:var(--gold)"></i>Planejamento Atual</span>
+        <span class="legenda-item"><i class="legenda-cor legenda-tracejada" style="border-color:var(--negative)"></i>Consumo do Patrimônio</span>
+        <span class="legenda-item"><i class="legenda-cor legenda-tracejada" style="border-color:var(--positive)"></i>Preservação do Patrimônio</span>
+      </div>
+
       <div class="resultado-linha" id="resLinhaDespesaContinua" style="display:none"><span>+ Despesas que continuam após a aposentadoria</span><strong id="resDespesaContinua">—</strong></div>
       <div class="resultado-linha"><span>Necessidade mensal na aposentadoria</span><strong id="resNecessidadeMensal">—</strong></div>
       <div class="resultado-linha"><span>Patrimônio projetado na aposentadoria</span><strong id="resPatrimonioAposentadoria">—</strong></div>
       <div class="resultado-linha"><span>Patrimônio necessário (consumo até expectativa de vida)</span><strong id="resPatrimonioConsumo">—</strong></div>
       <div class="resultado-linha"><span>Patrimônio necessário (preservação/perpetuidade)</span><strong id="resPatrimonioPreservacao">—</strong></div>
       <div class="resultado-linha" id="resLinhaAporte" style="display:none"><span>Aporte mensal adicional sugerido</span><strong id="resAporteAdicional">—</strong></div>
-      <div class="resultado-nota">Gráfico de evolução do patrimônio ao longo do tempo chega numa próxima atualização.</div>
     </div>
 
   </main>
@@ -827,6 +843,103 @@
       document.getElementById('mainContent').style.display = 'block';
     }
 
+    // ─── Gráfico (Bloco C) ───────────────────────────────────────────────────
+    let _grafico = null;
+
+    function brlCompacto(v) {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 }).format(v || 0);
+    }
+
+    function renderizarGrafico(r, pessoas) {
+      if (typeof Chart === 'undefined') {
+        console.warn('Chart.js não carregou — gráfico não será exibido.');
+        document.querySelector('.grafico-wrap').style.display = 'none';
+        document.querySelector('.grafico-legenda').style.display = 'none';
+        return;
+      }
+      document.querySelector('.grafico-wrap').style.display = '';
+      document.querySelector('.grafico-legenda').style.display = '';
+
+      const serie = r.serieAtual || [];
+      const idadeInicial = pessoas[0].idadeAtual;
+      const totalMeses = serie.length ? serie[serie.length - 1].mes : 0;
+
+      // Amostra 1 ponto por ano (12 meses) pra não sobrecarregar o gráfico numa
+      // simulação de décadas — sempre inclui o primeiro e o último ponto.
+      const passo = 12;
+      const pontos = serie.filter((p, idx) => idx === 0 || idx === serie.length - 1 || p.mes % passo === 0);
+
+      const labels = pontos.map(p => Math.round(idadeInicial + p.mes / 12));
+      const dadosAtual = pontos.map(p => p.patrimonio);
+      const dadosConsumo = pontos.map(() => r.patrimonioConsumo);
+      const dadosPreservacao = r.patrimonioPreservacao != null ? pontos.map(() => r.patrimonioPreservacao) : null;
+
+      const datasets = [
+        {
+          label: 'Planejamento Atual',
+          data: dadosAtual,
+          borderColor: '#CFAE65',
+          backgroundColor: 'rgba(207,174,101,0.08)',
+          fill: true,
+          tension: 0.15,
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+        {
+          label: 'Consumo do Patrimônio',
+          data: dadosConsumo,
+          borderColor: '#f87171',
+          borderDash: [6, 4],
+          fill: false,
+          pointRadius: 0,
+          borderWidth: 1.5,
+        },
+      ];
+      if (dadosPreservacao) {
+        datasets.push({
+          label: 'Preservação do Patrimônio',
+          data: dadosPreservacao,
+          borderColor: '#4ade80',
+          borderDash: [6, 4],
+          fill: false,
+          pointRadius: 0,
+          borderWidth: 1.5,
+        });
+      }
+
+      const ctx = document.getElementById('graficoLiberdade').getContext('2d');
+      if (_grafico) _grafico.destroy();
+      _grafico = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (items) => `${items[0].label} anos`,
+                label: (item) => `${item.dataset.label}: ${brl(item.parsed.y)}`,
+              },
+            },
+          },
+          scales: {
+            x: {
+              title: { display: true, text: 'Idade', color: 'rgba(255,255,255,0.45)', font: { size: 11 } },
+              ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 10 }, maxTicksLimit: 8 },
+              grid: { color: 'rgba(255,255,255,0.06)' },
+            },
+            y: {
+              ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 10 }, callback: (v) => brlCompacto(v) },
+              grid: { color: 'rgba(255,255,255,0.06)' },
+            },
+          },
+        },
+      });
+    }
+
     // ─── Calcular ────────────────────────────────────────────────────────────
     document.getElementById('btnCalcular').addEventListener('click', async () => {
       const erroEl = document.getElementById('erroMsg');
@@ -908,6 +1021,8 @@
         } else {
           document.getElementById('resLinhaAporte').style.display = 'none';
         }
+
+        renderizarGrafico(r, pessoas);
 
         document.getElementById('resultadoCard').classList.add('mostrar');
         document.getElementById('resultadoCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
