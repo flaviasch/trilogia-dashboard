@@ -346,6 +346,8 @@
     <div class="resultado-card" id="resultadoCard">
       <div class="resultado-diagnostico" id="resDiagnostico"></div>
       <div class="resultado-texto" id="resTexto"></div>
+      <div class="resultado-linha" id="resLinhaDespesaContinua" style="display:none"><span>+ Despesas que continuam após a aposentadoria</span><strong id="resDespesaContinua">—</strong></div>
+      <div class="resultado-linha"><span>Necessidade mensal na aposentadoria</span><strong id="resNecessidadeMensal">—</strong></div>
       <div class="resultado-linha"><span>Patrimônio projetado na aposentadoria</span><strong id="resPatrimonioAposentadoria">—</strong></div>
       <div class="resultado-linha"><span>Patrimônio necessário (consumo até expectativa de vida)</span><strong id="resPatrimonioConsumo">—</strong></div>
       <div class="resultado-linha"><span>Patrimônio necessário (preservação/perpetuidade)</span><strong id="resPatrimonioPreservacao">—</strong></div>
@@ -888,6 +890,14 @@
         document.getElementById('resDiagnostico').textContent = t.titulo;
         document.getElementById('resDiagnostico').className = `resultado-diagnostico ${r.diagnostico.classificacao}`;
         document.getElementById('resTexto').textContent = t.texto;
+
+        if (r.despesaContinuaAposAposentadoria > 0) {
+          document.getElementById('resDespesaContinua').textContent = brl(r.despesaContinuaAposAposentadoria) + '/mês';
+          document.getElementById('resLinhaDespesaContinua').style.display = '';
+        } else {
+          document.getElementById('resLinhaDespesaContinua').style.display = 'none';
+        }
+        document.getElementById('resNecessidadeMensal').textContent = brl(r.necessidadeMensalAposentadoria) + '/mês';
         document.getElementById('resPatrimonioAposentadoria').textContent = brl(r.patrimonioNaAposentadoria);
         document.getElementById('resPatrimonioConsumo').textContent = brl(r.patrimonioConsumo);
         document.getElementById('resPatrimonioPreservacao').textContent = r.patrimonioPreservacao != null ? brl(r.patrimonioPreservacao) : '—';
