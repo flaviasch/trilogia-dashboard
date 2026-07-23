@@ -2441,9 +2441,16 @@
     }
 
     // ─── Tabs ────────────────────────────────
-    document.querySelectorAll('.nav-tab').forEach(tab => {
+    // [data-tab] — só os botões do menu principal (Mentoradas/Financeiro/
+    // Clube/Pipeline/Config). Os botões de sub-aba (ex: data-subfin em
+    // Financeiro→Impostos) reaproveitam a classe .nav-tab só pelo visual,
+    // mas têm handler próprio — sem esse filtro, clicar num botão de
+    // sub-aba também disparava ESTE handler, que lia tab.dataset.tab como
+    // undefined, escondia a view atual (view-undefined não existe) e não
+    // mostrava nada no lugar — tela em branco (achado 23/07/2026).
+    document.querySelectorAll('.nav-tab[data-tab]').forEach(tab => {
       tab.addEventListener('click', () => {
-        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('ativo'));
+        document.querySelectorAll('.nav-tab[data-tab]').forEach(t => t.classList.remove('ativo'));
         tab.classList.add('ativo');
         const nome = tab.dataset.tab;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('ativo'));
