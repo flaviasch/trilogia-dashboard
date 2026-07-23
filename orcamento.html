@@ -3316,8 +3316,17 @@
         // Se a data ainda está no futuro, confirmar significa "aconteceu agora":
         // traz a data pra hoje, só por clareza de exibição (isPendenteEfetivo
         // já não depende mais disso pra parar de contar como pendente).
+        //
+        // EXCEÇÃO — item de recorrente (recorrenteId): a data dele É a chave
+        // que diasFaltantesRecorrente usa pra saber que aquele dia da
+        // recorrência já foi materializado (js/orcamento-calc.js). Reescrever
+        // pra hoje "libera" o dia original de volta como pendente virtual —
+        // ele reaparece pra sempre na Projeção, e cada confirmação seguinte
+        // cria mais um lançamento duplicado datado de hoje, em vez de resolver
+        // a ocorrência original (achado 23/07/2026, Flávia: "Estacionamento"
+        // duplicado 3x — recorrência semanal, dia 29 nunca saía da lista).
         const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-        if (item.data && new Date(item.data + 'T00:00:00') > hoje) {
+        if (!item.recorrenteId && item.data && new Date(item.data + 'T00:00:00') > hoje) {
           item.data = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
         }
         await salvarEAtualizar();
@@ -3786,6 +3795,15 @@
       // ficam como pendentes virtuais até confirmação manual.
       carregarRecorrentes().then(async () => {
         if (await autoLancarFixasCartao(mes, ano)) {
+          // Espera qualquer salvamento já enfileirado (ex: a usuária confirmou/
+          // lançou uma despesa fixa pendente enquanto isso rodava) terminar de
+          // verdade antes de decidir se a releitura abaixo está atualizada —
+          // sem isso, _dataGen já tinha incrementado (parecia "seguro" aplicar
+          // fresh) mas o saveOrcamento correspondente ainda não tinha rodado,
+          // então a releitura vinha sem a ação dela e currentData era trocado
+          // por um retrato que a apagava (achado 23/07/2026: "Seguro carro"
+          // sumia com o toast de sucesso aparecendo, sem nunca ser salvo).
+          await _salvarChain.catch(() => {});
           const genAntes = _dataGen;
           const fresh = await buscarPeriodo(mes, ano);
           // Se a usuária confirmou algo (ex: despesa fixa pendente) enquanto essa
@@ -6849,6 +6867,9 @@
       if (mes < 1) { mes = 12; ano--; }
       currentData = await buscarPeriodo(mes, ano);
       if (await autoLancarFixasCartao(mes, ano)) {
+        // Mesma proteção do init() (achado 23/07/2026) — espera qualquer
+        // salvamento já enfileirado terminar antes de confiar na releitura.
+        await _salvarChain.catch(() => {});
         const genAntes = _dataGen;
         const fresh = await buscarPeriodo(mes, ano);
         if (_dataGen === genAntes) currentData = fresh;
@@ -6868,6 +6889,9 @@
       if (mes > 12) { mes = 1; ano++; }
       currentData = await buscarPeriodo(mes, ano);
       if (await autoLancarFixasCartao(mes, ano)) {
+        // Mesma proteção do init() (achado 23/07/2026) — espera qualquer
+        // salvamento já enfileirado terminar antes de confiar na releitura.
+        await _salvarChain.catch(() => {});
         const genAntes = _dataGen;
         const fresh = await buscarPeriodo(mes, ano);
         if (_dataGen === genAntes) currentData = fresh;
