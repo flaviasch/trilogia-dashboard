@@ -416,6 +416,33 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.equal(principal.totalFaturas, 500, 'fatura a vencer sem pagamento aparece na principal por padrão');
     assert.equal(secundaria.totalFaturas, 0, 'não aparece na secundária até ser paga por ela');
   });
+
+  await t.test('achado 23/07/2026: fatura futura (ainda não aberta) não entra em totalFaturas nem gruposFechadaCaixa', () => {
+    // HOJE = 2026-07-06. Cartão diaCorte=2, diaVencimento=10: dia 6 > corte 2
+    // → mês+1 (agosto); vencimento(10) > corte(2) → sem incremento extra.
+    // openKey do cartão hoje = "2026-08".
+    const data = periodo([
+      { categoria: 'Assinatura', valor: 100, data: '2026-07-04', cartao: true, cartaoId: 'c1', fatura: '2026-09' }, // futura — ainda nem abriu
+      { categoria: 'Mercado', valor: 500, data: '2026-07-05', cartao: true, cartaoId: 'c1', fatura: '2026-07' }, // já fechada
+    ]);
+    const cartoes = [{ id: 'c1', ativo: true, diaCorte: 2, diaVencimento: 10 }];
+    const r = calcularAgregadosOrcamento({ data, cartoes, agora: HOJE });
+    assert.equal(r.totalFaturas, 500, 'só a fatura já fechada (2026-07) conta — a futura (2026-09) fica de fora');
+    assert.ok(!('c1_2026-09' in r.gruposFechadaCaixa), 'fatura futura não deveria nem entrar em gruposFechadaCaixa');
+    assert.ok('c1_2026-07' in r.gruposFechadaCaixa);
+  });
+
+  await t.test('achado 23/07/2026: backfill de faturaEstados só entra com ajusteTotal — sem isso, fatura de outro mês some (não vira card fantasma de R$0)', () => {
+    const data = periodo([]); // mês sem nenhum item de cartão
+    const cartoes = [{ id: 'c1', ativo: true }];
+    const faturaEstados = {
+      'c1_2026-06': { estado: 'paga_total', valorPago: 100 }, // sem ajusteTotal — já resolvida em outro mês
+      'c1_2026-05': { estado: 'paga_total', valorPago: 50, ajusteTotal: 50 }, // com ajusteTotal — deve continuar aparecendo
+    };
+    const r = calcularAgregadosOrcamento({ data, cartoes, faturaEstados, agora: HOJE });
+    assert.ok(!('c1_2026-06' in r.gruposFechadaCaixa), 'sem ajusteTotal, não deve ser reinserida em mês onde não tem lançamento nenhum');
+    assert.ok('c1_2026-05' in r.gruposFechadaCaixa, 'com ajusteTotal, continua aparecendo (comportamento original de 09/07/2026)');
+  });
 });
 
 test('pertenceAConta', async (t) => {

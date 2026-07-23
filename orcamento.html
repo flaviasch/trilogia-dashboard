@@ -4729,18 +4729,31 @@
           if (items.length) gruposAberta[c.id] = items;
         }
       });
+      // "YYYY-MM" → número comparável (ano*12+mes), pra saber se uma fatura já
+      // é passada/atual (pode ter fechado) ou ainda nem começou a acumular —
+      // achado 23/07/2026: uma fatura futura (ex: setembro, com assinaturas
+      // recorrentes já lançadas com antecedência em agosto) aparecia
+      // classificada como "Fechada" mesmo sem o ciclo ter nem aberto ainda,
+      // porque a única checagem aqui era "diferente da fatura aberta de hoje"
+      // — futuro e passado contavam igual.
+      const _periodoNum = key => {
+        const [a, m] = (key || '').split('-').map(Number);
+        return (a || 0) * 12 + (m || 0);
+      };
       // Sem "&& d.cartaoId" — um item marcado cartão mas sem cartão vinculado
       // (dado inconsistente) precisa aparecer aqui pra dar pra editar/excluir,
       // senão fica contando no Resumo mas invisível na aba Faturas.
       data.despesas.filter(d => d.cartao).forEach(d => {
-        if (d.fatura !== _openKey[d.cartaoId]) {
+        const aberta = _openKey[d.cartaoId];
+        if (d.fatura !== aberta && (!aberta || _periodoNum(d.fatura) <= _periodoNum(aberta))) {
           const key = `${d.cartaoId || ''}_${d.fatura || ''}`;
           if (!gruposFechada[key]) gruposFechada[key] = [];
           gruposFechada[key].push(d);
         }
       });
       data.receitas.filter(r => r.cartao).forEach(r => {
-        if (r.fatura !== _openKey[r.cartaoId]) {
+        const aberta = _openKey[r.cartaoId];
+        if (r.fatura !== aberta && (!aberta || _periodoNum(r.fatura) <= _periodoNum(aberta))) {
           const key = `${r.cartaoId || ''}_${r.fatura || ''}`;
           if (!gruposFechada[key]) gruposFechada[key] = [];
           gruposFechada[key].push(r);
@@ -4754,8 +4767,16 @@
       // ela sumir da aba Faturas inteira, e o valor parava de sensibilizar o
       // saldo — o backfill existe justamente pra ela continuar existindo
       // (com o badge "✓ Paga") depois de confirmada.
+      //
+      // Só entra aqui quem tem ajusteTotal de verdade — sem isso, QUALQUER
+      // fatura já resolvida de QUALQUER mês passado (ex: junho, julho) virava
+      // um card fantasma de R$0 em todo mês visualizado dali pra frente,
+      // porque _faturaEstados é global (todas as faturas de todos os tempos),
+      // não filtrado por período (achado 23/07/2026, Flávia: "aparecem
+      // faturas de junho e julho zeradas, não precisam estar ali").
       Object.entries(_faturaEstados).forEach(([key, fe]) => {
         if (key in gruposFechada) return;
+        if (fe?.ajusteTotal == null) return;
         const cartaoId = key.split('_')[0];
         if (cartoesAtivos.some(c => c.id === cartaoId)) gruposFechada[key] = [];
       });

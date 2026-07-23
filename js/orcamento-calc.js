@@ -234,9 +234,33 @@ export function calcularAgregadosOrcamento({
   // confirmada como paga — total ou, no parcial, só a parte paga (o restante
   // vira despesa automática no mês seguinte). Até confirmar, fica em "a
   // vencer". Em meses futuros tudo é projeção, sem essa separação.
+  //
+  // "openKey" por cartão — a fatura que está acumulando compras HOJE (mesmo
+  // cálculo de sugerirFatura em orcamento.html, duplicado aqui só pra este
+  // módulo continuar sem depender do frontend). Usado abaixo pra não tratar
+  // uma fatura que ainda nem abriu (ex: setembro, com assinatura recorrente
+  // já lançada com antecedência em agosto) como se já tivesse fechado —
+  // achado 23/07/2026, Flávia: fatura futura aparecendo junto das fechadas.
+  const _openKeyPorCartao = {};
+  (cartoes || []).forEach(c => {
+    if (!c.diaCorte) return;
+    const dia = agora.getDate();
+    const d = new Date(agora.getFullYear(), agora.getMonth(), 1);
+    if (dia > c.diaCorte) d.setMonth(d.getMonth() + 1);
+    if (!c.diaVencimento || c.diaVencimento <= c.diaCorte) d.setMonth(d.getMonth() + 1);
+    _openKeyPorCartao[c.id] = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const _periodoNumCalc = key => {
+    const [a, m] = (key || '').split('-').map(Number);
+    return (a || 0) * 12 + (m || 0);
+  };
+  const _faturaJaAbriu = (cartaoId, fatura) => {
+    const aberta = _openKeyPorCartao[cartaoId];
+    return !aberta || _periodoNumCalc(fatura) <= _periodoNumCalc(aberta);
+  };
   const gruposFechadaCaixa = {};
   data.despesas.forEach(d => {
-    if (d.cartao && d.fatura && !d._faturaAberta) {
+    if (d.cartao && d.fatura && !d._faturaAberta && _faturaJaAbriu(d.cartaoId, d.fatura)) {
       const key = `${d.cartaoId}_${d.fatura}`;
       gruposFechadaCaixa[key] = (gruposFechadaCaixa[key] || 0) + d.valor;
     }
@@ -244,7 +268,7 @@ export function calcularAgregadosOrcamento({
   // Estorno de uma compra vinculado à mesma fatura (achado 15/07/2026) —
   // desconta do total devido, igual já acontece na aba Faturas do frontend.
   (data.receitas || []).forEach(r => {
-    if (r.cartao && r.fatura && !r._faturaAberta) {
+    if (r.cartao && r.fatura && !r._faturaAberta && _faturaJaAbriu(r.cartaoId, r.fatura)) {
       const key = `${r.cartaoId}_${r.fatura}`;
       gruposFechadaCaixa[key] = (gruposFechadaCaixa[key] || 0) - r.valor;
     }
@@ -255,8 +279,15 @@ export function calcularAgregadosOrcamento({
   // NUNCA pular por já estar paga_total (achado 09/07/2026): uma fatura
   // ajuste-only marcada como paga desaparecia do cálculo inteiro — o
   // backfill existe justamente pra ela continuar existindo depois de paga.
+  //
+  // Só entra aqui quem tem ajusteTotal de verdade — faturaEstados é global
+  // (todas as faturas de todos os meses), então sem esse filtro qualquer
+  // fatura já resolvida de outro mês virava um card fantasma de R$0 em todo
+  // mês visualizado dali pra frente (achado 23/07/2026, mesmo fix na aba
+  // Faturas do frontend).
   Object.entries(faturaEstados).forEach(([key, fe]) => {
     if (key in gruposFechadaCaixa) return;
+    if (fe.ajusteTotal == null) return;
     if (contaId != null && (fe.contaId || CONTA_PRINCIPAL_ID) !== contaId) return;
     const cartaoId = key.split('_')[0];
     if (cartoes.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixa[key] = 0;
