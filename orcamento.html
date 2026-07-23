@@ -3806,6 +3806,16 @@
           await _salvarChain.catch(() => {});
           const genAntes = _dataGen;
           const fresh = await buscarPeriodo(mes, ano);
+          // Se a usuária já navegou pra outro mês (ex: voltou pra junho)
+          // enquanto essa releitura de julho (mês do carregamento inicial,
+          // "mes"/"ano" capturados no fechamento desta função) ainda estava em
+          // voo, currentData.periodo não bate mais com mes/ano — aplicar
+          // "fresh" aqui sobrescreveria o mês que ela está vendo com dados de
+          // outro mês (faturas/despesas de julho/agosto aparecendo debaixo de
+          // um cabeçalho "Junho"). Acima do achado 18/07/2026, que só cobria
+          // a mesma sessão de mês (achado 23/07/2026, Flávia: "faturas de
+          // 10/08 aparecendo enquanto via junho, elas não existem").
+          if (currentData.periodo.mes !== mes || currentData.periodo.ano !== ano) return;
           // Se a usuária confirmou algo (ex: despesa fixa pendente) enquanto essa
           // releitura estava em voo, o fetch pode ter capturado um instantâneo
           // anterior a essa ação — aplicar mesmo assim apagaria a ação dela da
@@ -3813,7 +3823,12 @@
           // (achado 18/07/2026, duas despesas fixas efetivadas sumiram assim).
           if (_dataGen === genAntes) currentData = fresh;
         }
-        render(currentData);
+        // Mesmo guard acima: se a usuária já trocou de mês, essa render()
+        // renderizaria currentData (o mês novo, que ela já está vendo por
+        // conta própria) de novo à toa — inofensivo, mas sem necessidade.
+        // O early return acima já cobre o caso perigoso (sobrescrever com
+        // dado errado); aqui só evita um render redundante.
+        if (currentData.periodo.mes === mes && currentData.periodo.ano === ano) render(currentData);
       });
 
       try {
@@ -6872,9 +6887,12 @@
         await _salvarChain.catch(() => {});
         const genAntes = _dataGen;
         const fresh = await buscarPeriodo(mes, ano);
-        if (_dataGen === genAntes) currentData = fresh;
+        // Se a usuária já navegou de novo (outro clique em prev/next) enquanto
+        // isso rodava, currentData.periodo não bate mais com mes/ano — não
+        // sobrescreve o mês que ela já está vendo agora.
+        if (currentData.periodo.mes === mes && currentData.periodo.ano === ano && _dataGen === genAntes) currentData = fresh;
       }
-      render(currentData);
+      if (currentData.periodo.mes === mes && currentData.periodo.ano === ano) render(currentData);
       if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
     });
 
@@ -6894,9 +6912,12 @@
         await _salvarChain.catch(() => {});
         const genAntes = _dataGen;
         const fresh = await buscarPeriodo(mes, ano);
-        if (_dataGen === genAntes) currentData = fresh;
+        // Se a usuária já navegou de novo (outro clique em prev/next) enquanto
+        // isso rodava, currentData.periodo não bate mais com mes/ano — não
+        // sobrescreve o mês que ela já está vendo agora.
+        if (currentData.periodo.mes === mes && currentData.periodo.ano === ano && _dataGen === genAntes) currentData = fresh;
       }
-      render(currentData);
+      if (currentData.periodo.mes === mes && currentData.periodo.ano === ano) render(currentData);
       if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
     });
 
