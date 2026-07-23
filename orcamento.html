@@ -3808,7 +3808,26 @@
       // sem sessão anterior nesse carregamento inicial (página acabou de
       // abrir), então resolverSaldoConta faz o salto único pro mês anterior
       // se precisar. Só re-renderiza se o valor realmente mudou.
-      resolverSaldoContaAtiva(currentData).then(mudou => { if (mudou) render(currentData); }).catch(() => {});
+      //
+      // Corre em paralelo com o carregarRecorrentes().then(...) acima, que
+      // pode SUBSTITUIR currentData por um objeto novo (via autoLancarFixasCartao
+      // → buscarPeriodo) enquanto esta resolução ainda está em voo. Como
+      // resolverSaldoContaAtiva muta o objeto que recebeu por parâmetro (não
+      // necessariamente o mesmo que currentData aponta quando o .then() roda),
+      // o saldo resolvido ficava preso num objeto órfão e nunca aparecia na
+      // tela — persistia R$0 até a próxima ação manual (achado 23/07/2026,
+      // Flávia: "saldo inicial da minha conta sumiu"). Guarda a referência
+      // usada e, se currentData já mudou nesse meio tempo, reaplica o valor
+      // resolvido no objeto atual em vez de descartar.
+      const _dataParaSaldo = currentData;
+      resolverSaldoContaAtiva(_dataParaSaldo).then(mudou => {
+        if (currentData !== _dataParaSaldo) {
+          currentData.saldoConta = _dataParaSaldo.saldoConta;
+          render(currentData);
+        } else if (mudou) {
+          render(currentData);
+        }
+      }).catch(() => {});
 
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
@@ -4256,7 +4275,7 @@
         projecaoListaEl.querySelectorAll('[data-proj-materializar]').forEach(btn =>
           btn.addEventListener('click', () => {
             const [recorrenteId, dia] = btn.dataset.projMaterializar.split(':');
-            materializarFixaPendente(recorrenteId, +dia);
+            materializarFixaPendente(recorrenteId, +dia, btn);
           }));
         projecaoListaEl.querySelectorAll('[data-proj-pular]').forEach(btn =>
           btn.addEventListener('click', () => {
@@ -9034,12 +9053,21 @@
     // lançavam a mesma ocorrência duas ou mais vezes — achado 17/07/2026,
     // várias despesas fixas de uma mentorada duplicadas 2-4x na mesma data.
     const _materializandoFixa = new Set();
-    async function materializarFixaPendente(recorrenteId, dia) {
+    async function materializarFixaPendente(recorrenteId, dia, btn) {
       const chaveEmCurso = recorrenteId + ':' + dia;
       if (_materializandoFixa.has(chaveEmCurso)) return;
       _materializandoFixa.add(chaveEmCurso);
+      // Feedback imediato de clique + captura qualquer erro que antes ficava
+      // silencioso (a chamada não era esperada/tratada no listener do botão —
+      // achado 23/07/2026: clique dava "ok" sem erro visível, mas o item não
+      // sumia, mesmo problema de feedback ausente já achado no modal em
+      // 14/07/2026).
+      if (btn) btn.disabled = true;
       try {
         await _materializarFixaPendenteImpl(recorrenteId, dia);
+      } catch (err) {
+        toast(msgErro(err), 'error');
+        if (btn) btn.disabled = false;
       } finally {
         _materializandoFixa.delete(chaveEmCurso);
       }
