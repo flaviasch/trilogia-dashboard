@@ -1191,6 +1191,13 @@
               <option value="fixo">Valor fixo (editável por competência)</option>
             </select>
           </div>
+          <div class="field-group">
+            <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Periodicidade *</label>
+            <select id="tribPeriodicidade">
+              <option value="mensal">Mensal</option>
+              <option value="trimestral">Trimestral (ex: IRPJ/CSLL Lucro Presumido) — soma as notas dos 3 meses do trimestre numa provisão extra, além da linha mensal de referência</option>
+            </select>
+          </div>
           <div class="field-group" id="fgTribPercentual">
             <label>Percentual (%) *</label>
             <input type="number" id="tribPercentual" placeholder="Ex: 5" min="0" max="100" step="0.01">
@@ -3823,7 +3830,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         document.getElementById('tabelaImpostosBody').innerHTML = impostos.map(i => `
           <tr>
             <td class="td-fin nome">${i.tributoNome}</td>
-            <td class="td-fin">${MESES_NOME[i.mes - 1].slice(0, 3)}/${i.ano}</td>
+            <td class="td-fin">${i.trimestre ? `${i.trimestre}º tri/${i.ano}` : `${MESES_NOME[i.mes - 1].slice(0, 3)}/${i.ano}`}</td>
             <td class="td-fin">${fmtData(i.vencimento)}</td>
             <td class="td-fin valor" ${i.tipo === 'fixo' && !i.pago ? `style="cursor:pointer" data-imp-editar-valor="${i.id}" title="Editar valor"` : ''}>${brl(i.valor)}${i.tipo === 'fixo' && !i.pago ? ' ✎' : ''}</td>
             <td class="td-fin" style="text-align:center">${badgeImposto(i)}</td>
@@ -3924,10 +3931,11 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       el.innerHTML = _tributosCache.map(t => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
           <div>
-            <div style="font-size:14px;font-weight:600">${t.nome}${t.ativo ? '' : ' <span style="color:var(--text-muted);font-weight:400">(inativo)</span>'}</div>
+            <div style="font-size:14px;font-weight:600">${t.nome}${t.ativo ? '' : ' <span style="color:var(--text-muted);font-weight:400">(inativo)</span>'}${t.periodicidade === 'trimestral' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">trimestral</span>' : ''}</div>
             <div style="font-size:12px;color:var(--text-muted)">
               ${t.tipo === 'percentual' ? `${t.percentual}% sobre a nota` : `Valor fixo (padrão ${brl(t.valorFixo)})`}
               · vence dia ${t.diaVencimento}, ${t.defasagemMeses > 0 ? `${t.defasagemMeses} mês(es) depois` : t.defasagemMeses < 0 ? `${Math.abs(t.defasagemMeses)} mês(es) antes` : 'no mesmo mês'}
+              ${t.periodicidade === 'trimestral' ? ' · + provisão trimestral acumulada (3 meses)' : ''}
             </div>
           </div>
           <div style="display:flex;gap:8px">
@@ -3962,6 +3970,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       document.getElementById('tribValorFixo').value = trib?.valorFixo ?? '';
       document.getElementById('tribDiaVencimento').value = trib?.diaVencimento ?? '';
       document.getElementById('tribDefasagem').value = trib?.defasagemMeses ?? 1;
+      document.getElementById('tribPeriodicidade').value = trib?.periodicidade || 'mensal';
       document.getElementById('tribAtivo').checked = trib ? trib.ativo !== false : true;
       atualizarCamposTipoTributo();
       document.getElementById('formTributo').style.display = '';
@@ -3984,6 +3993,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       const valorFixo  = parseFloat(document.getElementById('tribValorFixo').value);
       const diaVencimento = parseInt(document.getElementById('tribDiaVencimento').value, 10);
       const defasagemMeses = parseInt(document.getElementById('tribDefasagem').value, 10) || 0;
+      const periodicidade = document.getElementById('tribPeriodicidade').value;
       const ativo = document.getElementById('tribAtivo').checked;
 
       if (!nome) { alert('Informe o nome do tributo.'); return; }
@@ -3997,7 +4007,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
           id, nome, tipo,
           percentual: tipo === 'percentual' ? percentual : undefined,
           valorFixo:  tipo === 'fixo' ? (isNaN(valorFixo) ? 0 : valorFixo) : undefined,
-          diaVencimento, defasagemMeses, ativo,
+          diaVencimento, defasagemMeses, periodicidade, ativo,
         });
         await abrirModalTributos();
       } catch (e) {

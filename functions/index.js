@@ -5120,11 +5120,39 @@ function _competenciaParaVencimento(mes, ano, dia, defasagemMeses) {
   return `${a}-${String(m).padStart(2, '0')}-${String(diaFinal).padStart(2, '0')}`;
 }
 
+/**
+ * Último dia útil (seg-sex, sem feriados) de um mês — usado pro vencimento
+ * de DARF trimestral (IRPJ/CSLL Lucro Presumido), que a Receita define como
+ * "último dia útil do mês seguinte ao trimestre". Não considera feriados
+ * nacionais/municipais (só fins de semana) — ajuste manual na tela se cair
+ * num feriado (achado 23/07/2026, pedido da Flávia pra separar tributos
+ * mensais dos trimestrais em vez de provisionar tudo por mês).
+ */
+function _ultimoDiaUtilISO(ano, mes) {
+  const d = new Date(ano, mes, 0); // dia 0 do mês seguinte = último dia do mês atual
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1); // domingo=0, sábado=6
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Trimestre (1-4) de um mês, e o mês/ano de vencimento (mês seguinte ao trimestre). */
+function _trimestreDoMes(mes) { return Math.ceil(mes / 3); }
+function _mesesDoTrimestre(trimestre) { return [trimestre * 3 - 2, trimestre * 3 - 1, trimestre * 3]; }
+function _vencimentoTrimestral(ultimoMesTrimestre, ano) {
+  let m = ultimoMesTrimestre + 1, a = ano;
+  if (m > 12) { m = 1; a++; }
+  return _ultimoDiaUtilISO(a, m);
+}
+
 async function _regerarImpostosPrevistos(mes, ano) {
   const tributosSnap = await db.collection('tributosConfig').where('ativo', '==', true).get();
   const tributos = tributosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   if (!tributos.length) return;
 
+  // Linha mensal — TODO tributo (mensal ou trimestral) continua gerando sua
+  // provisão de referência sobre a nota do próprio mês, sem mudança nenhuma
+  // (pedido explícito da Flávia, achado 23/07/2026: quer manter os valores
+  // mensais de todos, com somatório, e ADICIONAR a provisão trimestral —
+  // não substituir).
   const notasSnap  = await db.collection('notasEmitidas').where('mes', '==', mes).where('ano', '==', ano).get();
   const totalNotas = notasSnap.docs.reduce((s, d) => s + (d.data().valor || 0), 0);
 
@@ -5152,6 +5180,64 @@ async function _regerarImpostosPrevistos(mes, ano) {
     }, { merge: true });
   }
   await batch.commit();
+
+  // Linha trimestral extra — só pros tributos marcados periodicidade:'trimestral'
+  // (IRPJ/CSLL Lucro Presumido). Acumula as notas dos 3 meses do trimestre e
+  // gera UMA linha adicional, com vencimento no último dia útil do mês
+  // seguinte ao trimestre — ao lado das 3 linhas mensais de referência que
+  // continuam existindo normalmente.
+  const trimestrais = tributos.filter(t => t.periodicidade === 'trimestral');
+  if (trimestrais.length) {
+    await _regerarProvisaoTrimestral(trimestrais, _trimestreDoMes(mes), ano);
+  }
+}
+
+async function _regerarProvisaoTrimestral(trimestrais, trimestre, ano) {
+  const meses = _mesesDoTrimestre(trimestre);
+  const ultimoMes = meses[2];
+
+  // Soma as notas dos 3 meses do trimestre — busca só por "ano" (índice de
+  // campo único, automático) e filtra "mes" em memória, pra não precisar de
+  // mais um índice composto.
+  const notasSnap = await db.collection('notasEmitidas').where('ano', '==', ano).get();
+  const totalNotasTrimestre = notasSnap.docs.reduce((s, d) => {
+    const data = d.data();
+    return meses.includes(data.mes) ? s + (data.valor || 0) : s;
+  }, 0);
+
+  // Guarda a linha trimestral no mês final do trimestre, com uma chave de
+  // tributoId virtual ("<id>_tri") pra não colidir com a linha mensal do
+  // mesmo tributo nesse mesmo mês (ex: setembro tem a linha mensal normal
+  // de IRPJ + a linha trimestral acumulada do 3º tri, lado a lado).
+  const existentesSnap = await db.collection('impostosPrevistos').where('mes', '==', ultimoMes).where('ano', '==', ano).get();
+  const existentesPorChave = {};
+  existentesSnap.docs.forEach(d => {
+    const data = d.data();
+    if (data.trimestre === trimestre) existentesPorChave[data.tributoId] = { id: d.id, ...data };
+  });
+
+  const vencimento = _vencimentoTrimestral(ultimoMes, ano);
+  const batch = db.batch();
+  for (const trib of trimestrais) {
+    const chave = `${trib.id}_tri`;
+    const existente = existentesPorChave[chave];
+    if (existente?.pago) continue;
+    if (trib.tipo === 'fixo' && existente?.origem === 'manual') continue;
+
+    const valor = trib.tipo === 'percentual'
+      ? Math.round(totalNotasTrimestre * (trib.percentual / 100) * 100) / 100
+      : (trib.valorFixo || 0);
+
+    const ref = existente
+      ? db.collection('impostosPrevistos').doc(existente.id)
+      : db.collection('impostosPrevistos').doc();
+    batch.set(ref, {
+      tributoId: chave, tributoNome: `${trib.nome} — ${trimestre}º tri/${ano} acumulado`,
+      tipo: trib.tipo, mes: ultimoMes, ano, trimestre, vencimento, valor,
+      pago: false, origem: 'auto',
+    }, { merge: true });
+  }
+  await batch.commit();
 }
 
 exports.getTributosConfig = onCall({}, async (request) => {
@@ -5162,7 +5248,7 @@ exports.getTributosConfig = onCall({}, async (request) => {
 
 exports.saveTributoConfig = onCall({}, async (request) => {
   requireAdmin(request);
-  const { id, nome, tipo, percentual, valorFixo, diaVencimento, defasagemMeses, ativo } = request.data;
+  const { id, nome, tipo, percentual, valorFixo, diaVencimento, defasagemMeses, ativo, periodicidade } = request.data;
   if (!nome || typeof nome !== 'string' || !nome.trim())
     throw new HttpsError('invalid-argument', 'nome é obrigatório.');
   if (tipo !== 'percentual' && tipo !== 'fixo')
@@ -5175,6 +5261,11 @@ exports.saveTributoConfig = onCall({}, async (request) => {
   if (!Number.isInteger(dia) || dia < 1 || dia > 28)
     throw new HttpsError('invalid-argument', 'diaVencimento deve ser um inteiro entre 1 e 28.');
   const defasagem = Number.isInteger(defasagemMeses) ? defasagemMeses : 0;
+  // 'trimestral' (ex: IRPJ/CSLL Lucro Presumido) gera, além da linha mensal
+  // de referência de sempre, uma linha extra acumulando as notas dos 3
+  // meses do trimestre — ver _regerarProvisaoTrimestral (achado 23/07/2026).
+  if (periodicidade !== 'mensal' && periodicidade !== 'trimestral')
+    throw new HttpsError('invalid-argument', "periodicidade deve ser 'mensal' ou 'trimestral'.");
 
   const dados = {
     nome: nome.trim().slice(0, 100),
@@ -5183,6 +5274,7 @@ exports.saveTributoConfig = onCall({}, async (request) => {
     valorFixo: tipo === 'fixo' ? valorFixo : null,
     diaVencimento: dia,
     defasagemMeses: defasagem,
+    periodicidade,
     ativo: ativo !== false,
   };
 
