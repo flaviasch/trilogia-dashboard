@@ -33,6 +33,7 @@ const sZapiId             = defineSecret('ZAPI_INSTANCE_ID');
 const sZapiToken  = defineSecret('ZAPI_TOKEN');
 const sZapiClient = defineSecret('ZAPI_CLIENT_TOKEN');
 const sAnthropic  = defineSecret('ANTHROPIC_API_KEY'); // categorizarExtratoIA — substitui o Custom GPT do Raio-X
+const sSmokeToken = defineSecret('SMOKE_TEST_TOKEN'); // smokeTestAlerta — token compartilhado com scripts/smoke-test.js
 
 const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId } = require('./lib/auth');
 const { SheetsClient }    = require('./lib/sheets');
@@ -133,6 +134,47 @@ async function alertarErro(funcao, erro) {
     console.error('[alertarErro] Falha ao enviar alerta:', emailErr.message);
   }
 }
+
+/**
+ * smokeTestAlerta — recebe o resultado do teste de fumaça pós-deploy
+ * (scripts/smoke-test.js, rodado manualmente pela Flávia depois de cada deploy)
+ * e dispara alertarErro se alguma das funções críticas falhou.
+ *
+ * Protegida por token compartilhado (SMOKE_TEST_TOKEN), mesmo padrão do
+ * syncDiagnosticoWebhook — não é dado sensível (não dá acesso a nada além de
+ * poder disparar um e-mail de alerta falso), mas ainda assim fica em Secret
+ * Manager, nunca hardcoded.
+ *
+ * Body esperado: { token, ok: boolean, resultados: [{ funcao, ok, erro }] }
+ */
+exports.smokeTestAlerta = onRequest({ secrets: [sGmail, sSmokeToken] }, async (req, res) => {
+  if (req.method !== 'POST') {
+    res.status(405).send('Method not allowed');
+    return;
+  }
+
+  const tokenRecebido = req.headers['x-smoke-test-token'] || req.body?.token;
+  if (tokenRecebido !== sSmokeToken.value()) {
+    console.warn('[smokeTestAlerta] Token inválido — requisição ignorada.');
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+
+  const { ok, resultados } = req.body || {};
+
+  if (ok === false) {
+    const falhas = (Array.isArray(resultados) ? resultados : []).filter(r => !r.ok);
+    const resumo = falhas.length > 0
+      ? falhas.map(f => `• ${f.funcao}: ${f.erro}`).join('\n')
+      : 'Smoke test reportou falha, mas sem detalhe de qual função.';
+    console.error('[smokeTestAlerta] Falhas detectadas no pós-deploy:\n' + resumo);
+    await alertarErro('smokeTest (pós-deploy)', new Error(resumo)).catch(() => {});
+  } else {
+    console.log('[smokeTestAlerta] ✅ Smoke test passou — nenhuma ação necessária.');
+  }
+
+  res.status(200).json({ recebido: true });
+});
 
 /**
  * Envolve uma função agendada com try/catch + alerta de erro.
@@ -644,6 +686,340 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
       return { titulo: d.titulo || null, descricao: d.descricao || null };
     })(),
   };
+});
+
+// ─── MATERIAIS DA JORNADA (jornada.html — seção "Ferramentas da sua Jornada") ──
+// Ver dashboard/MATERIAIS_JORNADA_SPEC.md para o desenho completo.
+// Formulários de reflexão e calculadoras salvam em materiaisJornada/{ferramentaId}
+// (um doc por ferramenta, sobrescrito a cada save). O fluxo de decisão
+// P.A.R.I.S.+Anti-Impulso usa uma coleção separada (decisoesFinanceiras) por ser
+// um log de múltiplos registros — ainda não implementado nesta leva.
+
+const _FERRAMENTAS_JORNADA_VALIDAS = new Set([
+  'diario-historias', 'quiz-vieses', 'mapa-ambiente', 'conexao-familia',
+  'calculadora-reserva', 'plano-comportamental', 'desafio-7-dias',
+  'preco-real-decisao', 'mapa-liberdade',
+]);
+
+exports.getMateriaisJornada = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+
+  const snap = await db.collection('mentoradas').doc(uid).collection('materiaisJornada').get();
+  const materiais = {};
+  snap.docs.forEach(d => { materiais[d.id] = d.data(); });
+  return { materiais };
+});
+
+exports.salvarMaterialJornada = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+
+  const { ferramentaId, respostas, status } = request.data || {};
+  if (!ferramentaId || !_FERRAMENTAS_JORNADA_VALIDAS.has(ferramentaId)) {
+    throw new HttpsError('invalid-argument', 'ferramentaId inválido.');
+  }
+  if (typeof respostas !== 'object' || respostas === null) {
+    throw new HttpsError('invalid-argument', 'respostas deve ser um objeto.');
+  }
+
+  await db.collection('mentoradas').doc(uid).collection('materiaisJornada').doc(ferramentaId).set({
+    ferramentaId,
+    respostas,
+    status: status || 'em_andamento',
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  return { ok: true };
+});
+
+// Fluxo P.A.R.I.S. + Checklist Anti-Impulso (Encontro 4): diferente das demais
+// ferramentas por ser um LOG — cada decisão vira um novo documento, não sobrescreve
+// a anterior. Ver MATERIAIS_JORNADA_SPEC.md seção 2 (Encontro 4).
+exports.registrarDecisaoFinanceira = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+
+  const { descricaoCompra, paris, antiImpulso, decisao } = request.data || {};
+  if (!descricaoCompra || typeof descricaoCompra !== 'string') {
+    throw new HttpsError('invalid-argument', 'descricaoCompra é obrigatória.');
+  }
+  if (typeof paris !== 'object' || paris === null) {
+    throw new HttpsError('invalid-argument', 'paris deve ser um objeto.');
+  }
+  if (typeof antiImpulso !== 'object' || antiImpulso === null) {
+    throw new HttpsError('invalid-argument', 'antiImpulso deve ser um objeto.');
+  }
+
+  const ref = await db.collection('mentoradas').doc(uid).collection('decisoesFinanceiras').add({
+    descricaoCompra,
+    paris,
+    antiImpulso,
+    decisao: decisao || null,
+    criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true, id: ref.id };
+});
+
+exports.getDecisoesFinanceiras = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+
+  const snap = await db.collection('mentoradas').doc(uid).collection('decisoesFinanceiras')
+    .orderBy('criadoEm', 'desc').limit(50).get();
+  const decisoes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return { decisoes };
+});
+
+// ─── MAPA DA LIBERDADE FINANCEIRA — motor completo ─────────────────────────────
+// Ver dashboard/MAPA_LIBERDADE_MOTOR_SPEC.md para o desenho completo. Bloco A:
+// só o motor de simulação — a UI (liberdade.html) vem no Bloco B.
+//
+// Simplificação assumida (documentada, não escondida): quando um objetivo ou a
+// renda desejada de aposentadoria é atribuída a "casal", usa a Pessoa 1 como
+// relógio de referência (idade dela converte "idade-alvo" em mês da simulação).
+// Rendas/despesas usam data calendário própria, não dependem de idade de ninguém.
+
+function _addMeses(dataISO, n) {
+  const d = new Date(dataISO + 'T00:00:00');
+  d.setMonth(d.getMonth() + n);
+  return d;
+}
+
+function _mesesEntre(dataInicioISO, dataFimISO) {
+  const a = new Date(dataInicioISO + 'T00:00:00');
+  const b = new Date(dataFimISO + 'T00:00:00');
+  return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+}
+
+// Renda/despesa está vigente no mês `mes` (0 = hoje) se a data desse mês cai
+// dentro de [dataInicio, dataFim ?? infinito].
+function _rdVigenteNoMes(rd, hojeISO, mes) {
+  const dataMes = _addMeses(hojeISO, mes);
+  const inicio = new Date((rd.dataInicio || hojeISO) + 'T00:00:00');
+  if (dataMes < inicio) return false;
+  if (rd.dataFim) {
+    const fim = new Date(rd.dataFim + 'T00:00:00');
+    if (dataMes > fim) return false;
+  }
+  return true;
+}
+
+// Valor líquido mensal equivalente de uma renda/despesa, dado o mês simulado.
+// "única" só conta no mês exato de dataInicio. "anual" só conta no mês em que
+// bate o aniversário de dataInicio. "mensal" conta todo mês vigente.
+function _rdValorNoMes(rd, hojeISO, mes) {
+  if (!_rdVigenteNoMes(rd, hojeISO, mes)) return 0;
+  const liquido = rd.tipo === 'renda' ? rd.valorBruto * (1 - (rd.impostoPct || 0) / 100) : rd.valorBruto;
+  if (rd.frequencia === 'mensal') return liquido;
+  if (rd.frequencia === 'unica') {
+    return mes === _mesesEntre(hojeISO, rd.dataInicio) ? liquido : 0;
+  }
+  if (rd.frequencia === 'anual') {
+    const mesesDesdeInicio = mes - _mesesEntre(hojeISO, rd.dataInicio);
+    return (mesesDesdeInicio >= 0 && mesesDesdeInicio % 12 === 0) ? liquido : 0;
+  }
+  return 0;
+}
+
+// Soma o equivalente mensal das despesas que continuam ativas depois da
+// aposentadoria (decidido em 22/07/2026, mesmo critério da XP: despesa sem
+// "Ao se aposentar" marcado — ou seja, sem dataFim, ou com dataFim depois do
+// mês de aposentadoria — soma na necessidade mensal de saque, além da renda
+// desejada). Despesas "única" não contam (não são um custo recorrente) nem
+// despesas que já encerraram até a aposentadoria.
+function _despesaMensalContinuaAposAposentadoria(rendasDespesas, hojeISO, mesAposentadoria) {
+  let total = 0;
+  (rendasDespesas || []).forEach(rd => {
+    if (rd.tipo !== 'despesa' || rd.frequencia === 'unica') return;
+    const mesInicio = _mesesEntre(hojeISO, rd.dataInicio || hojeISO);
+    if (mesInicio > mesAposentadoria) return; // ainda não começou até a aposentadoria
+    if (rd.dataFim) {
+      const mesFim = _mesesEntre(hojeISO, rd.dataFim);
+      if (mesFim <= mesAposentadoria) return; // já encerrou até lá
+    }
+    total += rd.frequencia === 'anual' ? (rd.valorBruto || 0) / 12 : (rd.valorBruto || 0);
+  });
+  return total;
+}
+
+function _resolverPessoa(atribuidoA, pessoas) {
+  if (atribuidoA === 'casal') return pessoas[0];
+  return pessoas.find(p => p.id === atribuidoA) || pessoas[0];
+}
+
+function _mesesAteIdade(pessoa, idadeAlvo) {
+  return Math.max(0, Math.round((idadeAlvo - pessoa.idadeAtual) * 12));
+}
+
+// Valor presente de uma anuidade mensal `pmt` por `n` meses a taxa mensal `i`.
+function _valorPresenteAnuidade(pmt, n, i) {
+  if (n <= 0) return 0;
+  if (i === 0) return pmt * n;
+  return pmt * (1 - Math.pow(1 + i, -n)) / i;
+}
+
+function _simularLiberdade({ pessoas, patrimonioInicial, rendaMensalDesejadaAposentadoria, objetivosExtras, rendasDespesas, premissas }) {
+  const hojeISO = new Date().toISOString().slice(0, 10);
+  const i = (premissas?.taxaRealMensalPct ?? 0.8) / 100;
+
+  const pessoaRef = pessoas[0]; // relógio mestre da simulação
+  const totalMeses = Math.max(...pessoas.map(p => _mesesAteIdade(p, p.expectativaVida)));
+  const mesAposentadoria = _mesesAteIdade(pessoaRef, pessoaRef.idadeAposentadoria);
+
+  // Pré-calcula em que mês cada objetivo extra saca do patrimônio. Guarda a
+  // descrição também — usado pro gráfico marcar o momento de cada objetivo
+  // (estilo XP: números no gráfico indicando quando cada um é realizado).
+  const saques = []; // { mes, valor, descricao }
+  (objetivosExtras || []).forEach(obj => {
+    const pessoa = _resolverPessoa(obj.atribuidoA, pessoas);
+    const mesAlvo = _mesesAteIdade(pessoa, obj.idadeAtingimento);
+    const descricao = obj.descricao || 'Objetivo';
+    if (obj.frequencia === 'unica') {
+      saques.push({ mes: mesAlvo, valor: obj.valor, descricao });
+    } else {
+      const n = Math.max(1, obj.numOcorrencias || 1);
+      for (let k = 0; k < n; k++) saques.push({ mes: mesAlvo + k * 12, valor: obj.valor / n, descricao });
+    }
+  });
+
+  let patrimonio = patrimonioInicial || 0;
+  const serieAtual = [];
+  for (let mes = 0; mes <= totalMeses; mes++) {
+    let netMes = 0;
+    (rendasDespesas || []).forEach(rd => {
+      const v = _rdValorNoMes(rd, hojeISO, mes);
+      netMes += rd.tipo === 'renda' ? v : -v;
+    });
+
+    // A partir do mês seguinte à aposentadoria, a pessoa passa a sacar a renda
+    // mensal desejada pra viver — sem isso a Linha 1 nunca entrava na fase de
+    // consumo e só crescia pra sempre, mesmo sem nenhuma renda de trabalho
+    // depois de parar (achado 22/07/2026, no teste ao vivo do gráfico: a curva
+    // ia a R$60mi aos 98 anos sem nunca cair). Despesas que já continuam
+    // vigentes em rendasDespesas (ex: aluguel) já são descontadas acima — aqui
+    // só entra o valor NOVO que a pessoa passa a sacar pra viver.
+    if (mes > mesAposentadoria) netMes -= rendaMensalDesejadaAposentadoria;
+
+    patrimonio += netMes;
+
+    saques.filter(s => s.mes === mes).forEach(s => { patrimonio -= s.valor; });
+
+    patrimonio *= (1 + i);
+    // Trava em zero — patrimônio negativo não faz sentido no gráfico (não
+    // modelamos dívida); o ponto já fica claro no diagnóstico "Inadequado".
+    if (patrimonio < 0) patrimonio = 0;
+    serieAtual.push({ mes, patrimonio: Math.round(patrimonio) });
+  }
+
+  // Marcadores dos objetivos no gráfico (estilo XP: números indicando o
+  // momento/idade em que cada objetivo é realizado/sacado do patrimônio).
+  const marcadores = saques
+    .filter(s => s.mes >= 0 && s.mes <= totalMeses)
+    .map((s, idx) => ({
+      numero: idx + 1,
+      mes: s.mes,
+      descricao: s.descricao,
+      valor: Math.round(s.valor),
+      patrimonio: serieAtual[s.mes]?.patrimonio ?? null,
+    }));
+
+  // Linhas de referência (mesma lógica das calculadoras simples — ver
+  // MATERIAIS_JORNADA_SPEC.md seção 2, Encontro 5). A necessidade mensal soma a
+  // renda desejada + despesas que continuam ativas na aposentadoria (decidido
+  // em 22/07/2026, mesmo critério da XP — evita subestimar quanto é preciso ter).
+  const despesaContinuaAposAposentadoria = _despesaMensalContinuaAposAposentadoria(rendasDespesas, hojeISO, mesAposentadoria);
+  const necessidadeMensalAposentadoria = rendaMensalDesejadaAposentadoria + despesaContinuaAposAposentadoria;
+  const mesesConsumo = Math.max(0, Math.round((pessoaRef.expectativaVida - pessoaRef.idadeAposentadoria) * 12));
+  const patrimonioConsumo = _valorPresenteAnuidade(necessidadeMensalAposentadoria, mesesConsumo, i);
+  const patrimonioPreservacao = i > 0 ? necessidadeMensalAposentadoria / i : Infinity;
+
+  const patrimonioNaAposentadoria = serieAtual[Math.min(mesAposentadoria, serieAtual.length - 1)]?.patrimonio ?? patrimonio;
+
+  let classificacao, diferenca;
+  if (patrimonioNaAposentadoria < patrimonioConsumo) {
+    classificacao = 'inadequado';
+    diferenca = patrimonioConsumo - patrimonioNaAposentadoria;
+  } else if (patrimonioNaAposentadoria < patrimonioPreservacao) {
+    classificacao = 'adequado';
+    diferenca = patrimonioPreservacao - patrimonioNaAposentadoria;
+  } else {
+    classificacao = 'confortavel';
+    diferenca = patrimonioNaAposentadoria - patrimonioPreservacao;
+  }
+
+  // Aporte mensal adicional pra fechar a diferença até a aposentadoria, se inadequado.
+  let aporteAdicionalSugerido = 0;
+  if (classificacao === 'inadequado' && mesAposentadoria > 0) {
+    const falta = patrimonioConsumo - patrimonioNaAposentadoria;
+    aporteAdicionalSugerido = i === 0
+      ? falta / mesAposentadoria
+      : falta * i / (Math.pow(1 + i, mesAposentadoria) - 1);
+  }
+
+  return {
+    serieAtual,
+    marcadores,
+    mesAposentadoria,
+    necessidadeMensalAposentadoria: Math.round(necessidadeMensalAposentadoria),
+    despesaContinuaAposAposentadoria: Math.round(despesaContinuaAposAposentadoria),
+    patrimonioConsumo: Math.round(patrimonioConsumo),
+    patrimonioPreservacao: isFinite(patrimonioPreservacao) ? Math.round(patrimonioPreservacao) : null,
+    patrimonioNaAposentadoria,
+    diagnostico: {
+      classificacao,
+      diferenca: Math.round(diferenca),
+      aporteAdicionalSugerido: Math.round(aporteAdicionalSugerido),
+    },
+  };
+}
+
+exports.simularLiberdadeFinanceira = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+
+  const { pessoas, patrimonioInicial, rendaMensalDesejadaAposentadoria, objetivosExtras, rendasDespesas, premissas } = request.data || {};
+
+  if (!Array.isArray(pessoas) || pessoas.length === 0 || pessoas.length > 2) {
+    throw new HttpsError('invalid-argument', 'pessoas deve ter 1 ou 2 itens.');
+  }
+  for (const p of pessoas) {
+    if (!p.id || p.idadeAtual == null || p.idadeAposentadoria == null || p.expectativaVida == null) {
+      throw new HttpsError('invalid-argument', 'Cada pessoa precisa de id, idadeAtual, idadeAposentadoria e expectativaVida.');
+    }
+    if (p.idadeAposentadoria <= p.idadeAtual || p.expectativaVida <= p.idadeAposentadoria) {
+      throw new HttpsError('invalid-argument', 'As idades precisam seguir: atual < aposentadoria < expectativa de vida.');
+    }
+  }
+  if (!rendaMensalDesejadaAposentadoria || rendaMensalDesejadaAposentadoria <= 0) {
+    throw new HttpsError('invalid-argument', 'rendaMensalDesejadaAposentadoria é obrigatória e deve ser positiva.');
+  }
+
+  const resultado = _simularLiberdade({
+    pessoas,
+    patrimonioInicial: patrimonioInicial || 0,
+    rendaMensalDesejadaAposentadoria,
+    objetivosExtras: Array.isArray(objetivosExtras) ? objetivosExtras : [],
+    rendasDespesas: Array.isArray(rendasDespesas) ? rendasDespesas : [],
+    premissas: premissas || {},
+  });
+
+  // Salva os inputs (não o resultado — recalcula a cada abertura) no mesmo padrão
+  // das outras ferramentas da Jornada.
+  await db.collection('mentoradas').doc(uid).collection('materiaisJornada').doc('mapa-liberdade').set({
+    ferramentaId: 'mapa-liberdade',
+    respostas: { pessoas, patrimonioInicial, rendaMensalDesejadaAposentadoria, objetivosExtras, rendasDespesas, premissas },
+    status: 'concluido',
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  return resultado;
 });
 
 // ─── ORÇAMENTO (orcamento.html) ───────────────────────────────────────────────
@@ -1594,8 +1970,9 @@ exports.getRecorrentes = onCall(async (request) => {
 });
 
 /**
- * Cria ou atualiza uma despesa recorrente.
- * Espera: { uid, recorrente: { id?, categoria, descricao, valor, dia, ativo } }
+ * Cria ou atualiza uma recorrente (despesa ou receita fixa).
+ * Espera: { uid, recorrente: { id?, tipo?, categoria, descricao, valor, dia, ativo } }
+ * tipo: 'despesa' (padrão) ou 'receita'. Cartão só se aplica a despesa.
  */
 exports.saveRecorrente = onCall(async (request) => {
   requireAuth(request);
@@ -1614,12 +1991,17 @@ exports.saveRecorrente = onCall(async (request) => {
   if (!Number.isInteger(recorrente.dia) || recorrente.dia < minDia || recorrente.dia > maxDia)
     throw new HttpsError('invalid-argument', 'dia inválido para a frequência informada.');
 
-  const cartao = recorrente.cartao === true;
+  // tipo: 'despesa' (padrão, compatível com todas as recorrentes já
+  // cadastradas antes de 22/07/2026) ou 'receita' — cartão nunca se aplica a
+  // receita (não existe "receita no cartão de crédito").
+  const tipo = recorrente.tipo === 'receita' ? 'receita' : 'despesa';
+  const cartao = tipo === 'despesa' && recorrente.cartao === true;
   const mesesRestantes = Number.isInteger(recorrente.mesesRestantes) && recorrente.mesesRestantes >= 0
     ? recorrente.mesesRestantes : null;
 
   const col = db.collection('mentoradas').doc(uid).collection('recorrentes');
   const dados = {
+    tipo,
     categoria:  recorrente.categoria.trim().slice(0, 200),
     descricao:  (recorrente.descricao || '').trim().slice(0, 500),
     valor:      recorrente.valor,
@@ -1920,6 +2302,67 @@ exports.upsertCategoriaLimite = onCall(async (request) => {
   });
 
   return { ok: true, categorias };
+});
+
+/**
+ * Renomeia uma categoria do Planejamento do mês. Se o novo nome já
+ * corresponder a outra categoria existente (comparação normalizada, igual
+ * upsertCategoriaLimite), os limites são somados automaticamente em vez de
+ * criar uma entrada duplicada — pedido em 22/07/2026 (limpar categorias
+ * "duplicadas" tipo "Mercado" / "Supermercado" juntando os limites).
+ * Escopo: só o limite do Planejamento deste mês — não retroage em
+ * lançamentos (despesas/receitas) já registrados.
+ * Espera: { uid, mes, ano, nomeAntigo, nomeNovo }
+ */
+exports.renomearCategoriaLimite = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, mes, ano, nomeAntigo, nomeNovo } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'renomearCategoriaLimite', 20, 60_000); // 20/min
+
+  if (typeof nomeAntigo !== 'string' || !nomeAntigo) throw new HttpsError('invalid-argument', 'nomeAntigo é obrigatório.');
+  if (typeof nomeNovo !== 'string' || !nomeNovo.trim() || nomeNovo.length > 200) throw new HttpsError('invalid-argument', 'nomeNovo inválido.');
+
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  const ref = db.collection('mentoradas').doc(uid).collection('planejamento').doc(mesKey);
+  const nomeNovoLimpo = nomeNovo.trim();
+
+  const resultado = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const atuais = snap.exists ? (snap.data().categorias || []) : [];
+
+    const idxAntiga = atuais.findIndex(c => _normCat(c.nome) === _normCat(nomeAntigo));
+    if (idxAntiga === -1) throw new HttpsError('not-found', 'Categoria não encontrada neste mês.');
+    const categoriaAntiga = atuais[idxAntiga];
+
+    // Mesmo nome normalizado (só mudou acento/caixa) — renomeia sem mesclar.
+    if (_normCat(nomeNovoLimpo) === _normCat(nomeAntigo)) {
+      const novas = atuais.map((c, i) => i === idxAntiga ? { ...c, nome: nomeNovoLimpo } : c);
+      tx.set(ref, { categorias: novas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+      return { categorias: novas, mesclou: false };
+    }
+
+    const idxDestino = atuais.findIndex((c, i) => i !== idxAntiga && _normCat(c.nome) === _normCat(nomeNovoLimpo));
+    let novas;
+    let mesclou = false;
+    let nomeDestino = nomeNovoLimpo;
+    if (idxDestino === -1) {
+      // Nome novo, sem conflito — troca o nome, mantém o limite.
+      novas = atuais.map((c, i) => i === idxAntiga ? { ...c, nome: nomeNovoLimpo } : c);
+    } else {
+      // Já existe categoria com esse nome — soma os limites nela e remove a antiga.
+      mesclou = true;
+      nomeDestino = atuais[idxDestino].nome; // preserva a grafia já usada no destino
+      const limiteSomado = (atuais[idxDestino].limite || 0) + (categoriaAntiga.limite || 0);
+      novas = atuais
+        .filter((c, i) => i !== idxAntiga)
+        .map((c, i) => _normCat(c.nome) === _normCat(nomeNovoLimpo) ? { ...c, limite: limiteSomado } : c);
+    }
+    tx.set(ref, { categorias: novas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    return { categorias: novas, mesclou, nomeDestino };
+  });
+
+  return { ok: true, ...resultado };
 });
 
 /**
@@ -4649,6 +5092,214 @@ exports.notifCobrancasDia = onSchedule(
   await marcarEnviado('notifCobrancasDia');
 });
 
+// ─── IMPOSTOS PREVISTOS (admin.html) ──────────────────────────────────────────
+// Provisionamento de tributos a partir do valor de notas fiscais emitidas
+// (23/07/2026, Flávia: hoje controla isso numa planilha à parte, quer trazer
+// pra dentro do Financeiro do admin). Duas peças cadastráveis:
+//   - tributosConfig: as regras (nome, tipo 'percentual'|'fixo', percentual OU
+//     valorFixo, dia de vencimento, defasagem em meses entre a competência e o
+//     vencimento). Cadastrada uma vez, revisada com a contadora.
+//   - notasEmitidas: lançamento manual de cada nota emitida (valor + competência).
+// Toda vez que uma nota é salva/removida, os tributos 'percentual' da mesma
+// competência são recalculados automaticamente sobre a SOMA das notas do mês
+// (impostosPrevistos, origem:'auto'). Os 'fixo' (ex: IRPJ/CSLL de Lucro
+// Presumido, que não é % direto sobre a nota) são criados uma vez por
+// competência com o valor padrão da config, mas se a usuária editar o valor
+// manualmente (editarValorImpostoPrevisto) ele vira origem:'manual' e para de
+// ser sobrescrito nas próximas regerações — mesma lógica pra qualquer linha já
+// marcada como paga, nunca mexe de novo.
+
+/** Converte competência (mes/ano) + regra (dia, defasagem) em data de vencimento ISO. */
+function _competenciaParaVencimento(mes, ano, dia, defasagemMeses) {
+  let m = mes + (defasagemMeses || 0);
+  let a = ano;
+  while (m > 12) { m -= 12; a++; }
+  while (m < 1)  { m += 12; a--; }
+  const ultimoDiaMes = new Date(a, m, 0).getDate();
+  const diaFinal = Math.min(dia, ultimoDiaMes);
+  return `${a}-${String(m).padStart(2, '0')}-${String(diaFinal).padStart(2, '0')}`;
+}
+
+async function _regerarImpostosPrevistos(mes, ano) {
+  const tributosSnap = await db.collection('tributosConfig').where('ativo', '==', true).get();
+  const tributos = tributosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (!tributos.length) return;
+
+  const notasSnap  = await db.collection('notasEmitidas').where('mes', '==', mes).where('ano', '==', ano).get();
+  const totalNotas = notasSnap.docs.reduce((s, d) => s + (d.data().valor || 0), 0);
+
+  const existentesSnap = await db.collection('impostosPrevistos').where('mes', '==', mes).where('ano', '==', ano).get();
+  const existentesPorTributo = {};
+  existentesSnap.docs.forEach(d => { existentesPorTributo[d.data().tributoId] = { id: d.id, ...d.data() }; });
+
+  const batch = db.batch();
+  for (const trib of tributos) {
+    const existente = existentesPorTributo[trib.id];
+    if (existente?.pago) continue; // já paga — nunca recalcula
+    if (trib.tipo === 'fixo' && existente?.origem === 'manual') continue; // valor já ajustado à mão
+
+    const vencimento = _competenciaParaVencimento(mes, ano, trib.diaVencimento, trib.defasagemMeses);
+    const valor = trib.tipo === 'percentual'
+      ? Math.round(totalNotas * (trib.percentual / 100) * 100) / 100
+      : (trib.valorFixo || 0);
+
+    const ref = existente
+      ? db.collection('impostosPrevistos').doc(existente.id)
+      : db.collection('impostosPrevistos').doc();
+    batch.set(ref, {
+      tributoId: trib.id, tributoNome: trib.nome, tipo: trib.tipo,
+      mes, ano, vencimento, valor, pago: false, origem: 'auto',
+    }, { merge: true });
+  }
+  await batch.commit();
+}
+
+exports.getTributosConfig = onCall({}, async (request) => {
+  requireAdmin(request);
+  const snap = await db.collection('tributosConfig').orderBy('ordem').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+exports.saveTributoConfig = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id, nome, tipo, percentual, valorFixo, diaVencimento, defasagemMeses, ativo } = request.data;
+  if (!nome || typeof nome !== 'string' || !nome.trim())
+    throw new HttpsError('invalid-argument', 'nome é obrigatório.');
+  if (tipo !== 'percentual' && tipo !== 'fixo')
+    throw new HttpsError('invalid-argument', "tipo deve ser 'percentual' ou 'fixo'.");
+  if (tipo === 'percentual' && (typeof percentual !== 'number' || percentual < 0 || percentual > 100))
+    throw new HttpsError('invalid-argument', 'percentual deve ser um número entre 0 e 100.');
+  if (tipo === 'fixo' && (typeof valorFixo !== 'number' || valorFixo < 0))
+    throw new HttpsError('invalid-argument', 'valorFixo deve ser um número não-negativo.');
+  const dia = Number(diaVencimento);
+  if (!Number.isInteger(dia) || dia < 1 || dia > 28)
+    throw new HttpsError('invalid-argument', 'diaVencimento deve ser um inteiro entre 1 e 28.');
+  const defasagem = Number.isInteger(defasagemMeses) ? defasagemMeses : 0;
+
+  const dados = {
+    nome: nome.trim().slice(0, 100),
+    tipo,
+    percentual: tipo === 'percentual' ? percentual : null,
+    valorFixo: tipo === 'fixo' ? valorFixo : null,
+    diaVencimento: dia,
+    defasagemMeses: defasagem,
+    ativo: ativo !== false,
+  };
+
+  if (id) {
+    const ref = db.collection('tributosConfig').doc(id);
+    if (!(await ref.get()).exists) throw new HttpsError('not-found', 'Tributo não encontrado.');
+    await ref.update(dados);
+    return { id, ok: true };
+  }
+  const countSnap = await db.collection('tributosConfig').get();
+  dados.ordem = countSnap.size;
+  const ref = await db.collection('tributosConfig').add(dados);
+  return { id: ref.id, ok: true };
+});
+
+exports.deleteTributoConfig = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id } = request.data;
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  await db.collection('tributosConfig').doc(id).delete();
+  return { ok: true };
+});
+
+exports.getNotasEmitidas = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { mes, ano } = request.data;
+  if (!mes || !ano) throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
+  const snap = await db.collection('notasEmitidas')
+    .where('mes', '==', mes).where('ano', '==', ano).orderBy('dataEmissao').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+exports.saveNotaEmitida = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id, valor, mes, ano, dataEmissao } = request.data;
+  if (typeof valor !== 'number' || valor <= 0) throw new HttpsError('invalid-argument', 'valor deve ser maior que zero.');
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
+  if (dataEmissao && !/^\d{4}-\d{2}-\d{2}$/.test(dataEmissao))
+    throw new HttpsError('invalid-argument', 'dataEmissao deve estar no formato YYYY-MM-DD.');
+
+  const dados = { valor, mes, ano, dataEmissao: dataEmissao || new Date().toISOString().slice(0, 10) };
+  let notaId = id;
+  if (id) {
+    const ref = db.collection('notasEmitidas').doc(id);
+    if (!(await ref.get()).exists) throw new HttpsError('not-found', 'Nota não encontrada.');
+    await ref.update(dados);
+  } else {
+    const ref = await db.collection('notasEmitidas')
+      .add({ ...dados, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    notaId = ref.id;
+  }
+  await _regerarImpostosPrevistos(mes, ano);
+  return { id: notaId, ok: true };
+});
+
+exports.deleteNotaEmitida = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id } = request.data;
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  const ref  = db.collection('notasEmitidas').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Nota não encontrada.');
+  const { mes, ano } = snap.data();
+  await ref.delete();
+  await _regerarImpostosPrevistos(mes, ano);
+  return { ok: true };
+});
+
+exports.getImpostosPrevistos = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { mes, ano } = request.data;
+  if (!mes || !ano) throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
+  const snap = await db.collection('impostosPrevistos')
+    .where('mes', '==', mes).where('ano', '==', ano).orderBy('vencimento').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+exports.editarValorImpostoPrevisto = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id, valor } = request.data;
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  if (typeof valor !== 'number' || valor < 0) throw new HttpsError('invalid-argument', 'valor deve ser um número não-negativo.');
+  const ref  = db.collection('impostosPrevistos').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Imposto previsto não encontrado.');
+  // origem 'manual' pra essa linha nunca mais ser sobrescrita por uma
+  // regeração automática futura (relevante pros tributos tipo 'fixo').
+  await ref.update({ valor, origem: 'manual' });
+  return { ok: true };
+});
+
+exports.marcarImpostoPago = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id, pago } = request.data;
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  const ref  = db.collection('impostosPrevistos').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Imposto previsto não encontrado.');
+  const marcarPago = pago !== false;
+  await ref.update({
+    pago: marcarPago,
+    ...(marcarPago
+      ? { pagoEm: new Date().toISOString().slice(0, 10) }
+      : { pagoEm: admin.firestore.FieldValue.delete() }),
+  });
+  return { ok: true };
+});
+
+exports.deleteImpostoPrevisto = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { id } = request.data;
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  await db.collection('impostosPrevistos').doc(id).delete();
+  return { ok: true };
+});
+
 // ─── Helpers internos ─────────────────────────────────────────────────────────
 
 /**
@@ -5693,9 +6344,30 @@ exports.getFaturamento = onCall({}, async (request) => {
  * Cria snapshot de todos os docs de mentoradas em backups/{YYYY-MM-DD}.
  * Mantém os últimos 30 dias. Backups mais antigos são removidos automaticamente.
  *
- * Estrutura: backups/{data}/mentoradas/{uid} → campos principais
- *            backups/{data}/cobrancas_count  → número total de cobranças
+ * Estrutura: backups/{data}/mentoradas/{uid}           → campos principais
+ *            backups/{data}/contratos/{uid}_{contratoId} → cópia integral de cada contrato
+ *            backups/{data}/cobrancas/{cobrancaId}        → cópia integral de cada cobrança
+ *
+ * Contratos e cobranças entraram em 21/07/2026 (decisão: são o registro de
+ * receita — se corromper, reconciliar na mão olhando a Kiwify é o tipo de
+ * trabalho que vale evitar. Patrimônio ficou de fora porque já espelha no
+ * Sheets, que tem histórico de revisão próprio do Drive; reservas ficou de
+ * fora por ser baixo custo de recadastrar).
  */
+/**
+ * Grava um array de { ref, data } em lotes de até 450 (margem do limite de
+ * 500 operações por batch do Firestore) — cobrancas cresce ao longo do tempo
+ * e pode passar de 500 antes de mentoradas passar de 100.
+ */
+async function commitEmLotes(writes) {
+  const TAMANHO_LOTE = 450;
+  for (let i = 0; i < writes.length; i += TAMANHO_LOTE) {
+    const lote  = writes.slice(i, i + TAMANHO_LOTE);
+    const batch = db.batch();
+    lote.forEach(({ ref, data }) => batch.set(ref, data));
+    await batch.commit();
+  }
+}
 /**
  * Retorna metadata do backup mais recente.
  */
@@ -5704,7 +6376,13 @@ exports.getBackupStatus = onCall({}, async (request) => {
   const snap = await db.collection('backups').orderBy('data', 'desc').limit(1).get();
   if (snap.empty) return null;
   const d = snap.docs[0].data();
-  return { data: d.data, totalMentoradas: d.totalMentoradas, criadoEm: d.criadoEm?.toDate?.()?.toISOString() || null };
+  return {
+    data:            d.data,
+    totalMentoradas: d.totalMentoradas,
+    totalContratos:  d.totalContratos ?? null,
+    totalCobrancas:  d.totalCobrancas ?? null,
+    criadoEm:        d.criadoEm?.toDate?.()?.toISOString() || null,
+  };
 });
 
 exports.backupDiario = onSchedule(
@@ -5741,14 +6419,35 @@ exports.backupDiario = onSchedule(
     }
     await batch.commit();
 
-    // ── 2. Metadata do backup ─────────────────────────────────────────────
+    // ── 2. Snapshot de contratos (collection group — todas as mentoradas de uma vez) ──
+    const contratosSnap = await db.collectionGroup('contratos').get();
+    const writesContratos = contratosSnap.docs.map(doc => {
+      const uidMentorada = doc.ref.parent.parent?.id || null;
+      return {
+        ref:  backupRef.collection('contratos').doc(`${uidMentorada}_${doc.id}`),
+        data: { ...doc.data(), uidMentorada, contratoId: doc.id, backedUpAt: admin.firestore.FieldValue.serverTimestamp() },
+      };
+    });
+    await commitEmLotes(writesContratos);
+
+    // ── 3. Snapshot de cobranças (coleção raiz) ───────────────────────────
+    const cobrancasSnap = await db.collection('cobrancas').get();
+    const writesCobrancas = cobrancasSnap.docs.map(doc => ({
+      ref:  backupRef.collection('cobrancas').doc(doc.id),
+      data: { ...doc.data(), backedUpAt: admin.firestore.FieldValue.serverTimestamp() },
+    }));
+    await commitEmLotes(writesCobrancas);
+
+    // ── 4. Metadata do backup ──────────────────────────────────────────────
     await backupRef.set({
-      data:          dataHoje,
+      data:            dataHoje,
       totalMentoradas: mentSnap.size,
-      criadoEm:      admin.firestore.FieldValue.serverTimestamp(),
+      totalContratos:  contratosSnap.size,
+      totalCobrancas:  cobrancasSnap.size,
+      criadoEm:        admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // ── 3. Remove backups com mais de 30 dias ─────────────────────────────
+    // ── 5. Remove backups com mais de 30 dias ─────────────────────────────
     const limite = new Date();
     limite.setDate(limite.getDate() - 30);
     const limitStr = limite.toISOString().slice(0, 10);
@@ -5757,15 +6456,24 @@ exports.backupDiario = onSchedule(
       .where('data', '<', limitStr).get();
 
     for (const velho of velhos.docs) {
-      // Remove subcoleção de mentoradas do backup antigo
-      const subSnap = await velho.ref.collection('mentoradas').get();
-      const delBatch = db.batch();
-      subSnap.docs.forEach(d => delBatch.delete(d.ref));
-      if (!subSnap.empty) await delBatch.commit();
+      // Remove as 3 subcoleções do backup antigo (mentoradas, contratos, cobrancas)
+      for (const nomeSub of ['mentoradas', 'contratos', 'cobrancas']) {
+        const subSnap = await velho.ref.collection(nomeSub).get();
+        if (!subSnap.empty) {
+          const refsParaDeletar = subSnap.docs.map(d => ({ ref: d.ref, data: null }));
+          // Reaproveita commitEmLotes só pra chunking — batch.delete em vez de set
+          for (let i = 0; i < refsParaDeletar.length; i += 450) {
+            const lote  = refsParaDeletar.slice(i, i + 450);
+            const delBatch = db.batch();
+            lote.forEach(({ ref }) => delBatch.delete(ref));
+            await delBatch.commit();
+          }
+        }
+      }
       await velho.ref.delete();
     }
 
-    console.log(`[backup] ${dataHoje}: ${mentSnap.size} mentoradas. ${velhos.size} backup(s) antigo(s) removidos.`);
+    console.log(`[backup] ${dataHoje}: ${mentSnap.size} mentoradas, ${contratosSnap.size} contratos, ${cobrancasSnap.size} cobranças. ${velhos.size} backup(s) antigo(s) removidos.`);
   }));
 
 // ─── NOTION CRM ───────────────────────────────────────────────────────────────

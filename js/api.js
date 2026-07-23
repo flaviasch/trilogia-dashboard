@@ -579,6 +579,39 @@ export async function getCobrancas(mes, ano, uid) {
   return adminCall('getCobrancas')({ mes, ano, uid: uid || null });
 }
 
+// ─── Impostos previstos (provisionamento a partir de notas emitidas) ─────────
+
+export async function getTributosConfig() {
+  return adminCall('getTributosConfig')({});
+}
+export async function saveTributoConfig(dados) {
+  return adminCall('saveTributoConfig')(dados);
+}
+export async function deleteTributoConfig(id) {
+  return adminCall('deleteTributoConfig')({ id });
+}
+export async function getNotasEmitidas(mes, ano) {
+  return adminCall('getNotasEmitidas')({ mes, ano });
+}
+export async function saveNotaEmitida(dados) {
+  return adminCall('saveNotaEmitida')(dados);
+}
+export async function deleteNotaEmitida(id) {
+  return adminCall('deleteNotaEmitida')({ id });
+}
+export async function getImpostosPrevistos(mes, ano) {
+  return adminCall('getImpostosPrevistos')({ mes, ano });
+}
+export async function editarValorImpostoPrevisto(id, valor) {
+  return adminCall('editarValorImpostoPrevisto')({ id, valor });
+}
+export async function marcarImpostoPago(id, pago) {
+  return adminCall('marcarImpostoPago')({ id, pago });
+}
+export async function deleteImpostoPrevisto(id) {
+  return adminCall('deleteImpostoPrevisto')({ id });
+}
+
 // ─── CRM Pipeline ────────────────────────────────────────────────────────────
 
 /** Retorna todos os leads (filtros opcionais: segmento, estagio, origem). */

@@ -510,6 +510,7 @@
     .badge-pago    { background: rgba(74,222,128,.12); color: var(--positive); font-size:11px; padding:2px 8px; border-radius:20px; white-space:nowrap; }
     .badge-pendente{ background: rgba(207,174,101,.12); color: var(--gold);    font-size:11px; padding:2px 8px; border-radius:20px; white-space:nowrap; }
     .badge-vencido { background: rgba(248,113,113,.12); color: var(--negative);font-size:11px; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+    .badge-amanha  { background: rgba(96,165,250,.15);  color: #60a5fa;         font-size:11px; padding:2px 8px; border-radius:20px; white-space:nowrap; font-weight:600; }
 
     /* ─── Banner de notificação ─────────────── */
     #notifBanner {
@@ -1003,61 +1004,223 @@
       <div class="page-header">
         <div>
           <h1>Financeiro</h1>
-          <p>Conciliação de recebimentos por mês.</p>
+          <p>Conciliação de recebimentos e provisionamento de impostos por mês.</p>
         </div>
       </div>
 
-      <!-- Seletor de mês -->
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-        <button class="btn-edit-inline" id="finMesAnterior" style="padding:6px 14px">‹</button>
-        <span id="finMesLabel" style="font-size:15px;font-weight:600;min-width:140px;text-align:center">—</span>
-        <button class="btn-edit-inline" id="finMesProximo"  style="padding:6px 14px">›</button>
+      <!-- Sub-abas: Recebimentos (cobranças) × Impostos (provisionamento) -->
+      <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border)">
+        <button class="nav-tab ativo" data-subfin="recebimentos" style="border-radius:0">Recebimentos</button>
+        <button class="nav-tab" data-subfin="impostos" style="border-radius:0">Impostos</button>
       </div>
 
-      <!-- KPIs do mês -->
-      <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
-        <div class="kpi-card">
-          <div class="kpi-label">Previsto no mês</div>
-          <div class="kpi-value" id="finPrevisto">—</div>
-          <div class="kpi-sub" id="finPrevistoSub">—</div>
+      <!-- ── Sub-view: Recebimentos ── -->
+      <div id="subfin-recebimentos">
+        <!-- Seletor de mês -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <button class="btn-edit-inline" id="finMesAnterior" style="padding:6px 14px">‹</button>
+          <span id="finMesLabel" style="font-size:15px;font-weight:600;min-width:140px;text-align:center">—</span>
+          <button class="btn-edit-inline" id="finMesProximo"  style="padding:6px 14px">›</button>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Recebido</div>
-          <div class="kpi-value green" id="finRecebido">—</div>
-          <div class="kpi-sub" id="finRecebidoSub">líquido</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">A receber</div>
-          <div class="kpi-value" id="finPendente">—</div>
-          <div class="kpi-sub" id="finPendenteSub">pendente</div>
-        </div>
-      </div>
 
-      <!-- Tabela de cobranças do mês -->
-      <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-          <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin:0">Cobranças do mês</h3>
-          <span id="finCarregando" style="font-size:12px;color:var(--text-muted)"></span>
-        </div>
-        <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse" id="tabelaCobrancas">
-            <thead>
-              <tr style="background:rgba(255,255,255,.03)">
-                <th class="th-fin">Aluna</th>
-                <th class="th-fin">Produto</th>
-                <th class="th-fin">Parc.</th>
-                <th class="th-fin">Vencimento</th>
-                <th class="th-fin">Forma</th>
-                <th class="th-fin" style="text-align:right">Valor</th>
-                <th class="th-fin" style="text-align:right">Recebido</th>
-                <th class="th-fin" style="text-align:center">Status</th>
-              </tr>
-            </thead>
-            <tbody id="tabelaFinanceiro"></tbody>
-          </table>
-          <div id="finVazio" style="display:none;padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
-            Nenhuma cobrança neste mês.
+        <!-- KPIs do mês -->
+        <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+          <div class="kpi-card">
+            <div class="kpi-label">Previsto no mês</div>
+            <div class="kpi-value" id="finPrevisto">—</div>
+            <div class="kpi-sub" id="finPrevistoSub">—</div>
           </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Recebido</div>
+            <div class="kpi-value green" id="finRecebido">—</div>
+            <div class="kpi-sub" id="finRecebidoSub">líquido</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">A receber</div>
+            <div class="kpi-value" id="finPendente">—</div>
+            <div class="kpi-sub" id="finPendenteSub">pendente</div>
+          </div>
+        </div>
+
+        <!-- Tabela de cobranças do mês -->
+        <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin:0">Cobranças do mês</h3>
+            <span id="finCarregando" style="font-size:12px;color:var(--text-muted)"></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse" id="tabelaCobrancas">
+              <thead>
+                <tr style="background:rgba(255,255,255,.03)">
+                  <th class="th-fin">Aluna</th>
+                  <th class="th-fin">Produto</th>
+                  <th class="th-fin">Parc.</th>
+                  <th class="th-fin">Vencimento</th>
+                  <th class="th-fin">Forma</th>
+                  <th class="th-fin" style="text-align:right">Valor</th>
+                  <th class="th-fin" style="text-align:right">Recebido</th>
+                  <th class="th-fin" style="text-align:center">Status</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaFinanceiro"></tbody>
+            </table>
+            <div id="finVazio" style="display:none;padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
+              Nenhuma cobrança neste mês.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Sub-view: Impostos ── -->
+      <div id="subfin-impostos" style="display:none">
+        <!-- Seletor de mês (competência) -->
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="btn-edit-inline" id="impMesAnterior" style="padding:6px 14px">‹</button>
+            <span id="impMesLabel" style="font-size:15px;font-weight:600;min-width:140px;text-align:center">—</span>
+            <button class="btn-edit-inline" id="impMesProximo"  style="padding:6px 14px">›</button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-edit-inline" id="btnConfigurarTributos">⚙️ Configurar tributos</button>
+            <button class="btn-nova-mentorada" id="btnNovaNotaEmitida">+ Nota emitida</button>
+          </div>
+        </div>
+
+        <!-- KPIs do mês -->
+        <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+          <div class="kpi-card">
+            <div class="kpi-label">Notas emitidas no mês</div>
+            <div class="kpi-value" id="impTotalNotas">—</div>
+            <div class="kpi-sub" id="impTotalNotasSub">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Impostos previstos</div>
+            <div class="kpi-value" id="impTotalPrevisto">—</div>
+            <div class="kpi-sub" id="impTotalPrevistoSub">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Ainda a pagar</div>
+            <div class="kpi-value" id="impTotalPendente">—</div>
+            <div class="kpi-sub" id="impTotalPendenteSub">pendente</div>
+          </div>
+        </div>
+
+        <!-- Notas emitidas do mês -->
+        <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+            <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin:0">Notas emitidas — competência</h3>
+          </div>
+          <div id="listaNotasEmitidas" style="padding:8px 20px"></div>
+        </div>
+
+        <!-- Tabela de impostos previstos -->
+        <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin:0">Impostos previstos</h3>
+            <span id="impCarregando" style="font-size:12px;color:var(--text-muted)"></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse" id="tabelaImpostos">
+              <thead>
+                <tr style="background:rgba(255,255,255,.03)">
+                  <th class="th-fin">Tributo</th>
+                  <th class="th-fin">Competência</th>
+                  <th class="th-fin">Vencimento</th>
+                  <th class="th-fin" style="text-align:right">Valor</th>
+                  <th class="th-fin" style="text-align:center">Status</th>
+                  <th class="th-fin"></th>
+                </tr>
+              </thead>
+              <tbody id="tabelaImpostosBody"></tbody>
+            </table>
+            <div id="impVazio" style="display:none;padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
+              Nenhum imposto previsto pra essa competência ainda — cadastre uma nota emitida ou configure os tributos.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Nova nota emitida -->
+    <div class="modal-overlay hidden" id="modalNotaEmitida">
+      <div class="modal-card">
+        <h2 class="modal-title">Nota emitida</h2>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">O valor entra na soma da competência e recalcula os tributos automáticos (% sobre a nota).</p>
+        <input type="hidden" id="notaId">
+        <div class="field-group">
+          <label>Valor da nota (R$) *</label>
+          <input type="number" id="notaValor" placeholder="0" min="0" step="0.01">
+        </div>
+        <div class="field-group" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Competência (mês/ano) *</label>
+            <input type="month" id="notaCompetencia">
+          </div>
+          <div>
+            <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Data de emissão</label>
+            <input type="date" id="notaDataEmissao">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="btnCancelarNotaEmitida">Cancelar</button>
+          <button class="btn-save"   id="btnSalvarNotaEmitida">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Configurar tributos -->
+    <div class="modal-overlay hidden" id="modalTributos">
+      <div class="modal-card" style="max-width:560px">
+        <h2 class="modal-title">Tributos configurados</h2>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+          Percentual calcula automaticamente sobre a soma das notas emitidas na competência. Valor fixo entra com esse valor padrão em toda competência nova, mas fica editável depois (ex: IRPJ/CSLL de Lucro Presumido, calculado pela contadora).
+        </p>
+        <div id="listaTributosConfig" style="margin-bottom:16px;max-height:320px;overflow-y:auto"></div>
+        <button class="btn-edit-inline" id="btnAddTributo" style="width:100%">+ Adicionar tributo</button>
+
+        <div id="formTributo" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <input type="hidden" id="tribId">
+          <div class="field-group">
+            <label>Nome *</label>
+            <input type="text" id="tribNome" placeholder="Ex: DAM ISS, DARF PIS...">
+          </div>
+          <div class="field-group">
+            <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Tipo de cálculo *</label>
+            <select id="tribTipo">
+              <option value="percentual">% sobre as notas emitidas</option>
+              <option value="fixo">Valor fixo (editável por competência)</option>
+            </select>
+          </div>
+          <div class="field-group" id="fgTribPercentual">
+            <label>Percentual (%) *</label>
+            <input type="number" id="tribPercentual" placeholder="Ex: 5" min="0" max="100" step="0.01">
+          </div>
+          <div class="field-group" id="fgTribValorFixo" style="display:none">
+            <label>Valor padrão (R$)</label>
+            <input type="number" id="tribValorFixo" placeholder="0" min="0" step="0.01">
+          </div>
+          <div class="field-group" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Dia de vencimento *</label>
+              <input type="number" id="tribDiaVencimento" min="1" max="28" placeholder="10">
+            </div>
+            <div>
+              <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Vence quantos meses após a competência?</label>
+              <input type="number" id="tribDefasagem" min="-1" max="3" value="1">
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:pointer;margin-bottom:14px">
+            <input type="checkbox" id="tribAtivo" checked style="width:16px;height:16px">
+            Ativo (gera provisionamento automático)
+          </label>
+          <div class="modal-actions">
+            <button class="btn-cancel" id="btnCancelarTributo">Cancelar</button>
+            <button class="btn-save"   id="btnSalvarTributo">Salvar tributo</button>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top:16px">
+          <button class="btn-cancel" id="btnFecharModalTributos">Fechar</button>
         </div>
       </div>
     </div>
@@ -1785,7 +1948,11 @@
              syncDiagnostico, bootstrapNotionPageIds, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, anunciarNovidadesJun2026Completo, anunciarJornadaDashboard, anunciarNovidadesJul2026, anunciarBalancoJul2026, anunciarMultiplasContasJul2026, anunciarRaioXJul2026, anunciarPatrimonioIAJul2026, comunicadoTecnico, migrarOrcamento, getAnalytics,
              getAdmins, addAdmin, removeAdmin, getBackupStatus,
              enviarPushManual, saveMissaoMes, getComunicadosStatus,
-             editarVencimento } from './js/api.js?v=41';
+             editarVencimento,
+             getTributosConfig, saveTributoConfig, deleteTributoConfig,
+             getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
+             getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
+             msgErro } from './js/api.js?v=41';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -3562,6 +3729,275 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       finMesAtual++;
       if (finMesAtual > 12) { finMesAtual = 1; finAnoAtual++; }
       renderFinanceiro();
+    });
+
+    // ─── Sub-abas de Financeiro: Recebimentos × Impostos ─────
+    document.querySelectorAll('[data-subfin]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-subfin]').forEach(b => b.classList.remove('ativo'));
+        btn.classList.add('ativo');
+        const sub = btn.dataset.subfin;
+        document.getElementById('subfin-recebimentos').style.display = sub === 'recebimentos' ? '' : 'none';
+        document.getElementById('subfin-impostos').style.display     = sub === 'impostos'     ? '' : 'none';
+        if (sub === 'impostos' && !_impostosCarregadoUmaVez) { _impostosCarregadoUmaVez = true; renderImpostos(); }
+      });
+    });
+
+    // ─── Impostos previstos (provisionamento a partir de notas emitidas) ─────
+    let impMesAtual = new Date().getMonth() + 1;
+    let impAnoAtual = new Date().getFullYear();
+    let _impostosCarregadoUmaVez = false;
+    let _tributosCache = []; // cache da config, usada pra popular o form de nota/tributo
+
+    function badgeImposto(imp) {
+      if (imp.pago) return `<span class="badge-pago">Pago</span>`;
+      const hoje   = new Date().toISOString().slice(0, 10);
+      const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      if (imp.vencimento < hoje)    return `<span class="badge-vencido">Vencido</span>`;
+      if (imp.vencimento === amanha) return `<span class="badge-amanha">Amanhã</span>`;
+      return '';
+    }
+
+    async function renderImpostos() {
+      document.getElementById('impMesLabel').textContent = `${MESES_NOME[impMesAtual - 1]} ${impAnoAtual}`;
+      document.getElementById('impCarregando').textContent = 'Carregando…';
+      document.getElementById('tabelaImpostosBody').innerHTML = '';
+      document.getElementById('impVazio').style.display = 'none';
+
+      let notas = [], impostos = [];
+      try {
+        [notas, impostos] = await Promise.all([
+          getNotasEmitidas(impMesAtual, impAnoAtual),
+          getImpostosPrevistos(impMesAtual, impAnoAtual),
+        ]);
+      } catch (e) {
+        document.getElementById('impCarregando').textContent = 'Erro ao carregar.';
+        return;
+      }
+      document.getElementById('impCarregando').textContent = '';
+
+      // KPIs
+      const totalNotas    = notas.reduce((s, n) => s + (n.valor || 0), 0);
+      const totalPrevisto = impostos.reduce((s, i) => s + (i.valor || 0), 0);
+      const totalPendente = impostos.filter(i => !i.pago).reduce((s, i) => s + (i.valor || 0), 0);
+      document.getElementById('impTotalNotas').textContent       = brl(totalNotas);
+      document.getElementById('impTotalNotasSub').textContent    = `${notas.length} nota${notas.length !== 1 ? 's' : ''}`;
+      document.getElementById('impTotalPrevisto').textContent    = brl(totalPrevisto);
+      document.getElementById('impTotalPrevistoSub').textContent = `${impostos.length} tributo${impostos.length !== 1 ? 's' : ''}`;
+      document.getElementById('impTotalPendente').textContent    = brl(totalPendente);
+      document.getElementById('impTotalPendenteSub').textContent = `${impostos.filter(i => !i.pago).length} pendente${impostos.filter(i => !i.pago).length !== 1 ? 's' : ''}`;
+
+      // Lista de notas emitidas
+      const listaNotasEl = document.getElementById('listaNotasEmitidas');
+      if (!notas.length) {
+        listaNotasEl.innerHTML = `<p style="font-size:13px;color:var(--text-muted);text-align:center;padding:16px 0">Nenhuma nota emitida cadastrada nesta competência ainda.</p>`;
+      } else {
+        listaNotasEl.innerHTML = notas.map(n => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--text-muted)">Emitida em ${fmtData(n.dataEmissao)}</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              <strong style="font-size:14px">${brl(n.valor)}</strong>
+              <button class="btn-editar-venc-cob" data-nota-editar="${n.id}" title="Editar" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✎</button>
+              <button class="btn-editar-venc-cob" data-nota-excluir="${n.id}" title="Excluir" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+            </div>
+          </div>`).join('');
+        listaNotasEl.querySelectorAll('[data-nota-editar]').forEach(b => b.addEventListener('click', () => abrirModalNotaEmitida(notas.find(n => n.id === b.dataset.notaEditar))));
+        listaNotasEl.querySelectorAll('[data-nota-excluir]').forEach(b => b.addEventListener('click', async () => {
+          if (!confirm('Excluir esta nota emitida? Os tributos automáticos (%) desta competência serão recalculados.')) return;
+          try { await deleteNotaEmitida(b.dataset.notaExcluir); renderImpostos(); }
+          catch (e) { alert(msgErro(e)); }
+        }));
+      }
+
+      // Tabela de impostos previstos
+      if (!impostos.length) {
+        document.getElementById('impVazio').style.display = '';
+      } else {
+        document.getElementById('tabelaImpostosBody').innerHTML = impostos.map(i => `
+          <tr>
+            <td class="td-fin nome">${i.tributoNome}</td>
+            <td class="td-fin">${MESES_NOME[i.mes - 1].slice(0, 3)}/${i.ano}</td>
+            <td class="td-fin">${fmtData(i.vencimento)}</td>
+            <td class="td-fin valor" ${i.tipo === 'fixo' && !i.pago ? `style="cursor:pointer" data-imp-editar-valor="${i.id}" title="Editar valor"` : ''}>${brl(i.valor)}${i.tipo === 'fixo' && !i.pago ? ' ✎' : ''}</td>
+            <td class="td-fin" style="text-align:center">${badgeImposto(i)}</td>
+            <td class="td-fin" style="text-align:center;padding:0 4px;white-space:nowrap">
+              ${!i.pago ? `<button data-imp-pagar="${i.id}" title="Marcar como pago"
+                style="background:none;border:1px solid rgba(74,222,128,.3);color:var(--positive);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:4px;margin-right:4px">✓ Pago</button>`
+                : `<button data-imp-estornar="${i.id}" title="Desmarcar pago"
+                style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px">desfazer</button>`}
+              <button data-imp-excluir="${i.id}" title="Remover linha" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+            </td>
+          </tr>`).join('');
+
+        document.getElementById('tabelaImpostosBody').querySelectorAll('[data-imp-pagar]').forEach(b => b.addEventListener('click', async () => {
+          b.disabled = true;
+          try { await marcarImpostoPago(b.dataset.impPagar, true); renderImpostos(); }
+          catch (e) { alert(msgErro(e)); b.disabled = false; }
+        }));
+        document.getElementById('tabelaImpostosBody').querySelectorAll('[data-imp-estornar]').forEach(b => b.addEventListener('click', async () => {
+          b.disabled = true;
+          try { await marcarImpostoPago(b.dataset.impEstornar, false); renderImpostos(); }
+          catch (e) { alert(msgErro(e)); b.disabled = false; }
+        }));
+        document.getElementById('tabelaImpostosBody').querySelectorAll('[data-imp-excluir]').forEach(b => b.addEventListener('click', async () => {
+          if (!confirm('Remover esta linha de imposto previsto?')) return;
+          try { await deleteImpostoPrevisto(b.dataset.impExcluir); renderImpostos(); }
+          catch (e) { alert(msgErro(e)); }
+        }));
+        document.getElementById('tabelaImpostosBody').querySelectorAll('[data-imp-editar-valor]').forEach(td => td.addEventListener('click', async () => {
+          const id = td.dataset.impEditarValor;
+          const atual = impostos.find(i => i.id === id);
+          const novo = prompt(`Novo valor de ${atual.tributoNome} (${MESES_NOME[atual.mes - 1]}/${atual.ano}):`, atual.valor.toFixed(2).replace('.', ','));
+          if (novo == null) return;
+          const valorNum = parseFloat(novo.replace(/\./g, '').replace(',', '.'));
+          if (isNaN(valorNum) || valorNum < 0) { alert('Valor inválido.'); return; }
+          try { await editarValorImpostoPrevisto(id, valorNum); renderImpostos(); }
+          catch (e) { alert(msgErro(e)); }
+        }));
+      }
+    }
+
+    document.getElementById('impMesAnterior').addEventListener('click', () => {
+      impMesAtual--;
+      if (impMesAtual < 1) { impMesAtual = 12; impAnoAtual--; }
+      renderImpostos();
+    });
+    document.getElementById('impMesProximo').addEventListener('click', () => {
+      impMesAtual++;
+      if (impMesAtual > 12) { impMesAtual = 1; impAnoAtual++; }
+      renderImpostos();
+    });
+
+    // ── Modal: Nota emitida ──
+    const modalNotaEmitida = document.getElementById('modalNotaEmitida');
+    function abrirModalNotaEmitida(nota = null) {
+      document.getElementById('notaId').value = nota?.id || '';
+      document.getElementById('notaValor').value = nota?.valor ?? '';
+      document.getElementById('notaCompetencia').value = nota
+        ? `${nota.ano}-${String(nota.mes).padStart(2, '0')}`
+        : `${impAnoAtual}-${String(impMesAtual).padStart(2, '0')}`;
+      document.getElementById('notaDataEmissao').value = nota?.dataEmissao || new Date().toISOString().slice(0, 10);
+      modalNotaEmitida.classList.remove('hidden');
+    }
+    document.getElementById('btnNovaNotaEmitida').addEventListener('click', () => abrirModalNotaEmitida());
+    document.getElementById('btnCancelarNotaEmitida').addEventListener('click', () => modalNotaEmitida.classList.add('hidden'));
+    modalNotaEmitida.addEventListener('click', e => { if (e.target === modalNotaEmitida) modalNotaEmitida.classList.add('hidden'); });
+
+    document.getElementById('btnSalvarNotaEmitida').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarNotaEmitida');
+      const id  = document.getElementById('notaId').value || undefined;
+      const valor = parseFloat(document.getElementById('notaValor').value);
+      const competencia = document.getElementById('notaCompetencia').value; // YYYY-MM
+      const dataEmissao = document.getElementById('notaDataEmissao').value || null;
+      if (isNaN(valor) || valor <= 0) { alert('Informe um valor válido.'); return; }
+      if (!competencia) { alert('Informe a competência.'); return; }
+      const [ano, mes] = competencia.split('-').map(Number);
+
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await saveNotaEmitida({ id, valor, mes, ano, dataEmissao });
+        modalNotaEmitida.classList.add('hidden');
+        impMesAtual = mes; impAnoAtual = ano;
+        renderImpostos();
+      } catch (e) {
+        alert(msgErro(e));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+
+    // ── Modal: Configurar tributos ──
+    const modalTributos = document.getElementById('modalTributos');
+    function renderListaTributosConfig() {
+      const el = document.getElementById('listaTributosConfig');
+      if (!_tributosCache.length) {
+        el.innerHTML = `<p style="font-size:13px;color:var(--text-muted);text-align:center;padding:16px 0">Nenhum tributo configurado ainda.</p>`;
+        return;
+      }
+      el.innerHTML = _tributosCache.map(t => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:14px;font-weight:600">${t.nome}${t.ativo ? '' : ' <span style="color:var(--text-muted);font-weight:400">(inativo)</span>'}</div>
+            <div style="font-size:12px;color:var(--text-muted)">
+              ${t.tipo === 'percentual' ? `${t.percentual}% sobre a nota` : `Valor fixo (padrão ${brl(t.valorFixo)})`}
+              · vence dia ${t.diaVencimento}, ${t.defasagemMeses > 0 ? `${t.defasagemMeses} mês(es) depois` : t.defasagemMeses < 0 ? `${Math.abs(t.defasagemMeses)} mês(es) antes` : 'no mesmo mês'}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button data-trib-editar="${t.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✎</button>
+            <button data-trib-excluir="${t.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+          </div>
+        </div>`).join('');
+      el.querySelectorAll('[data-trib-editar]').forEach(b => b.addEventListener('click', () => abrirFormTributo(_tributosCache.find(t => t.id === b.dataset.tribEditar))));
+      el.querySelectorAll('[data-trib-excluir]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Excluir este tributo? Provisionamentos já gerados não são apagados, só deixa de gerar novos.')) return;
+        try { await deleteTributoConfig(b.dataset.tribExcluir); await abrirModalTributos(); }
+        catch (e) { alert(msgErro(e)); }
+      }));
+    }
+
+    async function abrirModalTributos() {
+      try { _tributosCache = await getTributosConfig(); }
+      catch (e) { _tributosCache = []; alert(msgErro(e)); }
+      renderListaTributosConfig();
+      document.getElementById('formTributo').style.display = 'none';
+      modalTributos.classList.remove('hidden');
+    }
+    document.getElementById('btnConfigurarTributos').addEventListener('click', abrirModalTributos);
+    document.getElementById('btnFecharModalTributos').addEventListener('click', () => modalTributos.classList.add('hidden'));
+    modalTributos.addEventListener('click', e => { if (e.target === modalTributos) modalTributos.classList.add('hidden'); });
+
+    function abrirFormTributo(trib = null) {
+      document.getElementById('tribId').value = trib?.id || '';
+      document.getElementById('tribNome').value = trib?.nome || '';
+      document.getElementById('tribTipo').value = trib?.tipo || 'percentual';
+      document.getElementById('tribPercentual').value = trib?.percentual ?? '';
+      document.getElementById('tribValorFixo').value = trib?.valorFixo ?? '';
+      document.getElementById('tribDiaVencimento').value = trib?.diaVencimento ?? '';
+      document.getElementById('tribDefasagem').value = trib?.defasagemMeses ?? 1;
+      document.getElementById('tribAtivo').checked = trib ? trib.ativo !== false : true;
+      atualizarCamposTipoTributo();
+      document.getElementById('formTributo').style.display = '';
+    }
+    function atualizarCamposTipoTributo() {
+      const tipo = document.getElementById('tribTipo').value;
+      document.getElementById('fgTribPercentual').style.display = tipo === 'percentual' ? '' : 'none';
+      document.getElementById('fgTribValorFixo').style.display  = tipo === 'fixo' ? '' : 'none';
+    }
+    document.getElementById('tribTipo').addEventListener('change', atualizarCamposTipoTributo);
+    document.getElementById('btnAddTributo').addEventListener('click', () => abrirFormTributo());
+    document.getElementById('btnCancelarTributo').addEventListener('click', () => { document.getElementById('formTributo').style.display = 'none'; });
+
+    document.getElementById('btnSalvarTributo').addEventListener('click', async () => {
+      const btn  = document.getElementById('btnSalvarTributo');
+      const id   = document.getElementById('tribId').value || undefined;
+      const nome = document.getElementById('tribNome').value.trim();
+      const tipo = document.getElementById('tribTipo').value;
+      const percentual = parseFloat(document.getElementById('tribPercentual').value);
+      const valorFixo  = parseFloat(document.getElementById('tribValorFixo').value);
+      const diaVencimento = parseInt(document.getElementById('tribDiaVencimento').value, 10);
+      const defasagemMeses = parseInt(document.getElementById('tribDefasagem').value, 10) || 0;
+      const ativo = document.getElementById('tribAtivo').checked;
+
+      if (!nome) { alert('Informe o nome do tributo.'); return; }
+      if (tipo === 'percentual' && (isNaN(percentual) || percentual < 0)) { alert('Informe um percentual válido.'); return; }
+      if (tipo === 'fixo' && isNaN(valorFixo)) { alert('Informe um valor fixo padrão (pode ser 0).'); return; }
+      if (!diaVencimento || diaVencimento < 1 || diaVencimento > 28) { alert('Dia de vencimento deve ser entre 1 e 28.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await saveTributoConfig({
+          id, nome, tipo,
+          percentual: tipo === 'percentual' ? percentual : undefined,
+          valorFixo:  tipo === 'fixo' ? (isNaN(valorFixo) ? 0 : valorFixo) : undefined,
+          diaVencimento, defasagemMeses, ativo,
+        });
+        await abrirModalTributos();
+      } catch (e) {
+        alert(msgErro(e));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar tributo';
+      }
     });
 
     // ─── Contratos ────────────────────────────
