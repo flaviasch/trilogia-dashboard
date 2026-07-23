@@ -53,7 +53,8 @@
     "runtime": "nodejs22"
   },
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "emulators": {
     "functions": { "port": 5001 },

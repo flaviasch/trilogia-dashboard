@@ -18,13 +18,6 @@
       ]
     },
     {
-      "collectionGroup": "contratos",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "criadoEm", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "mentoradas",
       "queryScope": "COLLECTION",
       "fields": [
@@ -49,31 +42,21 @@
       ]
     },
     {
-      "collectionGroup": "scores",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "calculadoEm", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "pushSubscriptions",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "atualizadoEm", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "reservas",
+      "collectionGroup": "notasEmitidas",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "criadoEm", "order": "ASCENDING" }
+        { "fieldPath": "mes",         "order": "ASCENDING" },
+        { "fieldPath": "ano",         "order": "ASCENDING" },
+        { "fieldPath": "dataEmissao", "order": "ASCENDING" }
       ]
     },
     {
-      "collectionGroup": "historico",
+      "collectionGroup": "impostosPrevistos",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "data", "order": "ASCENDING" }
+        { "fieldPath": "mes",         "order": "ASCENDING" },
+        { "fieldPath": "ano",         "order": "ASCENDING" },
+        { "fieldPath": "vencimento",  "order": "ASCENDING" }
       ]
     }
   ],
