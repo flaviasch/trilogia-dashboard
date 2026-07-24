@@ -5175,9 +5175,16 @@ async function _regerarImpostosPrevistos(mes, ano) {
     const ref = existente
       ? db.collection('impostosPrevistos').doc(existente.id)
       : db.collection('impostosPrevistos').doc();
+    // referenciaTrimestral: true nos tributos 'trimestral' (IRPJ/CSLL) marca
+    // que essa linha MENSAL é só informativa (mostra quanto seria sobre a
+    // nota do mês) — quem é pago de verdade é a linha trimestral acumulada
+    // em _regerarProvisaoTrimestral. Sem isso o KPI de total previsto/a
+    // pagar soma a mesma competência duas vezes (achado 24/07/2026, Flávia:
+    // "o valor do tri está sendo somado, não é pra somar").
     batch.set(ref, {
       tributoId: trib.id, tributoNome: trib.nome, tipo: trib.tipo,
       mes, ano, vencimento, valor, pago: false, origem: 'auto',
+      referenciaTrimestral: trib.periodicidade === 'trimestral',
     }, { merge: true });
   }
   await batch.commit();
@@ -5433,7 +5440,11 @@ exports.notifImpostosDia = onSchedule(
 
   if (snap.empty) return;
 
-  const impostos = snap.docs.map(d => d.data());
+  // Exclui as linhas mensais de referência dos tributos trimestrais — o
+  // vencimento delas não é um prazo de pagamento real (só a linha
+  // trimestral acumulada é paga de fato), avisar dessa data confundiria.
+  const impostos = snap.docs.map(d => d.data()).filter(i => !i.referenciaTrimestral);
+  if (!impostos.length) return;
 
   await sendEmail({
     to:      ADMIN_EMAIL,
