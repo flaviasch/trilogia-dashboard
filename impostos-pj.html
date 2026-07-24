@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard PJ — Impostos</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45; --navy-dark: #081e30;
+      --gold: #CFAE65; --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.1);
+      --text-muted: rgba(255,255,255,0.45);
+      --positive: #4ade80; --negative: #f87171;
+      --card-bg: rgba(255,255,255,0.03);
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--navy);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
+    .empresa-nome { font-size: 12px; color: var(--text-muted); }
+    .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+    .mes-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .btn-mes { background: var(--card-bg); border: 1px solid var(--border); color: var(--white); border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 14px; }
+    .mes-label { font-size: 15px; font-weight: 600; min-width: 140px; text-align: center; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
+    .kpi-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .kpi-value { font-size: 22px; font-weight: 700; }
+    .kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .secao { margin-bottom: 28px; }
+    .secao-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .secao-titulo { font-size: 14px; font-weight: 600; }
+    .btn-acao { background: var(--gold); color: var(--navy); border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .btn-acao-secundario { background: none; border: 1px solid rgba(207,174,101,0.4); color: var(--gold); border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .card-lista { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 4px 20px; }
+    .vazio { padding: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .td-fin { padding: 10px 8px; border-bottom: 1px solid var(--border); }
+    .td-fin.nome { font-weight: 600; }
+    .td-fin.valor { text-align: right; font-weight: 600; }
+    .badge-pago { background: rgba(74,222,128,.15); color: var(--positive); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-amanha { background: rgba(96,165,250,.15); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-vencido { background: rgba(248,113,113,.15); color: var(--negative); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
+    .field-group input, .field-group select { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-group select option { background: var(--navy); }
+    .field-row { display: flex; gap: 10px; }
+    .field-row .field-group { flex: 1; }
+    .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .checkbox-row input { width: auto; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
+      <p class="empresa-nome" id="empresaNome">—</p>
+    </div>
+    <button class="btn-logout" id="btnLogout">Sair</button>
+  </header>
+
+  <main>
+    <h1>Impostos</h1>
+    <p class="subtitulo">Lance suas notas emitidas e acompanhe os impostos provisionados automaticamente.</p>
+
+    <div class="mes-nav">
+      <button class="btn-mes" id="mesAnterior">‹</button>
+      <span class="mes-label" id="mesLabel">—</span>
+      <button class="btn-mes" id="mesProximo">›</button>
+      <button class="btn-acao-secundario" id="btnConfigurarTributos" style="margin-left:auto">⚙️ Configurar tributos</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi-card">
+        <div class="kpi-label">Notas emitidas</div>
+        <div class="kpi-value" id="totalNotas">—</div>
+        <div class="kpi-sub" id="totalNotasSub">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Impostos previstos</div>
+        <div class="kpi-value" id="totalPrevisto">—</div>
+        <div class="kpi-sub" id="totalPrevistoSub">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ainda a pagar</div>
+        <div class="kpi-value" id="totalPendente">—</div>
+        <div class="kpi-sub" id="totalPendenteSub">pendente</div>
+      </div>
+    </div>
+
+    <div class="secao">
+      <div class="secao-header">
+        <span class="secao-titulo">Notas emitidas</span>
+        <button class="btn-acao" id="btnNovaNota">+ Nota emitida</button>
+      </div>
+      <div class="card-lista" id="listaNotas"></div>
+    </div>
+
+    <div class="secao">
+      <div class="secao-header"><span class="secao-titulo">Provisão do mês</span></div>
+      <div class="card-lista">
+        <table>
+          <thead><tr><th class="td-fin nome">Tributo</th><th class="td-fin">Competência</th><th class="td-fin">Vencimento</th><th class="td-fin valor">Valor</th></tr></thead>
+          <tbody id="tabelaProvisaoBody"></tbody>
+        </table>
+        <div class="vazio" id="provisaoVazio" style="display:none">Nenhum tributo configurado ainda, ou nenhuma nota lançada neste mês.</div>
+      </div>
+    </div>
+
+    <div class="secao">
+      <div class="secao-header"><span class="secao-titulo">Impostos devidos</span></div>
+      <div class="card-lista">
+        <table>
+          <thead><tr><th class="td-fin nome">Tributo</th><th class="td-fin">Vencimento</th><th class="td-fin valor">Valor</th><th class="td-fin">Status</th><th class="td-fin"></th></tr></thead>
+          <tbody id="tabelaDevidosBody"></tbody>
+        </table>
+        <div class="vazio" id="devidosVazio" style="display:none">Nada com vencimento neste mês.</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal: Nota emitida -->
+  <div class="modal-overlay hidden" id="modalNota">
+    <div class="modal-card">
+      <h3>Nota emitida</h3>
+      <input type="hidden" id="notaId">
+      <div class="field-group">
+        <label for="notaValor">Valor</label>
+        <input type="number" id="notaValor" placeholder="0" min="0" step="0.01">
+      </div>
+      <div class="field-group">
+        <label for="notaCompetencia">Competência</label>
+        <input type="month" id="notaCompetencia">
+      </div>
+      <div class="field-group">
+        <label for="notaDataEmissao">Data de emissão</label>
+        <input type="date" id="notaDataEmissao">
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarNota">Cancelar</button>
+        <button class="btn-save" id="btnSalvarNota">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Configurar tributos -->
+  <div class="modal-overlay hidden" id="modalTributos">
+    <div class="modal-card">
+      <h3>Configurar tributos</h3>
+      <div id="listaTributos" style="margin-bottom:14px;max-height:260px;overflow-y:auto"></div>
+      <button class="btn-acao-secundario" id="btnAddTributo" style="width:100%">+ Adicionar tributo</button>
+      <div id="formTributo" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <input type="hidden" id="tribId">
+        <div class="field-group">
+          <label for="tribNome">Nome do tributo</label>
+          <input type="text" id="tribNome" placeholder="Ex: DAS, ISS, PIS...">
+        </div>
+        <div class="field-group">
+          <label for="tribTipo">Tipo</label>
+          <select id="tribTipo">
+            <option value="percentual">Percentual sobre a nota</option>
+            <option value="fixo">Valor fixo</option>
+          </select>
+        </div>
+        <div class="field-group" id="fgTribPercentual">
+          <label for="tribPercentual">Percentual (%)</label>
+          <input type="number" id="tribPercentual" placeholder="Ex: 5" min="0" max="100" step="0.01">
+        </div>
+        <div class="field-group" id="fgTribValorFixo" style="display:none">
+          <label for="tribValorFixo">Valor fixo (R$)</label>
+          <input type="number" id="tribValorFixo" placeholder="0" min="0" step="0.01">
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label for="tribDiaVencimento">Dia de vencimento</label>
+            <input type="number" id="tribDiaVencimento" min="1" max="28" placeholder="10">
+          </div>
+          <div class="field-group">
+            <label for="tribDefasagem">Meses até vencer</label>
+            <input type="number" id="tribDefasagem" min="-1" max="3" value="1">
+          </div>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="tribAtivo" checked>
+          <label for="tribAtivo" style="margin:0">Ativo</label>
+        </div>
+        <div class="modal-acoes">
+          <button class="btn-cancel" id="btnCancelarTributo">Cancelar</button>
+          <button class="btn-save" id="btnSalvarTributo">Salvar tributo</button>
+        </div>
+      </div>
+      <div class="modal-acoes" style="margin-top:16px">
+        <button class="btn-cancel" id="btnFecharModalTributos" style="width:100%">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import {
+      getContaPJ,
+      getTributosConfig, saveTributoConfig, deleteTributoConfig,
+      getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
+      getImpostosPrevistos, marcarImpostoPago, deleteImpostoPrevisto,
+      msgErro,
+    } from './js/api.js?v=43';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+      'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    function fmtData(iso) {
+      if (!iso) return '—';
+      const [a, m, d] = iso.split('-');
+      return `${d}/${m}/${a}`;
+    }
+
+    let currentUser = null;
+    let mesAtual = new Date().getMonth() + 1;
+    let anoAtual = new Date().getFullYear();
+    let _tributosCache = [];
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login-pj.html';
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login-pj.html'; return; }
+      currentUser = user;
+      try {
+        const conta = await getContaPJ(user.uid);
+        if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+        document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
+      } catch (err) {
+        console.error('[impostos-pj] Falha ao carregar conta:', err.message);
+      }
+      renderImpostos();
+    });
+
+    function badgeImposto(imp) {
+      if (imp.pago) return `<span class="badge-pago">Pago</span>`;
+      const hoje   = new Date().toISOString().slice(0, 10);
+      const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      if (imp.vencimento < hoje)    return `<span class="badge-vencido">Vencido</span>`;
+      if (imp.vencimento === amanha) return `<span class="badge-amanha">Amanhã</span>`;
+      return '';
+    }
+
+    async function renderImpostos() {
+      document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
+
+      let notas = [], impostos = [];
+      try {
+        [notas, impostos] = await Promise.all([
+          getNotasEmitidas(currentUser.uid, mesAtual, anoAtual),
+          getImpostosPrevistos(currentUser.uid, mesAtual, anoAtual),
+        ]);
+      } catch (err) {
+        alert(msgErro(err));
+        return;
+      }
+
+      const provisao = impostos.filter(i => i.somenteLeitura);
+      const devidos  = impostos.filter(i => !i.somenteLeitura);
+      const provisaoSomavel = provisao.filter(i => !i.referenciaTrimestral);
+
+      const totalNotas    = notas.reduce((s, n) => s + (n.valor || 0), 0);
+      const totalPrevisto = provisaoSomavel.reduce((s, i) => s + (i.valor || 0), 0);
+      const pendentes      = devidos.filter(i => !i.pago);
+      const totalPendente = pendentes.reduce((s, i) => s + (i.valor || 0), 0);
+
+      document.getElementById('totalNotas').textContent       = brl(totalNotas);
+      document.getElementById('totalNotasSub').textContent    = `${notas.length} nota${notas.length !== 1 ? 's' : ''}`;
+      document.getElementById('totalPrevisto').textContent    = brl(totalPrevisto);
+      document.getElementById('totalPrevistoSub').textContent = `${provisaoSomavel.length} tributo${provisaoSomavel.length !== 1 ? 's' : ''}`;
+      document.getElementById('totalPendente').textContent    = brl(totalPendente);
+      document.getElementById('totalPendenteSub').textContent = `${pendentes.length} pendente${pendentes.length !== 1 ? 's' : ''}`;
+
+      const listaNotasEl = document.getElementById('listaNotas');
+      if (!notas.length) {
+        listaNotasEl.innerHTML = `<p class="vazio">Nenhuma nota emitida cadastrada nesta competência ainda.</p>`;
+      } else {
+        listaNotasEl.innerHTML = notas.map(n => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--text-muted)">Emitida em ${fmtData(n.dataEmissao)}</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              <strong style="font-size:14px">${brl(n.valor)}</strong>
+              <button data-nota-editar="${n.id}" title="Editar" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✎</button>
+              <button data-nota-excluir="${n.id}" title="Excluir" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+            </div>
+          </div>`).join('');
+        listaNotasEl.querySelectorAll('[data-nota-editar]').forEach(b => b.addEventListener('click', () => abrirModalNota(notas.find(n => n.id === b.dataset.notaEditar))));
+        listaNotasEl.querySelectorAll('[data-nota-excluir]').forEach(b => b.addEventListener('click', async () => {
+          if (!confirm('Excluir esta nota emitida? Os tributos automáticos (%) desta competência serão recalculados.')) return;
+          try { await deleteNotaEmitida(currentUser.uid, b.dataset.notaExcluir); renderImpostos(); }
+          catch (err) { alert(msgErro(err)); }
+        }));
+      }
+
+      if (!provisao.length) {
+        document.getElementById('provisaoVazio').style.display = '';
+        document.getElementById('tabelaProvisaoBody').innerHTML = '';
+      } else {
+        document.getElementById('provisaoVazio').style.display = 'none';
+        document.getElementById('tabelaProvisaoBody').innerHTML = provisao.map(i => `
+          <tr>
+            <td class="td-fin nome">${i.tributoNome}</td>
+            <td class="td-fin">${i.trimestre ? `${i.trimestre}º tri/${i.ano}` : `${MESES_NOME[i.mes - 1].slice(0,3)}/${i.ano}`}</td>
+            <td class="td-fin">${i.referenciaTrimestral ? '—' : fmtData(i.vencimento)}</td>
+            <td class="td-fin valor">${brl(i.valor)}</td>
+          </tr>`).join('');
+      }
+
+      if (!devidos.length) {
+        document.getElementById('devidosVazio').style.display = '';
+        document.getElementById('tabelaDevidosBody').innerHTML = '';
+      } else {
+        document.getElementById('devidosVazio').style.display = 'none';
+        document.getElementById('tabelaDevidosBody').innerHTML = devidos.map(i => `
+          <tr>
+            <td class="td-fin nome">${i.tributoNome}</td>
+            <td class="td-fin">${fmtData(i.vencimento)}</td>
+            <td class="td-fin valor">${brl(i.valor)}</td>
+            <td class="td-fin">${badgeImposto(i)}</td>
+            <td class="td-fin" style="white-space:nowrap">
+              ${!i.pago ? `<button data-imp-pagar="${i.id}" style="background:none;border:1px solid rgba(74,222,128,.3);color:var(--positive);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:4px;margin-right:4px">✓ Pago</button>`
+                : `<button data-imp-estornar="${i.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px">desfazer</button>`}
+              <button data-imp-excluir="${i.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+            </td>
+          </tr>`).join('');
+        document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-pagar]').forEach(b => b.addEventListener('click', async () => {
+          b.disabled = true;
+          try { await marcarImpostoPago(currentUser.uid, b.dataset.impPagar, true); renderImpostos(); }
+          catch (err) { alert(msgErro(err)); b.disabled = false; }
+        }));
+        document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-estornar]').forEach(b => b.addEventListener('click', async () => {
+          try { await marcarImpostoPago(currentUser.uid, b.dataset.impEstornar, false); renderImpostos(); }
+          catch (err) { alert(msgErro(err)); }
+        }));
+        document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-excluir]').forEach(b => b.addEventListener('click', async () => {
+          if (!confirm('Remover esta linha de imposto previsto?')) return;
+          try { await deleteImpostoPrevisto(currentUser.uid, b.dataset.impExcluir); renderImpostos(); }
+          catch (err) { alert(msgErro(err)); }
+        }));
+      }
+    }
+
+    document.getElementById('mesAnterior').addEventListener('click', () => {
+      mesAtual--; if (mesAtual < 1) { mesAtual = 12; anoAtual--; }
+      renderImpostos();
+    });
+    document.getElementById('mesProximo').addEventListener('click', () => {
+      mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
+      renderImpostos();
+    });
+
+    // ── Modal: Nota emitida ──
+    const modalNota = document.getElementById('modalNota');
+    function abrirModalNota(nota = null) {
+      document.getElementById('notaId').value = nota?.id || '';
+      document.getElementById('notaValor').value = nota?.valor ?? '';
+      document.getElementById('notaCompetencia').value = nota
+        ? `${nota.ano}-${String(nota.mes).padStart(2, '0')}`
+        : `${anoAtual}-${String(mesAtual).padStart(2, '0')}`;
+      document.getElementById('notaDataEmissao').value = nota?.dataEmissao || new Date().toISOString().slice(0, 10);
+      modalNota.classList.remove('hidden');
+    }
+    document.getElementById('btnNovaNota').addEventListener('click', () => abrirModalNota());
+    document.getElementById('btnCancelarNota').addEventListener('click', () => modalNota.classList.add('hidden'));
+    modalNota.addEventListener('click', e => { if (e.target === modalNota) modalNota.classList.add('hidden'); });
+
+    document.getElementById('btnSalvarNota').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarNota');
+      const id  = document.getElementById('notaId').value || undefined;
+      const valor = parseFloat(document.getElementById('notaValor').value);
+      const competencia = document.getElementById('notaCompetencia').value;
+      const dataEmissao = document.getElementById('notaDataEmissao').value || null;
+      if (isNaN(valor) || valor <= 0) { alert('Informe um valor válido.'); return; }
+      if (!competencia) { alert('Informe a competência.'); return; }
+      const [ano, mes] = competencia.split('-').map(Number);
+
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await saveNotaEmitida(currentUser.uid, { id, valor, mes, ano, dataEmissao });
+        modalNota.classList.add('hidden');
+        mesAtual = mes; anoAtual = ano;
+        renderImpostos();
+      } catch (err) {
+        alert(msgErro(err));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+
+    // ── Modal: Configurar tributos ──
+    const modalTributos = document.getElementById('modalTributos');
+    function renderListaTributos() {
+      const el = document.getElementById('listaTributos');
+      if (!_tributosCache.length) {
+        el.innerHTML = `<p class="vazio">Nenhum tributo configurado ainda.</p>`;
+        return;
+      }
+      el.innerHTML = _tributosCache.map(t => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:14px;font-weight:600">${t.nome}${t.ativo ? '' : ' <span style="color:var(--text-muted);font-weight:400">(inativo)</span>'}</div>
+            <div style="font-size:12px;color:var(--text-muted)">
+              ${t.tipo === 'percentual' ? `${t.percentual}% sobre a nota` : `Valor fixo (padrão ${brl(t.valorFixo)})`}
+              · vence dia ${t.diaVencimento}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button data-trib-editar="${t.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✎</button>
+            <button data-trib-excluir="${t.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+          </div>
+        </div>`).join('');
+      el.querySelectorAll('[data-trib-editar]').forEach(b => b.addEventListener('click', () => abrirFormTributo(_tributosCache.find(t => t.id === b.dataset.tribEditar))));
+      el.querySelectorAll('[data-trib-excluir]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Excluir este tributo?')) return;
+        try { await deleteTributoConfig(currentUser.uid, b.dataset.tribExcluir); await abrirModalTributos(); }
+        catch (err) { alert(msgErro(err)); }
+      }));
+    }
+
+    async function abrirModalTributos() {
+      try { _tributosCache = await getTributosConfig(currentUser.uid); }
+      catch (err) { _tributosCache = []; alert(msgErro(err)); }
+      renderListaTributos();
+      document.getElementById('formTributo').style.display = 'none';
+      modalTributos.classList.remove('hidden');
+    }
+    document.getElementById('btnConfigurarTributos').addEventListener('click', abrirModalTributos);
+    document.getElementById('btnFecharModalTributos').addEventListener('click', () => { modalTributos.classList.add('hidden'); renderImpostos(); });
+    modalTributos.addEventListener('click', e => { if (e.target === modalTributos) { modalTributos.classList.add('hidden'); renderImpostos(); } });
+
+    function abrirFormTributo(trib = null) {
+      document.getElementById('tribId').value = trib?.id || '';
+      document.getElementById('tribNome').value = trib?.nome || '';
+      document.getElementById('tribTipo').value = trib?.tipo || 'percentual';
+      document.getElementById('tribPercentual').value = trib?.percentual ?? '';
+      document.getElementById('tribValorFixo').value = trib?.valorFixo ?? '';
+      document.getElementById('tribDiaVencimento').value = trib?.diaVencimento ?? '';
+      document.getElementById('tribDefasagem').value = trib?.defasagemMeses ?? 1;
+      document.getElementById('tribAtivo').checked = trib ? trib.ativo !== false : true;
+      atualizarCamposTipoTributo();
+      document.getElementById('formTributo').style.display = '';
+    }
+    function atualizarCamposTipoTributo() {
+      const tipo = document.getElementById('tribTipo').value;
+      document.getElementById('fgTribPercentual').style.display = tipo === 'percentual' ? '' : 'none';
+      document.getElementById('fgTribValorFixo').style.display  = tipo === 'fixo' ? '' : 'none';
+    }
+    document.getElementById('tribTipo').addEventListener('change', atualizarCamposTipoTributo);
+    document.getElementById('btnAddTributo').addEventListener('click', () => abrirFormTributo());
+    document.getElementById('btnCancelarTributo').addEventListener('click', () => { document.getElementById('formTributo').style.display = 'none'; });
+
+    document.getElementById('btnSalvarTributo').addEventListener('click', async () => {
+      const btn  = document.getElementById('btnSalvarTributo');
+      const id   = document.getElementById('tribId').value || undefined;
+      const nome = document.getElementById('tribNome').value.trim();
+      const tipo = document.getElementById('tribTipo').value;
+      const percentual = parseFloat(document.getElementById('tribPercentual').value);
+      const valorFixo  = parseFloat(document.getElementById('tribValorFixo').value);
+      const diaVencimento = parseInt(document.getElementById('tribDiaVencimento').value, 10);
+      const defasagemMeses = parseInt(document.getElementById('tribDefasagem').value, 10) || 0;
+      const ativo = document.getElementById('tribAtivo').checked;
+
+      if (!nome) { alert('Informe o nome do tributo.'); return; }
+      if (tipo === 'percentual' && (isNaN(percentual) || percentual < 0)) { alert('Informe um percentual válido.'); return; }
+      if (tipo === 'fixo' && isNaN(valorFixo)) { alert('Informe um valor fixo padrão (pode ser 0).'); return; }
+      if (!diaVencimento || diaVencimento < 1 || diaVencimento > 28) { alert('Dia de vencimento deve ser entre 1 e 28.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await saveTributoConfig(currentUser.uid, {
+          id, nome, tipo,
+          percentual: tipo === 'percentual' ? percentual : undefined,
+          valorFixo:  tipo === 'fixo' ? (isNaN(valorFixo) ? 0 : valorFixo) : undefined,
+          diaVencimento, defasagemMeses, periodicidade: 'mensal', ativo,
+        });
+        await abrirModalTributos();
+      } catch (err) {
+        alert(msgErro(err));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar tributo';
+      }
+    });
+  </script>
+
+</body>
+</html>

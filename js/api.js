@@ -107,6 +107,50 @@ function adminCall(nome) {
   };
 }
 
+// Chamadas da conta PJ (Dashboard PJ, 24/07/2026): mesma lógica de `call()`,
+// mas redireciona pra login-pj.html em vez de login.html — página de login
+// separada (mesmo Firebase Auth, mesmo e-mail possível em PF e PJ, ver
+// dashboard-pj/BLUEPRINT.md).
+async function _renovarOuLogoutPJ() {
+  try {
+    await auth.currentUser?.getIdToken(true);
+    return true;
+  } catch (_) {
+    await signOut(auth).catch(() => {});
+    window.location.href = 'login-pj.html';
+    return false;
+  }
+}
+async function _logoutImediatoPJ() {
+  await signOut(auth).catch(() => {});
+  window.location.href = 'login-pj.html';
+}
+function callPJ(nome) {
+  const fn = httpsCallable(functions, nome);
+  return async (dados) => {
+    try {
+      const result = await fn(dados);
+      return result.data;
+    } catch (err) {
+      if (err.code === 'functions/unauthenticated') {
+        const renovado = await _renovarOuLogoutPJ();
+        if (!renovado) throw { code: 'unauthenticated', message: msgErro(err) };
+        try {
+          const retry = await fn(dados);
+          return retry.data;
+        } catch (retryErr) {
+          await _logoutImediatoPJ();
+          throw { code: retryErr.code || 'unknown', message: msgErro(retryErr) };
+        }
+      }
+      if (err.code === 'functions/permission-denied') {
+        await _logoutImediatoPJ();
+      }
+      throw { code: err.code || 'unknown', message: msgErro(err) };
+    }
+  };
+}
+
 // ─── UID do usuário logado ─────────────────────────────────────────────────────
 
 let _viewAsUid = null;
@@ -613,6 +657,17 @@ export async function marcarImpostoPago(uid, id, pago) {
 }
 export async function deleteImpostoPrevisto(uid, id) {
   return adminCall('deleteImpostoPrevisto')({ uid, id });
+}
+
+// ─── Dashboard PJ (fatia 1: conta + onboarding) ───────────────────────────────
+// Usa callPJ (não adminCall) — quem chama é a própria usuária PJ, não a
+// Flávia como admin. Redireciona pra login-pj.html em caso de sessão expirada.
+
+export async function getContaPJ(uid) {
+  return callPJ('getContaPJ')({ uid });
+}
+export async function salvarOnboardingPJ(uid, dados) {
+  return callPJ('salvarOnboardingPJ')({ uid, ...dados });
 }
 
 // ─── CRM Pipeline ────────────────────────────────────────────────────────────

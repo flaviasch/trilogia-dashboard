@@ -5521,6 +5521,57 @@ exports.notifImpostosDia = onSchedule(
   await marcarEnviado('notifImpostosDia');
 });
 
+// ─── DASHBOARD PJ (fatia 1: conta + onboarding + Impostos) ────────────────────
+// 24/07/2026. Decisão de Flávia: login separado (login-pj.html), mas MESMO
+// Firebase Auth do projeto — uma mentorada pode usar o mesmo e-mail/senha na
+// conta PF e na PJ. A separação é de coleção (`contasPJ`, nunca `mentoradas`)
+// e de páginas, não de identidade de autenticação. As 3 coleções do módulo de
+// Impostos (retrofit multi-tenant, ver acima) já funcionam com qualquer uid
+// sem mudança nenhuma — a conta PJ simplesmente passa o próprio uid.
+
+/**
+ * Devolve o doc de onboarding da conta PJ do uid, ou null se ainda não
+ * completou (usado por login-pj.html pra decidir onboarding-pj x impostos-pj).
+ */
+exports.getContaPJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const snap = await db.collection('contasPJ').doc(uid).get();
+  return snap.exists ? { id: snap.id, ...snap.data() } : null;
+});
+
+/**
+ * Cria ou atualiza o onboarding da conta PJ (nome da empresa, CNPJ opcional,
+ * regime tributário — campo informativo, não aciona cálculo nenhum, ver
+ * BLUEPRINT do Dashboard PJ).
+ */
+exports.salvarOnboardingPJ = onCall({}, async (request) => {
+  const { uid, nomeEmpresa, cnpj, regime } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!nomeEmpresa || typeof nomeEmpresa !== 'string' || !nomeEmpresa.trim())
+    throw new HttpsError('invalid-argument', 'nomeEmpresa é obrigatório.');
+  if (!['mei', 'simples', 'presumido'].includes(regime))
+    throw new HttpsError('invalid-argument', "regime deve ser 'mei', 'simples' ou 'presumido'.");
+  if (cnpj && !/^\d{14}$/.test(String(cnpj).replace(/\D/g, '')))
+    throw new HttpsError('invalid-argument', 'cnpj deve ter 14 dígitos.');
+
+  const ref  = db.collection('contasPJ').doc(uid);
+  const jaExiste = (await ref.get()).exists;
+  await ref.set({
+    nomeEmpresa: nomeEmpresa.trim().slice(0, 150),
+    cnpj:        cnpj ? String(cnpj).replace(/\D/g, '') : null,
+    regime,
+    ...(jaExiste ? {} : { criadoEm: admin.firestore.FieldValue.serverTimestamp() }),
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return { ok: true };
+});
+
+// Bootstrap de conta de teste PJ é feito via script (scripts/criar-conta-pj-teste.js),
+// mesmo padrão de criar-perfil-admin.js — não precisa de Cloud Function pra
+// isso, e evita expor mais um endpoint admin-only sem produto Kiwify real
+// por trás ainda (fase Venda, fora do escopo desta fatia).
+
 // ─── Helpers internos ─────────────────────────────────────────────────────────
 
 /**
