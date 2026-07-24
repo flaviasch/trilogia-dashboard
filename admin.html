@@ -3832,14 +3832,14 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
             <td class="td-fin nome">${i.tributoNome}</td>
             <td class="td-fin">${i.trimestre ? `${i.trimestre}º tri/${i.ano}` : `${MESES_NOME[i.mes - 1].slice(0, 3)}/${i.ano}`}</td>
             <td class="td-fin">${fmtData(i.vencimento)}</td>
-            <td class="td-fin valor" ${i.tipo === 'fixo' && !i.pago ? `style="cursor:pointer" data-imp-editar-valor="${i.id}" title="Editar valor"` : ''}>${brl(i.valor)}${i.tipo === 'fixo' && !i.pago ? ' ✎' : ''}</td>
-            <td class="td-fin" style="text-align:center">${badgeImposto(i)}</td>
+            <td class="td-fin valor" ${i.tipo === 'fixo' && !i.pago && !i.somenteLeitura ? `style="cursor:pointer" data-imp-editar-valor="${i.id}" title="Editar valor"` : ''}>${brl(i.valor)}${i.tipo === 'fixo' && !i.pago && !i.somenteLeitura ? ' ✎' : ''}</td>
+            <td class="td-fin" style="text-align:center">${i.somenteLeitura ? `<span style="font-size:11px;color:var(--text-muted)" title="Acumulando — ações só disponíveis em ${MESES_NOME[i.mes - 1]}/${i.ano}, mês de fechamento do trimestre">⏳ acumulando</span>` : badgeImposto(i)}</td>
             <td class="td-fin" style="text-align:center;padding:0 4px;white-space:nowrap">
-              ${!i.pago ? `<button data-imp-pagar="${i.id}" title="Marcar como pago"
+              ${i.somenteLeitura ? `<span style="font-size:11px;color:var(--text-muted)">só em ${MESES_NOME[i.mes - 1].slice(0,3)}/${i.ano}</span>` : (!i.pago ? `<button data-imp-pagar="${i.id}" title="Marcar como pago"
                 style="background:none;border:1px solid rgba(74,222,128,.3);color:var(--positive);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:4px;margin-right:4px">✓ Pago</button>`
                 : `<button data-imp-estornar="${i.id}" title="Desmarcar pago"
-                style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px">desfazer</button>`}
-              <button data-imp-excluir="${i.id}" title="Remover linha" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+                style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px">desfazer</button>`)}
+              ${i.somenteLeitura ? '' : `<button data-imp-excluir="${i.id}" title="Remover linha" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>`}
             </td>
           </tr>`).join('');
 

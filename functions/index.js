@@ -62,6 +62,7 @@ const {
   emailBoasVindas,
   emailExpiracaoProxima,
   emailCobrancasDia,
+  emailImpostosDia,
   emailRetencaoDia1,
   emailRetencaoDia3,
   emailRetencaoDia7,
@@ -5350,7 +5351,28 @@ exports.getImpostosPrevistos = onCall({}, async (request) => {
   if (!mes || !ano) throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
   const snap = await db.collection('impostosPrevistos')
     .where('mes', '==', mes).where('ano', '==', ano).orderBy('vencimento').get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const porCompetencia = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  // Linha trimestral acumulada (IRPJ/CSLL) fica guardada no último mês do
+  // trimestre, mas mostra em TODOS os 3 meses — a usuária quer ver o valor
+  // acumulado assim que existir, não só no mês de fechamento (achado
+  // 23/07/2026, Flávia: "já tem valor acumulado pra esse tri, não faz
+  // sentido esconder"). "somenteLeitura" avisa o frontend pra esconder as
+  // ações (pago/editar/excluir) quando a linha está sendo mostrada
+  // "emprestada" de um mês anterior ao de fechamento — só faz sentido
+  // confirmar como paga quando o trimestre estiver completo.
+  const trimestre = _trimestreDoMes(mes);
+  const ultimoMesTrimestre = _mesesDoTrimestre(trimestre)[2];
+  let linhasTrimestrais = [];
+  if (mes !== ultimoMesTrimestre) {
+    const snapTri = await db.collection('impostosPrevistos')
+      .where('mes', '==', ultimoMesTrimestre).where('ano', '==', ano).get();
+    linhasTrimestrais = snapTri.docs
+      .filter(d => d.data().trimestre === trimestre)
+      .map(d => ({ id: d.id, ...d.data(), somenteLeitura: true }));
+  }
+
+  return [...porCompetencia, ...linhasTrimestrais];
 });
 
 exports.editarValorImpostoPrevisto = onCall({}, async (request) => {
@@ -5390,6 +5412,35 @@ exports.deleteImpostoPrevisto = onCall({}, async (request) => {
   if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
   await db.collection('impostosPrevistos').doc(id).delete();
   return { ok: true };
+});
+
+/**
+ * Notificação diária de tributos PJ com vencimento hoje.
+ * Enviada para a Flávia às 8h (horário de Brasília), mesmo horário e mesmo
+ * padrão do notifCobrancasDia (pedido 24/07/2026: "quero aviso para me
+ * lembrar desses vcto assim como vc fez para lembrar as cobranças").
+ */
+exports.notifImpostosDia = onSchedule(
+  { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: ['GMAIL_APP_PASSWORD'] },
+  async () => {
+  if (await jaExecutouHoje('notifImpostosDia')) return;
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  const snap = await db.collection('impostosPrevistos')
+    .where('vencimento', '==', hoje)
+    .where('pago', '==', false)
+    .get();
+
+  if (snap.empty) return;
+
+  const impostos = snap.docs.map(d => d.data());
+
+  await sendEmail({
+    to:      ADMIN_EMAIL,
+    subject: `Tributos de hoje — ${hoje}`,
+    html:    emailImpostosDia(impostos),
+  });
+  await marcarEnviado('notifImpostosDia');
 });
 
 // ─── Helpers internos ─────────────────────────────────────────────────────────

@@ -361,6 +361,58 @@ function emailCobrancasDia(cobrancas) {
 }
 
 /**
+ * E-mail: tributos PJ com vencimento hoje — enviado para a Flávia.
+ * @param {Array} impostos — lista de objetos { tributoNome, mes, ano, trimestre, valor, vencimento }
+ */
+function emailImpostosDia(impostos) {
+  const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmt  = (iso) => {
+    const [a, m, d] = iso.split('-');
+    return `${d}/${m}/${a}`;
+  };
+  const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+
+  const linhas = impostos.map(i => `
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;color:#111827;font-size:13px;">
+        ${i.tributoNome}
+      </td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;color:#4b5563;font-size:13px;">
+        ${i.trimestre ? `${i.trimestre}º tri/${i.ano}` : `${MESES[i.mes - 1]}/${i.ano}`}
+      </td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;color:#0D2B45;font-weight:700;text-align:right;font-size:13px;">
+        ${brl(i.valor)}
+      </td>
+    </tr>`).join('');
+
+  const total = impostos.reduce((s, i) => s + (i.valor || 0), 0);
+
+  return layout(`
+    <h2 style="${S.h2}">Tributos PJ com vencimento ${fmt(impostos[0]?.vencimento || new Date().toISOString().slice(0,10))}</h2>
+    <p style="${S.p}">
+      Você tem <strong>${impostos.length} tributo${impostos.length !== 1 ? 's' : ''}</strong>
+      com vencimento hoje. Total previsto: <strong style="color:#0D2B45">${brl(total)}</strong>.
+    </p>
+    <table style="width:100%;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+      <thead>
+        <tr style="background:#f3f4f6;">
+          <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Tributo</th>
+          <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Competência</th>
+          <th style="padding:10px 12px;text-align:right;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Valor</th>
+        </tr>
+      </thead>
+      <tbody>${linhas}</tbody>
+    </table>
+    <p style="margin:12px 0 20px;text-align:right;font-size:13px;color:#6b7280;">
+      Total: <strong style="color:#0D2B45;">${brl(total)}</strong>
+    </p>
+    <a href="https://dashboard.flaviaschusciman.com/admin.html" style="${S.btn}">
+      Abrir painel admin
+    </a>
+  `);
+}
+
+/**
  * E-mail: lembrete para configurar o planejamento do próximo mês (enviado no dia 28).
  * @param {string} nome        — nome da mentorada
  * @param {string} proximoMes  — ex. "junho de 2026"
@@ -1085,6 +1137,7 @@ module.exports = {
   emailBoasVindas,
   emailExpiracaoProxima,
   emailCobrancasDia,
+  emailImpostosDia,
   emailRetencaoDia1,
   emailRetencaoDia3,
   emailRetencaoDia7,
