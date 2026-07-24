@@ -3772,6 +3772,15 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       return '';
     }
 
+    // Mês/ano abreviado a partir de um vencimento ISO ("2026-10-30" → "out/2026")
+    // — usado nas linhas somenteLeitura pra apontar o mês real de ação, que
+    // pode ser diferente do mês de competência exibido na linha (ex: linha
+    // trimestral mostrada em set/2026 mas só liberada em out/2026).
+    function _mesAnoVenc(iso) {
+      if (!iso) return '';
+      return `${MESES_NOME[Number(iso.slice(5, 7)) - 1].slice(0, 3)}/${iso.slice(0, 4)}`;
+    }
+
     async function renderImpostos() {
       document.getElementById('impMesLabel').textContent = `${MESES_NOME[impMesAtual - 1]} ${impAnoAtual}`;
       document.getElementById('impCarregando').textContent = 'Carregando…';
@@ -3837,9 +3846,9 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
             <td class="td-fin">${i.trimestre ? `${i.trimestre}º tri/${i.ano}` : `${MESES_NOME[i.mes - 1].slice(0, 3)}/${i.ano}`}</td>
             <td class="td-fin">${i.referenciaTrimestral ? '—' : fmtData(i.vencimento)}</td>
             <td class="td-fin valor" ${i.tipo === 'fixo' && !i.pago && !i.somenteLeitura ? `style="cursor:pointer" data-imp-editar-valor="${i.id}" title="Editar valor"` : ''}>${brl(i.valor)}${i.tipo === 'fixo' && !i.pago && !i.somenteLeitura ? ' ✎' : ''}</td>
-            <td class="td-fin" style="text-align:center">${i.referenciaTrimestral ? `<span style="font-size:11px;color:var(--text-muted)" title="Só informativo — o valor pago de verdade é a linha trimestral acumulada, mais abaixo">📊 referência</span>` : (i.somenteLeitura ? `<span style="font-size:11px;color:var(--text-muted)" title="Acumulando — ações só disponíveis em ${MESES_NOME[i.mes - 1]}/${i.ano}, mês de fechamento do trimestre">⏳ acumulando</span>` : badgeImposto(i))}</td>
+            <td class="td-fin" style="text-align:center">${i.referenciaTrimestral ? `<span style="font-size:11px;color:var(--text-muted)" title="Só informativo — o valor pago de verdade é a linha trimestral acumulada, mais abaixo">📊 referência</span>` : (i.somenteLeitura ? `<span style="font-size:11px;color:var(--text-muted)" title="Ações só disponíveis no mês do vencimento (${_mesAnoVenc(i.vencimento)})">${i.trimestre ? '⏳ acumulando' : '🗓 a vencer'}</span>` : badgeImposto(i))}</td>
             <td class="td-fin" style="text-align:center;padding:0 4px;white-space:nowrap">
-              ${i.referenciaTrimestral ? '' : (i.somenteLeitura ? `<span style="font-size:11px;color:var(--text-muted)">só em ${MESES_NOME[i.mes - 1].slice(0,3)}/${i.ano}</span>` : (!i.pago ? `<button data-imp-pagar="${i.id}" title="Marcar como pago"
+              ${i.referenciaTrimestral ? '' : (i.somenteLeitura ? `<span style="font-size:11px;color:var(--text-muted)">só em ${_mesAnoVenc(i.vencimento)}</span>` : (!i.pago ? `<button data-imp-pagar="${i.id}" title="Marcar como pago"
                 style="background:none;border:1px solid rgba(74,222,128,.3);color:var(--positive);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:4px;margin-right:4px">✓ Pago</button>`
                 : `<button data-imp-estornar="${i.id}" title="Desmarcar pago"
                 style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px">desfazer</button>`))}

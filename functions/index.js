@@ -5356,30 +5356,60 @@ exports.getImpostosPrevistos = onCall({}, async (request) => {
   requireAdmin(request);
   const { mes, ano } = request.data;
   if (!mes || !ano) throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
+
+  const porId = new Map();
+
+  // 1) Linhas da própria competência (mês pra provisionar/acompanhar) — só
+  // leitura quando o vencimento cai num mês diferente da competência (o
+  // caso comum: defasagemMeses>0), porque a ação de pagar só faz sentido
+  // no mês do vencimento real (ver bloco 3 abaixo). referenciaTrimestral
+  // (linha mensal do IRPJ/CSLL, só informativa) nunca tem ação, em
+  // nenhum mês.
   const snap = await db.collection('impostosPrevistos')
     .where('mes', '==', mes).where('ano', '==', ano).orderBy('vencimento').get();
-  const porCompetencia = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  snap.docs.forEach(d => {
+    const data = d.data();
+    const mesVenc = Number((data.vencimento || '').slice(5, 7));
+    const somenteLeitura = !!data.referenciaTrimestral || mesVenc !== mes;
+    porId.set(d.id, { id: d.id, ...data, ...(somenteLeitura ? { somenteLeitura: true } : {}) });
+  });
 
-  // Linha trimestral acumulada (IRPJ/CSLL) fica guardada no último mês do
-  // trimestre, mas mostra em TODOS os 3 meses — a usuária quer ver o valor
-  // acumulado assim que existir, não só no mês de fechamento (achado
-  // 23/07/2026, Flávia: "já tem valor acumulado pra esse tri, não faz
-  // sentido esconder"). "somenteLeitura" avisa o frontend pra esconder as
-  // ações (pago/editar/excluir) quando a linha está sendo mostrada
-  // "emprestada" de um mês anterior ao de fechamento — só faz sentido
-  // confirmar como paga quando o trimestre estiver completo.
+  // 2) Linha trimestral acumulada (IRPJ/CSLL) fica guardada no último mês do
+  // trimestre, mas mostra em TODOS os 3 meses do trimestre — a usuária quer
+  // ver o valor acumulado assim que existir, não só no mês de fechamento
+  // (achado 23/07/2026). Sempre só leitura aqui — a ação de pagar só libera
+  // no mês do vencimento real (bloco 3), que não é nenhum dos 3 meses do
+  // trimestre (vencimento é no mês SEGUINTE ao trimestre fechar).
   const trimestre = _trimestreDoMes(mes);
   const ultimoMesTrimestre = _mesesDoTrimestre(trimestre)[2];
-  let linhasTrimestrais = [];
   if (mes !== ultimoMesTrimestre) {
     const snapTri = await db.collection('impostosPrevistos')
       .where('mes', '==', ultimoMesTrimestre).where('ano', '==', ano).get();
-    linhasTrimestrais = snapTri.docs
+    snapTri.docs
       .filter(d => d.data().trimestre === trimestre)
-      .map(d => ({ id: d.id, ...d.data(), somenteLeitura: true }));
+      .forEach(d => porId.set(d.id, { id: d.id, ...d.data(), somenteLeitura: true }));
   }
 
-  return [...porCompetencia, ...linhasTrimestrais];
+  // 3) Linhas cujo VENCIMENTO cai neste mês, não importa em que competência
+  // foram geradas (ex: DARF de julho vence em agosto; provisão trimestral
+  // de julho/agosto/setembro vence em outubro) — aqui a ação de pagar
+  // libera de verdade, sobrescrevendo o somenteLeitura dos blocos acima se
+  // a mesma linha também apareceu como competência/acumulado de outro mês
+  // (achado 25/07/2026, Flávia: "o botão de pagamento deve aparecer
+  // somente no mês de vencimento" — mais fácil baixar o boleto no mês que
+  // ele realmente vence do que voltar pro mês de competência).
+  // referenciaTrimestral nunca entra aqui — nunca tem ação, em mês nenhum.
+  const inicioMes = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  const fimMes = `${ano}-${String(mes).padStart(2, '0')}-${String(new Date(ano, mes, 0).getDate()).padStart(2, '0')}`;
+  const snapVencimento = await db.collection('impostosPrevistos')
+    .where('vencimento', '>=', inicioMes).where('vencimento', '<=', fimMes).get();
+  snapVencimento.docs.forEach(d => {
+    const data = d.data();
+    if (data.referenciaTrimestral) return;
+    porId.set(d.id, { id: d.id, ...data });
+  });
+
+  return [...porId.values()].sort((a, b) => (a.vencimento || '').localeCompare(b.vencimento || ''));
 });
 
 exports.editarValorImpostoPrevisto = onCall({}, async (request) => {
