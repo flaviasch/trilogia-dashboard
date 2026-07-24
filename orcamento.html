@@ -7153,50 +7153,56 @@
     }
 
     // Lê uma aba de mês da planilha legada e devolve os dados estruturados,
-    // ou null se a aba não existir ou não tiver o formato esperado.
+    // ou null se a aba não existir ou não tiver nenhum dos formatos
+    // reconhecidos (ver "formato resumido" abaixo).
     function _parseAbaLegado(ws) {
       if (!ws) return null;
       const grid = window.XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
 
+      // Formato "detalhado": lançamento a lançamento, com data — cabeçalho
+      // "Data"/"Despesa"/"Valor"/"Área" nas colunas O-R.
       let headerRow = -1;
       for (let r = 0; r < grid.length; r++) {
         if (grid[r] && grid[r][14] === 'Data' && grid[r][15] === 'Despesa') { headerRow = r; break; }
       }
-      if (headerRow === -1) return null;
 
       // Lista REAL (colunas O-S): transações reais lançadas no mês
       const real = [];
-      for (let r = headerRow + 1; r < grid.length; r++) {
-        const row = grid[r];
-        if (!row) continue;
-        const data = row[14], desc = row[15], valor = row[16], area = row[17];
-        if (desc == null || !(data instanceof Date) || !(valor > 0)) continue;
-        const parcela = _extrairParcelaLegado(desc);
-        real.push({
-          categoria: _CATEGORIAS_CODIGO_LEGADO[area] || 'Outros',
-          tipo: 'despesa',
-          valor,
-          data: _dataISOLegado(data),
-          descricao: String(desc).trim(),
-          ...(parcela ? { parcelaAtual: parcela.atual, parcelasTotal: parcela.total } : {}),
-        });
+      if (headerRow !== -1) {
+        for (let r = headerRow + 1; r < grid.length; r++) {
+          const row = grid[r];
+          if (!row) continue;
+          const data = row[14], desc = row[15], valor = row[16], area = row[17];
+          if (desc == null || !(data instanceof Date) || !(valor > 0)) continue;
+          const parcela = _extrairParcelaLegado(desc);
+          real.push({
+            categoria: _CATEGORIAS_CODIGO_LEGADO[area] || 'Outros',
+            tipo: 'despesa',
+            valor,
+            data: _dataISOLegado(data),
+            descricao: String(desc).trim(),
+            ...(parcela ? { parcelaAtual: parcela.atual, parcelasTotal: parcela.total } : {}),
+          });
+        }
       }
 
       // Lista PREVISTO (colunas U-X, restatement plano por categoria) — usa o
       // código (não o texto da coluna "nome", que pode ter sido editado à mão
       // pela usuária) para achar o nome canônico da categoria.
       const previstoCategorias = [];
-      for (let r = headerRow + 1; r < grid.length; r++) {
-        const row = grid[r];
-        if (!row) continue;
-        const cod = row[22], valor = row[21];
-        if (cod == null || !(valor > 0)) continue;
-        const nome = _CATEGORIAS_CODIGO_LEGADO[cod];
-        if (nome) previstoCategorias.push({ nome, limite: valor });
+      if (headerRow !== -1) {
+        for (let r = headerRow + 1; r < grid.length; r++) {
+          const row = grid[r];
+          if (!row) continue;
+          const cod = row[22], valor = row[21];
+          if (cod == null || !(valor > 0)) continue;
+          const nome = _CATEGORIAS_CODIGO_LEGADO[cod];
+          if (nome) previstoCategorias.push({ nome, limite: valor });
+        }
       }
 
-      // Renda 1/2/3 — procura pelas linhas de label nas primeiras 10 linhas
-      // (coluna C=nome, D=previsto, F=real).
+      // Renda 1/2/3 (formato detalhado) — procura pelas linhas de label nas
+      // primeiras 12 linhas (coluna C=nome, D=previsto, F=real).
       let rendaPrevisto = 0, rendaReal = 0;
       for (let r = 0; r < Math.min(12, grid.length); r++) {
         const row = grid[r];
@@ -7208,19 +7214,76 @@
         }
       }
 
-      const totalReal = real.reduce((s, r) => s + r.valor, 0);
-      const totalPrevisto = previstoCategorias.reduce((s, c) => s + c.limite, 0);
-      const temDados = real.length > 0 || totalPrevisto > 0 || rendaPrevisto > 0 || rendaReal > 0;
+      // Formato "resumido": algumas mentoradas nunca lançam transação a
+      // transação, só preenchem o total Previsto/Real do mês por categoria
+      // — duas mini-tabelas lado a lado (colunas B-F e H-L: código, nome,
+      // previsto, real, diferença, separadas por linhas "ÁREA" e "TOTAL")
+      // e uma linha "Renda Total" no lugar de "Renda 1/2/3". O formato
+      // detalhado acima não encontra nada nesse caso (real.length fica 0),
+      // então essa segunda leitura entra como alternativa — nunca somada
+      // ao formato detalhado, um mês usa um formato ou o outro, nunca os
+      // dois (achado 24/07/2026, mentorada Maria Beatriz: planilha
+      // "Orçamento Sob Medida" preenchida só com total mensal por
+      // categoria — "Data"/"Despesa" apareciam como cabeçalho mas a lista
+      // de lançamentos ficava sempre vazia).
+      const realResumido = [];
+      const previstoResumido = [];
+      if (!real.length) {
+        for (let r = 0; r < grid.length; r++) {
+          const row = grid[r];
+          if (!row) continue;
+          for (const A of [2, 8]) {
+            const codigo = row[A - 1], nomeCat = row[A], previstoVal = row[A + 1], realVal = row[A + 2];
+            if (typeof codigo !== 'number' || typeof nomeCat !== 'string') continue;
+            const nome = _CATEGORIAS_CODIGO_LEGADO[codigo] || nomeCat;
+            if (typeof realVal === 'number' && realVal > 0) {
+              // Sem data por lançamento (é um total do mês) — preenchida
+              // com o dia 1 do mês/ano escolhidos, no confirmar da importação
+              // (btnConfirmarImportarLegado), já que aqui ainda não sabemos
+              // o ano que a usuária vai escolher.
+              realResumido.push({ categoria: nome, tipo: 'despesa', valor: realVal, data: '', descricao: 'Total do mês (planilha importada)' });
+            }
+            if (typeof previstoVal === 'number' && previstoVal > 0) {
+              previstoResumido.push({ nome, limite: previstoVal });
+            }
+          }
+        }
+      }
+      // Renda Total (formato resumido) — só procura se o formato detalhado
+      // não achou nenhuma "Renda N", em qualquer linha/coluna da aba (a
+      // lista de fontes de renda nomeadas antes do total pode ter qualquer
+      // tamanho). Mesmo espaçamento de colunas da linha "Renda 1/2/3":
+      // rótulo, [previsto uma coluna à direita], [real três colunas à direita].
+      if (!rendaReal && !rendaPrevisto) {
+        busca: for (let r = 0; r < grid.length; r++) {
+          const row = grid[r];
+          if (!row) continue;
+          for (let c = 0; c < row.length; c++) {
+            if (row[c] === 'Renda Total') {
+              if (typeof row[c + 1] === 'number') rendaPrevisto = row[c + 1];
+              if (typeof row[c + 3] === 'number') rendaReal = row[c + 3];
+              break busca;
+            }
+          }
+        }
+      }
+
+      const listaReal      = real.length ? real : realResumido;
+      const listaPrevisto  = previstoCategorias.length ? previstoCategorias : previstoResumido;
+      const totalReal      = listaReal.reduce((s, r) => s + r.valor, 0);
+      const totalPrevisto  = listaPrevisto.reduce((s, c) => s + c.limite, 0);
+      const temDados = listaReal.length > 0 || totalPrevisto > 0 || rendaPrevisto > 0 || rendaReal > 0;
       if (!temDados) return null;
 
-      // Ano sugerido: o mais comum entre as datas reais; sem datas, ano atual.
+      // Ano sugerido: o mais comum entre as datas reais; sem datas (formato
+      // resumido não tem data por lançamento), ano atual.
       const anos = {};
       real.forEach(r => { const a = r.data.slice(0, 4); anos[a] = (anos[a] || 0) + 1; });
       const anoSugerido = Object.keys(anos).length
         ? Number(Object.entries(anos).sort((a, b) => b[1] - a[1])[0][0])
         : new Date().getFullYear();
 
-      return { real, previstoCategorias, rendaPrevisto, rendaReal, totalReal, totalPrevisto, anoSugerido };
+      return { real: listaReal, previstoCategorias: listaPrevisto, rendaPrevisto, rendaReal, totalReal, totalPrevisto, anoSugerido };
     }
 
     let _legadoWorkbook = null;
@@ -7287,7 +7350,10 @@
 
       setLoading(btn, true, 'Importando…');
       try {
-        const itens = [...m.real];
+        // Itens do formato "resumido" (total por categoria, sem data por
+        // lançamento) chegam com data:'' de _parseAbaLegado — só agora dá
+        // pra preencher, porque o ano é escolhido pela usuária aqui no passo 3.
+        const itens = m.real.map(r => r.data ? r : { ...r, data: `${ano}-${String(m.mes).padStart(2, '0')}-01` });
         if (m.rendaReal > 0) {
           itens.push({
             categoria: 'Salário', tipo: 'receita', valor: m.rendaReal,
