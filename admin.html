@@ -984,6 +984,12 @@
         <button id="btnToggleClube" style="border:2px solid var(--gold);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:var(--gold);color:var(--navy)">Clube: —</button>
       </div>
 
+      <!-- Toggle Dashboard (acesso ao painel independente da mentoria/Clube) -->
+      <div style="margin-top:10px;padding:14px 18px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:13px;color:var(--text-secondary);font-weight:600">🖥 Dashboard</span>
+        <button id="btnToggleDashboard" style="border:2px solid var(--border);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:transparent;color:var(--text-muted)">Dashboard: —</button>
+      </div>
+
       <!-- Ações rápidas -->
       <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn-acao" id="btnAbrirDashboard">Ver dashboard dela</button>
@@ -3288,6 +3294,23 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         }
       }
 
+      // Toggle Dashboard
+      const btnDash = document.getElementById('btnToggleDashboard');
+      if (btnDash) {
+        btnDash.style.display = '';
+        if (m.assinaturaDashboard) {
+          btnDash.textContent = '🖥 Dashboard: ativo';
+          btnDash.style.background = 'var(--gold)';
+          btnDash.style.borderColor = 'var(--gold)';
+          btnDash.style.color = 'var(--navy)';
+        } else {
+          btnDash.textContent = 'Dashboard: inativo';
+          btnDash.style.background = 'transparent';
+          btnDash.style.borderColor = 'var(--border)';
+          btnDash.style.color = 'var(--text-muted)';
+        }
+      }
+
       // Nota
       const btnNota = document.getElementById('btnSalvarNota');
       if (btnNota) btnNota.onclick = async () => {
@@ -3502,6 +3525,27 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         }
         btn.textContent = novoValor ? 'Clube: ativo ✓' : 'Clube: inativo';
         btn.style.opacity = novoValor ? '1' : '0.5';
+        renderMentoradas();
+      } catch (err) {
+        alert(`Erro: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('btnToggleDashboard').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const novoValor = !mentoradaEmDetalhe.assinaturaDashboard;
+      const btn = document.getElementById('btnToggleDashboard');
+      btn.disabled = true;
+      try {
+        // Não mexe em assinaturaClube — dashboard:true já garante que ela cai
+        // no dashboard normal (ver clubeOnly em getDashboardHome), e Clube
+        // continua acessível à parte se ela também tiver.
+        await updateMentorada(uid, { assinaturaDashboard: novoValor });
+        mentoradaEmDetalhe.assinaturaDashboard = novoValor;
+        btn.textContent = novoValor ? '🖥 Dashboard: ativo ✓' : 'Dashboard: inativo';
         renderMentoradas();
       } catch (err) {
         alert(`Erro: ${err.message}`);
