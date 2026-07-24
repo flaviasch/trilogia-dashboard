@@ -437,17 +437,33 @@ const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
 
 ---
 
-## Ideias em espera — pausadas, sem trabalho iniciado
+## Em construção
 
-**Dashboard PJ (empresa da mentorada) — produto separado por assinatura.** Reaproveitar
-a estrutura atual do Dashboard para gerar um segundo login para a mentorada usar na
-pessoa jurídica dela, com categorias próprias de Orçamento no estilo DRE (distribuição
-de lucro, reserva de impostos futuros — diferente das categorias pessoais de hoje). No
-primeiro momento seriam duas contas separadas (pessoa física e PJ), com possível
-unificação de visão no futuro. Resto do desenho fica em aberto, a construir do zero.
-Flávia pediu para **segurar** essa ideia até a leva de Patrimônio/Investimentos (ver
-`raio-x-no-dashboard/BLUEPRINT.md` e `raio-x-no-dashboard/RESUMO-PROJETO.md`) estar
-validada em produção.
+**Dashboard PJ (empresa da mentorada) — produto separado por assinatura.** Destravado
+por Flávia em 25/07/2026 (a antiga decisão de "segurar até Patrimônio/Investimentos
+validado" foi revista). Planejado e construído via CSI em `dashboard-pj/` (ver
+`dashboard-pj/BLUEPRINT.md`, `01-ideia/RESULTADO-briefing.md`, `02-estrutura/RESULTADO-dossie.md`).
+Reaproveita o mesmo Firebase Auth do Dashboard PF (mesmo e-mail/senha serve pra PF e
+PJ) — a separação é só de dado, coleção `contasPJ` nunca `mentoradas`.
+
+- **Retrofit multi-tenant do módulo Impostos** (pré-requisito, commit `382b2b3`,
+  25/07/2026): as 3 coleções do módulo (`tributosConfig`, `notasEmitidas`,
+  `impostosPrevistos`) ganharam campo `uid`, guards trocados de `requireAdmin` para
+  `requireSelfOrAdmin`, queries filtradas por uid. Migração dos dados já existentes
+  (uso da própria Flávia) rodada via `scripts/backup-e-migrar-uid-impostos.js`.
+- **Fatia 1** (commit `7671ce5`, 25/07/2026): `login-pj.html` (login separado),
+  `onboarding-pj.html` (nome da empresa, CNPJ opcional, regime tributário — MEI/
+  Simples/Presumido), `impostos-pj.html` (tela de Impostos da própria usuária,
+  reaproveitando as 10 Cloud Functions do retrofit). Cloud Functions novas:
+  `getContaPJ`, `salvarOnboardingPJ`. Conta de teste: `scripts/criar-conta-pj-teste.js`
+  (sem produto Kiwify real ainda — fase Venda não construída).
+- Testado ponta a ponta (onboarding → impostos, isolamento entre contas) antes do
+  commit final.
+- Resto do desenho (categorias de Orçamento estilo DRE — distribuição de lucro,
+  reserva de impostos futuros; possível unificação de visão PF+PJ no futuro) segue
+  em aberto, a construir nas próximas fatias.
+
+## Ideias em espera — pausadas, sem trabalho iniciado
 
 **Materiais de jornada dentro do Dashboard.** Trazer para dentro do produto os
 materiais que hoje só existem fora dele: Mapa da Liberdade Financeira (calculadora),
