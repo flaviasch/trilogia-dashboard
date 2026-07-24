@@ -1113,14 +1113,39 @@
           <div id="listaNotasEmitidas" style="padding:8px 20px"></div>
         </div>
 
-        <!-- Tabela de impostos previstos -->
-        <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <!-- Provisão do mês (competência — só leitura, o que as notas desse mês geram) -->
+        <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
           <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-            <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin:0">Impostos previstos</h3>
+            <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin:0">Provisão do mês</h3>
             <span id="impCarregando" style="font-size:12px;color:var(--text-muted)"></span>
           </div>
           <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse" id="tabelaImpostos">
+            <table style="width:100%;border-collapse:collapse" id="tabelaProvisao">
+              <thead>
+                <tr style="background:rgba(255,255,255,.03)">
+                  <th class="th-fin">Tributo</th>
+                  <th class="th-fin">Competência</th>
+                  <th class="th-fin">Vencimento</th>
+                  <th class="th-fin" style="text-align:right">Valor</th>
+                  <th class="th-fin" style="text-align:center">Situação</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaProvisaoBody"></tbody>
+            </table>
+            <div id="impProvisaoVazio" style="display:none;padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
+              Nenhuma provisão pra essa competência ainda — cadastre uma nota emitida ou configure os tributos.
+            </div>
+          </div>
+        </div>
+
+        <!-- Impostos devidos (vencimento neste mês — com ação) -->
+        <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+            <h3 style="font-family:'Playfair Display',serif;font-size:15px;margin:0">Impostos devidos</h3>
+            <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0">Vencimento neste mês — baixe o boleto/DARF e marque como pago aqui.</p>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse" id="tabelaDevidos">
               <thead>
                 <tr style="background:rgba(255,255,255,.03)">
                   <th class="th-fin">Tributo</th>
@@ -1131,10 +1156,10 @@
                   <th class="th-fin"></th>
                 </tr>
               </thead>
-              <tbody id="tabelaImpostosBody"></tbody>
+              <tbody id="tabelaDevidosBody"></tbody>
             </table>
-            <div id="impVazio" style="display:none;padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
-              Nenhum imposto previsto pra essa competência ainda — cadastre uma nota emitida ou configure os tributos.
+            <div id="impDevidosVazio" style="display:none;padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
+              Nenhum imposto vence neste mês.
             </div>
           </div>
         </div>
@@ -3784,8 +3809,10 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
     async function renderImpostos() {
       document.getElementById('impMesLabel').textContent = `${MESES_NOME[impMesAtual - 1]} ${impAnoAtual}`;
       document.getElementById('impCarregando').textContent = 'Carregando…';
-      document.getElementById('tabelaImpostosBody').innerHTML = '';
-      document.getElementById('impVazio').style.display = 'none';
+      document.getElementById('tabelaProvisaoBody').innerHTML = '';
+      document.getElementById('tabelaDevidosBody').innerHTML = '';
+      document.getElementById('impProvisaoVazio').style.display = 'none';
+      document.getElementById('impDevidosVazio').style.display = 'none';
 
       let notas = [], impostos = [];
       try {
@@ -3799,18 +3826,29 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       }
       document.getElementById('impCarregando').textContent = '';
 
-      // KPIs — exclui as linhas mensais de referência dos tributos trimestrais
-      // (IRPJ/CSLL): quem entra no total pagável é só a linha trimestral
-      // acumulada, senão soma a mesma competência duas vezes.
-      const impostosPagaveis = impostos.filter(i => !i.referenciaTrimestral);
-      const totalNotas    = notas.reduce((s, n) => s + (n.valor || 0), 0);
-      const totalPrevisto = impostosPagaveis.reduce((s, i) => s + (i.valor || 0), 0);
-      const pendentes      = impostosPagaveis.filter(i => !i.pago);
-      const totalPendente = pendentes.reduce((s, i) => s + (i.valor || 0), 0);
+      // Dois blocos, em vez de uma tabela só: "Provisão do mês" (competência
+      // — o que as notas desse mês vão gerar, só leitura) e "Impostos
+      // devidos" (vencimento neste mês — com ação de pagar/editar/excluir).
+      // O mesmo somenteLeitura que já vem de getImpostosPrevistos decide o
+      // bloco (achado 25/07/2026, pedido da Flávia: "muito mais inteligente"
+      // separar visualmente em vez de misturar tudo numa tabela só com badge).
+      const provisao = impostos.filter(i => i.somenteLeitura);
+      const devidos  = impostos.filter(i => !i.somenteLeitura);
+
+      // KPIs — "Impostos previstos" acompanha a Provisão, "Ainda a pagar"
+      // acompanha os Devidos. Exclui referenciaTrimestral da soma de
+      // Provisão: é só a linha mensal informativa do IRPJ/CSLL, o valor de
+      // verdade já está contado na linha trimestral acumulada ao lado —
+      // somar as duas duplicaria a mesma competência.
+      const totalNotas     = notas.reduce((s, n) => s + (n.valor || 0), 0);
+      const provisaoSomavel = provisao.filter(i => !i.referenciaTrimestral);
+      const totalPrevisto  = provisaoSomavel.reduce((s, i) => s + (i.valor || 0), 0);
+      const pendentes       = devidos.filter(i => !i.pago);
+      const totalPendente  = pendentes.reduce((s, i) => s + (i.valor || 0), 0);
       document.getElementById('impTotalNotas').textContent       = brl(totalNotas);
       document.getElementById('impTotalNotasSub').textContent    = `${notas.length} nota${notas.length !== 1 ? 's' : ''}`;
       document.getElementById('impTotalPrevisto').textContent    = brl(totalPrevisto);
-      document.getElementById('impTotalPrevistoSub').textContent = `${impostosPagaveis.length} tributo${impostosPagaveis.length !== 1 ? 's' : ''}`;
+      document.getElementById('impTotalPrevistoSub').textContent = `${provisaoSomavel.length} tributo${provisaoSomavel.length !== 1 ? 's' : ''}`;
       document.getElementById('impTotalPendente').textContent    = brl(totalPendente);
       document.getElementById('impTotalPendenteSub').textContent = `${pendentes.length} pendente${pendentes.length !== 1 ? 's' : ''}`;
 
@@ -3836,44 +3874,60 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         }));
       }
 
-      // Tabela de impostos previstos
-      if (!impostos.length) {
-        document.getElementById('impVazio').style.display = '';
+      // Bloco 1: Provisão do mês (só leitura)
+      if (!provisao.length) {
+        document.getElementById('impProvisaoVazio').style.display = '';
       } else {
-        document.getElementById('tabelaImpostosBody').innerHTML = impostos.map(i => `
+        document.getElementById('tabelaProvisaoBody').innerHTML = provisao.map(i => `
           <tr>
             <td class="td-fin nome">${i.tributoNome}</td>
             <td class="td-fin">${i.trimestre ? `${i.trimestre}º tri/${i.ano}` : `${MESES_NOME[i.mes - 1].slice(0, 3)}/${i.ano}`}</td>
             <td class="td-fin">${i.referenciaTrimestral ? '—' : fmtData(i.vencimento)}</td>
-            <td class="td-fin valor" ${i.tipo === 'fixo' && !i.pago && !i.somenteLeitura ? `style="cursor:pointer" data-imp-editar-valor="${i.id}" title="Editar valor"` : ''}>${brl(i.valor)}${i.tipo === 'fixo' && !i.pago && !i.somenteLeitura ? ' ✎' : ''}</td>
-            <td class="td-fin" style="text-align:center">${i.referenciaTrimestral ? `<span style="font-size:11px;color:var(--text-muted)" title="Só informativo — o valor pago de verdade é a linha trimestral acumulada, mais abaixo">📊 referência</span>` : (i.somenteLeitura ? `<span style="font-size:11px;color:var(--text-muted)" title="Ações só disponíveis no mês do vencimento (${_mesAnoVenc(i.vencimento)})">${i.trimestre ? '⏳ acumulando' : '🗓 a vencer'}</span>` : badgeImposto(i))}</td>
+            <td class="td-fin valor">${brl(i.valor)}</td>
+            <td class="td-fin" style="text-align:center">${i.referenciaTrimestral
+              ? `<span style="font-size:11px;color:var(--text-muted)" title="Só informativo — o valor pago de verdade é a linha trimestral acumulada, no bloco Impostos devidos quando vencer">📊 referência</span>`
+              : `<span style="font-size:11px;color:var(--text-muted)" title="Libera pra pagar no mês do vencimento (${_mesAnoVenc(i.vencimento)})">${i.trimestre ? '⏳ acumulando' : '🗓 a vencer'}</span>`}</td>
+          </tr>`).join('');
+      }
+
+      // Bloco 2: Impostos devidos (vencimento neste mês — com ação)
+      if (!devidos.length) {
+        document.getElementById('impDevidosVazio').style.display = '';
+      } else {
+        document.getElementById('tabelaDevidosBody').innerHTML = devidos.map(i => `
+          <tr>
+            <td class="td-fin nome">${i.tributoNome}</td>
+            <td class="td-fin">${i.trimestre ? `${i.trimestre}º tri/${i.ano}` : `${MESES_NOME[i.mes - 1].slice(0, 3)}/${i.ano}`}</td>
+            <td class="td-fin">${fmtData(i.vencimento)}</td>
+            <td class="td-fin valor" ${i.tipo === 'fixo' && !i.pago ? `style="cursor:pointer" data-imp-editar-valor="${i.id}" title="Editar valor"` : ''}>${brl(i.valor)}${i.tipo === 'fixo' && !i.pago ? ' ✎' : ''}</td>
+            <td class="td-fin" style="text-align:center">${badgeImposto(i)}</td>
             <td class="td-fin" style="text-align:center;padding:0 4px;white-space:nowrap">
-              ${i.referenciaTrimestral ? '' : (i.somenteLeitura ? `<span style="font-size:11px;color:var(--text-muted)">só em ${_mesAnoVenc(i.vencimento)}</span>` : (!i.pago ? `<button data-imp-pagar="${i.id}" title="Marcar como pago"
+              ${!i.pago ? `<button data-imp-pagar="${i.id}" title="Marcar como pago"
                 style="background:none;border:1px solid rgba(74,222,128,.3);color:var(--positive);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:4px;margin-right:4px">✓ Pago</button>`
                 : `<button data-imp-estornar="${i.id}" title="Desmarcar pago"
-                style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px">desfazer</button>`))}
-              ${i.referenciaTrimestral || i.somenteLeitura ? '' : `<button data-imp-excluir="${i.id}" title="Remover linha" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>`}
+                style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px">desfazer</button>`}
+              <button data-imp-excluir="${i.id}" title="Remover linha" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
             </td>
           </tr>`).join('');
 
-        document.getElementById('tabelaImpostosBody').querySelectorAll('[data-imp-pagar]').forEach(b => b.addEventListener('click', async () => {
+        document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-pagar]').forEach(b => b.addEventListener('click', async () => {
           b.disabled = true;
           try { await marcarImpostoPago(b.dataset.impPagar, true); renderImpostos(); }
           catch (e) { alert(msgErro(e)); b.disabled = false; }
         }));
-        document.getElementById('tabelaImpostosBody').querySelectorAll('[data-imp-estornar]').forEach(b => b.addEventListener('click', async () => {
+        document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-estornar]').forEach(b => b.addEventListener('click', async () => {
           b.disabled = true;
           try { await marcarImpostoPago(b.dataset.impEstornar, false); renderImpostos(); }
           catch (e) { alert(msgErro(e)); b.disabled = false; }
         }));
-        document.getElementById('tabelaImpostosBody').querySelectorAll('[data-imp-excluir]').forEach(b => b.addEventListener('click', async () => {
+        document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-excluir]').forEach(b => b.addEventListener('click', async () => {
           if (!confirm('Remover esta linha de imposto previsto?')) return;
           try { await deleteImpostoPrevisto(b.dataset.impExcluir); renderImpostos(); }
           catch (e) { alert(msgErro(e)); }
         }));
-        document.getElementById('tabelaImpostosBody').querySelectorAll('[data-imp-editar-valor]').forEach(td => td.addEventListener('click', async () => {
+        document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-editar-valor]').forEach(td => td.addEventListener('click', async () => {
           const id = td.dataset.impEditarValor;
-          const atual = impostos.find(i => i.id === id);
+          const atual = devidos.find(i => i.id === id);
           const novo = prompt(`Novo valor de ${atual.tributoNome} (${MESES_NOME[atual.mes - 1]}/${atual.ano}):`, atual.valor.toFixed(2).replace('.', ','));
           if (novo == null) return;
           const valorNum = parseFloat(novo.replace(/\./g, '').replace(',', '.'));
