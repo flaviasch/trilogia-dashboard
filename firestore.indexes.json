@@ -45,6 +45,7 @@
       "collectionGroup": "notasEmitidas",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "uid",         "order": "ASCENDING" },
         { "fieldPath": "mes",         "order": "ASCENDING" },
         { "fieldPath": "ano",         "order": "ASCENDING" },
         { "fieldPath": "dataEmissao", "order": "ASCENDING" }
@@ -54,8 +55,17 @@
       "collectionGroup": "impostosPrevistos",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "uid",         "order": "ASCENDING" },
         { "fieldPath": "mes",         "order": "ASCENDING" },
         { "fieldPath": "ano",         "order": "ASCENDING" },
+        { "fieldPath": "vencimento",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "impostosPrevistos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid",         "order": "ASCENDING" },
         { "fieldPath": "vencimento",  "order": "ASCENDING" }
       ]
     }

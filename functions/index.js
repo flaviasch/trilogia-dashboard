@@ -5144,8 +5144,17 @@ function _vencimentoTrimestral(ultimoMesTrimestre, ano) {
   return _ultimoDiaUtilISO(a, m);
 }
 
-async function _regerarImpostosPrevistos(mes, ano) {
-  const tributosSnap = await db.collection('tributosConfig').where('ativo', '==', true).get();
+// Retrofit 24/07/2026 (auditoria de segurança, item 1 do plano de ação): as
+// 3 coleções deste módulo ganharam campo `uid` pra segregar por conta —
+// pré-requisito pro Dashboard PJ, que vai expor essas mesmas funções a
+// contas de mentoradas, não só à Flávia via admin. Toda leitura/escrita
+// abaixo agora filtra/grava por uid; sem isso, uma conta enxergaria dado da
+// outra (Firestore rules não protegem essas coleções — o client nunca
+// acessa Firestore direto neste projeto, a segurança é 100% nos guards
+// destas Cloud Functions).
+async function _regerarImpostosPrevistos(uid, mes, ano) {
+  const tributosSnap = await db.collection('tributosConfig')
+    .where('uid', '==', uid).where('ativo', '==', true).get();
   const tributos = tributosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   if (!tributos.length) return;
 
@@ -5154,10 +5163,12 @@ async function _regerarImpostosPrevistos(mes, ano) {
   // (pedido explícito da Flávia, achado 23/07/2026: quer manter os valores
   // mensais de todos, com somatório, e ADICIONAR a provisão trimestral —
   // não substituir).
-  const notasSnap  = await db.collection('notasEmitidas').where('mes', '==', mes).where('ano', '==', ano).get();
+  const notasSnap  = await db.collection('notasEmitidas')
+    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
   const totalNotas = notasSnap.docs.reduce((s, d) => s + (d.data().valor || 0), 0);
 
-  const existentesSnap = await db.collection('impostosPrevistos').where('mes', '==', mes).where('ano', '==', ano).get();
+  const existentesSnap = await db.collection('impostosPrevistos')
+    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
   const existentesPorTributo = {};
   existentesSnap.docs.forEach(d => { existentesPorTributo[d.data().tributoId] = { id: d.id, ...d.data() }; });
 
@@ -5182,7 +5193,7 @@ async function _regerarImpostosPrevistos(mes, ano) {
     // pagar soma a mesma competência duas vezes (achado 24/07/2026, Flávia:
     // "o valor do tri está sendo somado, não é pra somar").
     batch.set(ref, {
-      tributoId: trib.id, tributoNome: trib.nome, tipo: trib.tipo,
+      uid, tributoId: trib.id, tributoNome: trib.nome, tipo: trib.tipo,
       mes, ano, vencimento, valor, pago: false, origem: 'auto',
       referenciaTrimestral: trib.periodicidade === 'trimestral',
     }, { merge: true });
@@ -5196,18 +5207,18 @@ async function _regerarImpostosPrevistos(mes, ano) {
   // continuam existindo normalmente.
   const trimestrais = tributos.filter(t => t.periodicidade === 'trimestral');
   if (trimestrais.length) {
-    await _regerarProvisaoTrimestral(trimestrais, _trimestreDoMes(mes), ano);
+    await _regerarProvisaoTrimestral(uid, trimestrais, _trimestreDoMes(mes), ano);
   }
 }
 
-async function _regerarProvisaoTrimestral(trimestrais, trimestre, ano) {
+async function _regerarProvisaoTrimestral(uid, trimestrais, trimestre, ano) {
   const meses = _mesesDoTrimestre(trimestre);
   const ultimoMes = meses[2];
 
-  // Soma as notas dos 3 meses do trimestre — busca só por "ano" (índice de
-  // campo único, automático) e filtra "mes" em memória, pra não precisar de
-  // mais um índice composto.
-  const notasSnap = await db.collection('notasEmitidas').where('ano', '==', ano).get();
+  // Soma as notas dos 3 meses do trimestre — busca por uid+ano (equality-only,
+  // não exige índice composto novo) e filtra "mes" em memória, pra não
+  // precisar de mais um índice composto.
+  const notasSnap = await db.collection('notasEmitidas').where('uid', '==', uid).where('ano', '==', ano).get();
   const totalNotasTrimestre = notasSnap.docs.reduce((s, d) => {
     const data = d.data();
     return meses.includes(data.mes) ? s + (data.valor || 0) : s;
@@ -5217,7 +5228,8 @@ async function _regerarProvisaoTrimestral(trimestrais, trimestre, ano) {
   // tributoId virtual ("<id>_tri") pra não colidir com a linha mensal do
   // mesmo tributo nesse mesmo mês (ex: setembro tem a linha mensal normal
   // de IRPJ + a linha trimestral acumulada do 3º tri, lado a lado).
-  const existentesSnap = await db.collection('impostosPrevistos').where('mes', '==', ultimoMes).where('ano', '==', ano).get();
+  const existentesSnap = await db.collection('impostosPrevistos')
+    .where('uid', '==', uid).where('mes', '==', ultimoMes).where('ano', '==', ano).get();
   const existentesPorChave = {};
   existentesSnap.docs.forEach(d => {
     const data = d.data();
@@ -5240,7 +5252,7 @@ async function _regerarProvisaoTrimestral(trimestrais, trimestre, ano) {
       ? db.collection('impostosPrevistos').doc(existente.id)
       : db.collection('impostosPrevistos').doc();
     batch.set(ref, {
-      tributoId: chave, tributoNome: `${trib.nome} — ${trimestre}º tri/${ano} acumulado`,
+      uid, tributoId: chave, tributoNome: `${trib.nome} — ${trimestre}º tri/${ano} acumulado`,
       tipo: trib.tipo, mes: ultimoMes, ano, trimestre, vencimento, valor,
       pago: false, origem: 'auto',
     }, { merge: true });
@@ -5249,14 +5261,17 @@ async function _regerarProvisaoTrimestral(trimestrais, trimestre, ano) {
 }
 
 exports.getTributosConfig = onCall({}, async (request) => {
-  requireAdmin(request);
-  const snap = await db.collection('tributosConfig').orderBy('ordem').get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const snap = await db.collection('tributosConfig').where('uid', '==', uid).get();
+  // orderBy('ordem') tirado da query (evitaria precisar de índice composto
+  // uid+ordem) — ordena em memória, coleção pequena por conta.
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
 });
 
 exports.saveTributoConfig = onCall({}, async (request) => {
-  requireAdmin(request);
-  const { id, nome, tipo, percentual, valorFixo, diaVencimento, defasagemMeses, ativo, periodicidade } = request.data;
+  const { uid, id, nome, tipo, percentual, valorFixo, diaVencimento, defasagemMeses, ativo, periodicidade } = request.data;
+  requireSelfOrAdmin(request, uid);
   if (!nome || typeof nome !== 'string' || !nome.trim())
     throw new HttpsError('invalid-argument', 'nome é obrigatório.');
   if (tipo !== 'percentual' && tipo !== 'fixo')
@@ -5287,37 +5302,44 @@ exports.saveTributoConfig = onCall({}, async (request) => {
   };
 
   if (id) {
-    const ref = db.collection('tributosConfig').doc(id);
-    if (!(await ref.get()).exists) throw new HttpsError('not-found', 'Tributo não encontrado.');
+    const ref  = db.collection('tributosConfig').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Tributo não encontrado.');
+    if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
     await ref.update(dados);
     return { id, ok: true };
   }
-  const countSnap = await db.collection('tributosConfig').get();
+  const countSnap = await db.collection('tributosConfig').where('uid', '==', uid).get();
+  dados.uid = uid;
   dados.ordem = countSnap.size;
   const ref = await db.collection('tributosConfig').add(dados);
   return { id: ref.id, ok: true };
 });
 
 exports.deleteTributoConfig = onCall({}, async (request) => {
-  requireAdmin(request);
-  const { id } = request.data;
+  const { uid, id } = request.data;
+  requireSelfOrAdmin(request, uid);
   if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
-  await db.collection('tributosConfig').doc(id).delete();
+  const ref  = db.collection('tributosConfig').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Tributo não encontrado.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  await ref.delete();
   return { ok: true };
 });
 
 exports.getNotasEmitidas = onCall({}, async (request) => {
-  requireAdmin(request);
-  const { mes, ano } = request.data;
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
   if (!mes || !ano) throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
   const snap = await db.collection('notasEmitidas')
-    .where('mes', '==', mes).where('ano', '==', ano).orderBy('dataEmissao').get();
+    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).orderBy('dataEmissao').get();
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 });
 
 exports.saveNotaEmitida = onCall({}, async (request) => {
-  requireAdmin(request);
-  const { id, valor, mes, ano, dataEmissao } = request.data;
+  const { uid, id, valor, mes, ano, dataEmissao } = request.data;
+  requireSelfOrAdmin(request, uid);
   if (typeof valor !== 'number' || valor <= 0) throw new HttpsError('invalid-argument', 'valor deve ser maior que zero.');
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
   if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
@@ -5327,34 +5349,37 @@ exports.saveNotaEmitida = onCall({}, async (request) => {
   const dados = { valor, mes, ano, dataEmissao: dataEmissao || new Date().toISOString().slice(0, 10) };
   let notaId = id;
   if (id) {
-    const ref = db.collection('notasEmitidas').doc(id);
-    if (!(await ref.get()).exists) throw new HttpsError('not-found', 'Nota não encontrada.');
+    const ref  = db.collection('notasEmitidas').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Nota não encontrada.');
+    if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
     await ref.update(dados);
   } else {
     const ref = await db.collection('notasEmitidas')
-      .add({ ...dados, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
+      .add({ ...dados, uid, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
     notaId = ref.id;
   }
-  await _regerarImpostosPrevistos(mes, ano);
+  await _regerarImpostosPrevistos(uid, mes, ano);
   return { id: notaId, ok: true };
 });
 
 exports.deleteNotaEmitida = onCall({}, async (request) => {
-  requireAdmin(request);
-  const { id } = request.data;
+  const { uid, id } = request.data;
+  requireSelfOrAdmin(request, uid);
   if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
   const ref  = db.collection('notasEmitidas').doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Nota não encontrada.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
   const { mes, ano } = snap.data();
   await ref.delete();
-  await _regerarImpostosPrevistos(mes, ano);
+  await _regerarImpostosPrevistos(uid, mes, ano);
   return { ok: true };
 });
 
 exports.getImpostosPrevistos = onCall({}, async (request) => {
-  requireAdmin(request);
-  const { mes, ano } = request.data;
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
   if (!mes || !ano) throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
 
   const porId = new Map();
@@ -5366,7 +5391,7 @@ exports.getImpostosPrevistos = onCall({}, async (request) => {
   // (linha mensal do IRPJ/CSLL, só informativa) nunca tem ação, em
   // nenhum mês.
   const snap = await db.collection('impostosPrevistos')
-    .where('mes', '==', mes).where('ano', '==', ano).orderBy('vencimento').get();
+    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).orderBy('vencimento').get();
   snap.docs.forEach(d => {
     const data = d.data();
     const mesVenc = Number((data.vencimento || '').slice(5, 7));
@@ -5384,7 +5409,7 @@ exports.getImpostosPrevistos = onCall({}, async (request) => {
   const ultimoMesTrimestre = _mesesDoTrimestre(trimestre)[2];
   if (mes !== ultimoMesTrimestre) {
     const snapTri = await db.collection('impostosPrevistos')
-      .where('mes', '==', ultimoMesTrimestre).where('ano', '==', ano).get();
+      .where('uid', '==', uid).where('mes', '==', ultimoMesTrimestre).where('ano', '==', ano).get();
     snapTri.docs
       .filter(d => d.data().trimestre === trimestre)
       .forEach(d => porId.set(d.id, { id: d.id, ...d.data(), somenteLeitura: true }));
@@ -5402,7 +5427,7 @@ exports.getImpostosPrevistos = onCall({}, async (request) => {
   const inicioMes = `${ano}-${String(mes).padStart(2, '0')}-01`;
   const fimMes = `${ano}-${String(mes).padStart(2, '0')}-${String(new Date(ano, mes, 0).getDate()).padStart(2, '0')}`;
   const snapVencimento = await db.collection('impostosPrevistos')
-    .where('vencimento', '>=', inicioMes).where('vencimento', '<=', fimMes).get();
+    .where('uid', '==', uid).where('vencimento', '>=', inicioMes).where('vencimento', '<=', fimMes).get();
   snapVencimento.docs.forEach(d => {
     const data = d.data();
     if (data.referenciaTrimestral) return;
@@ -5413,13 +5438,14 @@ exports.getImpostosPrevistos = onCall({}, async (request) => {
 });
 
 exports.editarValorImpostoPrevisto = onCall({}, async (request) => {
-  requireAdmin(request);
-  const { id, valor } = request.data;
+  const { uid, id, valor } = request.data;
+  requireSelfOrAdmin(request, uid);
   if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
   if (typeof valor !== 'number' || valor < 0) throw new HttpsError('invalid-argument', 'valor deve ser um número não-negativo.');
   const ref  = db.collection('impostosPrevistos').doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Imposto previsto não encontrado.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
   // origem 'manual' pra essa linha nunca mais ser sobrescrita por uma
   // regeração automática futura (relevante pros tributos tipo 'fixo').
   await ref.update({ valor, origem: 'manual' });
@@ -5427,12 +5453,13 @@ exports.editarValorImpostoPrevisto = onCall({}, async (request) => {
 });
 
 exports.marcarImpostoPago = onCall({}, async (request) => {
-  requireAdmin(request);
-  const { id, pago } = request.data;
+  const { uid, id, pago } = request.data;
+  requireSelfOrAdmin(request, uid);
   if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
   const ref  = db.collection('impostosPrevistos').doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Imposto previsto não encontrado.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
   const marcarPago = pago !== false;
   await ref.update({
     pago: marcarPago,
@@ -5444,10 +5471,14 @@ exports.marcarImpostoPago = onCall({}, async (request) => {
 });
 
 exports.deleteImpostoPrevisto = onCall({}, async (request) => {
-  requireAdmin(request);
-  const { id } = request.data;
+  const { uid, id } = request.data;
+  requireSelfOrAdmin(request, uid);
   if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
-  await db.collection('impostosPrevistos').doc(id).delete();
+  const ref  = db.collection('impostosPrevistos').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Imposto previsto não encontrado.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  await ref.delete();
   return { ok: true };
 });
 
@@ -5456,6 +5487,10 @@ exports.deleteImpostoPrevisto = onCall({}, async (request) => {
  * Enviada para a Flávia às 8h (horário de Brasília), mesmo horário e mesmo
  * padrão do notifCobrancasDia (pedido 24/07/2026: "quero aviso para me
  * lembrar desses vcto assim como vc fez para lembrar as cobranças").
+ *
+ * Retrofit 24/07/2026: escopo continua só a conta admin da Flávia (uid
+ * resolvido em runtime pelo e-mail master) — vira multi-conta quando o
+ * Dashboard PJ estiver no ar de verdade, cada PJ com seu próprio lembrete.
  */
 exports.notifImpostosDia = onSchedule(
   { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: ['GMAIL_APP_PASSWORD'] },
@@ -5463,7 +5498,9 @@ exports.notifImpostosDia = onSchedule(
   if (await jaExecutouHoje('notifImpostosDia')) return;
   const hoje = new Date().toISOString().slice(0, 10);
 
+  const adminUser = await admin.auth().getUserByEmail(ADMIN_MASTER_EMAIL);
   const snap = await db.collection('impostosPrevistos')
+    .where('uid', '==', adminUser.uid)
     .where('vencimento', '==', hoje)
     .where('pago', '==', false)
     .get();

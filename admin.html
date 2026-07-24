@@ -3861,8 +3861,8 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       let notas = [], impostos = [];
       try {
         [notas, impostos] = await Promise.all([
-          getNotasEmitidas(impMesAtual, impAnoAtual),
-          getImpostosPrevistos(impMesAtual, impAnoAtual),
+          getNotasEmitidas(user.uid, impMesAtual, impAnoAtual),
+          getImpostosPrevistos(user.uid, impMesAtual, impAnoAtual),
         ]);
       } catch (e) {
         document.getElementById('impCarregando').textContent = 'Erro ao carregar.';
@@ -3913,7 +3913,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         listaNotasEl.querySelectorAll('[data-nota-editar]').forEach(b => b.addEventListener('click', () => abrirModalNotaEmitida(notas.find(n => n.id === b.dataset.notaEditar))));
         listaNotasEl.querySelectorAll('[data-nota-excluir]').forEach(b => b.addEventListener('click', async () => {
           if (!confirm('Excluir esta nota emitida? Os tributos automáticos (%) desta competência serão recalculados.')) return;
-          try { await deleteNotaEmitida(b.dataset.notaExcluir); renderImpostos(); }
+          try { await deleteNotaEmitida(user.uid, b.dataset.notaExcluir); renderImpostos(); }
           catch (e) { alert(msgErro(e)); }
         }));
       }
@@ -3956,17 +3956,17 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 
         document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-pagar]').forEach(b => b.addEventListener('click', async () => {
           b.disabled = true;
-          try { await marcarImpostoPago(b.dataset.impPagar, true); renderImpostos(); }
+          try { await marcarImpostoPago(user.uid, b.dataset.impPagar, true); renderImpostos(); }
           catch (e) { alert(msgErro(e)); b.disabled = false; }
         }));
         document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-estornar]').forEach(b => b.addEventListener('click', async () => {
           b.disabled = true;
-          try { await marcarImpostoPago(b.dataset.impEstornar, false); renderImpostos(); }
+          try { await marcarImpostoPago(user.uid, b.dataset.impEstornar, false); renderImpostos(); }
           catch (e) { alert(msgErro(e)); b.disabled = false; }
         }));
         document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-excluir]').forEach(b => b.addEventListener('click', async () => {
           if (!confirm('Remover esta linha de imposto previsto?')) return;
-          try { await deleteImpostoPrevisto(b.dataset.impExcluir); renderImpostos(); }
+          try { await deleteImpostoPrevisto(user.uid, b.dataset.impExcluir); renderImpostos(); }
           catch (e) { alert(msgErro(e)); }
         }));
         document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-editar-valor]').forEach(td => td.addEventListener('click', async () => {
@@ -3976,7 +3976,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
           if (novo == null) return;
           const valorNum = parseFloat(novo.replace(/\./g, '').replace(',', '.'));
           if (isNaN(valorNum) || valorNum < 0) { alert('Valor inválido.'); return; }
-          try { await editarValorImpostoPrevisto(id, valorNum); renderImpostos(); }
+          try { await editarValorImpostoPrevisto(user.uid, id, valorNum); renderImpostos(); }
           catch (e) { alert(msgErro(e)); }
         }));
       }
@@ -4020,7 +4020,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await saveNotaEmitida({ id, valor, mes, ano, dataEmissao });
+        await saveNotaEmitida(user.uid, { id, valor, mes, ano, dataEmissao });
         modalNotaEmitida.classList.add('hidden');
         impMesAtual = mes; impAnoAtual = ano;
         renderImpostos();
@@ -4057,13 +4057,13 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       el.querySelectorAll('[data-trib-editar]').forEach(b => b.addEventListener('click', () => abrirFormTributo(_tributosCache.find(t => t.id === b.dataset.tribEditar))));
       el.querySelectorAll('[data-trib-excluir]').forEach(b => b.addEventListener('click', async () => {
         if (!confirm('Excluir este tributo? Provisionamentos já gerados não são apagados, só deixa de gerar novos.')) return;
-        try { await deleteTributoConfig(b.dataset.tribExcluir); await abrirModalTributos(); }
+        try { await deleteTributoConfig(user.uid, b.dataset.tribExcluir); await abrirModalTributos(); }
         catch (e) { alert(msgErro(e)); }
       }));
     }
 
     async function abrirModalTributos() {
-      try { _tributosCache = await getTributosConfig(); }
+      try { _tributosCache = await getTributosConfig(user.uid); }
       catch (e) { _tributosCache = []; alert(msgErro(e)); }
       renderListaTributosConfig();
       document.getElementById('formTributo').style.display = 'none';
@@ -4114,7 +4114,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await saveTributoConfig({
+        await saveTributoConfig(user.uid, {
           id, nome, tipo,
           percentual: tipo === 'percentual' ? percentual : undefined,
           valorFixo:  tipo === 'fixo' ? (isNaN(valorFixo) ? 0 : valorFixo) : undefined,

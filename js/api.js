@@ -581,35 +581,38 @@ export async function getCobrancas(mes, ano, uid) {
 
 // ─── Impostos previstos (provisionamento a partir de notas emitidas) ─────────
 
-export async function getTributosConfig() {
-  return adminCall('getTributosConfig')({});
+// Retrofit 24/07/2026 (auditoria de segurança): as 3 coleções por trás
+// destas funções ganharam segregação por uid — pré-requisito pro Dashboard
+// PJ. `uid` agora é sempre o primeiro parâmetro, obrigatório.
+export async function getTributosConfig(uid) {
+  return adminCall('getTributosConfig')({ uid });
 }
-export async function saveTributoConfig(dados) {
-  return adminCall('saveTributoConfig')(dados);
+export async function saveTributoConfig(uid, dados) {
+  return adminCall('saveTributoConfig')({ uid, ...dados });
 }
-export async function deleteTributoConfig(id) {
-  return adminCall('deleteTributoConfig')({ id });
+export async function deleteTributoConfig(uid, id) {
+  return adminCall('deleteTributoConfig')({ uid, id });
 }
-export async function getNotasEmitidas(mes, ano) {
-  return adminCall('getNotasEmitidas')({ mes, ano });
+export async function getNotasEmitidas(uid, mes, ano) {
+  return adminCall('getNotasEmitidas')({ uid, mes, ano });
 }
-export async function saveNotaEmitida(dados) {
-  return adminCall('saveNotaEmitida')(dados);
+export async function saveNotaEmitida(uid, dados) {
+  return adminCall('saveNotaEmitida')({ uid, ...dados });
 }
-export async function deleteNotaEmitida(id) {
-  return adminCall('deleteNotaEmitida')({ id });
+export async function deleteNotaEmitida(uid, id) {
+  return adminCall('deleteNotaEmitida')({ uid, id });
 }
-export async function getImpostosPrevistos(mes, ano) {
-  return adminCall('getImpostosPrevistos')({ mes, ano });
+export async function getImpostosPrevistos(uid, mes, ano) {
+  return adminCall('getImpostosPrevistos')({ uid, mes, ano });
 }
-export async function editarValorImpostoPrevisto(id, valor) {
-  return adminCall('editarValorImpostoPrevisto')({ id, valor });
+export async function editarValorImpostoPrevisto(uid, id, valor) {
+  return adminCall('editarValorImpostoPrevisto')({ uid, id, valor });
 }
-export async function marcarImpostoPago(id, pago) {
-  return adminCall('marcarImpostoPago')({ id, pago });
+export async function marcarImpostoPago(uid, id, pago) {
+  return adminCall('marcarImpostoPago')({ uid, id, pago });
 }
-export async function deleteImpostoPrevisto(id) {
-  return adminCall('deleteImpostoPrevisto')({ id });
+export async function deleteImpostoPrevisto(uid, id) {
+  return adminCall('deleteImpostoPrevisto')({ uid, id });
 }
 
 // ─── CRM Pipeline ────────────────────────────────────────────────────────────
