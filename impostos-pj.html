@@ -184,6 +184,14 @@
             <option value="fixo">Valor fixo</option>
           </select>
         </div>
+        <div class="field-group">
+          <label for="tribPeriodicidade">Periodicidade</label>
+          <select id="tribPeriodicidade">
+            <option value="mensal">Mensal</option>
+            <option value="trimestral">Trimestral (soma as notas dos 3 meses numa provisão extra)</option>
+            <option value="anual">Anual (ex: TFE) — valor fixo, não depende de notas</option>
+          </select>
+        </div>
         <div class="field-group" id="fgTribPercentual">
           <label for="tribPercentual">Percentual (%)</label>
           <input type="number" id="tribPercentual" placeholder="Ex: 5" min="0" max="100" step="0.01">
@@ -197,9 +205,18 @@
             <label for="tribDiaVencimento">Dia de vencimento</label>
             <input type="number" id="tribDiaVencimento" min="1" max="28" placeholder="10">
           </div>
-          <div class="field-group">
+          <div class="field-group" id="fgTribDefasagem">
             <label for="tribDefasagem">Meses até vencer</label>
             <input type="number" id="tribDefasagem" min="-1" max="3" value="1">
+          </div>
+          <div class="field-group" id="fgTribMesVencimento" style="display:none">
+            <label for="tribMesVencimento">Mês de vencimento</label>
+            <select id="tribMesVencimento">
+              <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+              <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+              <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+              <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+            </select>
           </div>
         </div>
         <div class="checkbox-row">
@@ -426,10 +443,12 @@
       el.innerHTML = _tributosCache.map(t => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
           <div>
-            <div style="font-size:14px;font-weight:600">${t.nome}${t.ativo ? '' : ' <span style="color:var(--text-muted);font-weight:400">(inativo)</span>'}</div>
+            <div style="font-size:14px;font-weight:600">${t.nome}${t.ativo ? '' : ' <span style="color:var(--text-muted);font-weight:400">(inativo)</span>'}${t.periodicidade === 'trimestral' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">trimestral</span>' : ''}${t.periodicidade === 'anual' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">anual</span>' : ''}</div>
             <div style="font-size:12px;color:var(--text-muted)">
               ${t.tipo === 'percentual' ? `${t.percentual}% sobre a nota` : `Valor fixo (padrão ${brl(t.valorFixo)})`}
-              · vence dia ${t.diaVencimento}
+              ${t.periodicidade === 'anual'
+                ? ` · vence todo dia ${t.diaVencimento}/${MESES_NOME[t.mesVencimento - 1]}`
+                : ` · vence dia ${t.diaVencimento}`}
             </div>
           </div>
           <div style="display:flex;gap:8px">
@@ -464,7 +483,10 @@
       document.getElementById('tribValorFixo').value = trib?.valorFixo ?? '';
       document.getElementById('tribDiaVencimento').value = trib?.diaVencimento ?? '';
       document.getElementById('tribDefasagem').value = trib?.defasagemMeses ?? 1;
+      document.getElementById('tribPeriodicidade').value = trib?.periodicidade || 'mensal';
+      document.getElementById('tribMesVencimento').value = trib?.mesVencimento ?? 1;
       document.getElementById('tribAtivo').checked = trib ? trib.ativo !== false : true;
+      atualizarCamposPeriodicidade();
       atualizarCamposTipoTributo();
       document.getElementById('formTributo').style.display = '';
     }
@@ -473,7 +495,19 @@
       document.getElementById('fgTribPercentual').style.display = tipo === 'percentual' ? '' : 'none';
       document.getElementById('fgTribValorFixo').style.display  = tipo === 'fixo' ? '' : 'none';
     }
+    // Anual não calcula sobre notas (sem "competência" — valor fixo pago 1x
+    // por ano, ex: TFE) — força tipo fixo e troca "meses até vencer" por um
+    // mês de vencimento direto.
+    function atualizarCamposPeriodicidade() {
+      const anual = document.getElementById('tribPeriodicidade').value === 'anual';
+      document.getElementById('fgTribDefasagem').style.display     = anual ? 'none' : '';
+      document.getElementById('fgTribMesVencimento').style.display = anual ? '' : 'none';
+      const tipoSelect = document.getElementById('tribTipo');
+      tipoSelect.querySelector('option[value="percentual"]').disabled = anual;
+      if (anual && tipoSelect.value === 'percentual') { tipoSelect.value = 'fixo'; atualizarCamposTipoTributo(); }
+    }
     document.getElementById('tribTipo').addEventListener('change', atualizarCamposTipoTributo);
+    document.getElementById('tribPeriodicidade').addEventListener('change', atualizarCamposPeriodicidade);
     document.getElementById('btnAddTributo').addEventListener('click', () => abrirFormTributo());
     document.getElementById('btnCancelarTributo').addEventListener('click', () => { document.getElementById('formTributo').style.display = 'none'; });
 
@@ -486,12 +520,16 @@
       const valorFixo  = parseFloat(document.getElementById('tribValorFixo').value);
       const diaVencimento = parseInt(document.getElementById('tribDiaVencimento').value, 10);
       const defasagemMeses = parseInt(document.getElementById('tribDefasagem').value, 10) || 0;
+      const periodicidade = document.getElementById('tribPeriodicidade').value;
+      const mesVencimento = parseInt(document.getElementById('tribMesVencimento').value, 10);
       const ativo = document.getElementById('tribAtivo').checked;
 
       if (!nome) { alert('Informe o nome do tributo.'); return; }
+      if (periodicidade === 'anual' && tipo !== 'fixo') { alert('Tributo anual só pode ser valor fixo.'); return; }
       if (tipo === 'percentual' && (isNaN(percentual) || percentual < 0)) { alert('Informe um percentual válido.'); return; }
       if (tipo === 'fixo' && isNaN(valorFixo)) { alert('Informe um valor fixo padrão (pode ser 0).'); return; }
       if (!diaVencimento || diaVencimento < 1 || diaVencimento > 28) { alert('Dia de vencimento deve ser entre 1 e 28.'); return; }
+      if (periodicidade === 'anual' && (!mesVencimento || mesVencimento < 1 || mesVencimento > 12)) { alert('Escolha o mês de vencimento.'); return; }
 
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
@@ -499,7 +537,9 @@
           id, nome, tipo,
           percentual: tipo === 'percentual' ? percentual : undefined,
           valorFixo:  tipo === 'fixo' ? (isNaN(valorFixo) ? 0 : valorFixo) : undefined,
-          diaVencimento, defasagemMeses, periodicidade: 'mensal', ativo,
+          diaVencimento, defasagemMeses, periodicidade,
+          mesVencimento: periodicidade === 'anual' ? mesVencimento : undefined,
+          ativo,
         });
         await abrirModalTributos();
       } catch (err) {

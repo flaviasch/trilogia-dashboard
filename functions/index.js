@@ -5173,7 +5173,11 @@ async function _regerarImpostosPrevistos(uid, mes, ano) {
   existentesSnap.docs.forEach(d => { existentesPorTributo[d.data().tributoId] = { id: d.id, ...d.data() }; });
 
   const batch = db.batch();
-  for (const trib of tributos) {
+  // Anual (ex: TFE) não tem "competência" mensal — não depende de notas, não
+  // entra nesse loop (ver _regerarTributoAnual, disparado só quando o
+  // tributo é salvo/editado, achado 25/07/2026: TFE é valor fixo pago 1x por
+  // ano, sem relação com o mês em que uma nota foi emitida).
+  for (const trib of tributos.filter(t => t.periodicidade !== 'anual')) {
     const existente = existentesPorTributo[trib.id];
     if (existente?.pago) continue; // já paga — nunca recalcula
     if (trib.tipo === 'fixo' && existente?.origem === 'manual') continue; // valor já ajustado à mão
@@ -5260,6 +5264,28 @@ async function _regerarProvisaoTrimestral(uid, trimestrais, trimestre, ano) {
   await batch.commit();
 }
 
+// Anual (ex: TFE — Taxa de Fiscalização de Estabelecimentos): valor fixo
+// pago 1x por ano, no mês configurado (mesVencimento) — não depende de
+// notas emitidas, então não é disparado pelo fluxo de save/delete de nota
+// como mensal/trimestral; é gerado aqui, chamado direto no save do próprio
+// tributo, sempre pro ano corrente (achado 25/07/2026, Flávia: TFE é anual,
+// periodicidade não suportava isso ainda).
+async function _regerarTributoAnual(uid, trib, ano) {
+  const vencimento = _competenciaParaVencimento(trib.mesVencimento, ano, trib.diaVencimento, 0);
+  const existentesSnap = await db.collection('impostosPrevistos')
+    .where('uid', '==', uid).where('tributoId', '==', trib.id).where('ano', '==', ano).get();
+  const existente = existentesSnap.docs[0];
+  if (existente?.data().pago) return; // já paga — nunca recalcula
+  if (existente?.data().origem === 'manual') return; // valor já ajustado à mão
+
+  const ref = existente ? existente.ref : db.collection('impostosPrevistos').doc();
+  await ref.set({
+    uid, tributoId: trib.id, tributoNome: trib.nome, tipo: 'fixo',
+    mes: trib.mesVencimento, ano, vencimento, valor: trib.valorFixo || 0,
+    pago: false, origem: 'auto',
+  }, { merge: true });
+}
+
 exports.getTributosConfig = onCall({}, async (request) => {
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -5270,7 +5296,7 @@ exports.getTributosConfig = onCall({}, async (request) => {
 });
 
 exports.saveTributoConfig = onCall({}, async (request) => {
-  const { uid, id, nome, tipo, percentual, valorFixo, diaVencimento, defasagemMeses, ativo, periodicidade } = request.data;
+  const { uid, id, nome, tipo, percentual, valorFixo, diaVencimento, defasagemMeses, mesVencimento, ativo, periodicidade } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!nome || typeof nome !== 'string' || !nome.trim())
     throw new HttpsError('invalid-argument', 'nome é obrigatório.');
@@ -5287,8 +5313,16 @@ exports.saveTributoConfig = onCall({}, async (request) => {
   // 'trimestral' (ex: IRPJ/CSLL Lucro Presumido) gera, além da linha mensal
   // de referência de sempre, uma linha extra acumulando as notas dos 3
   // meses do trimestre — ver _regerarProvisaoTrimestral (achado 23/07/2026).
-  if (periodicidade !== 'mensal' && periodicidade !== 'trimestral')
-    throw new HttpsError('invalid-argument', "periodicidade deve ser 'mensal' ou 'trimestral'.");
+  // 'anual' (ex: TFE) é valor fixo pago 1x por ano — não depende de notas,
+  // não tem "competência" mensal, então exige tipo:'fixo' e um mês de
+  // vencimento direto em vez de defasagem (achado 25/07/2026).
+  if (periodicidade !== 'mensal' && periodicidade !== 'trimestral' && periodicidade !== 'anual')
+    throw new HttpsError('invalid-argument', "periodicidade deve ser 'mensal', 'trimestral' ou 'anual'.");
+  if (periodicidade === 'anual' && tipo !== 'fixo')
+    throw new HttpsError('invalid-argument', "tributo anual só pode ser tipo 'fixo' (não calcula sobre notas).");
+  const mesVenc = Number(mesVencimento);
+  if (periodicidade === 'anual' && (!Number.isInteger(mesVenc) || mesVenc < 1 || mesVenc > 12))
+    throw new HttpsError('invalid-argument', 'mesVencimento deve ser um inteiro entre 1 e 12.');
 
   const dados = {
     nome: nome.trim().slice(0, 100),
@@ -5298,22 +5332,30 @@ exports.saveTributoConfig = onCall({}, async (request) => {
     diaVencimento: dia,
     defasagemMeses: defasagem,
     periodicidade,
+    mesVencimento: periodicidade === 'anual' ? mesVenc : null,
     ativo: ativo !== false,
   };
 
+  let tributoId = id;
   if (id) {
     const ref  = db.collection('tributosConfig').doc(id);
     const snap = await ref.get();
     if (!snap.exists) throw new HttpsError('not-found', 'Tributo não encontrado.');
     if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
     await ref.update(dados);
-    return { id, ok: true };
+  } else {
+    const countSnap = await db.collection('tributosConfig').where('uid', '==', uid).get();
+    dados.uid = uid;
+    dados.ordem = countSnap.size;
+    const ref = await db.collection('tributosConfig').add(dados);
+    tributoId = ref.id;
   }
-  const countSnap = await db.collection('tributosConfig').where('uid', '==', uid).get();
-  dados.uid = uid;
-  dados.ordem = countSnap.size;
-  const ref = await db.collection('tributosConfig').add(dados);
-  return { id: ref.id, ok: true };
+
+  if (periodicidade === 'anual' && dados.ativo) {
+    await _regerarTributoAnual(uid, { ...dados, id: tributoId }, new Date().getFullYear());
+  }
+
+  return { id: tributoId, ok: true };
 });
 
 exports.deleteTributoConfig = onCall({}, async (request) => {
