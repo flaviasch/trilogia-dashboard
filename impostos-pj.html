@@ -255,9 +255,44 @@
     }
 
     let currentUser = null;
+    let contaAtual = null;
     let mesAtual = new Date().getMonth() + 1;
     let anoAtual = new Date().getFullYear();
     let _tributosCache = [];
+
+    // Sugestão de tributos por regime (achado 26/07/2026, Flávia: "qdo for
+    // simples, o sistema vai entender que ir e csll são mensais?" — o sistema
+    // não tem lógica automática por regime (tributos são 100% configuráveis
+    // pela usuária, decisão de escopo do Dashboard PJ), então o risco real é
+    // a usuária configurar tributos que não fazem sentido pro regime dela
+    // (ex: IRPJ/CSLL separados no Simples, que já vêm embutidos no DAS único).
+    // Esta sugestão só aparece quando a lista de tributos está vazia — ponto
+    // de partida editável, não é cálculo automático nem trava nada.
+    const REGIME_LABEL = { mei: 'MEI', simples: 'Simples Nacional', presumido: 'Lucro Presumido' };
+    const REGIME_SUGESTOES = {
+      mei: {
+        aviso: 'No MEI, todos os tributos (INSS, ICMS/ISS) já vêm embutidos numa única guia (DAS-MEI), com valor fixo definido por lei e reajustado todo ano. Não cadastre ISS, PIS, COFINS, IRPJ ou CSLL separados — eles não se aplicam no MEI.',
+        tributos: [
+          { nome: 'DAS (MEI)', tipo: 'fixo', valorFixo: 0, diaVencimento: 20, defasagemMeses: 1, periodicidade: 'mensal' },
+        ],
+      },
+      simples: {
+        aviso: 'No Simples Nacional, todos os tributos também já vêm embutidos numa única guia (DAS), calculada por uma alíquota progressiva que depende do Anexo e da receita acumulada dos últimos 12 meses. Não cadastre ISS, PIS, COFINS, IRPJ ou CSLL separados. O percentual abaixo é só um ponto de partida — confirme a alíquota efetiva real no seu extrato do PGDAS-D antes de usar.',
+        tributos: [
+          { nome: 'DAS (Simples Nacional)', tipo: 'percentual', percentual: 6, diaVencimento: 20, defasagemMeses: 1, periodicidade: 'mensal' },
+        ],
+      },
+      presumido: {
+        aviso: 'No Lucro Presumido, os tributos são apurados separados. As alíquotas efetivas abaixo (PIS, COFINS, IRPJ, CSLL) são as usuais para prestação de serviços — confirme com seu contador se a atividade da empresa se encaixa nesse percentual de presunção. A alíquota de ISS varia por município: o valor abaixo (5%) é o de São Paulo, ajuste se a empresa for de outra cidade.',
+        tributos: [
+          { nome: 'ISS',   tipo: 'percentual', percentual: 5.00, diaVencimento: 10, defasagemMeses: 1, periodicidade: 'mensal' },
+          { nome: 'PIS',   tipo: 'percentual', percentual: 0.65, diaVencimento: 25, defasagemMeses: 1, periodicidade: 'mensal' },
+          { nome: 'COFINS', tipo: 'percentual', percentual: 3.00, diaVencimento: 25, defasagemMeses: 1, periodicidade: 'mensal' },
+          { nome: 'IRPJ (Lucro Presumido)', tipo: 'percentual', percentual: 4.80, diaVencimento: 28, defasagemMeses: 1, periodicidade: 'trimestral' },
+          { nome: 'CSLL (Lucro Presumido)', tipo: 'percentual', percentual: 2.88, diaVencimento: 28, defasagemMeses: 1, periodicidade: 'trimestral' },
+        ],
+      },
+    };
 
     document.getElementById('btnLogout').addEventListener('click', async () => {
       await signOut(auth);
@@ -270,6 +305,7 @@
       try {
         const conta = await getContaPJ(user.uid);
         if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+        contaAtual = conta;
         document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
       } catch (err) {
         console.error('[impostos-pj] Falha ao carregar conta:', err.message);
@@ -434,10 +470,41 @@
 
     // ── Modal: Configurar tributos ──
     const modalTributos = document.getElementById('modalTributos');
+
+    async function aplicarSugestaoRegime() {
+      const sugestao = REGIME_SUGESTOES[contaAtual?.regime];
+      if (!sugestao) return;
+      const btn = document.getElementById('btnAplicarSugestaoRegime');
+      btn.disabled = true; btn.textContent = 'Aplicando…';
+      try {
+        for (const trib of sugestao.tributos) {
+          await saveTributoConfig(currentUser.uid, { ...trib, ativo: true });
+        }
+        await abrirModalTributos();
+      } catch (err) {
+        alert(msgErro(err));
+        btn.disabled = false; btn.textContent = 'Aplicar sugestão (edito depois)';
+      }
+    }
+
     function renderListaTributos() {
       const el = document.getElementById('listaTributos');
       if (!_tributosCache.length) {
-        el.innerHTML = `<p class="vazio">Nenhum tributo configurado ainda.</p>`;
+        const sugestao = contaAtual ? REGIME_SUGESTOES[contaAtual.regime] : null;
+        if (!sugestao) {
+          el.innerHTML = `<p class="vazio">Nenhum tributo configurado ainda.</p>`;
+          return;
+        }
+        el.innerHTML = `
+          <p class="vazio" style="text-align:left;padding:0 0 12px">Nenhum tributo configurado ainda. Como sua empresa está cadastrada como <strong>${REGIME_LABEL[contaAtual.regime]}</strong>, aqui vai um ponto de partida — revise os valores antes de aplicar:</p>
+          <div style="background:rgba(207,174,101,.08);border:1px solid rgba(207,174,101,.25);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+            <p style="font-size:12px;color:var(--gold-light);margin-bottom:10px">${sugestao.aviso}</p>
+            <ul style="list-style:none;font-size:13px;margin-bottom:12px">
+              ${sugestao.tributos.map(t => `<li style="padding:4px 0;border-bottom:1px solid var(--border)">${t.nome} — ${t.tipo === 'percentual' ? `${t.percentual}%` : `valor fixo (a definir)`}${t.periodicidade === 'trimestral' ? ' · trimestral' : ''}</li>`).join('')}
+            </ul>
+            <button class="btn-acao" id="btnAplicarSugestaoRegime" style="width:100%">Aplicar sugestão (edito depois)</button>
+          </div>`;
+        document.getElementById('btnAplicarSugestaoRegime').addEventListener('click', aplicarSugestaoRegime);
         return;
       }
       el.innerHTML = _tributosCache.map(t => `
