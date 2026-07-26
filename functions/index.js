@@ -610,16 +610,21 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
   // Controle de acesso
   const isAdminUser = request.auth?.token?.admin === true;
 
-  // Bloqueio em tempo real se a mentoria expirou sem assinatura ativa — mesma
-  // regra do cron verificarExpiracoes, mas recalculada a cada carregamento da
-  // home (achado 26/07/2026: antes disso só o cron das 9h desabilitava o
-  // Auth, então entre o vencimento e o cron rodar — ou se o Auth for
-  // reabilitado manualmente por qualquer motivo, ex: teste do Dashboard PJ —
-  // o dashboard continuava liberado inteiro, só com um banner de upsell por
-  // cima). Admin (viewAsUid) sempre passa, pra poder inspecionar a conta.
+  // Bloqueio em tempo real se a mentoria acabou (encerrada explicitamente OU
+  // dataExpiracao vencida — mesmos dois sinais que o cron verificarExpiracoes
+  // e o webhook da Kiwify já usam pra desabilitar o Auth) e não há assinatura
+  // ativa, recalculado a cada carregamento da home (achado 26/07/2026: antes
+  // disso só o cron das 9h desabilitava o Auth — entre o cancelamento/
+  // vencimento e o cron rodar, ou se o Auth for reabilitado manualmente por
+  // qualquer motivo, ex: teste do Dashboard PJ — o dashboard continuava
+  // liberado inteiro, só com um banner de upsell por cima. dataExpiracao
+  // sozinha não bastava: uma mentoria pode estar `mentoriaEncerrada: true`
+  // com dataExpiracao ainda no futuro, sobrando de quando o contrato foi
+  // criado). Admin (viewAsUid) sempre passa, pra poder inspecionar a conta.
   const hoje = agora.toISOString().slice(0, 10);
-  const acessoExpirado = !isAdminUser && dataExpiracao && dataExpiracao <= hoje
-    && assinaturaDashboard !== true && assinaturaClube !== true
+  const semAssinaturaAtiva = assinaturaDashboard !== true && assinaturaClube !== true;
+  const mentoriaAcabou = mentoriaEncerrada === true || (dataExpiracao && dataExpiracao <= hoje);
+  const acessoExpirado = !isAdminUser && semAssinaturaAtiva && mentoriaAcabou
     && !(await _temAcessoPJAtivo(uid));
   if (acessoExpirado) {
     return { acessoBloqueado: true, nome: nome || null, inicio: inicio || null, lgpdAceite: lgpdAceite || false };
