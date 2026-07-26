@@ -714,6 +714,23 @@
     </div>
   </div>
 
+  <!-- Bloqueio de acesso: mentoria expirada sem assinatura ativa, recalculado
+       a cada carregamento (achado 26/07/2026 — ver getDashboardHome) -->
+  <div id="accessBlockedScreen" style="display:none; max-width:480px; margin:100px auto; text-align:center; padding:0 24px;">
+    <div style="font-size:20px; font-weight:700; color:var(--gold); margin-bottom:10px; font-family:'Playfair Display',serif;">Sua mentoria chegou ao fim</div>
+    <div style="font-size:14px; color:var(--text-secondary); margin-bottom:28px; line-height:1.6;">Para continuar acompanhando patrimônio, reservas e orçamento, mantenha o acesso ao Dashboard.</div>
+    <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+      <a href="https://pay.kiwify.com.br/PSL7Vy5" target="_blank" rel="noopener"
+         style="background:transparent; border:1px solid var(--border-gold); border-radius:8px; padding:10px 22px; font-size:14px; color:var(--gold); text-decoration:none; white-space:nowrap; font-family:'Inter',sans-serif;">
+        R$&nbsp;67/mês
+      </a>
+      <a href="https://pay.kiwify.com.br/hIoLfti" target="_blank" rel="noopener"
+         style="background:var(--gold); border-radius:8px; padding:10px 22px; font-size:14px; font-weight:700; color:var(--navy); text-decoration:none; white-space:nowrap; font-family:'Inter',sans-serif;">
+        R$&nbsp;670/ano ✦
+      </a>
+    </div>
+  </div>
+
   <!-- Onboarding: tela de boas-vindas (0 etapas concluídas) -->
   <div id="welcomeScreen" style="display:none">
     <div class="welcome-screen">
@@ -1209,6 +1226,8 @@
       document.getElementById('loadingOverlay').style.display = 'none';
       _applyDashboard(data, user, viewAsUid);
 
+      if (data.acessoBloqueado && !viewAsUid) return true; // bloqueado — não busca dados financeiros à toa
+
       // Fase 2: carrega orçamento e patrimônio em background e atualiza os cards
       const { mes, ano } = data.orcamento;
       Promise.all([
@@ -1287,6 +1306,16 @@
     }
 
     function _applyDashboard(data, user, viewAsUid, fromCache = false) {
+      if (data.acessoBloqueado && !viewAsUid) {
+        // Decisão de acesso nunca vem do cache local (pode estar desatualizada
+        // até 1h) — só bloqueia quando confirmado pela chamada fresca à API.
+        if (fromCache) return;
+        document.getElementById('welcomeScreen').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'none';
+        document.getElementById('accessBlockedScreen').style.display = 'block';
+        return;
+      }
+
       if (data.apenasClube && !viewAsUid) {
         // Decisão de acesso nunca vem do cache local (pode estar desatualizada
         // até 1h) — só redireciona quando confirmado pela chamada fresca à API.

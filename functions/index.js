@@ -605,10 +605,26 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
 
   const { nome, inicio, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
           assinaturaClube, assinaturaDashboard, mentoriaEncerrada, nivelAcesso,
-          pl, sobra, totalReservas, scoreMes, scoreChave, sheetId } = docSnap.data();
+          pl, sobra, totalReservas, scoreMes, scoreChave, sheetId, dataExpiracao } = docSnap.data();
 
   // Controle de acesso
   const isAdminUser = request.auth?.token?.admin === true;
+
+  // Bloqueio em tempo real se a mentoria expirou sem assinatura ativa — mesma
+  // regra do cron verificarExpiracoes, mas recalculada a cada carregamento da
+  // home (achado 26/07/2026: antes disso só o cron das 9h desabilitava o
+  // Auth, então entre o vencimento e o cron rodar — ou se o Auth for
+  // reabilitado manualmente por qualquer motivo, ex: teste do Dashboard PJ —
+  // o dashboard continuava liberado inteiro, só com um banner de upsell por
+  // cima). Admin (viewAsUid) sempre passa, pra poder inspecionar a conta.
+  const hoje = agora.toISOString().slice(0, 10);
+  const acessoExpirado = !isAdminUser && dataExpiracao && dataExpiracao <= hoje
+    && assinaturaDashboard !== true && assinaturaClube !== true
+    && !(await _temAcessoPJAtivo(uid));
+  if (acessoExpirado) {
+    return { acessoBloqueado: true, nome: nome || null, inicio: inicio || null, lgpdAceite: lgpdAceite || false };
+  }
+
   const clubeOnly   = assinaturaClube === true && assinaturaDashboard !== true;
   const temDashboard = isAdminUser || !clubeOnly;
 
