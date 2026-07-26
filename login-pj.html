@@ -166,7 +166,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ } from './js/api.js?v=45';
+    import { getContaPJ } from './js/api.js?v=46';
     import {
       signInWithEmailAndPassword,
       signOut,
@@ -190,7 +190,7 @@
           showError('Seu acesso ao Dashboard PJ está suspenso. Entre em contato com a Flávia.');
           return;
         }
-        window.location.href = conta ? 'impostos-pj.html' : 'onboarding-pj.html';
+        window.location.href = conta ? 'notas-pj.html' : 'onboarding-pj.html';
       } catch (err) {
         jaRedirecionando = false;
         showError('Não foi possível verificar sua conta. Tente novamente.');

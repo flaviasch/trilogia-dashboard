@@ -81,6 +81,7 @@
       <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
       <p class="empresa-nome" id="empresaNome">—</p>
       <nav class="nav-pj">
+        <a href="notas-pj.html">Notas</a>
         <a href="impostos-pj.html" class="ativo">Impostos</a>
         <a href="despesas-pj.html">Despesas</a>
         <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
@@ -91,7 +92,7 @@
 
   <main>
     <h1>Impostos</h1>
-    <p class="subtitulo">Lance suas notas emitidas e acompanhe os impostos provisionados automaticamente.</p>
+    <p class="subtitulo">Acompanhe os impostos provisionados automaticamente a partir das notas lançadas em "Notas".</p>
 
     <div class="mes-nav">
       <button class="btn-mes" id="mesAnterior">‹</button>
@@ -119,14 +120,6 @@
     </div>
 
     <div class="secao">
-      <div class="secao-header">
-        <span class="secao-titulo">Notas emitidas</span>
-        <button class="btn-acao" id="btnNovaNota">+ Nota emitida</button>
-      </div>
-      <div class="card-lista" id="listaNotas"></div>
-    </div>
-
-    <div class="secao">
       <div class="secao-header"><span class="secao-titulo">Provisão do mês</span></div>
       <div class="card-lista">
         <table>
@@ -148,30 +141,6 @@
       </div>
     </div>
   </main>
-
-  <!-- Modal: Nota emitida -->
-  <div class="modal-overlay hidden" id="modalNota">
-    <div class="modal-card">
-      <h3>Nota emitida</h3>
-      <input type="hidden" id="notaId">
-      <div class="field-group">
-        <label for="notaValor">Valor</label>
-        <input type="number" id="notaValor" placeholder="0" min="0" step="0.01">
-      </div>
-      <div class="field-group">
-        <label for="notaCompetencia">Competência</label>
-        <input type="month" id="notaCompetencia">
-      </div>
-      <div class="field-group">
-        <label for="notaDataEmissao">Data de emissão</label>
-        <input type="date" id="notaDataEmissao">
-      </div>
-      <div class="modal-acoes">
-        <button class="btn-cancel" id="btnCancelarNota">Cancelar</button>
-        <button class="btn-save" id="btnSalvarNota">Salvar</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Modal: Configurar tributos -->
   <div class="modal-overlay hidden" id="modalTributos">
@@ -242,74 +211,15 @@
     </div>
   </div>
 
-  <!-- Modal: Recebimentos de uma nota (Contas a Receber) -->
-  <div class="modal-overlay hidden" id="modalRecebimentos">
-    <div class="modal-card">
-      <h3>Recebimentos</h3>
-      <p id="recebNotaResumo" class="subtitulo" style="margin-bottom:14px"></p>
-      <input type="hidden" id="recebNotaId">
-      <div id="listaRecebimentos" style="margin-bottom:14px;max-height:260px;overflow-y:auto"></div>
-      <button class="btn-acao-secundario" id="btnAddRecebimento" style="width:100%">+ Adicionar recebimento</button>
-      <div id="formRecebimento" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-        <input type="hidden" id="recebId">
-        <div class="field-group">
-          <label for="recebForma">Forma de pagamento</label>
-          <select id="recebForma">
-            <option value="pix">PIX</option>
-            <option value="dinheiro">Dinheiro</option>
-            <option value="debito">Débito</option>
-            <option value="credito_avista">Crédito à vista</option>
-            <option value="credito_parcelado">Crédito parcelado</option>
-            <option value="boleto">Boleto</option>
-            <option value="outro">Outro</option>
-          </select>
-        </div>
-        <div class="field-row">
-          <div class="field-group">
-            <label for="recebValorBruto">Valor bruto (o que o cliente pagou)</label>
-            <input type="number" id="recebValorBruto" placeholder="0" min="0" step="0.01">
-          </div>
-          <div class="field-group">
-            <label for="recebTaxa">Taxa descontada (R$, opcional)</label>
-            <input type="number" id="recebTaxa" placeholder="0" min="0" step="0.01" value="0">
-          </div>
-        </div>
-        <div class="field-group">
-          <label for="recebDataPrevista">Data prevista de recebimento</label>
-          <input type="date" id="recebDataPrevista">
-        </div>
-        <div class="field-row">
-          <div class="field-group">
-            <label for="recebParcelaAtual">Parcela (opcional)</label>
-            <input type="number" id="recebParcelaAtual" min="1" placeholder="Ex: 2">
-          </div>
-          <div class="field-group">
-            <label for="recebParcelaTotal">de quantas</label>
-            <input type="number" id="recebParcelaTotal" min="1" placeholder="Ex: 3">
-          </div>
-        </div>
-        <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">A data prevista já vem sugerida pela forma de pagamento — ajuste se sua maquininha/adquirente trabalha com prazo diferente.</p>
-        <div class="modal-acoes">
-          <button class="btn-cancel" id="btnCancelarRecebimento">Cancelar</button>
-          <button class="btn-save" id="btnSalvarRecebimento">Salvar recebimento</button>
-        </div>
-      </div>
-      <div class="modal-acoes" style="margin-top:16px">
-        <button class="btn-cancel" id="btnFecharModalRecebimentos" style="width:100%">Fechar</button>
-      </div>
-    </div>
-  </div>
-
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import {
       getContaPJ,
       getTributosConfig, saveTributoConfig, deleteTributoConfig,
-      getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
+      getNotasEmitidas,
       getImpostosPrevistos, marcarImpostoPago, deleteImpostoPrevisto,
-      getRecebimentosNota, salvarRecebimento, confirmarRecebimento, estornarRecebimento, deleteRecebimento,
       msgErro,
-    } from './js/api.js?v=45';
+    } from './js/api.js?v=46';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -319,19 +229,6 @@
       if (!iso) return '—';
       const [a, m, d] = iso.split('-');
       return `${d}/${m}/${a}`;
-    }
-
-    // Contas a Receber (achado 26/07/2026): PIX/dinheiro caem na hora e sem
-    // taxa, mas débito/crédito têm prazo de liquidação da adquirente mesmo em
-    // pagamento único — mesmo padrão de sugestão do backend (SUGESTAO_PRAZO_DIAS
-    // em functions/index.js), só usado aqui pra pré-preencher a data, sempre
-    // editável.
-    const FORMA_LABEL = { pix: 'PIX', dinheiro: 'Dinheiro', debito: 'Débito', credito_avista: 'Crédito à vista', credito_parcelado: 'Crédito parcelado', boleto: 'Boleto', outro: 'Outro' };
-    const SUGESTAO_PRAZO_DIAS = { pix: 0, dinheiro: 0, debito: 2, credito_avista: 30, credito_parcelado: 30, boleto: 3, outro: 0 };
-    function somarDias(iso, dias) {
-      const d = new Date(iso + 'T00:00:00');
-      d.setDate(d.getDate() + dias);
-      return d.toISOString().slice(0, 10);
     }
 
     let currentUser = null;
@@ -436,29 +333,6 @@
       document.getElementById('totalPendente').textContent    = brl(totalPendente);
       document.getElementById('totalPendenteSub').textContent = `${pendentes.length} pendente${pendentes.length !== 1 ? 's' : ''}`;
 
-      const listaNotasEl = document.getElementById('listaNotas');
-      if (!notas.length) {
-        listaNotasEl.innerHTML = `<p class="vazio">Nenhuma nota emitida cadastrada nesta competência ainda.</p>`;
-      } else {
-        listaNotasEl.innerHTML = notas.map(n => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
-            <span style="font-size:13px;color:var(--text-muted)">Emitida em ${fmtData(n.dataEmissao)}</span>
-            <div style="display:flex;align-items:center;gap:10px">
-              <strong style="font-size:14px">${brl(n.valor)}</strong>
-              <button data-nota-recebimentos="${n.id}" title="Recebimentos" style="background:none;border:1px solid rgba(207,174,101,.3);color:var(--gold);cursor:pointer;font-size:11px;padding:3px 8px;border-radius:4px">💰 Recebimentos</button>
-              <button data-nota-editar="${n.id}" title="Editar" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✎</button>
-              <button data-nota-excluir="${n.id}" title="Excluir" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
-            </div>
-          </div>`).join('');
-        listaNotasEl.querySelectorAll('[data-nota-recebimentos]').forEach(b => b.addEventListener('click', () => abrirModalRecebimentos(notas.find(n => n.id === b.dataset.notaRecebimentos))));
-        listaNotasEl.querySelectorAll('[data-nota-editar]').forEach(b => b.addEventListener('click', () => abrirModalNota(notas.find(n => n.id === b.dataset.notaEditar))));
-        listaNotasEl.querySelectorAll('[data-nota-excluir]').forEach(b => b.addEventListener('click', async () => {
-          if (!confirm('Excluir esta nota emitida? Os tributos automáticos (%) desta competência serão recalculados, e os recebimentos lançados pra ela serão apagados junto.')) return;
-          try { await deleteNotaEmitida(currentUser.uid, b.dataset.notaExcluir); renderImpostos(); }
-          catch (err) { alert(msgErro(err)); }
-        }));
-      }
-
       if (!provisao.length) {
         document.getElementById('provisaoVazio').style.display = '';
         document.getElementById('tabelaProvisaoBody').innerHTML = '';
@@ -514,169 +388,6 @@
     document.getElementById('mesProximo').addEventListener('click', () => {
       mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
       renderImpostos();
-    });
-
-    // ── Modal: Nota emitida ──
-    const modalNota = document.getElementById('modalNota');
-    function abrirModalNota(nota = null) {
-      document.getElementById('notaId').value = nota?.id || '';
-      document.getElementById('notaValor').value = nota?.valor ?? '';
-      document.getElementById('notaCompetencia').value = nota
-        ? `${nota.ano}-${String(nota.mes).padStart(2, '0')}`
-        : `${anoAtual}-${String(mesAtual).padStart(2, '0')}`;
-      document.getElementById('notaDataEmissao').value = nota?.dataEmissao || new Date().toISOString().slice(0, 10);
-      modalNota.classList.remove('hidden');
-    }
-    document.getElementById('btnNovaNota').addEventListener('click', () => abrirModalNota());
-    document.getElementById('btnCancelarNota').addEventListener('click', () => modalNota.classList.add('hidden'));
-    modalNota.addEventListener('click', e => { if (e.target === modalNota) modalNota.classList.add('hidden'); });
-
-    document.getElementById('btnSalvarNota').addEventListener('click', async () => {
-      const btn = document.getElementById('btnSalvarNota');
-      const id  = document.getElementById('notaId').value || undefined;
-      const valor = parseFloat(document.getElementById('notaValor').value);
-      const competencia = document.getElementById('notaCompetencia').value;
-      const dataEmissao = document.getElementById('notaDataEmissao').value || null;
-      if (isNaN(valor) || valor <= 0) { alert('Informe um valor válido.'); return; }
-      if (!competencia) { alert('Informe a competência.'); return; }
-      const [ano, mes] = competencia.split('-').map(Number);
-
-      btn.disabled = true; btn.textContent = 'Salvando…';
-      try {
-        await saveNotaEmitida(currentUser.uid, { id, valor, mes, ano, dataEmissao });
-        modalNota.classList.add('hidden');
-        mesAtual = mes; anoAtual = ano;
-        renderImpostos();
-      } catch (err) {
-        alert(msgErro(err));
-      } finally {
-        btn.disabled = false; btn.textContent = 'Salvar';
-      }
-    });
-
-    // ── Modal: Recebimentos (Contas a Receber) ──
-    const modalRecebimentos = document.getElementById('modalRecebimentos');
-    let _notaRecebimentosAtual = null;
-    let _recebimentosCache = [];
-
-    async function abrirModalRecebimentos(nota) {
-      _notaRecebimentosAtual = nota;
-      document.getElementById('recebNotaId').value = nota.id;
-      document.getElementById('recebNotaResumo').textContent =
-        `Nota de ${brl(nota.valor)} emitida em ${fmtData(nota.dataEmissao)}`;
-      try { _recebimentosCache = await getRecebimentosNota(currentUser.uid, nota.id); }
-      catch (err) { _recebimentosCache = []; alert(msgErro(err)); }
-      renderListaRecebimentos();
-      document.getElementById('formRecebimento').style.display = 'none';
-      modalRecebimentos.classList.remove('hidden');
-    }
-    document.getElementById('btnFecharModalRecebimentos').addEventListener('click', () => modalRecebimentos.classList.add('hidden'));
-    modalRecebimentos.addEventListener('click', e => { if (e.target === modalRecebimentos) modalRecebimentos.classList.add('hidden'); });
-
-    function renderListaRecebimentos() {
-      const el = document.getElementById('listaRecebimentos');
-      if (!_recebimentosCache.length) {
-        el.innerHTML = `<p class="vazio">Nenhum recebimento lançado ainda.</p>`;
-        return;
-      }
-      const totalLiquido = _recebimentosCache.reduce((s, r) => s + (r.valorLiquido || 0), 0);
-      const diffValor = totalLiquido - (_notaRecebimentosAtual?.valor || 0);
-      el.innerHTML = _recebimentosCache.map(r => `
-        <div style="padding:10px 0;border-bottom:1px solid var(--border)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <div style="font-size:14px;font-weight:600">${FORMA_LABEL[r.formaPagamento] || r.formaPagamento}${r.parcelaTotal ? ` · ${r.parcelaAtual}/${r.parcelaTotal}` : ''}</div>
-              <div style="font-size:12px;color:var(--text-muted)">
-                ${brl(r.valorLiquido)} líquido${r.taxa > 0 ? ` (bruto ${brl(r.valorBruto)} − taxa ${brl(r.taxa)})` : ''}
-                · ${r.dataRecebimento ? `recebido em ${fmtData(r.dataRecebimento)}` : `previsto para ${fmtData(r.dataPrevista)}`}
-              </div>
-            </div>
-            <div style="display:flex;gap:6px;align-items:center">
-              ${r.dataRecebimento
-                ? `<span class="badge-pago">Confirmado</span><button data-receb-estornar="${r.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px">desfazer</button>`
-                : `<button data-receb-confirmar="${r.id}" style="background:none;border:1px solid rgba(74,222,128,.3);color:var(--positive);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:4px">✓ Confirmar</button>`}
-              <button data-receb-editar="${r.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✎</button>
-              <button data-receb-excluir="${r.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
-            </div>
-          </div>
-        </div>`).join('')
-        + (Math.abs(diffValor) > 0.01
-          ? `<p style="font-size:11px;color:var(--text-muted);margin-top:10px">Total líquido dos recebimentos (${brl(totalLiquido)}) ${diffValor > 0 ? 'maior' : 'menor'} que o valor da nota (${brl(_notaRecebimentosAtual.valor)}) — normal quando há juros ou taxas de cartão.</p>`
-          : '');
-
-      el.querySelectorAll('[data-receb-editar]').forEach(b => b.addEventListener('click', () => abrirFormRecebimento(_recebimentosCache.find(r => r.id === b.dataset.recebEditar))));
-      el.querySelectorAll('[data-receb-excluir]').forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Excluir este recebimento?')) return;
-        try { await deleteRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebExcluir); await abrirModalRecebimentos(_notaRecebimentosAtual); }
-        catch (err) { alert(msgErro(err)); }
-      }));
-      el.querySelectorAll('[data-receb-confirmar]').forEach(b => b.addEventListener('click', async () => {
-        const hoje = new Date().toISOString().slice(0, 10);
-        const data = prompt('Data em que o valor caiu (AAAA-MM-DD):', hoje);
-        if (!data) return;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { alert('Data inválida — use o formato AAAA-MM-DD.'); return; }
-        try { await confirmarRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebConfirmar, data); await abrirModalRecebimentos(_notaRecebimentosAtual); }
-        catch (err) { alert(msgErro(err)); }
-      }));
-      el.querySelectorAll('[data-receb-estornar]').forEach(b => b.addEventListener('click', async () => {
-        try { await estornarRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebEstornar); await abrirModalRecebimentos(_notaRecebimentosAtual); }
-        catch (err) { alert(msgErro(err)); }
-      }));
-    }
-
-    function abrirFormRecebimento(receb = null) {
-      document.getElementById('recebId').value = receb?.id || '';
-      document.getElementById('recebForma').value = receb?.formaPagamento || 'pix';
-      document.getElementById('recebValorBruto').value = receb?.valorBruto ?? (
-        // sugestão de valor pro primeiro recebimento novo: o que ainda falta
-        // pra bater o valor da nota, não o valor cheio de novo
-        Math.max(0, (_notaRecebimentosAtual?.valor || 0) - _recebimentosCache.reduce((s, r) => s + (r.valorBruto || 0), 0)) || _notaRecebimentosAtual?.valor || ''
-      );
-      document.getElementById('recebTaxa').value = receb?.taxa ?? 0;
-      document.getElementById('recebDataPrevista').value = receb?.dataPrevista
-        || somarDias(_notaRecebimentosAtual?.dataEmissao, SUGESTAO_PRAZO_DIAS['pix']);
-      document.getElementById('recebParcelaAtual').value = receb?.parcelaAtual ?? '';
-      document.getElementById('recebParcelaTotal').value = receb?.parcelaTotal ?? '';
-      document.getElementById('formRecebimento').style.display = '';
-    }
-    document.getElementById('recebForma').addEventListener('change', (e) => {
-      // Só re-sugere a data se ainda não foi editada manualmente num
-      // recebimento existente (evita sobrescrever ajuste da usuária ao só
-      // trocar a forma de pagamento por engano numa edição).
-      if (document.getElementById('recebId').value) return;
-      document.getElementById('recebDataPrevista').value =
-        somarDias(_notaRecebimentosAtual?.dataEmissao, SUGESTAO_PRAZO_DIAS[e.target.value] ?? 0);
-    });
-    document.getElementById('btnAddRecebimento').addEventListener('click', () => abrirFormRecebimento());
-    document.getElementById('btnCancelarRecebimento').addEventListener('click', () => { document.getElementById('formRecebimento').style.display = 'none'; });
-
-    document.getElementById('btnSalvarRecebimento').addEventListener('click', async () => {
-      const btn = document.getElementById('btnSalvarRecebimento');
-      const id = document.getElementById('recebId').value || undefined;
-      const formaPagamento = document.getElementById('recebForma').value;
-      const valorBruto = parseFloat(document.getElementById('recebValorBruto').value);
-      const taxa = parseFloat(document.getElementById('recebTaxa').value) || 0;
-      const dataPrevista = document.getElementById('recebDataPrevista').value;
-      const parcelaAtualVal = parseInt(document.getElementById('recebParcelaAtual').value, 10);
-      const parcelaTotalVal = parseInt(document.getElementById('recebParcelaTotal').value, 10);
-
-      if (isNaN(valorBruto) || valorBruto <= 0) { alert('Informe um valor bruto válido.'); return; }
-      if (taxa > valorBruto) { alert('A taxa não pode ser maior que o valor bruto.'); return; }
-      if (!dataPrevista) { alert('Informe a data prevista.'); return; }
-
-      btn.disabled = true; btn.textContent = 'Salvando…';
-      try {
-        await salvarRecebimento(currentUser.uid, _notaRecebimentosAtual.id, {
-          id, formaPagamento, valorBruto, taxa, dataPrevista,
-          parcelaAtual: Number.isInteger(parcelaAtualVal) ? parcelaAtualVal : null,
-          parcelaTotal: Number.isInteger(parcelaTotalVal) ? parcelaTotalVal : null,
-        });
-        await abrirModalRecebimentos(_notaRecebimentosAtual);
-      } catch (err) {
-        alert(msgErro(err));
-      } finally {
-        btn.disabled = false; btn.textContent = 'Salvar recebimento';
-      }
     });
 
     // ── Modal: Configurar tributos ──

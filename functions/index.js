@@ -5405,14 +5405,74 @@ exports.getNotasEmitidas = onCall({}, async (request) => {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 });
 
+// Sugestão de prazo (dias) até o dinheiro cair, por forma de pagamento —
+// achado 26/07/2026 (Flávia, CFP): PIX/dinheiro caem na hora e sem taxa, mas
+// débito/crédito têm prazo de liquidação da adquirente E taxa descontada,
+// mesmo em pagamento único. Só um ponto de partida, sempre editável depois
+// (ver salvarRecebimento/_notaDoUid mais abaixo).
+const SUGESTAO_PRAZO_DIAS = { pix: 0, dinheiro: 0, debito: 2, credito_avista: 30, credito_parcelado: 30, boleto: 3, outro: 0 };
+const FORMAS_PAGAMENTO = Object.keys(SUGESTAO_PRAZO_DIAS);
+
+function _somarDiasISO(iso, dias) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Gera os recebimentos iniciais de uma nota nova, a partir só de forma de
+ * pagamento (+ nº de parcelas quando for crédito parcelado) — achado
+ * 27/07/2026 (Flávia: cadastrar parcela por parcela na mão é trabalhoso).
+ * Faz o split automático (valor e taxa divididos igualmente entre as
+ * parcelas, resto na última pra fechar o total certinho) com datas espaçadas
+ * de 30 em 30 dias a partir do prazo sugerido da forma de pagamento. É só um
+ * ponto de partida: cada parcela continua editável individualmente depois
+ * (salvarRecebimento) se a divisão real não for exatamente igual.
+ */
+function _gerarRecebimentosIniciais(valor, dataEmissao, formaPagamento, numeroParcelas, taxaTotal) {
+  const n = formaPagamento === 'credito_parcelado'
+    ? Math.max(2, Math.min(24, Number.isInteger(numeroParcelas) ? numeroParcelas : 2))
+    : 1;
+  const prazoBase   = SUGESTAO_PRAZO_DIAS[formaPagamento] ?? 0;
+  const valorCents  = Math.round(valor * 100);
+  const taxaCents   = Math.round((taxaTotal || 0) * 100);
+  const baseValor   = Math.floor(valorCents / n);
+  const baseTaxa    = Math.floor(taxaCents / n);
+
+  const recebimentos = [];
+  for (let i = 0; i < n; i++) {
+    const ultima     = i === n - 1;
+    const vBrutoCents = ultima ? valorCents - baseValor * (n - 1) : baseValor;
+    const vTaxaCents  = ultima ? taxaCents  - baseTaxa  * (n - 1) : baseTaxa;
+    const dias = formaPagamento === 'credito_parcelado' ? prazoBase + 30 * i : prazoBase;
+    recebimentos.push({
+      formaPagamento,
+      valorBruto:    vBrutoCents / 100,
+      taxa:          vTaxaCents / 100,
+      valorLiquido: (vBrutoCents - vTaxaCents) / 100,
+      dataPrevista:  _somarDiasISO(dataEmissao, dias),
+      dataRecebimento: null,
+      parcelaAtual: n > 1 ? i + 1 : null,
+      parcelaTotal: n > 1 ? n : null,
+    });
+  }
+  return recebimentos;
+}
+
 exports.saveNotaEmitida = onCall({}, async (request) => {
-  const { uid, id, valor, mes, ano, dataEmissao } = request.data;
+  const { uid, id, valor, mes, ano, dataEmissao, formaPagamento, numeroParcelas, taxaTotal } = request.data;
   requireSelfOrAdmin(request, uid);
   if (typeof valor !== 'number' || valor <= 0) throw new HttpsError('invalid-argument', 'valor deve ser maior que zero.');
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
   if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
   if (dataEmissao && !/^\d{4}-\d{2}-\d{2}$/.test(dataEmissao))
     throw new HttpsError('invalid-argument', 'dataEmissao deve estar no formato YYYY-MM-DD.');
+  // formaPagamento só é usado na criação (gera os recebimentos iniciais);
+  // numa edição de nota existente, os recebimentos já lançados não são
+  // regerados/apagados — evita sobrescrever confirmações já feitas.
+  const forma = id ? null : (formaPagamento || 'pix');
+  if (forma && !FORMAS_PAGAMENTO.includes(forma))
+    throw new HttpsError('invalid-argument', `formaPagamento deve ser uma de: ${FORMAS_PAGAMENTO.join(', ')}.`);
 
   const dados = { valor, mes, ano, dataEmissao: dataEmissao || new Date().toISOString().slice(0, 10) };
   let notaId = id;
@@ -5426,20 +5486,15 @@ exports.saveNotaEmitida = onCall({}, async (request) => {
     const ref = await db.collection('notasEmitidas')
       .add({ ...dados, uid, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
     notaId = ref.id;
-    // Recebimento default (achado 26/07/2026, Flávia: nota emitida ≠
-    // recebimento — PIX é imediato/sem taxa, mas débito/crédito têm prazo e
-    // taxa mesmo em pagamento único). Cobre o caso mais comum (PIX à vista)
-    // sem trabalho extra; a usuária edita/substitui se não foi assim que
-    // recebeu (ex: parcelou no cartão, então apaga este e cadastra as
-    // parcelas reais em salvarRecebimento).
-    await ref.collection('recebimentos').add({
-      uid, formaPagamento: 'pix',
-      valorBruto: valor, taxa: 0, valorLiquido: valor,
-      dataPrevista: dados.dataEmissao, dataRecebimento: null,
-      dataEmissaoNota: dados.dataEmissao,
-      parcelaAtual: null, parcelaTotal: null,
-      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    const recebimentos = _gerarRecebimentosIniciais(valor, dados.dataEmissao, forma, numeroParcelas, taxaTotal);
+    const batch = db.batch();
+    recebimentos.forEach(r => {
+      batch.set(ref.collection('recebimentos').doc(), {
+        uid, ...r, dataEmissaoNota: dados.dataEmissao,
+        criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
     });
+    await batch.commit();
   }
   await _regerarImpostosPrevistos(uid, mes, ano);
   return { id: notaId, ok: true };
@@ -5478,9 +5533,8 @@ exports.deleteNotaEmitida = onCall({}, async (request) => {
 // que sabe que foi descontado — sem tentar automatizar tabela de adquirente),
 // valor líquido calculado, data prevista (sugerida pela forma de pagamento,
 // sempre editável) e data em que confirmou que caiu de verdade.
-
-const SUGESTAO_PRAZO_DIAS = { pix: 0, dinheiro: 0, debito: 2, credito_avista: 30, credito_parcelado: 30, boleto: 3, outro: 0 };
-const FORMAS_PAGAMENTO = Object.keys(SUGESTAO_PRAZO_DIAS);
+// (SUGESTAO_PRAZO_DIAS/FORMAS_PAGAMENTO ficam declarados mais acima, perto de
+// saveNotaEmitida, que também precisa deles pra gerar as parcelas iniciais.)
 
 async function _notaDoUid(uid, notaId) {
   const ref  = db.collection('notasEmitidas').doc(notaId);
@@ -5636,6 +5690,65 @@ exports.deleteDespesaPJ = onCall({}, async (request) => {
   const ref  = db.collection('despesasPJ').doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Despesa não encontrada.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  await ref.delete();
+  return { ok: true };
+});
+
+// ─── Outras entradas PJ (fatia 2, achado 27/07/2026) ───────────────────────
+// Nem toda entrada de caixa é venda: aporte de sócio (capital, não é
+// receita) e reembolso (dinheiro que volta, não é venda) são eventos reais
+// que o Fluxo de Caixa precisa refletir sem passar por nota fiscal. Categoria
+// é fechada nessas duas + "outro" — NÃO existe categoria pra receita não
+// declarada: isso é sonegação fiscal (Lei 8.137/90), fora de questão como
+// funcionalidade suportada por este sistema.
+const CATEGORIA_OUTRA_ENTRADA = ['aporte_socio', 'reembolso', 'outro'];
+
+exports.getOutrasEntradasPJ = onCall({}, async (request) => {
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!mes || !ano) throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
+  const snap = await db.collection('outrasEntradasPJ')
+    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).orderBy('data').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+exports.saveOutraEntradaPJ = onCall({}, async (request) => {
+  const { uid, id, descricao, valor, data, categoria } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!descricao || typeof descricao !== 'string' || !descricao.trim())
+    throw new HttpsError('invalid-argument', 'descricao é obrigatória.');
+  if (typeof valor !== 'number' || valor <= 0) throw new HttpsError('invalid-argument', 'valor deve ser maior que zero.');
+  if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data))
+    throw new HttpsError('invalid-argument', 'data deve estar no formato YYYY-MM-DD.');
+  if (!CATEGORIA_OUTRA_ENTRADA.includes(categoria))
+    throw new HttpsError('invalid-argument', `categoria deve ser uma de: ${CATEGORIA_OUTRA_ENTRADA.join(', ')}.`);
+
+  const [ano, mes] = data.split('-').map(Number);
+  const dados = { descricao: descricao.trim().slice(0, 200), valor, data, categoria, mes, ano };
+
+  let entradaId = id;
+  if (id) {
+    const ref  = db.collection('outrasEntradasPJ').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Lançamento não encontrado.');
+    if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+    await ref.update(dados);
+  } else {
+    const ref = await db.collection('outrasEntradasPJ')
+      .add({ ...dados, uid, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    entradaId = ref.id;
+  }
+  return { id: entradaId, ok: true };
+});
+
+exports.deleteOutraEntradaPJ = onCall({}, async (request) => {
+  const { uid, id } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  const ref  = db.collection('outrasEntradasPJ').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Lançamento não encontrado.');
   if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
   await ref.delete();
   return { ok: true };
@@ -5941,6 +6054,21 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
       descricao: `Recebimento (${r.formaPagamento})${r.parcelaTotal ? ` ${r.parcelaAtual}/${r.parcelaTotal}` : ''}`,
       valor: r.valorLiquido,
       confirmado: !!r.dataRecebimento,
+    });
+  });
+
+  // Entradas: lançamentos avulsos que não são venda (aporte de sócio,
+  // reembolso, outro) — não passam por nota fiscal nem entram na DRE, só no
+  // caixa (achado 27/07/2026).
+  const CATEGORIA_LABEL_ENTRADA = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outra entrada' };
+  const outrasSnap = await db.collection('outrasEntradasPJ')
+    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
+  outrasSnap.docs.forEach(d => {
+    const o = d.data();
+    movimentos.push({
+      data: o.data, tipo: 'entrada',
+      descricao: `${CATEGORIA_LABEL_ENTRADA[o.categoria] || 'Outra entrada'}: ${o.descricao}`,
+      valor: o.valor, confirmado: true,
     });
   });
 

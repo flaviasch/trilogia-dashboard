@@ -68,6 +68,7 @@
       <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
       <p class="empresa-nome" id="empresaNome">—</p>
       <nav class="nav-pj">
+        <a href="notas-pj.html">Notas</a>
         <a href="impostos-pj.html">Impostos</a>
         <a href="despesas-pj.html">Despesas</a>
         <a href="fluxo-caixa-pj.html" class="ativo">Fluxo de Caixa</a>
@@ -124,7 +125,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, getFluxoCaixaPJ, atualizarSaldoCaixaPJ, msgErro } from './js/api.js?v=45';
+    import { getContaPJ, getFluxoCaixaPJ, atualizarSaldoCaixaPJ, msgErro } from './js/api.js?v=46';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',

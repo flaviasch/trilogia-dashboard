@@ -711,6 +711,18 @@ export async function atualizarSaldoCaixaPJ(uid, saldo) {
   return callPJ('atualizarSaldoCaixaPJ')({ uid, saldo });
 }
 
+// Entradas de caixa que não são venda (aporte de sócio, reembolso, outro) —
+// não passam por nota fiscal nem entram na DRE, só no Fluxo de Caixa.
+export async function getOutrasEntradasPJ(uid, mes, ano) {
+  return callPJ('getOutrasEntradasPJ')({ uid, mes, ano });
+}
+export async function saveOutraEntradaPJ(uid, dados) {
+  return callPJ('saveOutraEntradaPJ')({ uid, ...dados });
+}
+export async function deleteOutraEntradaPJ(uid, id) {
+  return callPJ('deleteOutraEntradaPJ')({ uid, id });
+}
+
 // ─── CRM Pipeline ────────────────────────────────────────────────────────────
 
 /** Retorna todos os leads (filtros opcionais: segmento, estagio, origem). */

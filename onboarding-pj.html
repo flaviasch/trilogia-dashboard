@@ -121,7 +121,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { salvarOnboardingPJ } from './js/api.js?v=45';
+    import { salvarOnboardingPJ } from './js/api.js?v=46';
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     let currentUser = null;
@@ -160,7 +160,7 @@
       btnSalvar.textContent = 'Salvando…';
       try {
         await salvarOnboardingPJ(currentUser.uid, { nomeEmpresa, cnpj: cnpj || null, regime });
-        window.location.href = 'impostos-pj.html';
+        window.location.href = 'notas-pj.html';
       } catch (err) {
         showError(err?.message || 'Erro ao salvar. Tente novamente.');
         btnSalvar.disabled = false;

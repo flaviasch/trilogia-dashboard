@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard PJ — Notas</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45; --navy-dark: #081e30;
+      --gold: #CFAE65; --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.1);
+      --text-muted: rgba(255,255,255,0.45);
+      --positive: #4ade80; --negative: #f87171;
+      --card-bg: rgba(255,255,255,0.03);
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--navy);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
+    .empresa-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .nav-pj { display: flex; gap: 4px; }
+    .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+    .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
+    .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+    .mes-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .btn-mes { background: var(--card-bg); border: 1px solid var(--border); color: var(--white); border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 14px; }
+    .mes-label { font-size: 15px; font-weight: 600; min-width: 140px; text-align: center; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .kpi-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .kpi-value { font-size: 22px; font-weight: 700; }
+    .kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .secao-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .secao-titulo { font-size: 14px; font-weight: 600; }
+    .btn-acao { background: var(--gold); color: var(--navy); border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .btn-acao-secundario { background: none; border: 1px solid rgba(207,174,101,0.4); color: var(--gold); border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .card-lista { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 4px 20px; }
+    .vazio { padding: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    .badge-pago { background: rgba(74,222,128,.15); color: var(--positive); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
+    .field-group input, .field-group select { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-group select option { background: var(--navy); }
+    .field-row { display: flex; gap: 10px; }
+    .field-row .field-group { flex: 1; }
+    .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
+      <p class="empresa-nome" id="empresaNome">—</p>
+      <nav class="nav-pj">
+        <a href="notas-pj.html" class="ativo">Notas</a>
+        <a href="impostos-pj.html">Impostos</a>
+        <a href="despesas-pj.html">Despesas</a>
+        <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
+      </nav>
+    </div>
+    <button class="btn-logout" id="btnLogout">Sair</button>
+  </header>
+
+  <main>
+    <h1>Notas emitidas</h1>
+    <p class="subtitulo">Lance suas notas aqui — elas alimentam automaticamente os Impostos previstos e o Fluxo de Caixa.</p>
+
+    <div class="mes-nav">
+      <button class="btn-mes" id="mesAnterior">‹</button>
+      <span class="mes-label" id="mesLabel">—</span>
+      <button class="btn-mes" id="mesProximo">›</button>
+      <button class="btn-acao" id="btnNovaNota" style="margin-left:auto">+ Nova nota</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi-card">
+        <div class="kpi-label">Total faturado no mês</div>
+        <div class="kpi-value" id="totalNotas">—</div>
+        <div class="kpi-sub" id="totalNotasSub">—</div>
+      </div>
+    </div>
+
+    <div class="card-lista" id="listaNotas"></div>
+
+    <div class="secao-header" style="margin-top:28px">
+      <span class="secao-titulo">Outras entradas</span>
+      <button class="btn-acao-secundario" id="btnNovaOutraEntrada">+ Lançar entrada</button>
+    </div>
+    <p class="subtitulo" style="margin-top:-6px">Dinheiro que entra no caixa sem ser venda — aporte de sócio ou reembolso. Não conta como faturamento nem aparece nos Impostos.</p>
+    <div class="card-lista" id="listaOutrasEntradas"></div>
+  </main>
+
+  <!-- Modal: Nota emitida -->
+  <div class="modal-overlay hidden" id="modalNota">
+    <div class="modal-card">
+      <h3 id="tituloModalNota">Nova nota</h3>
+      <input type="hidden" id="notaId">
+      <div class="field-group">
+        <label for="notaValor">Valor</label>
+        <input type="number" id="notaValor" placeholder="0" min="0" step="0.01">
+      </div>
+      <div class="field-group">
+        <label for="notaCompetencia">Competência</label>
+        <input type="month" id="notaCompetencia">
+      </div>
+      <div class="field-group">
+        <label for="notaDataEmissao">Data de emissão</label>
+        <input type="date" id="notaDataEmissao">
+      </div>
+
+      <div id="blocoFormaPagamento">
+        <div class="field-group">
+          <label for="notaForma">Como você recebeu (ou vai receber)?</label>
+          <select id="notaForma">
+            <option value="pix">PIX</option>
+            <option value="dinheiro">Dinheiro</option>
+            <option value="debito">Débito</option>
+            <option value="credito_avista">Crédito à vista</option>
+            <option value="credito_parcelado">Crédito parcelado</option>
+            <option value="boleto">Boleto</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="field-row" id="fgNotaParcelas" style="display:none">
+          <div class="field-group">
+            <label for="notaNumParcelas">Em quantas parcelas</label>
+            <input type="number" id="notaNumParcelas" min="2" max="24" value="2">
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="notaTaxaTotal">Taxa total descontada (R$, opcional)</label>
+          <input type="number" id="notaTaxaTotal" placeholder="0" min="0" step="0.01" value="0">
+        </div>
+        <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">
+          Já lançamos o(s) recebimento(s) pra você, com valor e data sugeridos — ajuste depois em "💰 Recebimentos" se a divisão real for diferente.
+        </p>
+      </div>
+      <p id="notaEditandoNota" style="display:none;font-size:11px;color:var(--text-muted);margin-bottom:14px">
+        Forma de pagamento e parcelas só são definidas ao lançar a nota nova. Pra ajustar os recebimentos desta nota, use "💰 Recebimentos" na lista.
+      </p>
+
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarNota">Cancelar</button>
+        <button class="btn-save" id="btnSalvarNota">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Recebimentos de uma nota (Contas a Receber) -->
+  <div class="modal-overlay hidden" id="modalRecebimentos">
+    <div class="modal-card">
+      <h3>Recebimentos</h3>
+      <p id="recebNotaResumo" class="subtitulo" style="margin-bottom:14px"></p>
+      <input type="hidden" id="recebNotaId">
+      <div id="listaRecebimentos" style="margin-bottom:14px;max-height:260px;overflow-y:auto"></div>
+      <button class="btn-acao-secundario" id="btnAddRecebimento" style="width:100%">+ Adicionar recebimento</button>
+      <div id="formRecebimento" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <input type="hidden" id="recebId">
+        <div class="field-group">
+          <label for="recebForma">Forma de pagamento</label>
+          <select id="recebForma">
+            <option value="pix">PIX</option>
+            <option value="dinheiro">Dinheiro</option>
+            <option value="debito">Débito</option>
+            <option value="credito_avista">Crédito à vista</option>
+            <option value="credito_parcelado">Crédito parcelado</option>
+            <option value="boleto">Boleto</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label for="recebValorBruto">Valor bruto (o que o cliente pagou)</label>
+            <input type="number" id="recebValorBruto" placeholder="0" min="0" step="0.01">
+          </div>
+          <div class="field-group">
+            <label for="recebTaxa">Taxa descontada (R$, opcional)</label>
+            <input type="number" id="recebTaxa" placeholder="0" min="0" step="0.01" value="0">
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="recebDataPrevista">Data prevista de recebimento</label>
+          <input type="date" id="recebDataPrevista">
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label for="recebParcelaAtual">Parcela (opcional)</label>
+            <input type="number" id="recebParcelaAtual" min="1" placeholder="Ex: 2">
+          </div>
+          <div class="field-group">
+            <label for="recebParcelaTotal">de quantas</label>
+            <input type="number" id="recebParcelaTotal" min="1" placeholder="Ex: 3">
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">A data prevista já vem sugerida pela forma de pagamento — ajuste se sua maquininha/adquirente trabalha com prazo diferente.</p>
+        <div class="modal-acoes">
+          <button class="btn-cancel" id="btnCancelarRecebimento">Cancelar</button>
+          <button class="btn-save" id="btnSalvarRecebimento">Salvar recebimento</button>
+        </div>
+      </div>
+      <div class="modal-acoes" style="margin-top:16px">
+        <button class="btn-cancel" id="btnFecharModalRecebimentos" style="width:100%">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Outra entrada (aporte de sócio / reembolso) -->
+  <div class="modal-overlay hidden" id="modalOutraEntrada">
+    <div class="modal-card">
+      <h3 id="tituloModalOutraEntrada">Nova entrada</h3>
+      <input type="hidden" id="outraId">
+      <div class="field-group">
+        <label for="outraCategoria">Categoria</label>
+        <select id="outraCategoria">
+          <option value="aporte_socio">Aporte de sócio</option>
+          <option value="reembolso">Reembolso</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label for="outraDescricao">Descrição</label>
+        <input type="text" id="outraDescricao" placeholder="Ex: Aporte para capital de giro">
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label for="outraValor">Valor</label>
+          <input type="number" id="outraValor" placeholder="0" min="0" step="0.01">
+        </div>
+        <div class="field-group">
+          <label for="outraData">Data</label>
+          <input type="date" id="outraData">
+        </div>
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarOutraEntrada">Cancelar</button>
+        <button class="btn-save" id="btnSalvarOutraEntrada">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import {
+      getContaPJ,
+      getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
+      getRecebimentosNota, salvarRecebimento, confirmarRecebimento, estornarRecebimento, deleteRecebimento,
+      getOutrasEntradasPJ, saveOutraEntradaPJ, deleteOutraEntradaPJ,
+      msgErro,
+    } from './js/api.js?v=46';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+      'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    function fmtData(iso) {
+      if (!iso) return '—';
+      const [a, m, d] = iso.split('-');
+      return `${d}/${m}/${a}`;
+    }
+    const FORMA_LABEL = { pix: 'PIX', dinheiro: 'Dinheiro', debito: 'Débito', credito_avista: 'Crédito à vista', credito_parcelado: 'Crédito parcelado', boleto: 'Boleto', outro: 'Outro' };
+    const SUGESTAO_PRAZO_DIAS = { pix: 0, dinheiro: 0, debito: 2, credito_avista: 30, credito_parcelado: 30, boleto: 3, outro: 0 };
+    function somarDias(iso, dias) {
+      const d = new Date(iso + 'T00:00:00');
+      d.setDate(d.getDate() + dias);
+      return d.toISOString().slice(0, 10);
+    }
+
+    let currentUser = null;
+    let mesAtual = new Date().getMonth() + 1;
+    let anoAtual = new Date().getFullYear();
+    let _notasCache = [];
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login-pj.html';
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login-pj.html'; return; }
+      currentUser = user;
+      try {
+        const conta = await getContaPJ(user.uid);
+        if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+        if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+        document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
+      } catch (err) {
+        console.error('[notas-pj] Falha ao carregar conta:', err.message);
+      }
+      renderNotas();
+      renderOutrasEntradas();
+    });
+
+    async function renderNotas() {
+      document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
+      try { _notasCache = await getNotasEmitidas(currentUser.uid, mesAtual, anoAtual); }
+      catch (err) { alert(msgErro(err)); return; }
+
+      const total = _notasCache.reduce((s, n) => s + (n.valor || 0), 0);
+      document.getElementById('totalNotas').textContent = brl(total);
+      document.getElementById('totalNotasSub').textContent = `${_notasCache.length} nota${_notasCache.length !== 1 ? 's' : ''}`;
+
+      const el = document.getElementById('listaNotas');
+      if (!_notasCache.length) {
+        el.innerHTML = `<p class="vazio">Nenhuma nota emitida cadastrada nesta competência ainda.</p>`;
+        return;
+      }
+      el.innerHTML = _notasCache.map(n => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:13px;color:var(--text-muted)">Emitida em ${fmtData(n.dataEmissao)}</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <strong style="font-size:14px">${brl(n.valor)}</strong>
+            <button data-nota-recebimentos="${n.id}" title="Recebimentos" style="background:none;border:1px solid rgba(207,174,101,.3);color:var(--gold);cursor:pointer;font-size:11px;padding:3px 8px;border-radius:4px">💰 Recebimentos</button>
+            <button data-nota-editar="${n.id}" title="Editar" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✎</button>
+            <button data-nota-excluir="${n.id}" title="Excluir" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+          </div>
+        </div>`).join('');
+      el.querySelectorAll('[data-nota-recebimentos]').forEach(b => b.addEventListener('click', () => abrirModalRecebimentos(_notasCache.find(n => n.id === b.dataset.notaRecebimentos))));
+      el.querySelectorAll('[data-nota-editar]').forEach(b => b.addEventListener('click', () => abrirModalNota(_notasCache.find(n => n.id === b.dataset.notaEditar))));
+      el.querySelectorAll('[data-nota-excluir]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Excluir esta nota emitida? Os tributos automáticos (%) desta competência serão recalculados, e os recebimentos lançados pra ela serão apagados junto.')) return;
+        try { await deleteNotaEmitida(currentUser.uid, b.dataset.notaExcluir); renderNotas(); }
+        catch (err) { alert(msgErro(err)); }
+      }));
+    }
+
+    document.getElementById('mesAnterior').addEventListener('click', () => {
+      mesAtual--; if (mesAtual < 1) { mesAtual = 12; anoAtual--; }
+      renderNotas();
+      renderOutrasEntradas();
+    });
+    document.getElementById('mesProximo').addEventListener('click', () => {
+      mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
+      renderNotas();
+      renderOutrasEntradas();
+    });
+
+    // ── Outras entradas (aporte de sócio / reembolso) ──
+    const CATEGORIA_LABEL = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outro' };
+    let _outrasCache = [];
+    async function renderOutrasEntradas() {
+      try { _outrasCache = await getOutrasEntradasPJ(currentUser.uid, mesAtual, anoAtual); }
+      catch (err) { alert(msgErro(err)); return; }
+      const el = document.getElementById('listaOutrasEntradas');
+      if (!_outrasCache.length) {
+        el.innerHTML = `<p class="vazio">Nenhuma entrada avulsa lançada neste mês.</p>`;
+        return;
+      }
+      el.innerHTML = _outrasCache.map(o => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:14px;font-weight:600">${o.descricao}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${CATEGORIA_LABEL[o.categoria] || o.categoria} · ${fmtData(o.data)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <strong style="font-size:14px">${brl(o.valor)}</strong>
+            <button data-outra-editar="${o.id}" title="Editar" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✎</button>
+            <button data-outra-excluir="${o.id}" title="Excluir" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+          </div>
+        </div>`).join('');
+      el.querySelectorAll('[data-outra-editar]').forEach(b => b.addEventListener('click', () => abrirModalOutraEntrada(_outrasCache.find(o => o.id === b.dataset.outraEditar))));
+      el.querySelectorAll('[data-outra-excluir]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Excluir esta entrada?')) return;
+        try { await deleteOutraEntradaPJ(currentUser.uid, b.dataset.outraExcluir); renderOutrasEntradas(); }
+        catch (err) { alert(msgErro(err)); }
+      }));
+    }
+
+    const modalOutraEntrada = document.getElementById('modalOutraEntrada');
+    function abrirModalOutraEntrada(outra = null) {
+      document.getElementById('tituloModalOutraEntrada').textContent = outra ? 'Editar entrada' : 'Nova entrada';
+      document.getElementById('outraId').value = outra?.id || '';
+      document.getElementById('outraCategoria').value = outra?.categoria || 'aporte_socio';
+      document.getElementById('outraDescricao').value = outra?.descricao || '';
+      document.getElementById('outraValor').value = outra?.valor ?? '';
+      document.getElementById('outraData').value = outra?.data || new Date().toISOString().slice(0, 10);
+      modalOutraEntrada.classList.remove('hidden');
+    }
+    document.getElementById('btnNovaOutraEntrada').addEventListener('click', () => abrirModalOutraEntrada());
+    document.getElementById('btnCancelarOutraEntrada').addEventListener('click', () => modalOutraEntrada.classList.add('hidden'));
+    modalOutraEntrada.addEventListener('click', e => { if (e.target === modalOutraEntrada) modalOutraEntrada.classList.add('hidden'); });
+
+    document.getElementById('btnSalvarOutraEntrada').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarOutraEntrada');
+      const id = document.getElementById('outraId').value || undefined;
+      const categoria = document.getElementById('outraCategoria').value;
+      const descricao = document.getElementById('outraDescricao').value.trim();
+      const valor = parseFloat(document.getElementById('outraValor').value);
+      const data = document.getElementById('outraData').value;
+
+      if (!descricao) { alert('Descreva a entrada.'); return; }
+      if (isNaN(valor) || valor <= 0) { alert('Informe um valor válido.'); return; }
+      if (!data) { alert('Informe a data.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await saveOutraEntradaPJ(currentUser.uid, { id, categoria, descricao, valor, data });
+        modalOutraEntrada.classList.add('hidden');
+        const [ano, mes] = data.split('-').map(Number);
+        mesAtual = mes; anoAtual = ano;
+        renderNotas();
+        renderOutrasEntradas();
+      } catch (err) {
+        alert(msgErro(err));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+
+    // ── Modal: Nota emitida ──
+    const modalNota = document.getElementById('modalNota');
+    function abrirModalNota(nota = null) {
+      document.getElementById('tituloModalNota').textContent = nota ? 'Editar nota' : 'Nova nota';
+      document.getElementById('notaId').value = nota?.id || '';
+      document.getElementById('notaValor').value = nota?.valor ?? '';
+      document.getElementById('notaCompetencia').value = nota
+        ? `${nota.ano}-${String(nota.mes).padStart(2, '0')}`
+        : `${anoAtual}-${String(mesAtual).padStart(2, '0')}`;
+      document.getElementById('notaDataEmissao').value = nota?.dataEmissao || new Date().toISOString().slice(0, 10);
+      // Forma de pagamento/parcelas/taxa só existem no lançamento de nota
+      // nova — numa edição, os recebimentos já lançados não são regerados
+      // (evita apagar confirmações reais), então esconde o bloco e mostra o
+      // aviso explicando onde ajustar.
+      document.getElementById('blocoFormaPagamento').style.display = nota ? 'none' : '';
+      document.getElementById('notaEditandoNota').style.display = nota ? '' : 'none';
+      if (!nota) {
+        document.getElementById('notaForma').value = 'pix';
+        document.getElementById('notaNumParcelas').value = 2;
+        document.getElementById('notaTaxaTotal').value = 0;
+        document.getElementById('fgNotaParcelas').style.display = 'none';
+      }
+      modalNota.classList.remove('hidden');
+    }
+    document.getElementById('btnNovaNota').addEventListener('click', () => abrirModalNota());
+    document.getElementById('btnCancelarNota').addEventListener('click', () => modalNota.classList.add('hidden'));
+    modalNota.addEventListener('click', e => { if (e.target === modalNota) modalNota.classList.add('hidden'); });
+    document.getElementById('notaForma').addEventListener('change', (e) => {
+      document.getElementById('fgNotaParcelas').style.display = e.target.value === 'credito_parcelado' ? '' : 'none';
+    });
+
+    document.getElementById('btnSalvarNota').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarNota');
+      const id  = document.getElementById('notaId').value || undefined;
+      const valor = parseFloat(document.getElementById('notaValor').value);
+      const competencia = document.getElementById('notaCompetencia').value;
+      const dataEmissao = document.getElementById('notaDataEmissao').value || null;
+      if (isNaN(valor) || valor <= 0) { alert('Informe um valor válido.'); return; }
+      if (!competencia) { alert('Informe a competência.'); return; }
+      const [ano, mes] = competencia.split('-').map(Number);
+
+      const dadosExtra = id ? {} : {
+        formaPagamento: document.getElementById('notaForma').value,
+        numeroParcelas: parseInt(document.getElementById('notaNumParcelas').value, 10) || 2,
+        taxaTotal: parseFloat(document.getElementById('notaTaxaTotal').value) || 0,
+      };
+
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await saveNotaEmitida(currentUser.uid, { id, valor, mes, ano, dataEmissao, ...dadosExtra });
+        modalNota.classList.add('hidden');
+        mesAtual = mes; anoAtual = ano;
+        renderNotas();
+      } catch (err) {
+        alert(msgErro(err));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+
+    // ── Modal: Recebimentos (Contas a Receber) ──
+    const modalRecebimentos = document.getElementById('modalRecebimentos');
+    let _notaRecebimentosAtual = null;
+    let _recebimentosCache = [];
+
+    async function abrirModalRecebimentos(nota) {
+      _notaRecebimentosAtual = nota;
+      document.getElementById('recebNotaId').value = nota.id;
+      document.getElementById('recebNotaResumo').textContent =
+        `Nota de ${brl(nota.valor)} emitida em ${fmtData(nota.dataEmissao)}`;
+      try { _recebimentosCache = await getRecebimentosNota(currentUser.uid, nota.id); }
+      catch (err) { _recebimentosCache = []; alert(msgErro(err)); }
+      renderListaRecebimentos();
+      document.getElementById('formRecebimento').style.display = 'none';
+      modalRecebimentos.classList.remove('hidden');
+    }
+    document.getElementById('btnFecharModalRecebimentos').addEventListener('click', () => modalRecebimentos.classList.add('hidden'));
+    modalRecebimentos.addEventListener('click', e => { if (e.target === modalRecebimentos) modalRecebimentos.classList.add('hidden'); });
+
+    function renderListaRecebimentos() {
+      const el = document.getElementById('listaRecebimentos');
+      if (!_recebimentosCache.length) {
+        el.innerHTML = `<p class="vazio">Nenhum recebimento lançado ainda.</p>`;
+        return;
+      }
+      const totalLiquido = _recebimentosCache.reduce((s, r) => s + (r.valorLiquido || 0), 0);
+      const diffValor = totalLiquido - (_notaRecebimentosAtual?.valor || 0);
+      el.innerHTML = _recebimentosCache.map(r => `
+        <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:14px;font-weight:600">${FORMA_LABEL[r.formaPagamento] || r.formaPagamento}${r.parcelaTotal ? ` · ${r.parcelaAtual}/${r.parcelaTotal}` : ''}</div>
+              <div style="font-size:12px;color:var(--text-muted)">
+                ${brl(r.valorLiquido)} líquido${r.taxa > 0 ? ` (bruto ${brl(r.valorBruto)} − taxa ${brl(r.taxa)})` : ''}
+                · ${r.dataRecebimento ? `recebido em ${fmtData(r.dataRecebimento)}` : `previsto para ${fmtData(r.dataPrevista)}`}
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              ${r.dataRecebimento
+                ? `<span class="badge-pago">Confirmado</span><button data-receb-estornar="${r.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px">desfazer</button>`
+                : `<button data-receb-confirmar="${r.id}" style="background:none;border:1px solid rgba(74,222,128,.3);color:var(--positive);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:4px">✓ Confirmar</button>`}
+              <button data-receb-editar="${r.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✎</button>
+              <button data-receb-excluir="${r.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+            </div>
+          </div>
+        </div>`).join('')
+        + (Math.abs(diffValor) > 0.01
+          ? `<p style="font-size:11px;color:var(--text-muted);margin-top:10px">Total líquido dos recebimentos (${brl(totalLiquido)}) ${diffValor > 0 ? 'maior' : 'menor'} que o valor da nota (${brl(_notaRecebimentosAtual.valor)}) — normal quando há juros ou taxas de cartão.</p>`
+          : '');
+
+      el.querySelectorAll('[data-receb-editar]').forEach(b => b.addEventListener('click', () => abrirFormRecebimento(_recebimentosCache.find(r => r.id === b.dataset.recebEditar))));
+      el.querySelectorAll('[data-receb-excluir]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Excluir este recebimento?')) return;
+        try { await deleteRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebExcluir); await abrirModalRecebimentos(_notaRecebimentosAtual); }
+        catch (err) { alert(msgErro(err)); }
+      }));
+      el.querySelectorAll('[data-receb-confirmar]').forEach(b => b.addEventListener('click', async () => {
+        const hoje = new Date().toISOString().slice(0, 10);
+        const data = prompt('Data em que o valor caiu (AAAA-MM-DD):', hoje);
+        if (!data) return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { alert('Data inválida — use o formato AAAA-MM-DD.'); return; }
+        try { await confirmarRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebConfirmar, data); await abrirModalRecebimentos(_notaRecebimentosAtual); }
+        catch (err) { alert(msgErro(err)); }
+      }));
+      el.querySelectorAll('[data-receb-estornar]').forEach(b => b.addEventListener('click', async () => {
+        try { await estornarRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebEstornar); await abrirModalRecebimentos(_notaRecebimentosAtual); }
+        catch (err) { alert(msgErro(err)); }
+      }));
+    }
+
+    function abrirFormRecebimento(receb = null) {
+      document.getElementById('recebId').value = receb?.id || '';
+      document.getElementById('recebForma').value = receb?.formaPagamento || 'pix';
+      document.getElementById('recebValorBruto').value = receb?.valorBruto ?? (
+        Math.max(0, (_notaRecebimentosAtual?.valor || 0) - _recebimentosCache.reduce((s, r) => s + (r.valorBruto || 0), 0)) || _notaRecebimentosAtual?.valor || ''
+      );
+      document.getElementById('recebTaxa').value = receb?.taxa ?? 0;
+      document.getElementById('recebDataPrevista').value = receb?.dataPrevista
+        || somarDias(_notaRecebimentosAtual?.dataEmissao, SUGESTAO_PRAZO_DIAS['pix']);
+      document.getElementById('recebParcelaAtual').value = receb?.parcelaAtual ?? '';
+      document.getElementById('recebParcelaTotal').value = receb?.parcelaTotal ?? '';
+      document.getElementById('formRecebimento').style.display = '';
+    }
+    document.getElementById('recebForma').addEventListener('change', (e) => {
+      if (document.getElementById('recebId').value) return;
+      document.getElementById('recebDataPrevista').value =
+        somarDias(_notaRecebimentosAtual?.dataEmissao, SUGESTAO_PRAZO_DIAS[e.target.value] ?? 0);
+    });
+    document.getElementById('btnAddRecebimento').addEventListener('click', () => abrirFormRecebimento());
+    document.getElementById('btnCancelarRecebimento').addEventListener('click', () => { document.getElementById('formRecebimento').style.display = 'none'; });
+
+    document.getElementById('btnSalvarRecebimento').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarRecebimento');
+      const id = document.getElementById('recebId').value || undefined;
+      const formaPagamento = document.getElementById('recebForma').value;
+      const valorBruto = parseFloat(document.getElementById('recebValorBruto').value);
+      const taxa = parseFloat(document.getElementById('recebTaxa').value) || 0;
+      const dataPrevista = document.getElementById('recebDataPrevista').value;
+      const parcelaAtualVal = parseInt(document.getElementById('recebParcelaAtual').value, 10);
+      const parcelaTotalVal = parseInt(document.getElementById('recebParcelaTotal').value, 10);
+
+      if (isNaN(valorBruto) || valorBruto <= 0) { alert('Informe um valor bruto válido.'); return; }
+      if (taxa > valorBruto) { alert('A taxa não pode ser maior que o valor bruto.'); return; }
+      if (!dataPrevista) { alert('Informe a data prevista.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await salvarRecebimento(currentUser.uid, _notaRecebimentosAtual.id, {
+          id, formaPagamento, valorBruto, taxa, dataPrevista,
+          parcelaAtual: Number.isInteger(parcelaAtualVal) ? parcelaAtualVal : null,
+          parcelaTotal: Number.isInteger(parcelaTotalVal) ? parcelaTotalVal : null,
+        });
+        await abrirModalRecebimentos(_notaRecebimentosAtual);
+      } catch (err) {
+        alert(msgErro(err));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar recebimento';
+      }
+    });
+  </script>
+
+</body>
+</html>

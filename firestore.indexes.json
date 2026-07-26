@@ -68,6 +68,16 @@
         { "fieldPath": "uid",         "order": "ASCENDING" },
         { "fieldPath": "vencimento",  "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "outrasEntradasPJ",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "mes", "order": "ASCENDING" },
+        { "fieldPath": "ano", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
