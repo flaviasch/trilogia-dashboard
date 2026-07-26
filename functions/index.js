@@ -620,12 +620,16 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
   // liberado inteiro, só com um banner de upsell por cima. dataExpiracao
   // sozinha não bastava: uma mentoria pode estar `mentoriaEncerrada: true`
   // com dataExpiracao ainda no futuro, sobrando de quando o contrato foi
-  // criado). Admin (viewAsUid) sempre passa, pra poder inspecionar a conta.
+  // criado. Sem exceção pra PJ ativo aqui, de propósito: PJ ativo é motivo
+  // pra manter o Auth compartilhado habilitado — pra login-pj/impostos-pj
+  // continuarem funcionando — mas não é motivo pra liberar o conteúdo
+  // financeiro do PF de graça, que é um produto separado. achado 26/07/2026,
+  // Flávia: "não deveria [continuar acessando o PF]" testando com PJ ativo).
+  // Admin (viewAsUid) sempre passa, pra poder inspecionar a conta.
   const hoje = agora.toISOString().slice(0, 10);
   const semAssinaturaAtiva = assinaturaDashboard !== true && assinaturaClube !== true;
   const mentoriaAcabou = mentoriaEncerrada === true || (dataExpiracao && dataExpiracao <= hoje);
-  const acessoExpirado = !isAdminUser && semAssinaturaAtiva && mentoriaAcabou
-    && !(await _temAcessoPJAtivo(uid));
+  const acessoExpirado = !isAdminUser && semAssinaturaAtiva && mentoriaAcabou;
   if (acessoExpirado) {
     return { acessoBloqueado: true, nome: nome || null, inicio: inicio || null, lgpdAceite: lgpdAceite || false };
   }
