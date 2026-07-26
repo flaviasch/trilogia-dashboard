@@ -166,9 +166,10 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ } from './js/api.js?v=43';
+    import { getContaPJ } from './js/api.js?v=44';
     import {
       signInWithEmailAndPassword,
+      signOut,
       onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -179,6 +180,16 @@
       jaRedirecionando = true;
       try {
         const conta = await getContaPJ(user.uid);
+        // ativo controlado à parte do Auth (achado 26/07/2026: o Auth é
+        // compartilhado com a conta PF, então não dá pra usar auth/user-disabled
+        // pra bloquear só o PJ) — se a Flávia desativou o acesso PJ, desloga e
+        // avisa aqui, sem mexer na sessão da conta PF que pode continuar ativa.
+        if (conta && conta.ativo === false) {
+          await signOut(auth);
+          jaRedirecionando = false;
+          showError('Seu acesso ao Dashboard PJ está suspenso. Entre em contato com a Flávia.');
+          return;
+        }
         window.location.href = conta ? 'impostos-pj.html' : 'onboarding-pj.html';
       } catch (err) {
         jaRedirecionando = false;

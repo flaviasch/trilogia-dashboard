@@ -242,7 +242,7 @@
       getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
       getImpostosPrevistos, marcarImpostoPago, deleteImpostoPrevisto,
       msgErro,
-    } from './js/api.js?v=43';
+    } from './js/api.js?v=44';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -305,6 +305,10 @@
       try {
         const conta = await getContaPJ(user.uid);
         if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+        // ativo é controlado à parte do Auth (achado 26/07/2026) — se a
+        // Flávia desativou o acesso PJ enquanto a aba já estava aberta,
+        // desloga e manda de volta pro login-pj, que mostra o aviso.
+        if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
         contaAtual = conta;
         document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
       } catch (err) {

@@ -990,6 +990,13 @@
         <button id="btnToggleDashboard" style="border:2px solid var(--border);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:transparent;color:var(--text-muted)">Dashboard: —</button>
       </div>
 
+      <!-- Toggle PJ (só aparece se esse uid tiver conta PJ — independente do
+           Dashboard/Clube PF, mesmo Auth compartilhado, achado 26/07/2026) -->
+      <div id="blocoTogglePJ" style="display:none;margin-top:10px;padding:14px 18px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;align-items:center;justify-content:space-between">
+        <span style="font-size:13px;color:var(--text-secondary);font-weight:600">🏢 Dashboard PJ</span>
+        <button id="btnTogglePJ" style="border:2px solid var(--border);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:transparent;color:var(--text-muted)">PJ: —</button>
+      </div>
+
       <!-- Ações rápidas -->
       <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn-acao" id="btnAbrirDashboard">Ver dashboard dela</button>
@@ -2000,7 +2007,8 @@
              getTributosConfig, saveTributoConfig, deleteTributoConfig,
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
-             msgErro } from './js/api.js?v=43';
+             getContaPJ, definirAcessoPJ,
+             msgErro } from './js/api.js?v=44';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -3005,6 +3013,41 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       }
     }
 
+    // Toggle PJ (achado 26/07/2026): getContaPJ aceita qualquer uid quando
+    // chamado por admin (requireSelfOrAdmin), então dá pra checar se essa
+    // mentorada também tem conta PJ sem precisar de função nova só pra isso.
+    async function carregarStatusPJ(uid) {
+      const bloco = document.getElementById('blocoTogglePJ');
+      const btn   = document.getElementById('btnTogglePJ');
+      try {
+        const conta = await getContaPJ(uid);
+        // Evita aplicar resposta atrasada se a usuária já abriu outro detalhe.
+        if ((mentoradaEmDetalhe?.uid || mentoradaEmDetalhe?.id) !== uid) return;
+        contaPJDoDetalhe = conta;
+        if (!conta) { bloco.style.display = 'none'; return; }
+        bloco.style.display = 'flex';
+        renderBotaoPJ(conta.ativo !== false);
+      } catch (e) {
+        if ((mentoradaEmDetalhe?.uid || mentoradaEmDetalhe?.id) !== uid) return;
+        contaPJDoDetalhe = null;
+        bloco.style.display = 'none';
+      }
+    }
+    function renderBotaoPJ(ativo) {
+      const btn = document.getElementById('btnTogglePJ');
+      if (ativo) {
+        btn.textContent = '🏢 PJ: ativo';
+        btn.style.background = 'var(--gold)';
+        btn.style.borderColor = 'var(--gold)';
+        btn.style.color = 'var(--navy)';
+      } else {
+        btn.textContent = 'PJ: inativo';
+        btn.style.background = 'transparent';
+        btn.style.borderColor = 'var(--border)';
+        btn.style.color = 'var(--text-muted)';
+      }
+    }
+
     async function carregarNotionCRM(uid) {
       const el = document.getElementById('detNotionConteudo');
       if (!el) return;
@@ -3321,6 +3364,12 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         }
       }
 
+      // Toggle PJ — carrega em background (só aparece se essa uid tiver
+      // conta PJ). Escondido enquanto carrega pra não piscar "PJ: —" à toa
+      // pra quem nunca vai ter conta PJ.
+      document.getElementById('blocoTogglePJ').style.display = 'none';
+      carregarStatusPJ(uid);
+
       // Nota
       const btnNota = document.getElementById('btnSalvarNota');
       if (btnNota) btnNota.onclick = async () => {
@@ -3514,6 +3563,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 
     let mentoradaEmDetalhe  = null;
     let contratosDoDetalhe  = [];
+    let contaPJDoDetalhe    = null; // conta PJ (uid atual), ou null se não tiver
 
     document.getElementById('btnToggleClube').addEventListener('click', async () => {
       if (!mentoradaEmDetalhe) return;
@@ -3557,6 +3607,25 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         mentoradaEmDetalhe.assinaturaDashboard = novoValor;
         btn.textContent = novoValor ? '🖥 Dashboard: ativo ✓' : 'Dashboard: inativo';
         renderMentoradas();
+      } catch (err) {
+        alert(`Erro: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('btnTogglePJ').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe || !contaPJDoDetalhe) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const novoValor = !(contaPJDoDetalhe.ativo !== false);
+      const btn = document.getElementById('btnTogglePJ');
+      btn.disabled = true;
+      try {
+        // Independente do Dashboard/Clube PF — mesmo Auth compartilhado,
+        // mas acesso PJ controlado à parte (achado 26/07/2026).
+        await definirAcessoPJ(uid, novoValor);
+        contaPJDoDetalhe.ativo = novoValor;
+        renderBotaoPJ(novoValor);
       } catch (err) {
         alert(`Erro: ${err.message}`);
       } finally {

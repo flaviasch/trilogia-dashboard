@@ -4640,9 +4640,10 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         if (ehClube     || ehCombo) flagsRevogados.assinaturaClube     = false;
         if (ehMentoria) flagsRevogados.mentoriaEncerrada = true;
 
-        // Só bloqueia Auth e marca inativa se não houver dashboard ativo
-        // (mentorada pode ter encerrado a mentoria mas continuar no produto dashboard)
-        const mantemAcesso = temDashboardAtivo && !ehDashboard && !ehCombo;
+        // Só bloqueia Auth e marca inativa se não houver dashboard ativo nem
+        // conta PJ ativa (Auth é compartilhado entre PF e PJ — achado
+        // 26/07/2026: cancelar produto PF não pode derrubar acesso PJ dela).
+        const mantemAcesso = (temDashboardAtivo && !ehDashboard && !ehCombo) || await _temAcessoPJAtivo(mUid);
         if (!mantemAcesso) {
           await Promise.all([
             admin.auth().updateUser(mUid, { disabled: true }),
@@ -5585,7 +5586,9 @@ exports.getContaPJ = onCall({}, async (request) => {
 /**
  * Cria ou atualiza o onboarding da conta PJ (nome da empresa, CNPJ opcional,
  * regime tributário — campo informativo, não aciona cálculo nenhum, ver
- * BLUEPRINT do Dashboard PJ).
+ * BLUEPRINT do Dashboard PJ). `ativo` só é setado na criação (true por
+ * padrão) — depois disso é controlado só pelo admin via definirAcessoPJ,
+ * nunca reescrito aqui num reenvio do formulário de onboarding.
  */
 exports.salvarOnboardingPJ = onCall({}, async (request) => {
   const { uid, nomeEmpresa, cnpj, regime } = request.data;
@@ -5603,11 +5606,42 @@ exports.salvarOnboardingPJ = onCall({}, async (request) => {
     nomeEmpresa: nomeEmpresa.trim().slice(0, 150),
     cnpj:        cnpj ? String(cnpj).replace(/\D/g, '') : null,
     regime,
-    ...(jaExiste ? {} : { criadoEm: admin.firestore.FieldValue.serverTimestamp() }),
+    ...(jaExiste ? {} : { ativo: true, criadoEm: admin.firestore.FieldValue.serverTimestamp() }),
     atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
   return { ok: true };
 });
+
+/**
+ * Liga/desliga o acesso PJ de um uid (independente do PF — achado 26/07/2026:
+ * uma mentorada pode ter PF, PJ, ou os dois, e cada um precisa ser
+ * controlável separado, sem depender do Auth `disabled` compartilhado).
+ * Exclusivo para admin.
+ */
+exports.definirAcessoPJ = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { uid, ativo } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+  if (typeof ativo !== 'boolean') throw new HttpsError('invalid-argument', 'ativo deve ser true ou false.');
+  const ref  = db.collection('contasPJ').doc(uid);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Esta conta ainda não tem onboarding PJ.');
+  await ref.update({ ativo });
+  return { ok: true };
+});
+
+/**
+ * true se o uid tem conta PJ com acesso ativo (ativo !== false — contas
+ * criadas antes deste campo existir contam como ativas por padrão).
+ * Usado pra decidir se `verificarExpiracoes`/webhook Kiwify podem desabilitar
+ * o Auth compartilhado: se a PJ dela ainda está ativa, o Auth continua
+ * habilitado mesmo com a mentoria PF expirada (mesma lógica já aplicada a
+ * assinaturaDashboard/assinaturaClube, agora simétrica pro PJ).
+ */
+async function _temAcessoPJAtivo(uid) {
+  const snap = await db.collection('contasPJ').doc(uid).get();
+  return snap.exists && snap.data().ativo !== false;
+}
 
 // Bootstrap de conta de teste PJ é feito via script (scripts/criar-conta-pj-teste.js),
 // mesmo padrão de criar-perfil-admin.js — não precisa de Cloud Function pra
@@ -6418,6 +6452,13 @@ exports.verificarExpiracoes = onSchedule(
       }
       if (assinaturaClube === true) {
         console.log(`Mentoria expirada mas clube ativo — acesso mantido: ${doc.id}`);
+        continue;
+      }
+      // Mantém acesso se tem conta PJ ativa — o Auth é compartilhado entre
+      // PF e PJ (mesmo e-mail/senha), então desabilitar por mentoria PF
+      // expirada derrubaria o acesso PJ dela também (achado 26/07/2026).
+      if (await _temAcessoPJAtivo(doc.id)) {
+        console.log(`Mentoria expirada mas PJ ativo — acesso mantido: ${doc.id}`);
         continue;
       }
 

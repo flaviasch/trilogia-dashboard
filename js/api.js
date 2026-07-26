@@ -670,6 +670,12 @@ export async function salvarOnboardingPJ(uid, dados) {
   return callPJ('salvarOnboardingPJ')({ uid, ...dados });
 }
 
+// Admin-only — chamado de admin.html, por isso usa adminCall (não callPJ):
+// liga/desliga o acesso PJ de um uid, independente do PF (achado 26/07/2026).
+export async function definirAcessoPJ(uid, ativo) {
+  return adminCall('definirAcessoPJ')({ uid, ativo });
+}
+
 // ─── CRM Pipeline ────────────────────────────────────────────────────────────
 
 /** Retorna todos os leads (filtros opcionais: segmento, estagio, origem). */
