@@ -676,6 +676,41 @@ export async function definirAcessoPJ(uid, ativo) {
   return adminCall('definirAcessoPJ')({ uid, ativo });
 }
 
+// ─── Dashboard PJ (fatia 2: Contas a Receber, Despesas, Fluxo de Caixa) ───────
+
+export async function getRecebimentosNota(uid, notaId) {
+  return callPJ('getRecebimentosNota')({ uid, notaId });
+}
+export async function salvarRecebimento(uid, notaId, dados) {
+  return callPJ('salvarRecebimento')({ uid, notaId, ...dados });
+}
+export async function confirmarRecebimento(uid, notaId, id, dataRecebimento) {
+  return callPJ('confirmarRecebimento')({ uid, notaId, id, dataRecebimento });
+}
+export async function estornarRecebimento(uid, notaId, id) {
+  return callPJ('estornarRecebimento')({ uid, notaId, id });
+}
+export async function deleteRecebimento(uid, notaId, id) {
+  return callPJ('deleteRecebimento')({ uid, notaId, id });
+}
+
+export async function getDespesasPJ(uid) {
+  return callPJ('getDespesasPJ')({ uid });
+}
+export async function saveDespesaPJ(uid, dados) {
+  return callPJ('saveDespesaPJ')({ uid, ...dados });
+}
+export async function deleteDespesaPJ(uid, id) {
+  return callPJ('deleteDespesaPJ')({ uid, id });
+}
+
+export async function getFluxoCaixaPJ(uid, mes, ano) {
+  return callPJ('getFluxoCaixaPJ')({ uid, mes, ano });
+}
+export async function atualizarSaldoCaixaPJ(uid, saldo) {
+  return callPJ('atualizarSaldoCaixaPJ')({ uid, saldo });
+}
+
 // ─── CRM Pipeline ────────────────────────────────────────────────────────────
 
 /** Retorna todos os leads (filtros opcionais: segmento, estagio, origem). */

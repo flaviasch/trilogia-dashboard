@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard PJ — Fluxo de Caixa</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45; --navy-dark: #081e30;
+      --gold: #CFAE65; --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.1);
+      --text-muted: rgba(255,255,255,0.45);
+      --positive: #4ade80; --negative: #f87171;
+      --card-bg: rgba(255,255,255,0.03);
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--navy);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
+    .empresa-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .nav-pj { display: flex; gap: 4px; }
+    .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+    .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
+    .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+    .mes-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .btn-mes { background: var(--card-bg); border: 1px solid var(--border); color: var(--white); border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 14px; }
+    .mes-label { font-size: 15px; font-weight: 600; min-width: 140px; text-align: center; }
+    .saldo-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+    .saldo-info .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .saldo-info .kpi-value { font-size: 20px; font-weight: 700; }
+    .saldo-info .kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .kpi-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .kpi-value { font-size: 22px; font-weight: 700; }
+    .kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .pmr-nota { font-size: 12px; color: var(--text-muted); margin-bottom: 20px; }
+    .secao-titulo { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    .card-lista { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 4px 20px; }
+    .vazio { padding: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .td-fin { padding: 10px 8px; border-bottom: 1px solid var(--border); }
+    .td-fin.nome { font-weight: 600; }
+    .td-fin.valor { text-align: right; font-weight: 600; }
+    .valor-entrada { color: var(--positive); }
+    .valor-saida { color: var(--negative); }
+    .badge-previsto { background: rgba(96,165,250,.15); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-confirmado { background: rgba(74,222,128,.15); color: var(--positive); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .btn-acao-secundario { background: none; border: 1px solid rgba(207,174,101,0.4); color: var(--gold); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
+      <p class="empresa-nome" id="empresaNome">—</p>
+      <nav class="nav-pj">
+        <a href="impostos-pj.html">Impostos</a>
+        <a href="despesas-pj.html">Despesas</a>
+        <a href="fluxo-caixa-pj.html" class="ativo">Fluxo de Caixa</a>
+      </nav>
+    </div>
+    <button class="btn-logout" id="btnLogout">Sair</button>
+  </header>
+
+  <main>
+    <h1>Fluxo de Caixa</h1>
+    <p class="subtitulo">Saldo projetado do mês — entradas de recebimentos e saídas de despesas e impostos, na data real em que devem cair.</p>
+
+    <div class="mes-nav">
+      <button class="btn-mes" id="mesAnterior">‹</button>
+      <span class="mes-label" id="mesLabel">—</span>
+      <button class="btn-mes" id="mesProximo">›</button>
+    </div>
+
+    <div class="saldo-card">
+      <div class="saldo-info">
+        <div class="kpi-label">Saldo em caixa informado</div>
+        <div class="kpi-value" id="saldoAtual">—</div>
+        <div class="kpi-sub" id="saldoAtualizadoEm">Sem integração bancária — você mantém esse valor atualizado.</div>
+      </div>
+      <button class="btn-acao-secundario" id="btnEditarSaldo">Atualizar saldo</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi-card">
+        <div class="kpi-label">Entradas do mês</div>
+        <div class="kpi-value" id="totalEntradas">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Saídas do mês</div>
+        <div class="kpi-value" id="totalSaidas">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Saldo final projetado</div>
+        <div class="kpi-value" id="saldoFinal">—</div>
+      </div>
+    </div>
+
+    <p class="pmr-nota" id="pmrNota"></p>
+
+    <div class="secao-titulo">Movimentos do mês</div>
+    <div class="card-lista">
+      <table>
+        <thead><tr><th class="td-fin nome">Descrição</th><th class="td-fin">Data</th><th class="td-fin">Status</th><th class="td-fin valor">Valor</th><th class="td-fin valor">Saldo</th></tr></thead>
+        <tbody id="tabelaMovimentosBody"></tbody>
+      </table>
+      <div class="vazio" id="movimentosVazio" style="display:none">Nenhum movimento previsto para este mês.</div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getContaPJ, getFluxoCaixaPJ, atualizarSaldoCaixaPJ, msgErro } from './js/api.js?v=45';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+      'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
+    function fmtData(iso) {
+      if (!iso) return '—';
+      const [a, m, d] = iso.split('-');
+      return `${d}/${m}/${a}`;
+    }
+    function fmtDataHora(ts) {
+      if (!ts) return null;
+      const d = ts?.toDate ? ts.toDate() : (ts?._seconds ? new Date(ts._seconds * 1000) : new Date(ts));
+      if (isNaN(d)) return null;
+      return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    let currentUser = null;
+    let mesAtual = new Date().getMonth() + 1;
+    let anoAtual = new Date().getFullYear();
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login-pj.html';
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login-pj.html'; return; }
+      currentUser = user;
+      try {
+        const conta = await getContaPJ(user.uid);
+        if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+        if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+        document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
+      } catch (err) {
+        console.error('[fluxo-caixa-pj] Falha ao carregar conta:', err.message);
+      }
+      renderFluxoCaixa();
+    });
+
+    async function renderFluxoCaixa() {
+      document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
+
+      let dados;
+      try { dados = await getFluxoCaixaPJ(currentUser.uid, mesAtual, anoAtual); }
+      catch (err) { alert(msgErro(err)); return; }
+
+      document.getElementById('saldoAtual').textContent = brl(dados.saldoInicial);
+      const atualizadoEm = fmtDataHora(dados.saldoCaixaAtualizadoEm);
+      document.getElementById('saldoAtualizadoEm').textContent = atualizadoEm
+        ? `Atualizado em ${atualizadoEm}`
+        : 'Ainda não informado — atualize pra ter uma projeção real.';
+
+      const entradas = dados.movimentos.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.valor, 0);
+      const saidas   = dados.movimentos.filter(m => m.tipo === 'saida').reduce((s, m) => s + m.valor, 0);
+      document.getElementById('totalEntradas').textContent = brl(entradas);
+      document.getElementById('totalSaidas').textContent   = brl(saidas);
+      document.getElementById('saldoFinal').textContent    = brl(dados.saldoFinal);
+
+      document.getElementById('pmrNota').textContent = dados.pmrCalculado
+        ? `Seu prazo médio de recebimento (calculado a partir do seu histórico): ${dados.pmrEfetivo} dias.`
+        : `Prazo médio de recebimento ainda sem histórico suficiente — usando estimativa padrão de ${dados.pmrEfetivo} dias até você confirmar mais recebimentos.`;
+
+      const tbody = document.getElementById('tabelaMovimentosBody');
+      if (!dados.movimentos.length) {
+        document.getElementById('movimentosVazio').style.display = '';
+        tbody.innerHTML = '';
+      } else {
+        document.getElementById('movimentosVazio').style.display = 'none';
+        tbody.innerHTML = dados.movimentos.map(m => `
+          <tr>
+            <td class="td-fin nome">${m.descricao}</td>
+            <td class="td-fin">${fmtData(m.data)}</td>
+            <td class="td-fin">${m.confirmado ? '<span class="badge-confirmado">Confirmado</span>' : '<span class="badge-previsto">Previsto</span>'}</td>
+            <td class="td-fin valor ${m.tipo === 'entrada' ? 'valor-entrada' : 'valor-saida'}">${m.tipo === 'entrada' ? '+' : '−'} ${brl(m.valor)}</td>
+            <td class="td-fin valor">${brl(m.saldoAcumulado)}</td>
+          </tr>`).join('');
+      }
+    }
+
+    document.getElementById('mesAnterior').addEventListener('click', () => {
+      mesAtual--; if (mesAtual < 1) { mesAtual = 12; anoAtual--; }
+      renderFluxoCaixa();
+    });
+    document.getElementById('mesProximo').addEventListener('click', () => {
+      mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
+      renderFluxoCaixa();
+    });
+
+    document.getElementById('btnEditarSaldo').addEventListener('click', async () => {
+      const atual = document.getElementById('saldoAtual').textContent.replace(/[^\d,.-]/g, '').replace(',', '.');
+      const novo = prompt('Saldo em caixa hoje (R$):', atual || '0');
+      if (novo === null) return;
+      const valor = parseFloat(novo.replace(',', '.'));
+      if (isNaN(valor)) { alert('Valor inválido.'); return; }
+      try { await atualizarSaldoCaixaPJ(currentUser.uid, valor); renderFluxoCaixa(); }
+      catch (err) { alert(msgErro(err)); }
+    });
+  </script>
+
+</body>
+</html>

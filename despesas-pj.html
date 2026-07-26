@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard PJ — Despesas</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45; --navy-dark: #081e30;
+      --gold: #CFAE65; --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.1);
+      --text-muted: rgba(255,255,255,0.45);
+      --positive: #4ade80; --negative: #f87171;
+      --card-bg: rgba(255,255,255,0.03);
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--navy);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
+    .empresa-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .nav-pj { display: flex; gap: 4px; }
+    .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+    .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
+    .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    main { max-width: 700px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+    .secao-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .secao-titulo { font-size: 14px; font-weight: 600; }
+    .btn-acao { background: var(--gold); color: var(--navy); border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .btn-acao-secundario { background: none; border: 1px solid rgba(207,174,101,0.4); color: var(--gold); border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .card-lista { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 4px 20px; }
+    .vazio { padding: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .kpi-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .kpi-value { font-size: 22px; font-weight: 700; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
+    .field-group input, .field-group select { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-row { display: flex; gap: 10px; }
+    .field-row .field-group { flex: 1; }
+    .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .checkbox-row input { width: auto; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
+      <p class="empresa-nome" id="empresaNome">—</p>
+      <nav class="nav-pj">
+        <a href="impostos-pj.html">Impostos</a>
+        <a href="despesas-pj.html" class="ativo">Despesas</a>
+        <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
+      </nav>
+    </div>
+    <button class="btn-logout" id="btnLogout">Sair</button>
+  </header>
+
+  <main>
+    <h1>Despesas</h1>
+    <p class="subtitulo">Cadastre as despesas fixas mensais da sua empresa — elas entram automaticamente como saída no Fluxo de Caixa.</p>
+
+    <div class="kpis">
+      <div class="kpi-card">
+        <div class="kpi-label">Total mensal (ativas)</div>
+        <div class="kpi-value" id="totalDespesas">—</div>
+      </div>
+    </div>
+
+    <div class="secao-header">
+      <span class="secao-titulo">Despesas fixas</span>
+      <button class="btn-acao" id="btnAddDespesa">+ Adicionar despesa</button>
+    </div>
+    <div class="card-lista" id="listaDespesas"></div>
+  </main>
+
+  <!-- Modal: Despesa -->
+  <div class="modal-overlay hidden" id="modalDespesa">
+    <div class="modal-card">
+      <h3 id="tituloModalDespesa">Nova despesa</h3>
+      <input type="hidden" id="despId">
+      <div class="field-group">
+        <label for="despNome">Nome</label>
+        <input type="text" id="despNome" placeholder="Ex: Aluguel, Contador, Software...">
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label for="despValor">Valor (R$)</label>
+          <input type="number" id="despValor" placeholder="0" min="0" step="0.01">
+        </div>
+        <div class="field-group">
+          <label for="despDiaVencimento">Dia de vencimento</label>
+          <input type="number" id="despDiaVencimento" min="1" max="28" placeholder="10">
+        </div>
+      </div>
+      <div class="field-group">
+        <label for="despCategoria">Categoria (opcional)</label>
+        <input type="text" id="despCategoria" placeholder="Ex: Operacional, Administrativo...">
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="despAtivo" checked>
+        <label for="despAtivo" style="margin:0">Ativa</label>
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarDespesa">Cancelar</button>
+        <button class="btn-save" id="btnSalvarDespesa">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getContaPJ, getDespesasPJ, saveDespesaPJ, deleteDespesaPJ, msgErro } from './js/api.js?v=45';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+    let currentUser = null;
+    let _despesasCache = [];
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login-pj.html';
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login-pj.html'; return; }
+      currentUser = user;
+      try {
+        const conta = await getContaPJ(user.uid);
+        if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+        if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+        document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
+      } catch (err) {
+        console.error('[despesas-pj] Falha ao carregar conta:', err.message);
+      }
+      renderDespesas();
+    });
+
+    async function renderDespesas() {
+      try { _despesasCache = await getDespesasPJ(currentUser.uid); }
+      catch (err) { _despesasCache = []; alert(msgErro(err)); return; }
+
+      const totalAtivas = _despesasCache.filter(d => d.ativo !== false).reduce((s, d) => s + (d.valor || 0), 0);
+      document.getElementById('totalDespesas').textContent = brl(totalAtivas);
+
+      const el = document.getElementById('listaDespesas');
+      if (!_despesasCache.length) {
+        el.innerHTML = `<p class="vazio">Nenhuma despesa cadastrada ainda.</p>`;
+        return;
+      }
+      el.innerHTML = _despesasCache.map(d => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:14px;font-weight:600">${d.nome}${d.ativo === false ? ' <span style="color:var(--text-muted);font-weight:400">(inativa)</span>' : ''}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${d.categoria ? `${d.categoria} · ` : ''}vence dia ${d.diaVencimento}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <strong style="font-size:14px">${brl(d.valor)}</strong>
+            <button data-desp-editar="${d.id}" title="Editar" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✎</button>
+            <button data-desp-excluir="${d.id}" title="Excluir" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+          </div>
+        </div>`).join('');
+      el.querySelectorAll('[data-desp-editar]').forEach(b => b.addEventListener('click', () => abrirModalDespesa(_despesasCache.find(d => d.id === b.dataset.despEditar))));
+      el.querySelectorAll('[data-desp-excluir]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Excluir esta despesa?')) return;
+        try { await deleteDespesaPJ(currentUser.uid, b.dataset.despExcluir); renderDespesas(); }
+        catch (err) { alert(msgErro(err)); }
+      }));
+    }
+
+    const modalDespesa = document.getElementById('modalDespesa');
+    function abrirModalDespesa(desp = null) {
+      document.getElementById('tituloModalDespesa').textContent = desp ? 'Editar despesa' : 'Nova despesa';
+      document.getElementById('despId').value = desp?.id || '';
+      document.getElementById('despNome').value = desp?.nome || '';
+      document.getElementById('despValor').value = desp?.valor ?? '';
+      document.getElementById('despDiaVencimento').value = desp?.diaVencimento ?? '';
+      document.getElementById('despCategoria').value = desp?.categoria || '';
+      document.getElementById('despAtivo').checked = desp ? desp.ativo !== false : true;
+      modalDespesa.classList.remove('hidden');
+    }
+    document.getElementById('btnAddDespesa').addEventListener('click', () => abrirModalDespesa());
+    document.getElementById('btnCancelarDespesa').addEventListener('click', () => modalDespesa.classList.add('hidden'));
+    modalDespesa.addEventListener('click', e => { if (e.target === modalDespesa) modalDespesa.classList.add('hidden'); });
+
+    document.getElementById('btnSalvarDespesa').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarDespesa');
+      const id = document.getElementById('despId').value || undefined;
+      const nome = document.getElementById('despNome').value.trim();
+      const valor = parseFloat(document.getElementById('despValor').value);
+      const diaVencimento = parseInt(document.getElementById('despDiaVencimento').value, 10);
+      const categoria = document.getElementById('despCategoria').value.trim() || null;
+      const ativo = document.getElementById('despAtivo').checked;
+
+      if (!nome) { alert('Informe o nome da despesa.'); return; }
+      if (isNaN(valor) || valor < 0) { alert('Informe um valor válido.'); return; }
+      if (!diaVencimento || diaVencimento < 1 || diaVencimento > 28) { alert('Dia de vencimento deve ser entre 1 e 28.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await saveDespesaPJ(currentUser.uid, { id, nome, valor, diaVencimento, categoria, ativo });
+        modalDespesa.classList.add('hidden');
+        renderDespesas();
+      } catch (err) {
+        alert(msgErro(err));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+  </script>
+
+</body>
+</html>

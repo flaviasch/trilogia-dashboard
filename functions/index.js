@@ -5426,6 +5426,20 @@ exports.saveNotaEmitida = onCall({}, async (request) => {
     const ref = await db.collection('notasEmitidas')
       .add({ ...dados, uid, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
     notaId = ref.id;
+    // Recebimento default (achado 26/07/2026, Flávia: nota emitida ≠
+    // recebimento — PIX é imediato/sem taxa, mas débito/crédito têm prazo e
+    // taxa mesmo em pagamento único). Cobre o caso mais comum (PIX à vista)
+    // sem trabalho extra; a usuária edita/substitui se não foi assim que
+    // recebeu (ex: parcelou no cartão, então apaga este e cadastra as
+    // parcelas reais em salvarRecebimento).
+    await ref.collection('recebimentos').add({
+      uid, formaPagamento: 'pix',
+      valorBruto: valor, taxa: 0, valorLiquido: valor,
+      dataPrevista: dados.dataEmissao, dataRecebimento: null,
+      dataEmissaoNota: dados.dataEmissao,
+      parcelaAtual: null, parcelaTotal: null,
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
   }
   await _regerarImpostosPrevistos(uid, mes, ano);
   return { id: notaId, ok: true };
@@ -5440,8 +5454,190 @@ exports.deleteNotaEmitida = onCall({}, async (request) => {
   if (!snap.exists) throw new HttpsError('not-found', 'Nota não encontrada.');
   if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
   const { mes, ano } = snap.data();
+  // Firestore não apaga subcoleção junto do documento pai — limpa os
+  // recebimentos manualmente antes de excluir a nota.
+  const recebSnap = await ref.collection('recebimentos').get();
+  if (!recebSnap.empty) {
+    const batchDel = db.batch();
+    recebSnap.docs.forEach(d => batchDel.delete(d.ref));
+    await batchDel.commit();
+  }
   await ref.delete();
   await _regerarImpostosPrevistos(uid, mes, ano);
+  return { ok: true };
+});
+
+// ─── Contas a Receber (recebimentos de notasEmitidas) ─────────────────────────
+// Achado 26/07/2026 (Flávia, CFP): nota emitida é o valor faturado (regime de
+// competência, usado na DRE — fatia futura). O que efetivamente cai no caixa
+// é outra coisa: PIX/dinheiro caem na hora e sem desconto, mas débito,
+// crédito à vista e crédito parcelado têm prazo de liquidação da adquirente E
+// uma taxa descontada — isso vale mesmo pra pagamento único, não só parcelado.
+// Por isso cada nota tem uma subcoleção de recebimentos (não um campo único):
+// cada um com sua forma de pagamento, valor bruto, taxa (a usuária digita o
+// que sabe que foi descontado — sem tentar automatizar tabela de adquirente),
+// valor líquido calculado, data prevista (sugerida pela forma de pagamento,
+// sempre editável) e data em que confirmou que caiu de verdade.
+
+const SUGESTAO_PRAZO_DIAS = { pix: 0, dinheiro: 0, debito: 2, credito_avista: 30, credito_parcelado: 30, boleto: 3, outro: 0 };
+const FORMAS_PAGAMENTO = Object.keys(SUGESTAO_PRAZO_DIAS);
+
+async function _notaDoUid(uid, notaId) {
+  const ref  = db.collection('notasEmitidas').doc(notaId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Nota não encontrada.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  return { ref, dataEmissao: snap.data().dataEmissao };
+}
+
+exports.getRecebimentosNota = onCall({}, async (request) => {
+  const { uid, notaId } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!notaId) throw new HttpsError('invalid-argument', 'notaId é obrigatório.');
+  const { ref: notaRef } = await _notaDoUid(uid, notaId);
+  const snap = await notaRef.collection('recebimentos').orderBy('dataPrevista').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+exports.salvarRecebimento = onCall({}, async (request) => {
+  const { uid, notaId, id, formaPagamento, valorBruto, taxa, dataPrevista, parcelaAtual, parcelaTotal } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!notaId) throw new HttpsError('invalid-argument', 'notaId é obrigatório.');
+  if (!FORMAS_PAGAMENTO.includes(formaPagamento))
+    throw new HttpsError('invalid-argument', `formaPagamento deve ser uma de: ${FORMAS_PAGAMENTO.join(', ')}.`);
+  if (typeof valorBruto !== 'number' || valorBruto <= 0)
+    throw new HttpsError('invalid-argument', 'valorBruto deve ser maior que zero.');
+  const taxaNum = typeof taxa === 'number' && taxa >= 0 ? taxa : 0;
+  if (taxaNum > valorBruto) throw new HttpsError('invalid-argument', 'taxa não pode ser maior que o valor bruto.');
+  if (!dataPrevista || !/^\d{4}-\d{2}-\d{2}$/.test(dataPrevista))
+    throw new HttpsError('invalid-argument', 'dataPrevista deve estar no formato YYYY-MM-DD.');
+
+  const { ref: notaRef, dataEmissao: dataEmissaoNota } = await _notaDoUid(uid, notaId);
+  const col = notaRef.collection('recebimentos');
+  const dados = {
+    uid, formaPagamento, valorBruto, taxa: taxaNum,
+    valorLiquido: Math.round((valorBruto - taxaNum) * 100) / 100,
+    dataPrevista,
+    parcelaAtual: Number.isInteger(parcelaAtual) ? parcelaAtual : null,
+    parcelaTotal: Number.isInteger(parcelaTotal) ? parcelaTotal : null,
+  };
+
+  let recebimentoId = id;
+  if (id) {
+    const ref  = col.doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Recebimento não encontrado.');
+    if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+    await ref.update(dados);
+  } else {
+    // dataEmissaoNota denormalizado aqui só pra _calcularPMR não precisar de
+    // N+1 leituras (uma por recebimento) pra achar a competência da nota mãe
+    // — fica um pouco desatualizado se a nota mudar de dataEmissao depois de
+    // já ter recebimento (raro, e PMR é só sugestão, não trava nada).
+    const ref = await col.add({ ...dados, dataEmissaoNota, dataRecebimento: null, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    recebimentoId = ref.id;
+  }
+  return { id: recebimentoId, ok: true };
+});
+
+exports.confirmarRecebimento = onCall({}, async (request) => {
+  const { uid, notaId, id, dataRecebimento } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!notaId || !id) throw new HttpsError('invalid-argument', 'notaId e id são obrigatórios.');
+  if (!dataRecebimento || !/^\d{4}-\d{2}-\d{2}$/.test(dataRecebimento))
+    throw new HttpsError('invalid-argument', 'dataRecebimento deve estar no formato YYYY-MM-DD.');
+  const { ref: notaRef } = await _notaDoUid(uid, notaId);
+  const ref  = notaRef.collection('recebimentos').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Recebimento não encontrado.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  await ref.update({ dataRecebimento });
+  return { ok: true };
+});
+
+exports.estornarRecebimento = onCall({}, async (request) => {
+  const { uid, notaId, id } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!notaId || !id) throw new HttpsError('invalid-argument', 'notaId e id são obrigatórios.');
+  const { ref: notaRef } = await _notaDoUid(uid, notaId);
+  const ref  = notaRef.collection('recebimentos').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Recebimento não encontrado.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  await ref.update({ dataRecebimento: null });
+  return { ok: true };
+});
+
+exports.deleteRecebimento = onCall({}, async (request) => {
+  const { uid, notaId, id } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!notaId || !id) throw new HttpsError('invalid-argument', 'notaId e id são obrigatórios.');
+  const { ref: notaRef } = await _notaDoUid(uid, notaId);
+  const ref  = notaRef.collection('recebimentos').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Recebimento não encontrado.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  await ref.delete();
+  return { ok: true };
+});
+
+// ─── Despesas PJ (fatia 2) ─────────────────────────────────────────────────
+// Schema deliberadamente mais simples que `recorrentes` do PF (que tem
+// cartão, parcelamento, frequência semanal/quinzenal) — despesa fixa mensal
+// só, mesmo espírito de `tributosConfig`. Se virar demanda real, é retrofit
+// futuro, não construído agora (ver .build-scope.md).
+exports.getDespesasPJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const snap = await db.collection('despesasPJ').where('uid', '==', uid).get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+});
+
+exports.saveDespesaPJ = onCall({}, async (request) => {
+  const { uid, id, nome, valor, diaVencimento, categoria, ativo } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!nome || typeof nome !== 'string' || !nome.trim())
+    throw new HttpsError('invalid-argument', 'nome é obrigatório.');
+  if (typeof valor !== 'number' || valor < 0)
+    throw new HttpsError('invalid-argument', 'valor deve ser um número não-negativo.');
+  const dia = Number(diaVencimento);
+  if (!Number.isInteger(dia) || dia < 1 || dia > 28)
+    throw new HttpsError('invalid-argument', 'diaVencimento deve ser um inteiro entre 1 e 28.');
+
+  const dados = {
+    nome: nome.trim().slice(0, 150),
+    valor,
+    diaVencimento: dia,
+    categoria: categoria ? String(categoria).trim().slice(0, 100) : null,
+    ativo: ativo !== false,
+  };
+
+  let despesaId = id;
+  if (id) {
+    const ref  = db.collection('despesasPJ').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Despesa não encontrada.');
+    if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+    await ref.update(dados);
+  } else {
+    const countSnap = await db.collection('despesasPJ').where('uid', '==', uid).get();
+    dados.uid = uid;
+    dados.ordem = countSnap.size;
+    const ref = await db.collection('despesasPJ').add(dados);
+    despesaId = ref.id;
+  }
+  return { id: despesaId, ok: true };
+});
+
+exports.deleteDespesaPJ = onCall({}, async (request) => {
+  const { uid, id } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  const ref  = db.collection('despesasPJ').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Despesa não encontrada.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  await ref.delete();
   return { ok: true };
 });
 
@@ -5667,6 +5863,123 @@ async function _temAcessoPJAtivo(uid) {
   const snap = await db.collection('contasPJ').doc(uid).get();
   return snap.exists && snap.data().ativo !== false;
 }
+
+// ─── Fluxo de Caixa PJ (fatia 2) ───────────────────────────────────────────
+// Saldo projetado: entradas de recebimentos (reais na dataRecebimento, ou
+// projetadas na dataPrevista enquanto não confirmado) menos saídas de
+// despesasPJ + impostosPrevistos (na data de vencimento real, não na
+// competência) — ver .build-scope.md pro racional completo.
+
+exports.atualizarSaldoCaixaPJ = onCall({}, async (request) => {
+  const { uid, saldo } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (typeof saldo !== 'number') throw new HttpsError('invalid-argument', 'saldo deve ser um número.');
+  await db.collection('contasPJ').doc(uid).update({
+    saldoCaixaAtual: saldo,
+    saldoCaixaAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true };
+});
+
+/**
+ * Prazo médio de recebimento sugerido (dias), calculado a partir dos
+ * recebimentos já confirmados (dataRecebimento preenchida), ponderado por
+ * valorLiquido. null se não houver histórico suficiente (< 3 recebimentos) —
+ * quem chama decide o fallback (ver getFluxoCaixaPJ).
+ */
+async function _calcularPMR(uid) {
+  const snap = await db.collectionGroup('recebimentos').where('uid', '==', uid).get();
+  const confirmados = snap.docs
+    .map(d => d.data())
+    .filter(r => r.dataRecebimento && r.dataEmissaoNota);
+  if (confirmados.length < 3) return null;
+
+  let somaDiasPonderada = 0;
+  let somaValor = 0;
+  for (const r of confirmados) {
+    const dias = (new Date(r.dataRecebimento) - new Date(r.dataEmissaoNota)) / 86_400_000;
+    if (dias < 0) continue; // dado inconsistente (recebeu antes de emitir) — ignora
+    somaDiasPonderada += dias * r.valorLiquido;
+    somaValor += r.valorLiquido;
+  }
+  if (somaValor === 0) return null;
+  return Math.round(somaDiasPonderada / somaValor);
+}
+
+exports.getFluxoCaixaPJ = onCall({}, async (request) => {
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
+  const prefixoMes = `${ano}-${String(mes).padStart(2, '0')}`;
+
+  const contaSnap = await db.collection('contasPJ').doc(uid).get();
+  const conta = contaSnap.exists ? contaSnap.data() : {};
+  const pmrCalculado = await _calcularPMR(uid);
+  // Sem histórico suficiente (< 3 recebimentos confirmados), cai num padrão
+  // de 30 dias só pra exibição/contexto — nada trava nem exige configuração
+  // manual, já que cada recebimento já tem sua própria dataPrevista real
+  // (sugerida por forma de pagamento em SUGESTAO_PRAZO_DIAS).
+  const pmrEfetivo = pmrCalculado ?? 30;
+
+  const movimentos = [];
+
+  // Entradas: todos os recebimentos da conta, projetando quem ainda não foi
+  // confirmado na dataPrevista (a própria dataPrevista já é a melhor
+  // estimativa por forma de pagamento — só cai no PMR genérico se a nota tiver
+  // sido criada sem recebimento próprio, o que não deveria acontecer já que
+  // saveNotaEmitida sempre cria um default, mas o fallback protege contra
+  // dado legado/editado na mão).
+  const recebSnap = await db.collectionGroup('recebimentos').where('uid', '==', uid).get();
+  recebSnap.docs.forEach(d => {
+    const r = d.data();
+    const dataEfetiva = r.dataRecebimento || r.dataPrevista || r.dataEmissaoNota;
+    if (!dataEfetiva || !dataEfetiva.startsWith(prefixoMes)) return;
+    movimentos.push({
+      data: dataEfetiva,
+      tipo: 'entrada',
+      descricao: `Recebimento (${r.formaPagamento})${r.parcelaTotal ? ` ${r.parcelaAtual}/${r.parcelaTotal}` : ''}`,
+      valor: r.valorLiquido,
+      confirmado: !!r.dataRecebimento,
+    });
+  });
+
+  // Saídas: despesas fixas mensais, recorrem no diaVencimento configurado.
+  const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
+  despesasSnap.docs.forEach(d => {
+    const desp = d.data();
+    const dataVenc = `${prefixoMes}-${String(desp.diaVencimento).padStart(2, '0')}`;
+    movimentos.push({ data: dataVenc, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: false });
+  });
+
+  // Saídas: impostos previstos com vencimento real neste mês (exclui linhas
+  // só-informativas do trimestral — referenciaTrimestral nunca é saída de
+  // caixa própria, quem paga de fato é a linha acumulada no mês de fechamento).
+  const impSnap = await db.collection('impostosPrevistos').where('uid', '==', uid).get();
+  impSnap.docs.forEach(d => {
+    const imp = d.data();
+    if (imp.referenciaTrimestral) return;
+    if (!imp.vencimento || !imp.vencimento.startsWith(prefixoMes)) return;
+    movimentos.push({ data: imp.vencimento, tipo: 'saida', descricao: imp.tributoNome, valor: imp.valor, confirmado: !!imp.pago });
+  });
+
+  movimentos.sort((a, b) => a.data.localeCompare(b.data));
+
+  let saldo = conta.saldoCaixaAtual ?? 0;
+  const linhas = movimentos.map(m => {
+    saldo += m.tipo === 'entrada' ? m.valor : -m.valor;
+    return { ...m, saldoAcumulado: Math.round(saldo * 100) / 100 };
+  });
+
+  return {
+    movimentos: linhas,
+    saldoInicial: conta.saldoCaixaAtual ?? 0,
+    saldoCaixaAtualizadoEm: conta.saldoCaixaAtualizadoEm || null,
+    saldoFinal: linhas.length ? linhas[linhas.length - 1].saldoAcumulado : (conta.saldoCaixaAtual ?? 0),
+    pmrEfetivo,
+    pmrCalculado: pmrCalculado !== null,
+  };
+});
 
 // Bootstrap de conta de teste PJ é feito via script (scripts/criar-conta-pj-teste.js),
 // mesmo padrão de criar-perfil-admin.js — não precisa de Cloud Function pra
