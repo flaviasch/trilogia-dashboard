@@ -182,34 +182,57 @@
             <option value="outro">Outro</option>
           </select>
         </div>
-        <div class="field-row">
-          <div class="field-group">
-            <label for="recebValorBruto">Valor bruto (o que o cliente pagou)</label>
-            <input type="number" id="recebValorBruto" placeholder="0" min="0" step="0.01">
+        <div id="blocoRecebUnico">
+          <div class="field-row">
+            <div class="field-group">
+              <label for="recebValorBruto">Valor bruto (o que o cliente pagou)</label>
+              <input type="number" id="recebValorBruto" placeholder="0" min="0" step="0.01">
+            </div>
+            <div class="field-group">
+              <label for="recebTaxa">Taxa descontada (R$, opcional)</label>
+              <input type="number" id="recebTaxa" placeholder="0" min="0" step="0.01" value="0">
+            </div>
           </div>
           <div class="field-group">
-            <label for="recebTaxa">Taxa descontada (R$, opcional)</label>
-            <input type="number" id="recebTaxa" placeholder="0" min="0" step="0.01" value="0">
+            <label for="recebDataPrevista">Data prevista de recebimento</label>
+            <input type="date" id="recebDataPrevista">
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label for="recebParcelaAtual">Parcela (opcional)</label>
+              <input type="number" id="recebParcelaAtual" min="1" placeholder="Ex: 2">
+            </div>
+            <div class="field-group">
+              <label for="recebParcelaTotal">de quantas</label>
+              <input type="number" id="recebParcelaTotal" min="1" placeholder="Ex: 3">
+            </div>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">A data prevista já vem sugerida pela forma de pagamento — ajuste se sua maquininha/adquirente trabalha com prazo diferente.</p>
+          <div class="modal-acoes">
+            <button class="btn-cancel" id="btnCancelarRecebimento">Cancelar</button>
+            <button class="btn-save" id="btnSalvarRecebimento">Salvar recebimento</button>
           </div>
         </div>
-        <div class="field-group">
-          <label for="recebDataPrevista">Data prevista de recebimento</label>
-          <input type="date" id="recebDataPrevista">
-        </div>
-        <div class="field-row">
+        <div id="blocoRecebParcelado" style="display:none">
           <div class="field-group">
-            <label for="recebParcelaAtual">Parcela (opcional)</label>
-            <input type="number" id="recebParcelaAtual" min="1" placeholder="Ex: 2">
+            <label for="recebValorTotalAuto">Valor total parcelado (o que o cliente pagou)</label>
+            <input type="number" id="recebValorTotalAuto" placeholder="0" min="0" step="0.01">
           </div>
-          <div class="field-group">
-            <label for="recebParcelaTotal">de quantas</label>
-            <input type="number" id="recebParcelaTotal" min="1" placeholder="Ex: 3">
+          <div class="field-row">
+            <div class="field-group">
+              <label for="recebNumParcelasAuto">Número de parcelas</label>
+              <input type="number" id="recebNumParcelasAuto" min="2" max="24" value="2">
+            </div>
+            <div class="field-group">
+              <label for="recebTaxaTotalAuto">Taxa total (R$, opcional)</label>
+              <input type="number" id="recebTaxaTotalAuto" placeholder="0" min="0" step="0.01" value="0">
+            </div>
           </div>
-        </div>
-        <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">A data prevista já vem sugerida pela forma de pagamento — ajuste se sua maquininha/adquirente trabalha com prazo diferente.</p>
-        <div class="modal-acoes">
-          <button class="btn-cancel" id="btnCancelarRecebimento">Cancelar</button>
-          <button class="btn-save" id="btnSalvarRecebimento">Salvar recebimento</button>
+          <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Gera todas as parcelas de uma vez — valor e taxa divididos igualmente (resto na última), datas escalonadas de 30 em 30 dias a partir de hoje. Cada parcela continua editável depois se a divisão real for diferente.</p>
+          <div class="modal-acoes">
+            <button class="btn-cancel" id="btnCancelarRecebimentoParcelado">Cancelar</button>
+            <button class="btn-save" id="btnGerarParcelas">Gerar parcelas</button>
+          </div>
         </div>
       </div>
       <div class="modal-acoes" style="margin-top:16px">
@@ -223,9 +246,9 @@
     import {
       getContaPJ,
       getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
-      getRecebimentosNota, salvarRecebimento, confirmarRecebimento, estornarRecebimento, deleteRecebimento,
+      getRecebimentosNota, salvarRecebimento, gerarParcelasRecebimento, confirmarRecebimento, estornarRecebimento, deleteRecebimento,
       msgErro,
-    } from './js/api.js?v=47';
+    } from './js/api.js?v=48';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -440,26 +463,65 @@
       }));
     }
 
+    function _valorRestante() {
+      return Math.max(0, (_notaRecebimentosAtual?.valor || 0) - _recebimentosCache.reduce((s, r) => s + (r.valorBruto || 0), 0)) || _notaRecebimentosAtual?.valor || 0;
+    }
+    // Modo "parcelado" (gerar N de uma vez) só faz sentido pra recebimento
+    // novo — editar um já existente sempre mexe num registro só, mesmo que a
+    // forma seja crédito parcelado (achado 27/07/2026: cadastrar parcela por
+    // parcela na mão era impraticável, mas isso vale pra criar, não editar).
+    function _atualizarModoRecebForma() {
+      const editando = !!document.getElementById('recebId').value;
+      const parcelado = !editando && document.getElementById('recebForma').value === 'credito_parcelado';
+      document.getElementById('blocoRecebUnico').style.display     = parcelado ? 'none' : '';
+      document.getElementById('blocoRecebParcelado').style.display = parcelado ? '' : 'none';
+      if (parcelado) document.getElementById('recebValorTotalAuto').value = _valorRestante();
+    }
     function abrirFormRecebimento(receb = null) {
       document.getElementById('recebId').value = receb?.id || '';
       document.getElementById('recebForma').value = receb?.formaPagamento || 'pix';
-      document.getElementById('recebValorBruto').value = receb?.valorBruto ?? (
-        Math.max(0, (_notaRecebimentosAtual?.valor || 0) - _recebimentosCache.reduce((s, r) => s + (r.valorBruto || 0), 0)) || _notaRecebimentosAtual?.valor || ''
-      );
+      document.getElementById('recebValorBruto').value = receb?.valorBruto ?? _valorRestante();
       document.getElementById('recebTaxa').value = receb?.taxa ?? 0;
       document.getElementById('recebDataPrevista').value = receb?.dataPrevista
         || somarDias(_notaRecebimentosAtual?.dataEmissao, SUGESTAO_PRAZO_DIAS['pix']);
       document.getElementById('recebParcelaAtual').value = receb?.parcelaAtual ?? '';
       document.getElementById('recebParcelaTotal').value = receb?.parcelaTotal ?? '';
+      document.getElementById('recebNumParcelasAuto').value = 2;
+      document.getElementById('recebTaxaTotalAuto').value = 0;
+      _atualizarModoRecebForma();
       document.getElementById('formRecebimento').style.display = '';
     }
     document.getElementById('recebForma').addEventListener('change', (e) => {
+      _atualizarModoRecebForma();
       if (document.getElementById('recebId').value) return;
       document.getElementById('recebDataPrevista').value =
         somarDias(_notaRecebimentosAtual?.dataEmissao, SUGESTAO_PRAZO_DIAS[e.target.value] ?? 0);
     });
     document.getElementById('btnAddRecebimento').addEventListener('click', () => abrirFormRecebimento());
     document.getElementById('btnCancelarRecebimento').addEventListener('click', () => { document.getElementById('formRecebimento').style.display = 'none'; });
+    document.getElementById('btnCancelarRecebimentoParcelado').addEventListener('click', () => { document.getElementById('formRecebimento').style.display = 'none'; });
+
+    document.getElementById('btnGerarParcelas').addEventListener('click', async () => {
+      const btn = document.getElementById('btnGerarParcelas');
+      const valorTotal = parseFloat(document.getElementById('recebValorTotalAuto').value);
+      const numeroParcelas = parseInt(document.getElementById('recebNumParcelasAuto').value, 10) || 2;
+      const taxaTotal = parseFloat(document.getElementById('recebTaxaTotalAuto').value) || 0;
+      if (isNaN(valorTotal) || valorTotal <= 0) { alert('Informe um valor total válido.'); return; }
+      if (taxaTotal > valorTotal) { alert('A taxa total não pode ser maior que o valor total.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Gerando…';
+      try {
+        await gerarParcelasRecebimento(currentUser.uid, _notaRecebimentosAtual.id, {
+          valorTotal, numeroParcelas, taxaTotal,
+          dataBase: _notaRecebimentosAtual.dataEmissao || new Date().toISOString().slice(0, 10),
+        });
+        await abrirModalRecebimentos(_notaRecebimentosAtual);
+      } catch (err) {
+        alert(msgErro(err));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Gerar parcelas';
+      }
+    });
 
     document.getElementById('btnSalvarRecebimento').addEventListener('click', async () => {
       const btn = document.getElementById('btnSalvarRecebimento');

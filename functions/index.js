@@ -5594,6 +5594,40 @@ exports.salvarRecebimento = onCall({}, async (request) => {
   return { id: recebimentoId, ok: true };
 });
 
+/**
+ * Gera N recebimentos de crédito parcelado de uma vez pra uma nota já
+ * existente — achado 27/07/2026, Flávia: cadastrar parcela por parcela na
+ * mão em "+ Adicionar recebimento" é impraticável. Reaproveita o mesmo split
+ * automático (valor/taxa divididos, resto na última, datas de 30 em 30 dias)
+ * já usado em saveNotaEmitida quando a forma é escolhida na criação da nota;
+ * aqui serve pra quando a nota já foi criada (ex: como PIX por engano) e a
+ * usuária precisa registrar que na verdade foi parcelado. Soma-se aos
+ * recebimentos que já existem — não apaga nada; a usuária exclui manualmente
+ * o que não fizer mais sentido (ex: o PIX default gerado na criação).
+ */
+exports.gerarParcelasRecebimento = onCall({}, async (request) => {
+  const { uid, notaId, valorTotal, numeroParcelas, taxaTotal, dataBase } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!notaId) throw new HttpsError('invalid-argument', 'notaId é obrigatório.');
+  if (typeof valorTotal !== 'number' || valorTotal <= 0)
+    throw new HttpsError('invalid-argument', 'valorTotal deve ser maior que zero.');
+  const taxaNum = typeof taxaTotal === 'number' && taxaTotal >= 0 ? taxaTotal : 0;
+  if (taxaNum > valorTotal) throw new HttpsError('invalid-argument', 'taxaTotal não pode ser maior que valorTotal.');
+  if (!dataBase || !/^\d{4}-\d{2}-\d{2}$/.test(dataBase))
+    throw new HttpsError('invalid-argument', 'dataBase deve estar no formato YYYY-MM-DD.');
+
+  const { ref: notaRef } = await _notaDoUid(uid, notaId);
+  const recebimentos = _gerarRecebimentosIniciais(valorTotal, dataBase, 'credito_parcelado', numeroParcelas, taxaNum);
+  const batch = db.batch();
+  recebimentos.forEach(r => {
+    batch.set(notaRef.collection('recebimentos').doc(), {
+      uid, ...r, dataEmissaoNota: dataBase, criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+  await batch.commit();
+  return { ok: true, quantidade: recebimentos.length };
+});
+
 exports.confirmarRecebimento = onCall({}, async (request) => {
   const { uid, notaId, id, dataRecebimento } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -5648,23 +5682,36 @@ exports.getDespesasPJ = onCall({}, async (request) => {
 });
 
 exports.saveDespesaPJ = onCall({}, async (request) => {
-  const { uid, id, nome, valor, diaVencimento, categoria, ativo } = request.data;
+  const { uid, id, nome, valor, diaVencimento, data, tipo, categoria, ativo } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!nome || typeof nome !== 'string' || !nome.trim())
     throw new HttpsError('invalid-argument', 'nome é obrigatório.');
   if (typeof valor !== 'number' || valor < 0)
     throw new HttpsError('invalid-argument', 'valor deve ser um número não-negativo.');
-  const dia = Number(diaVencimento);
-  if (!Number.isInteger(dia) || dia < 1 || dia > 28)
-    throw new HttpsError('invalid-argument', 'diaVencimento deve ser um inteiro entre 1 e 28.');
-
+  // tipo 'fixa' (default, retrocompatível) recorre todo mês no diaVencimento;
+  // 'unica' é lançamento avulso numa data específica, não repete — achado
+  // 27/07/2026, Flávia: nem toda despesa é recorrente/fixa (ex: comprou um
+  // notebook uma vez só).
+  const tipoDespesa = tipo === 'unica' ? 'unica' : 'fixa';
   const dados = {
     nome: nome.trim().slice(0, 150),
     valor,
-    diaVencimento: dia,
+    tipo: tipoDespesa,
     categoria: categoria ? String(categoria).trim().slice(0, 100) : null,
     ativo: ativo !== false,
   };
+  if (tipoDespesa === 'unica') {
+    if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data))
+      throw new HttpsError('invalid-argument', 'data deve estar no formato YYYY-MM-DD.');
+    dados.data = data;
+    dados.diaVencimento = null;
+  } else {
+    const dia = Number(diaVencimento);
+    if (!Number.isInteger(dia) || dia < 1 || dia > 28)
+      throw new HttpsError('invalid-argument', 'diaVencimento deve ser um inteiro entre 1 e 28.');
+    dados.diaVencimento = dia;
+    dados.data = null;
+  }
 
   let despesaId = id;
   if (id) {
@@ -6072,10 +6119,17 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
     });
   });
 
-  // Saídas: despesas fixas mensais, recorrem no diaVencimento configurado.
+  // Saídas: despesas fixas recorrem todo mês no diaVencimento; despesas
+  // únicas (tipo 'unica') só entram no mês da sua própria data (achado
+  // 27/07/2026: nem toda despesa é recorrente).
   const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
   despesasSnap.docs.forEach(d => {
     const desp = d.data();
+    if (desp.tipo === 'unica') {
+      if (!desp.data || !desp.data.startsWith(prefixoMes)) return;
+      movimentos.push({ data: desp.data, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: false });
+      return;
+    }
     const dataVenc = `${prefixoMes}-${String(desp.diaVencimento).padStart(2, '0')}`;
     movimentos.push({ data: dataVenc, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: false });
   });

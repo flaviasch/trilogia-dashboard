@@ -80,17 +80,17 @@
 
   <main>
     <h1>Despesas</h1>
-    <p class="subtitulo">Cadastre as despesas fixas mensais da sua empresa — elas entram automaticamente como saída no Fluxo de Caixa.</p>
+    <p class="subtitulo">Cadastre despesas fixas (recorrem todo mês) ou únicas (uma data só) — elas entram automaticamente como saída no Fluxo de Caixa.</p>
 
     <div class="kpis">
       <div class="kpi-card">
-        <div class="kpi-label">Total mensal (ativas)</div>
+        <div class="kpi-label">Total mensal (fixas ativas)</div>
         <div class="kpi-value" id="totalDespesas">—</div>
       </div>
     </div>
 
     <div class="secao-header">
-      <span class="secao-titulo">Despesas fixas</span>
+      <span class="secao-titulo">Despesas</span>
       <button class="btn-acao" id="btnAddDespesa">+ Adicionar despesa</button>
     </div>
     <div class="card-lista" id="listaDespesas"></div>
@@ -105,15 +105,24 @@
         <label for="despNome">Nome</label>
         <input type="text" id="despNome" placeholder="Ex: Aluguel, Contador, Software...">
       </div>
-      <div class="field-row">
-        <div class="field-group">
-          <label for="despValor">Valor (R$)</label>
-          <input type="number" id="despValor" placeholder="0" min="0" step="0.01">
-        </div>
-        <div class="field-group">
-          <label for="despDiaVencimento">Dia de vencimento</label>
-          <input type="number" id="despDiaVencimento" min="1" max="28" placeholder="10">
-        </div>
+      <div class="field-group">
+        <label for="despValor">Valor (R$)</label>
+        <input type="number" id="despValor" placeholder="0" min="0" step="0.01">
+      </div>
+      <div class="field-group">
+        <label for="despTipo">Tipo</label>
+        <select id="despTipo">
+          <option value="fixa">Fixa — recorre todo mês</option>
+          <option value="unica">Única — só nesta data</option>
+        </select>
+      </div>
+      <div class="field-group" id="fgDespDiaVencimento">
+        <label for="despDiaVencimento">Dia de vencimento</label>
+        <input type="number" id="despDiaVencimento" min="1" max="28" placeholder="10">
+      </div>
+      <div class="field-group" id="fgDespData" style="display:none">
+        <label for="despData">Data</label>
+        <input type="date" id="despData">
       </div>
       <div class="field-group">
         <label for="despCategoria">Categoria (opcional)</label>
@@ -132,10 +141,15 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, getDespesasPJ, saveDespesaPJ, deleteDespesaPJ, msgErro } from './js/api.js?v=47';
+    import { getContaPJ, getDespesasPJ, saveDespesaPJ, deleteDespesaPJ, msgErro } from './js/api.js?v=48';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    function fmtData(iso) {
+      if (!iso) return '—';
+      const [a, m, d] = iso.split('-');
+      return `${d}/${m}/${a}`;
+    }
 
     let currentUser = null;
     let _despesasCache = [];
@@ -163,7 +177,7 @@
       try { _despesasCache = await getDespesasPJ(currentUser.uid); }
       catch (err) { _despesasCache = []; alert(msgErro(err)); return; }
 
-      const totalAtivas = _despesasCache.filter(d => d.ativo !== false).reduce((s, d) => s + (d.valor || 0), 0);
+      const totalAtivas = _despesasCache.filter(d => d.ativo !== false && d.tipo !== 'unica').reduce((s, d) => s + (d.valor || 0), 0);
       document.getElementById('totalDespesas').textContent = brl(totalAtivas);
 
       const el = document.getElementById('listaDespesas');
@@ -175,7 +189,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
           <div>
             <div style="font-size:14px;font-weight:600">${d.nome}${d.ativo === false ? ' <span style="color:var(--text-muted);font-weight:400">(inativa)</span>' : ''}</div>
-            <div style="font-size:12px;color:var(--text-muted)">${d.categoria ? `${d.categoria} · ` : ''}vence dia ${d.diaVencimento}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${d.categoria ? `${d.categoria} · ` : ''}${d.tipo === 'unica' ? `única · ${fmtData(d.data)}` : `fixa · vence dia ${d.diaVencimento}`}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <strong style="font-size:14px">${brl(d.valor)}</strong>
@@ -192,12 +206,20 @@
     }
 
     const modalDespesa = document.getElementById('modalDespesa');
+    function aplicarTipoDespesa(tipo) {
+      document.getElementById('fgDespDiaVencimento').style.display = tipo === 'unica' ? 'none' : '';
+      document.getElementById('fgDespData').style.display          = tipo === 'unica' ? '' : 'none';
+    }
     function abrirModalDespesa(desp = null) {
       document.getElementById('tituloModalDespesa').textContent = desp ? 'Editar despesa' : 'Nova despesa';
       document.getElementById('despId').value = desp?.id || '';
       document.getElementById('despNome').value = desp?.nome || '';
       document.getElementById('despValor').value = desp?.valor ?? '';
+      const tipo = desp?.tipo === 'unica' ? 'unica' : 'fixa';
+      document.getElementById('despTipo').value = tipo;
       document.getElementById('despDiaVencimento').value = desp?.diaVencimento ?? '';
+      document.getElementById('despData').value = desp?.data ?? '';
+      aplicarTipoDespesa(tipo);
       document.getElementById('despCategoria').value = desp?.categoria || '';
       document.getElementById('despAtivo').checked = desp ? desp.ativo !== false : true;
       modalDespesa.classList.remove('hidden');
@@ -205,23 +227,30 @@
     document.getElementById('btnAddDespesa').addEventListener('click', () => abrirModalDespesa());
     document.getElementById('btnCancelarDespesa').addEventListener('click', () => modalDespesa.classList.add('hidden'));
     modalDespesa.addEventListener('click', e => { if (e.target === modalDespesa) modalDespesa.classList.add('hidden'); });
+    document.getElementById('despTipo').addEventListener('change', (e) => aplicarTipoDespesa(e.target.value));
 
     document.getElementById('btnSalvarDespesa').addEventListener('click', async () => {
       const btn = document.getElementById('btnSalvarDespesa');
       const id = document.getElementById('despId').value || undefined;
       const nome = document.getElementById('despNome').value.trim();
       const valor = parseFloat(document.getElementById('despValor').value);
+      const tipo = document.getElementById('despTipo').value;
       const diaVencimento = parseInt(document.getElementById('despDiaVencimento').value, 10);
+      const data = document.getElementById('despData').value;
       const categoria = document.getElementById('despCategoria').value.trim() || null;
       const ativo = document.getElementById('despAtivo').checked;
 
       if (!nome) { alert('Informe o nome da despesa.'); return; }
       if (isNaN(valor) || valor < 0) { alert('Informe um valor válido.'); return; }
-      if (!diaVencimento || diaVencimento < 1 || diaVencimento > 28) { alert('Dia de vencimento deve ser entre 1 e 28.'); return; }
+      if (tipo === 'unica') {
+        if (!data) { alert('Informe a data desta despesa.'); return; }
+      } else if (!diaVencimento || diaVencimento < 1 || diaVencimento > 28) {
+        alert('Dia de vencimento deve ser entre 1 e 28.'); return;
+      }
 
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await saveDespesaPJ(currentUser.uid, { id, nome, valor, diaVencimento, categoria, ativo });
+        await saveDespesaPJ(currentUser.uid, { id, nome, valor, tipo, diaVencimento, data, categoria, ativo });
         modalDespesa.classList.add('hidden');
         renderDespesas();
       } catch (err) {
