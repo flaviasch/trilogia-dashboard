@@ -5780,6 +5780,157 @@ exports.deleteDespesaPJ = onCall({}, async (request) => {
   return { ok: true };
 });
 
+// ─── Contas a Pagar (confirmação de ocorrências de despesasPJ) ─────────────
+// Achado 27/07/2026, Flávia: precisava do mesmo caminho de confirmação que
+// Contas a Receber tem — sem isso, uma despesa "fixa"/"parcelada" nunca tinha
+// como ser marcada como paga de verdade (só uma checagem automática por
+// data). Cada OCORRÊNCIA de uma despesa (um mês de uma fixa, uma parcela de
+// uma parcelada, a data única de uma avulsa) vira um documento na subcoleção
+// `despesasPJ/{id}/pagamentos/{mesAno}` só quando é confirmada — sem
+// confirmação, a ocorrência continua sendo calculada na hora (não
+// materializada), mesmo espírito de getFluxoCaixaPJ.
+
+/**
+ * Se a despesa `desp` tem uma ocorrência no mês (mesX,anoX), retorna
+ * { mesAno, dataVenc, sufixo }; senão null (ainda não começou, já terminou,
+ * ou é 'unica' de outro mês). Extraído pra ser reaproveitado por
+ * getFluxoCaixaPJ e por getContasPagarPendentesPJ/confirmarPagamentoDespesaPJ.
+ */
+function _ocorrenciaDespesaPJ(desp, mesX, anoX) {
+  const prefixoX = `${anoX}-${String(mesX).padStart(2, '0')}`;
+  if (desp.tipo === 'unica') {
+    if (!desp.data || !desp.data.startsWith(prefixoX)) return null;
+    return { mesAno: prefixoX, dataVenc: desp.data, sufixo: '' };
+  }
+  const inicioM = desp.mesInicio || 1;
+  const inicioA = desp.anoInicio || 0;
+  const mesesDesdeInicio = (anoX - inicioA) * 12 + (mesX - inicioM);
+  if (mesesDesdeInicio < 0) return null; // ainda não começou
+  const dataVenc = `${prefixoX}-${String(desp.diaVencimento).padStart(2, '0')}`;
+  if (desp.tipo === 'parcelada') {
+    const n = desp.numeroParcelas || 1;
+    if (mesesDesdeInicio >= n) return null; // já terminou
+    return { mesAno: prefixoX, dataVenc, sufixo: ` (${mesesDesdeInicio + 1}/${n})` };
+  }
+  if (desp.mesesRestantes != null && mesesDesdeInicio >= desp.mesesRestantes) return null; // já terminou
+  return { mesAno: prefixoX, dataVenc, sufixo: '' };
+}
+
+async function _despesaDoUid(uid, despesaId) {
+  const ref  = db.collection('despesasPJ').doc(despesaId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Despesa não encontrada.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  return { ref, desp: snap.data() };
+}
+
+exports.confirmarPagamentoDespesaPJ = onCall({}, async (request) => {
+  const { uid, despesaId, mesAno, dataPagamento } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!despesaId || !mesAno) throw new HttpsError('invalid-argument', 'despesaId e mesAno são obrigatórios.');
+  if (!dataPagamento || !/^\d{4}-\d{2}-\d{2}$/.test(dataPagamento))
+    throw new HttpsError('invalid-argument', 'dataPagamento deve estar no formato YYYY-MM-DD.');
+  const { ref } = await _despesaDoUid(uid, despesaId);
+  await ref.collection('pagamentos').doc(mesAno).set({
+    uid, dataPagamento, confirmadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true };
+});
+
+exports.estornarPagamentoDespesaPJ = onCall({}, async (request) => {
+  const { uid, despesaId, mesAno } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!despesaId || !mesAno) throw new HttpsError('invalid-argument', 'despesaId e mesAno são obrigatórios.');
+  const { ref } = await _despesaDoUid(uid, despesaId);
+  await ref.collection('pagamentos').doc(mesAno).delete();
+  return { ok: true };
+});
+
+/**
+ * Lista consolidada de ocorrências de despesas ainda não pagas, pra "Contas
+ * a Pagar" — mesmo papel de getRecebimentosPendentesPJ, adaptado pro fato de
+ * despesa fixa sem mesesRestantes gerar ocorrência infinita: em vez de
+ * enumerar tudo, só considera ocorrências até o mês real de hoje (o que
+ * ainda não chegou não tem o que confirmar). KPIs (previsto/pago no mês) são
+ * calculados só pro mês pedido; "aPagar" soma tudo que está vencido/a vencer
+ * até hoje e ainda não foi confirmado, de qualquer mês.
+ */
+exports.getContasPagarPendentesPJ = onCall({}, async (request) => {
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
+  const prefixoMes = `${ano}-${String(mes).padStart(2, '0')}`;
+  const hoje = new Date();
+  const hojeMes = hoje.getMonth() + 1, hojeAno = hoje.getFullYear();
+
+  const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
+  const pagamentosSnap = await db.collectionGroup('pagamentos').where('uid', '==', uid).get();
+  const pagamentosPorChave = {};
+  pagamentosSnap.docs.forEach(d => {
+    const despesaId = d.ref.parent.parent.id;
+    pagamentosPorChave[`${despesaId}_${d.id}`] = d.data();
+  });
+
+  let previstoNoMes = 0, pagoNoMes = 0, aPagar = 0;
+  const pendentes = [];
+  const hojeISO = hoje.toISOString().slice(0, 10);
+
+  function _processarOcorrencia(despesaId, desp, oc) {
+    const pagamento = pagamentosPorChave[`${despesaId}_${oc.mesAno}`];
+    if (oc.mesAno === prefixoMes) previstoNoMes += desp.valor;
+    if (pagamento && pagamento.dataPagamento.startsWith(prefixoMes)) pagoNoMes += desp.valor;
+    if (pagamento) return; // já confirmada, não entra em pendentes/aPagar
+    if (oc.dataVenc > hojeISO) return; // ainda não venceu, nada a confirmar
+    aPagar += desp.valor;
+    pendentes.push({
+      despesaId, mesAno: oc.mesAno,
+      nome: `${desp.nome}${oc.sufixo}`, categoria: desp.categoria || null,
+      valor: desp.valor, dataVencimento: oc.dataVenc,
+      vencido: oc.dataVenc < hojeISO,
+    });
+  }
+
+  despesasSnap.docs.forEach(doc => {
+    const desp = doc.data();
+    if (desp.tipo === 'unica') {
+      // 'unica' não usa mesInicio/anoInicio pra determinar a ocorrência (só
+      // tem uma, na sua própria `data`) — usar mesInicio/anoInicio aqui seria
+      // o mês em que a despesa foi CADASTRADA, não o mês da despesa em si.
+      if (!desp.data) return;
+      const [anoU, mesU] = desp.data.split('-').map(Number);
+      const oc = _ocorrenciaDespesaPJ(desp, mesU, anoU);
+      if (oc) _processarOcorrencia(doc.id, desp, oc);
+      return;
+    }
+    const inicioM = desp.mesInicio || 1;
+    // Documento legado sem anoInicio (criado antes desse campo existir) não
+    // pode virar `anoInicio || 0` aqui como em _ocorrenciaDespesaPJ — lá é só
+    // uma checagem de 1 mês, aqui é o LIMITE DE UM LOOP, e ano 0 geraria
+    // dezenas de milhares de iterações. Cap de 60 meses (5 anos) pra trás é
+    // mais que suficiente pra pendência real de pagamento.
+    const inicioA = desp.anoInicio || hojeAno;
+    const totalMesesAteHoje = (hojeAno - inicioA) * 12 + (hojeMes - inicioM);
+    const maxIter = Math.min(Math.max(0, totalMesesAteHoje), 60);
+    for (let i = 0; i <= maxIter; i++) {
+      const dIter = new Date(inicioA, inicioM - 1 + i, 1);
+      const oc = _ocorrenciaDespesaPJ(desp, dIter.getMonth() + 1, dIter.getFullYear());
+      if (oc) _processarOcorrencia(doc.id, desp, oc);
+    }
+  });
+
+  pendentes.sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
+
+  return {
+    kpis: {
+      previstoNoMes: Math.round(previstoNoMes * 100) / 100,
+      pagoNoMes: Math.round(pagoNoMes * 100) / 100,
+      aPagar: Math.round(aPagar * 100) / 100,
+    },
+    pendentes,
+  };
+});
+
 // ─── Outras entradas PJ (fatia 2, achado 27/07/2026) ───────────────────────
 // Nem toda entrada de caixa é venda: aporte de sócio (capital, não é
 // receita) e reembolso (dinheiro que volta, não é venda) são eventos reais
@@ -6110,7 +6261,6 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
   if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
   const prefixoMes = `${ano}-${String(mes).padStart(2, '0')}`;
-  const hoje = new Date().toISOString().slice(0, 10);
 
   const contaSnap = await db.collection('contasPJ').doc(uid).get();
   const conta = contaSnap.exists ? contaSnap.data() : {};
@@ -6138,6 +6288,14 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
   // referenciaTrimestral nunca é saída de caixa própria, quem paga de fato é
   // a linha acumulada no mês de fechamento).
   const impSnap = await db.collection('impostosPrevistos').where('uid', '==', uid).get();
+  // Confirmação de ocorrências de despesa (Contas a Pagar) — sem isso, uma
+  // despesa fixa/parcelada nunca teria como ser marcada como paga de
+  // verdade, só uma checagem automática por data (achado 27/07/2026).
+  const pagamentosSnap = await db.collectionGroup('pagamentos').where('uid', '==', uid).get();
+  const pagamentosPorChave = {};
+  pagamentosSnap.docs.forEach(d => {
+    pagamentosPorChave[`${d.ref.parent.parent.id}_${d.id}`] = d.data();
+  });
 
   /**
    * Monta a lista de movimentos de um mês específico — extraído numa função
@@ -6170,37 +6328,25 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
       });
     });
 
-    // 'unica' só entra no mês da sua própria data; 'fixa' recorre todo mês a
-    // partir de mesInicio/anoInicio, parando depois de mesesRestantes se
-    // definido (senão pra sempre); 'parcelada' recorre só durante
-    // numeroParcelas meses a partir de mesInicio/anoInicio, com o número da
-    // parcela atual no nome (achado 27/07/2026: mesma lógica de
-    // recorrente/parcelamento do PF, mas calculada na hora — sem
-    // materializar um doc por mês). Documentos legados sem mesInicio/anoInicio
-    // usam anoInicio=0, o que os mantém sempre visíveis. Despesa não tem
-    // botão de "confirmar": se a data já chegou (hoje ou passado), considera
-    // realizada — mesmo raciocínio de isPendenteEfetivo em orcamento-calc.js.
+    // 'unica' usa a própria data como ocorrência; 'fixa'/'parcelada' recorrem
+    // conforme mesInicio/anoInicio (ver _ocorrenciaDespesaPJ). Confirmado só
+    // quando existe um pagamento registrado em Contas a Pagar — mesmo
+    // caminho de confirmação que Contas a Receber tem (achado 27/07/2026,
+    // antes disso a confirmação era automática só pela data, sem lugar pra
+    // registrar um pagamento de verdade).
     despesasSnap.docs.forEach(d => {
       const desp = d.data();
-      if (desp.tipo === 'unica') {
-        if (!desp.data || !desp.data.startsWith(prefixoX)) return;
-        movs.push({ data: desp.data, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: desp.data <= hoje });
-        return;
-      }
-      const inicioM = desp.mesInicio || 1;
-      const inicioA = desp.anoInicio || 0;
-      const mesesDesdeInicio = (anoX - inicioA) * 12 + (mesX - inicioM);
-      if (mesesDesdeInicio < 0) return; // ainda não começou
-      if (desp.tipo === 'parcelada') {
-        const n = desp.numeroParcelas || 1;
-        if (mesesDesdeInicio >= n) return; // já terminou
-        const dataVenc = `${prefixoX}-${String(desp.diaVencimento).padStart(2, '0')}`;
-        movs.push({ data: dataVenc, tipo: 'saida', descricao: `${desp.nome} (${mesesDesdeInicio + 1}/${n})`, valor: desp.valor, confirmado: dataVenc <= hoje });
-        return;
-      }
-      if (desp.mesesRestantes != null && mesesDesdeInicio >= desp.mesesRestantes) return; // já terminou
-      const dataVenc = `${prefixoX}-${String(desp.diaVencimento).padStart(2, '0')}`;
-      movs.push({ data: dataVenc, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: dataVenc <= hoje });
+      // _ocorrenciaDespesaPJ(desp, mesX, anoX) já cuida de 'unica' (só bate
+      // se desp.data estiver em mesX/anoX) e de 'fixa'/'parcelada' (calcula
+      // se essa despesa tem ocorrência nesse mês específico).
+      const oc = _ocorrenciaDespesaPJ(desp, mesX, anoX);
+      if (!oc) return;
+      const pagamento = pagamentosPorChave[`${d.id}_${oc.mesAno}`];
+      movs.push({
+        data: pagamento?.dataPagamento || oc.dataVenc, tipo: 'saida',
+        descricao: `${desp.nome}${oc.sufixo}`, valor: desp.valor,
+        confirmado: !!pagamento,
+      });
     });
 
     impSnap.docs.forEach(d => {

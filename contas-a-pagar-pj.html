@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trilogia Dashboard PJ — Contas a Receber</title>
+  <title>Trilogia Dashboard PJ — Contas a Pagar</title>
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <style>
@@ -41,7 +41,7 @@
     .kpi-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
     .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
     .kpi-value { font-size: 22px; font-weight: 700; }
-    .kpi-value.green { color: var(--positive); }
+    .kpi-value.red { color: var(--negative); }
     .kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
     .secao-titulo { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
     .card-lista { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
@@ -62,10 +62,10 @@
       <p class="empresa-nome" id="empresaNome">—</p>
       <nav class="nav-pj">
         <a href="notas-pj.html">Notas</a>
-        <a href="recebimentos-pj.html" class="ativo">Contas a Receber</a>
+        <a href="recebimentos-pj.html">Contas a Receber</a>
         <a href="impostos-pj.html">Impostos</a>
         <a href="despesas-pj.html">Despesas</a>
-        <a href="contas-a-pagar-pj.html">Contas a Pagar</a>
+        <a href="contas-a-pagar-pj.html" class="ativo">Contas a Pagar</a>
         <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
       </nav>
     </div>
@@ -73,8 +73,8 @@
   </header>
 
   <main>
-    <h1>Contas a Receber</h1>
-    <p class="subtitulo">Todos os recebimentos pendentes de todas as notas, num só lugar — confirme aqui e o Fluxo de Caixa já atualiza sozinho.</p>
+    <h1>Contas a Pagar</h1>
+    <p class="subtitulo">Ocorrências de despesas vencidas ou a vencer — confirme aqui quando pagar, e o Fluxo de Caixa já atualiza sozinho.</p>
 
     <div class="mes-nav">
       <button class="btn-mes" id="mesAnterior">‹</button>
@@ -88,38 +88,37 @@
         <div class="kpi-value" id="kpiPrevisto">—</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Recebido no mês</div>
-        <div class="kpi-value green" id="kpiRecebido">—</div>
+        <div class="kpi-label">Pago no mês</div>
+        <div class="kpi-value" id="kpiPago">—</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">A receber</div>
-        <div class="kpi-value" id="kpiAReceber">—</div>
-        <div class="kpi-sub">total pendente, todos os meses</div>
+        <div class="kpi-label">A pagar</div>
+        <div class="kpi-value red" id="kpiAPagar">—</div>
+        <div class="kpi-sub">vencido ou a vencer até hoje</div>
       </div>
     </div>
 
-    <div class="secao-titulo">Recebimentos pendentes</div>
+    <div class="secao-titulo">Contas pendentes</div>
     <div class="card-lista">
       <table>
         <thead>
           <tr>
-            <th class="td-fin">Forma</th>
-            <th class="td-fin">Parcela</th>
-            <th class="td-fin">Data prevista</th>
+            <th class="td-fin">Descrição</th>
+            <th class="td-fin">Vencimento</th>
             <th class="td-fin">Status</th>
-            <th class="td-fin valor">Valor líquido</th>
+            <th class="td-fin valor">Valor</th>
             <th class="td-fin"></th>
           </tr>
         </thead>
         <tbody id="tabelaPendentesBody"></tbody>
       </table>
-      <div class="vazio" id="pendentesVazio" style="display:none">Nenhum recebimento pendente. Tudo confirmado por aqui.</div>
+      <div class="vazio" id="pendentesVazio" style="display:none">Nenhuma conta pendente. Tudo pago por aqui.</div>
     </div>
   </main>
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, getRecebimentosPendentesPJ, confirmarRecebimento, msgErro } from './js/api.js?v=49';
+    import { getContaPJ, getContasPagarPendentesPJ, confirmarPagamentoDespesaPJ, msgErro } from './js/api.js?v=49';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -130,7 +129,6 @@
       const [a, m, d] = iso.split('-');
       return `${d}/${m}/${a}`;
     }
-    const FORMA_LABEL = { pix: 'PIX', dinheiro: 'Dinheiro', debito: 'Débito', credito_avista: 'Crédito à vista', credito_parcelado: 'Crédito parcelado', boleto: 'Boleto', outro: 'Outro' };
 
     let currentUser = null;
     let mesAtual = new Date().getMonth() + 1;
@@ -150,7 +148,7 @@
         if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
         document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
       } catch (err) {
-        console.error('[recebimentos-pj] Falha ao carregar conta:', err.message);
+        console.error('[contas-a-pagar-pj] Falha ao carregar conta:', err.message);
       }
       renderPendentes();
     });
@@ -159,12 +157,12 @@
       document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
 
       let dados;
-      try { dados = await getRecebimentosPendentesPJ(currentUser.uid, mesAtual, anoAtual); }
+      try { dados = await getContasPagarPendentesPJ(currentUser.uid, mesAtual, anoAtual); }
       catch (err) { alert(msgErro(err)); return; }
 
       document.getElementById('kpiPrevisto').textContent = brl(dados.kpis.previstoNoMes);
-      document.getElementById('kpiRecebido').textContent = brl(dados.kpis.recebidoNoMes);
-      document.getElementById('kpiAReceber').textContent = brl(dados.kpis.aReceber);
+      document.getElementById('kpiPago').textContent = brl(dados.kpis.pagoNoMes);
+      document.getElementById('kpiAPagar').textContent = brl(dados.kpis.aPagar);
 
       const tbody = document.getElementById('tabelaPendentesBody');
       if (!dados.pendentes.length) {
@@ -173,23 +171,22 @@
         return;
       }
       document.getElementById('pendentesVazio').style.display = 'none';
-      tbody.innerHTML = dados.pendentes.map(r => `
+      tbody.innerHTML = dados.pendentes.map(p => `
         <tr>
-          <td class="td-fin">${FORMA_LABEL[r.formaPagamento] || r.formaPagamento}</td>
-          <td class="td-fin">${r.parcelaTotal ? `${r.parcelaAtual}/${r.parcelaTotal}` : '—'}</td>
-          <td class="td-fin">${fmtData(r.dataPrevista)}</td>
-          <td class="td-fin">${r.vencido ? '<span class="badge-vencido">Vencido</span>' : '<span class="badge-avencer">A vencer</span>'}</td>
-          <td class="td-fin valor">${brl(r.valorLiquido)}</td>
-          <td class="td-fin"><button class="btn-confirmar" data-confirmar-nota="${r.notaId}" data-confirmar-id="${r.id}">✓ Confirmar</button></td>
+          <td class="td-fin">${p.nome}${p.categoria ? ` <span style="color:var(--text-muted)">· ${p.categoria}</span>` : ''}</td>
+          <td class="td-fin">${fmtData(p.dataVencimento)}</td>
+          <td class="td-fin">${p.vencido ? '<span class="badge-vencido">Vencido</span>' : '<span class="badge-avencer">A vencer</span>'}</td>
+          <td class="td-fin valor">${brl(p.valor)}</td>
+          <td class="td-fin"><button class="btn-confirmar" data-despesa="${p.despesaId}" data-mesano="${p.mesAno}">✓ Confirmar</button></td>
         </tr>`).join('');
 
-      tbody.querySelectorAll('[data-confirmar-id]').forEach(b => b.addEventListener('click', async () => {
+      tbody.querySelectorAll('[data-despesa]').forEach(b => b.addEventListener('click', async () => {
         const hoje = new Date().toISOString().slice(0, 10);
-        const data = prompt('Data em que o valor caiu (AAAA-MM-DD):', hoje);
+        const data = prompt('Data em que foi pago (AAAA-MM-DD):', hoje);
         if (!data) return;
         if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { alert('Data inválida — use o formato AAAA-MM-DD.'); return; }
         try {
-          await confirmarRecebimento(currentUser.uid, b.dataset.confirmarNota, b.dataset.confirmarId, data);
+          await confirmarPagamentoDespesaPJ(currentUser.uid, b.dataset.despesa, b.dataset.mesano, data);
           renderPendentes();
         } catch (err) { alert(msgErro(err)); }
       }));

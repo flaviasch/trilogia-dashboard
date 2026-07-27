@@ -27,7 +27,7 @@
     .logo span { color: var(--gold); }
     .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
     .empresa-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
-    .nav-pj { display: flex; gap: 4px; }
+    .nav-pj { display: flex; gap: 4px; flex-wrap: wrap; }
     .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
     .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
     .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
@@ -76,6 +76,7 @@
         <a href="recebimentos-pj.html">Contas a Receber</a>
         <a href="impostos-pj.html">Impostos</a>
         <a href="despesas-pj.html">Despesas</a>
+        <a href="contas-a-pagar-pj.html">Contas a Pagar</a>
         <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
       </nav>
     </div>
@@ -248,7 +249,7 @@
       getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
       getRecebimentosNota, salvarRecebimento, gerarParcelasRecebimento, confirmarRecebimento, estornarRecebimento, deleteRecebimento,
       msgErro,
-    } from './js/api.js?v=48';
+    } from './js/api.js?v=49';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',

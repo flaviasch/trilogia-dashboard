@@ -710,6 +710,16 @@ export async function deleteDespesaPJ(uid, id) {
   return callPJ('deleteDespesaPJ')({ uid, id });
 }
 
+export async function getContasPagarPendentesPJ(uid, mes, ano) {
+  return callPJ('getContasPagarPendentesPJ')({ uid, mes, ano });
+}
+export async function confirmarPagamentoDespesaPJ(uid, despesaId, mesAno, dataPagamento) {
+  return callPJ('confirmarPagamentoDespesaPJ')({ uid, despesaId, mesAno, dataPagamento });
+}
+export async function estornarPagamentoDespesaPJ(uid, despesaId, mesAno) {
+  return callPJ('estornarPagamentoDespesaPJ')({ uid, despesaId, mesAno });
+}
+
 export async function getFluxoCaixaPJ(uid, mes, ano) {
   return callPJ('getFluxoCaixaPJ')({ uid, mes, ano });
 }
