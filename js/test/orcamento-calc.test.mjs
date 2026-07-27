@@ -417,6 +417,58 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.equal(secundaria.totalFaturas, 0, 'não aparece na secundária até ser paga por ela');
   });
 
+  // Transferência entre contas (achado 27/07/2026): duas pernas ligadas por
+  // transferenciaId, cada uma com sua própria contaId e direcao.
+  await t.test('transferência: sem contaId (consolidado), líquido das duas pernas é zero e não muda saldoFinal', () => {
+    const data = periodo([{ categoria: 'Moradia', valor: 500, data: '2026-07-01', cartao: false }], [], {
+      transferencias: [
+        { transferenciaId: 't1', direcao: 'saida',   valor: 300, contaId: 'principal' },
+        { transferenciaId: 't1', direcao: 'entrada', valor: 300, contaId: 'conta-secundaria' },
+      ],
+    });
+    const r = calcularAgregadosOrcamento({ data, agora: HOJE });
+    assert.equal(r.totalTransferenciaLiquida, 0, 'as duas pernas se cancelam no consolidado');
+    assert.equal(r.saldoFinal, r.sobra, 'saldoFinal consolidado não muda com transferência entre contas próprias');
+  });
+
+  await t.test('transferência: saldo da conta origem cai, saldo da conta destino sobe', () => {
+    const data = periodo([], [], {
+      saldoConta: 1000,
+      transferencias: [
+        { transferenciaId: 't1', direcao: 'saida',   valor: 300, contaId: 'principal' },
+        { transferenciaId: 't1', direcao: 'entrada', valor: 300, contaId: 'conta-secundaria' },
+      ],
+    });
+    const origem  = calcularAgregadosOrcamento({ data, agora: HOJE, contaId: 'principal' });
+    const destino = calcularAgregadosOrcamento({ data: { ...data, saldoConta: 0 }, agora: HOJE, contaId: 'conta-secundaria' });
+    assert.equal(origem.totalTransferenciaLiquida, -300);
+    assert.equal(destino.totalTransferenciaLiquida, 300);
+    assert.equal(origem.saldoFinal, origem.sobra - 300);
+    assert.equal(destino.saldoFinal, destino.sobra + 300);
+  });
+
+  await t.test('transferência NÃO entra em totalReceita, despesaCaixa nem despesaComprometida', () => {
+    const data = periodo([{ categoria: 'Moradia', valor: 500, data: '2026-07-01', cartao: false }],
+      [{ categoria: 'Salário', valor: 3000, data: '2026-07-05' }], {
+      transferencias: [
+        { transferenciaId: 't1', direcao: 'saida',   valor: 700, contaId: 'principal' },
+        { transferenciaId: 't1', direcao: 'entrada', valor: 700, contaId: 'conta-secundaria' },
+      ],
+    });
+    const r = calcularAgregadosOrcamento({ data, agora: HOJE });
+    assert.equal(r.totalReceita, 3000, 'transferência não é receita');
+    assert.equal(r.despesaCaixa, 500, 'transferência não é despesa de caixa');
+    assert.equal(r.despesaComprometida, 500, 'transferência não é despesa comprometida');
+  });
+
+  await t.test('NÃO-REGRESSÃO: sem transferencias, saldoFinal continua igual a antes desse campo existir', () => {
+    const data = periodo([{ categoria: 'Moradia', valor: 500, data: '2026-07-01', cartao: false }],
+      [{ categoria: 'Salário', valor: 3000, data: '2026-07-05' }]);
+    const r = calcularAgregadosOrcamento({ data, agora: HOJE });
+    assert.equal(r.totalTransferenciaLiquida, 0);
+    assert.equal(r.saldoFinal, r.sobra - r.totalAp);
+  });
+
   await t.test('achado 23/07/2026: fatura futura (ainda não aberta) não entra em totalFaturas nem gruposFechadaCaixa', () => {
     // HOJE = 2026-07-06. Cartão diaCorte=2, diaVencimento=10: dia 6 > corte 2
     // → mês+1 (agosto); vencimento(10) > corte(2) → sem incremento extra.

@@ -166,7 +166,7 @@ export function pertenceAConta(item, contaId) {
  * pela home — antes desse módulo cada tela tinha sua própria cópia.
  *
  * @param {object} args
- * @param {{periodo:{mes:number,ano:number}, saldoConta?:number, receitas:object[], despesas:object[], aportes?:object[]}} args.data
+ * @param {{periodo:{mes:number,ano:number}, saldoConta?:number, receitas:object[], despesas:object[], aportes?:object[], transferencias?:object[]}} args.data
  * @param {object[]} [args.cartoes] - lista de cartões ({ id, ativo, ... })
  * @param {object} [args.faturaEstados] - mapa "cartaoId_YYYY-MM" -> { estado, ajusteTotal, valorPago }
  * @param {object[]} [args.recorrentes] - lista de despesas fixas ({ id, ativo, cartao, categoria, valor, dia, frequencia, mesInicio, anoInicio })
@@ -175,6 +175,15 @@ export function pertenceAConta(item, contaId) {
  * @param {string|null} [args.contaId] - filtra por conta (via pertenceAConta);
  *   default null = consolidado, soma todas as contas (comportamento de sempre,
  *   inclusive pra dado antigo sem nenhum item com contaId).
+ *
+ * `data.transferencias` (achado 27/07/2026): itens `{ direcao: 'entrada'|'saida',
+ * valor, contaId, ... }` — cada transferência entre contas próprias grava duas
+ * pernas (uma de saída na origem, uma de entrada no destino). Entram no
+ * `saldoFinal` da conta filtrada (líquido: entrada soma, saída subtrai), mas
+ * NUNCA em totalReceita/despesaCaixa/despesaComprometida/categorias/Score —
+ * mover dinheiro entre contas da própria usuária não é receita nem despesa
+ * real. Na visão consolidada (contaId null) as duas pernas de toda
+ * transferência se cancelam (soma líquida zero), preservando o saldo total.
  *
  * @returns {{
  *   ehFuturo: boolean, saldoConta: number, totalReceita: number,
@@ -185,7 +194,7 @@ export function pertenceAConta(item, contaId) {
  *   receitasPendentes: object[], totalReceitaPendente: number, receitaComprometida: number,
  *   despesaCaixa: number, despesaComprometida: number, totalComprometidoMes: number,
  *   diffNaoIdentificadoMes: number,
- *   sobra: number, sobraPct: number, totalAp: number, saldoFinal: number,
+ *   sobra: number, sobraPct: number, totalAp: number, totalTransferenciaLiquida: number, saldoFinal: number,
  * }}
  */
 export function calcularAgregadosOrcamento({
@@ -215,6 +224,7 @@ export function calcularAgregadosOrcamento({
     receitas: data.receitas.filter(r => pertenceAConta(r, contaId)),
     despesas: data.despesas.filter(_pertenceItemDespesa),
     aportes: (data.aportes || []).filter(a => pertenceAConta(a, contaId)),
+    transferencias: (data.transferencias || []).filter(t => pertenceAConta(t, contaId)),
   };
   recorrentes = (recorrentes || []).filter(r => pertenceAConta(r, contaId));
 
@@ -376,7 +386,15 @@ export function calcularAgregadosOrcamento({
   const sobra = saldoConta + totalReceita - despesaCaixa;
   const sobraPct = (saldoConta + totalReceita) > 0 ? (sobra / (saldoConta + totalReceita)) * 100 : 0;
   const totalAp = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
-  const saldoFinal = sobra - totalAp;
+  // Transferência entre contas próprias: entrada soma, saída subtrai — igual
+  // receita/despesa afetam o saldo de caixa, mas NUNCA entram em
+  // totalReceita/despesaCaixa/despesaComprometida/categorias/Score, calculados
+  // só a partir de data.receitas/data.despesas acima (transferencias é um
+  // array à parte, não misturado neles). Consolidado (contaId null): as duas
+  // pernas de cada transferência somam zero líquido.
+  const totalTransferenciaLiquida = (data.transferencias || [])
+    .reduce((s, t) => s + (t.direcao === 'entrada' ? t.valor : -t.valor), 0);
+  const saldoFinal = sobra - totalAp + totalTransferenciaLiquida;
 
   return {
     ehFuturo, saldoConta, totalReceita, receitaComprometida,
@@ -387,7 +405,7 @@ export function calcularAgregadosOrcamento({
     receitasPendentes, totalReceitaPendente,
     despesaCaixa, despesaComprometida, totalComprometidoMes,
     diffNaoIdentificadoMes,
-    sobra, sobraPct, totalAp, saldoFinal,
+    sobra, sobraPct, totalAp, totalTransferenciaLiquida, saldoFinal,
   };
 }
 

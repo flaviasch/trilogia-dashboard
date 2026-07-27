@@ -1223,13 +1223,13 @@ async function _gravarOrcamento({ uid, mes, ano, itens, permitirReducao }) {
   if (itens.length > 500)
     throw new HttpsError('invalid-argument', 'Limite de 500 itens por mês excedido.');
 
-  const TIPOS_VALIDOS = new Set(['receita', 'despesa', 'aporte']);
+  const TIPOS_VALIDOS = new Set(['receita', 'despesa', 'aporte', 'transferencia']);
   for (let i = 0; i < itens.length; i++) {
     const it = itens[i];
     if (!it.categoria || typeof it.categoria !== 'string' || it.categoria.trim() === '')
       throw new HttpsError('invalid-argument', `Item ${i + 1}: categoria é obrigatória.`);
     if (!TIPOS_VALIDOS.has(it.tipo))
-      throw new HttpsError('invalid-argument', `Item ${i + 1}: tipo inválido "${it.tipo}". Use receita, despesa ou aporte.`);
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: tipo inválido "${it.tipo}". Use receita, despesa, aporte ou transferencia.`);
     if (typeof it.valor !== 'number' || isNaN(it.valor) || it.valor < 0)
       throw new HttpsError('invalid-argument', `Item ${i + 1}: valor deve ser número não-negativo.`);
     if (it.valor > 10_000_000)
@@ -1286,7 +1286,7 @@ async function _gravarOrcamento({ uid, mes, ano, itens, permitirReducao }) {
     antigasSnap.forEach(d => d.ref.delete().catch(() => {}));
 
     if (!permitirReducao) {
-      const tiposPerdidos = ['receita', 'despesa', 'aporte'].filter(tipo =>
+      const tiposPerdidos = ['receita', 'despesa', 'aporte', 'transferencia'].filter(tipo =>
         itensAntes.some(i => i.tipo === tipo) && !itensMesAtual.some(i => i.tipo === tipo)
       );
       const encolheuMuito = itensMesAtual.length < itensAntes.length * 0.5;

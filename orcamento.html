@@ -1824,12 +1824,16 @@
         <div class="aporte-strip-row">
           <input type="text" inputmode="numeric" class="aporte-strip-input"
                  id="aporteEfetivadoInput" placeholder="Valor (R$)" />
+          <select id="aporteContaSelect" style="display:none;padding:9px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;"></select>
           <button class="aporte-strip-btn" id="btnSalvarAporte">Registrar →</button>
         </div>
       </div>
 
       <!-- Histórico de aportes do mês -->
       <div id="aportesList"></div>
+
+      <!-- Transferências entre contas do mês -->
+      <div id="transferenciasList"></div>
 
       <!-- Ritmo dos aportes nas reservas -->
       <div id="ritmoBox"></div>
@@ -2482,8 +2486,41 @@
         </div>
       </div>
       <button class="btn-add-item" id="btnNovaContaToggle" onclick="window._abrirNovaConta()">+ Nova conta</button>
+      <button class="btn-add-item" id="btnAbrirTransferencia" style="display:none;margin-top:6px" onclick="window._abrirModalTransferencia()">⇄ Transferir entre contas</button>
       <div class="modal-actions">
         <button class="btn-cancel" id="btnFecharContas">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Transferência entre contas -->
+  <div class="modal-overlay hidden" id="modalTransferencia">
+    <div class="modal-card">
+      <h2 class="modal-title">Transferir entre contas</h2>
+      <p class="modal-sub">Move saldo de uma conta pra outra — aparece como lançamento nas duas.</p>
+      <div class="field-group">
+        <label for="trfOrigem">De</label>
+        <select id="trfOrigem"></select>
+      </div>
+      <div class="field-group">
+        <label for="trfDestino">Para</label>
+        <select id="trfDestino"></select>
+      </div>
+      <div class="field-group">
+        <label for="trfValor">Valor</label>
+        <input type="text" inputmode="numeric" id="trfValor" placeholder="0" />
+      </div>
+      <div class="field-group">
+        <label for="trfData">Data</label>
+        <input type="date" id="trfData" />
+      </div>
+      <div class="field-group">
+        <label for="trfNota">Nota (opcional)</label>
+        <input type="text" id="trfNota" placeholder="Ex: reforço de capital de giro" maxlength="200" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarTransferencia">Cancelar</button>
+        <button class="btn-save" id="btnSalvarTransferencia">Transferir</button>
       </div>
     </div>
   </div>
@@ -2690,7 +2727,7 @@
     bindMoneyInput(document.getElementById('aporteEfetivadoInput'));
     bindMoneyInput(document.getElementById('mValor'));
 
-    let currentData = { periodo: { mes: new Date().getMonth() + 1, ano: new Date().getFullYear() }, receitas: [], despesas: [], aportes: [] };
+    let currentData = { periodo: { mes: new Date().getMonth() + 1, ano: new Date().getFullYear() }, receitas: [], despesas: [], aportes: [], transferencias: [] };
     let reservas = [];
     let perfilInvestidor = null;
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
@@ -3372,7 +3409,15 @@
         // ser tocados pelos fluxos dedicados que já sabem gravar no mês certo
         // (ex: confirmar pagamento de fatura, ajustar fatura).
         ...currentData.despesas.filter(d => d._sourceMes == null).map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.contaId ? { contaId: d.contaId } : {}), ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.pendente ? { pendente: true } : {}), ...(d.confirmado ? { confirmado: true } : {}) })),
-        ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor })),
+        ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor, ...(a.contaId ? { contaId: a.contaId } : {}) })),
+        // Transferência entre contas (achado 27/07/2026): cada perna já vem com
+        // sua própria contaId/direcao — grava como está, sem recalcular nada.
+        ...(currentData.transferencias || []).map(t => ({
+          categoria: 'Transferência', tipo: 'transferencia',
+          transferenciaId: t.transferenciaId, direcao: t.direcao, valor: t.valor,
+          contaId: t.contaId, contaContraparte: t.contaContraparte || '',
+          data: t.data || '', nota: t.nota || '',
+        })),
       ];
       try {
         await saveOrcamento(mes, ano, itens);
@@ -3391,6 +3436,7 @@
     const modalClasse   = document.getElementById('modalClasse');
 
     let valorAportePendente  = null;
+    let contaAportePendente  = null; // achado 27/07/2026 — conta escolhida no strip pra sensibilizar
     let alocacoesPendentes   = []; // [{ reservaId, valor }]
 
     // Sem reserva cadastrada, o aporte não tem onde ser guardado — em vez de
@@ -3411,6 +3457,20 @@
       btnEl.style.opacity = semReserva ? '0.4' : '';
       btnEl.style.cursor  = semReserva ? 'not-allowed' : '';
       if (inpEl) inpEl.disabled = semReserva;
+
+      // Conta a sensibilizar (achado 27/07/2026) — só aparece com >1 conta,
+      // mesmo critério de _atualizarVisibilidadeConta. Sem isso, todo aporte
+      // caía sempre na conta principal.
+      const selConta = document.getElementById('aporteContaSelect');
+      if (selConta) {
+        if (_contas.length > 1) {
+          selConta.innerHTML = _contas.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nome)}</option>`).join('');
+          selConta.value = _contaAtivaId || CONTA_PRINCIPAL_ID;
+          selConta.style.display = '';
+        } else {
+          selConta.style.display = 'none';
+        }
+      }
     }
 
     // ── Passo 1: modal de reservas ────────────────────────────────────────────
@@ -3612,7 +3672,8 @@
       alocacoesPendentes  = [];
 
       if (!currentData.aportes) currentData.aportes = [];
-      currentData.aportes.push({ id: 'a' + Date.now(), valor, nota: '' });
+      currentData.aportes.push({ id: 'a' + Date.now(), valor, nota: '', ...(contaAportePendente ? { contaId: contaAportePendente } : {}) });
+      contaAportePendente = null;
 
       const reservasAtualizadas = alocacoes
         .map(({ reservaId, valor: v }) => {
@@ -3660,7 +3721,8 @@
 
       // Adiciona ao histórico de aportes do mês (permite múltiplos aportes)
       if (!currentData.aportes) currentData.aportes = [];
-      currentData.aportes.push({ id: 'a' + Date.now(), valor, nota: '' });
+      currentData.aportes.push({ id: 'a' + Date.now(), valor, nota: '', ...(contaAportePendente ? { contaId: contaAportePendente } : {}) });
+      contaAportePendente = null;
 
       // Lê as classes selecionadas para cada linha
       const selects = document.querySelectorAll('#classeAporteList .classe-select');
@@ -3722,6 +3784,8 @@
     document.getElementById('btnSalvarAporte').addEventListener('click', () => {
       const val = readMoney(document.getElementById('aporteEfetivadoInput'));
       if (!val || val <= 0) { toast('Digite um valor válido para o aporte.', 'warning'); return; }
+      const selConta = document.getElementById('aporteContaSelect');
+      contaAportePendente = (selConta && _contas.length > 1) ? (selConta.value || null) : null;
       abrirModalReservas(val);
     });
     document.getElementById('aporteEfetivadoInput').addEventListener('keydown', e => {
@@ -3776,11 +3840,22 @@
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
             nota: a.categoria !== 'Aporte efetivado' ? a.categoria : '',
+            ...(a.contaId ? { contaId: a.contaId } : {}),
+          })),
+          transferencias: itens.filter(i => i.tipo === 'transferencia').map((t, idx) => ({
+            id: 't' + idx + '_' + mes + ano,
+            transferenciaId: t.transferenciaId,
+            direcao: t.direcao,
+            valor: t.valor,
+            contaId: t.contaId || CONTA_PRINCIPAL_ID,
+            contaContraparte: t.contaContraparte || '',
+            data: t.data || '',
+            nota: t.nota || '',
           })),
         };
       } else {
         toast(msgErro(orcResult.reason), 'error');
-        currentData = { periodo: { mes, ano }, saldoConta: 0, receitas: [], despesas: [], aportes: [] };
+        currentData = { periodo: { mes, ano }, saldoConta: 0, receitas: [], despesas: [], aportes: [], transferencias: [] };
       }
 
       if (resResult.status === 'fulfilled')    reservas = resResult.value || [];
@@ -4483,6 +4558,7 @@
       if (_tabAtiva === 'detalhe')      renderDespesasGrupos(data, totalDespesa);
 
       renderAportesList(data);
+      renderTransferenciasList(data);
 
       // Sobra box
       const sobraBoxEl = document.getElementById('sobraBox');
@@ -4623,6 +4699,7 @@
               <div class="item-row">
                 <div>
                   <div class="item-categoria">${a.nota || 'Aporte efetivado'}</div>
+                  ${_contas.length > 1 ? `<div style="font-size:11px;color:var(--text-muted)">${escapeHtml((_contas.find(c => c.id === (a.contaId || CONTA_PRINCIPAL_ID)) || {}).nome || 'Conta principal')}</div>` : ''}
                 </div>
                 <div></div>
                 <div class="item-value" style="color:var(--gold)">${brl(a.valor)}</div>
@@ -4643,6 +4720,119 @@
       container.querySelectorAll('[data-del-aporte]').forEach(btn =>
         btn.addEventListener('click', () => deletarAporte(+btn.dataset.delAporte)));
     }
+
+    // ─── Transferências entre contas (achado 27/07/2026) ─────────────────────
+    // Agrupa as pernas (uma "saida" + uma "entrada" por transferenciaId) numa
+    // única linha visual "De X pra Y". Excluir remove as duas pernas juntas.
+    function _nomeConta(id) {
+      return (_contas.find(c => c.id === (id || CONTA_PRINCIPAL_ID)) || {}).nome || 'Conta principal';
+    }
+    function renderTransferenciasList(data) {
+      const container = document.getElementById('transferenciasList');
+      if (!container) return;
+      const transferencias = data.transferencias || [];
+      if (transferencias.length === 0 || _contas.length <= 1) { container.innerHTML = ''; return; }
+
+      const porId = {};
+      transferencias.forEach(t => {
+        if (!porId[t.transferenciaId]) porId[t.transferenciaId] = {};
+        porId[t.transferenciaId][t.direcao] = t;
+      });
+      const pares = Object.entries(porId)
+        .filter(([, p]) => p.saida && p.entrada)
+        .map(([id, p]) => ({ id, ...p.saida }));
+
+      if (pares.length === 0) { container.innerHTML = ''; return; }
+
+      const total = pares.reduce((s, p) => s + p.valor, 0);
+      container.innerHTML = `
+        <div class="section" style="margin-top:0">
+          <div class="section-header">
+            <h2 class="section-title">Transferências entre contas este mês</h2>
+            <span class="section-total">${brl(total)}</span>
+          </div>
+          <div class="items-list">
+            ${pares.map(p => `
+              <div class="item-row">
+                <div>
+                  <div class="item-categoria">${escapeHtml(_nomeConta(p.contaId))} → ${escapeHtml(p.contaContraparte || _nomeConta(null))}</div>
+                  <div style="font-size:11px;color:var(--text-muted)">${p.data ? p.data.split('-').reverse().join('/') : ''}${p.nota ? ' · ' + escapeHtml(p.nota) : ''}</div>
+                </div>
+                <div></div>
+                <div class="item-value">${brl(p.valor)}</div>
+                <div class="item-actions">
+                  <button class="btn-item del" data-del-transferencia="${p.id}" title="Excluir">${IC_DEL_AP}</button>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+
+      container.querySelectorAll('[data-del-transferencia]').forEach(btn =>
+        btn.addEventListener('click', () => deletarTransferencia(btn.dataset.delTransferencia)));
+    }
+
+    async function deletarTransferencia(transferenciaId) {
+      if (!(await confirmDelete('Excluir esta transferência? As duas pontas (origem e destino) serão removidas.'))) return;
+      currentData.transferencias = (currentData.transferencias || []).filter(t => t.transferenciaId !== transferenciaId);
+      await salvarEAtualizar();
+      render(currentData);
+    }
+
+    // ─── Modal de transferência ───────────────────────────────────────────────
+    const modalTransferencia = document.getElementById('modalTransferencia');
+
+    function _preencherSelectsTransferencia() {
+      const opts = _contas.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nome)}</option>`).join('');
+      const selOrigem  = document.getElementById('trfOrigem');
+      const selDestino = document.getElementById('trfDestino');
+      selOrigem.innerHTML  = opts;
+      selDestino.innerHTML = opts;
+      selOrigem.value = _contaAtivaId || CONTA_PRINCIPAL_ID;
+      const outraConta = _contas.find(c => c.id !== selOrigem.value);
+      selDestino.value = outraConta ? outraConta.id : selOrigem.value;
+    }
+
+    window._abrirModalTransferencia = function () {
+      if (_contas.length < 2) return;
+      document.getElementById('modalContas').classList.add('hidden');
+      _preencherSelectsTransferencia();
+      setMoney(document.getElementById('trfValor'), 0);
+      document.getElementById('trfData').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('trfNota').value  = '';
+      modalTransferencia.classList.remove('hidden');
+    };
+    document.getElementById('btnCancelarTransferencia').addEventListener('click', () => modalTransferencia.classList.add('hidden'));
+    modalTransferencia.addEventListener('click', e => { if (e.target === modalTransferencia) modalTransferencia.classList.add('hidden'); });
+
+    document.getElementById('btnSalvarTransferencia').addEventListener('click', async () => {
+      const origemId  = document.getElementById('trfOrigem').value;
+      const destinoId = document.getElementById('trfDestino').value;
+      const valor     = readMoney(document.getElementById('trfValor'));
+      const data      = document.getElementById('trfData').value || new Date().toISOString().slice(0, 10);
+      const nota      = document.getElementById('trfNota').value.trim();
+
+      if (origemId === destinoId) { toast('Escolha duas contas diferentes.', 'warning'); return; }
+      if (!valor || valor <= 0) { toast('Digite um valor válido.', 'warning'); return; }
+
+      const btn = document.getElementById('btnSalvarTransferencia');
+      setLoading(btn, true);
+      try {
+        const transferenciaId = 'trf' + Date.now();
+        if (!currentData.transferencias) currentData.transferencias = [];
+        currentData.transferencias.push(
+          { id: transferenciaId + '_s', transferenciaId, direcao: 'saida',   valor, contaId: origemId,  contaContraparte: _nomeConta(destinoId), data, nota },
+          { id: transferenciaId + '_e', transferenciaId, direcao: 'entrada', valor, contaId: destinoId, contaContraparte: _nomeConta(origemId),  data, nota },
+        );
+        await salvarEAtualizar();
+        modalTransferencia.classList.add('hidden');
+        toast('Transferência registrada.', 'success');
+        render(currentData);
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
 
     // ─── Faturas por cartão (aba Resumo) ─────────────────────────────────────
     // Retorna estado da fatura: 'aberta' | 'fechada'
@@ -5843,7 +6033,7 @@
 
         const resultados = await Promise.all(
           meses3.map(({ mes: m, ano: a }) =>
-            buscarPeriodo(m, a, false).catch(() => ({ receitas: [], despesas: [], aportes: [], periodo: { mes: m, ano: a } }))
+            buscarPeriodo(m, a, false).catch(() => ({ receitas: [], despesas: [], aportes: [], transferencias: [], periodo: { mes: m, ano: a } }))
           )
         );
 
@@ -6437,6 +6627,7 @@
       renderListaContas();
       document.getElementById('novaContaForm').style.display = 'none';
       document.getElementById('btnNovaContaToggle').style.display = '';
+      document.getElementById('btnAbrirTransferencia').style.display = _contas.length > 1 ? '' : 'none';
       document.getElementById('modalContas').classList.remove('hidden');
     };
     document.getElementById('btnFecharContas').addEventListener('click', () => {
@@ -6807,6 +6998,17 @@
             id: 'a' + idx + '_' + mes + ano,
             valor: a.valor,
             nota: a.categoria !== 'Aporte efetivado' ? a.categoria : '',
+            ...(a.contaId ? { contaId: a.contaId } : {}),
+          })),
+          transferencias: itens.filter(i => i.tipo === 'transferencia').map((t, idx) => ({
+            id: 't' + idx + '_' + mes + ano,
+            transferenciaId: t.transferenciaId,
+            direcao: t.direcao,
+            valor: t.valor,
+            contaId: t.contaId || CONTA_PRINCIPAL_ID,
+            contaContraparte: t.contaContraparte || '',
+            data: t.data || '',
+            nota: t.nota || '',
           })),
         };
         // Buscas em segundo plano (afetaGlobal=false) nunca gravam no cache —
@@ -6820,7 +7022,7 @@
         return data;
       } catch (err) {
         toast(msgErro(err), 'error');
-        return { periodo: { mes, ano }, receitas: [], despesas: [], aportes: [] };
+        return { periodo: { mes, ano }, receitas: [], despesas: [], aportes: [], transferencias: [] };
       }
     }
 
