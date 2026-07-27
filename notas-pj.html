@@ -249,6 +249,36 @@
     </div>
   </div>
 
+  <!-- Modal: Confirmar recebimento (valor realmente recebido pode diferir do
+       previsto — juros por atraso, taxa real da adquirente etc, mesmo padrão
+       de "pagarParcela" no admin) -->
+  <div class="modal-overlay hidden" id="modalConfirmarRecebimento">
+    <div class="modal-card">
+      <h3>Confirmar recebimento</h3>
+      <input type="hidden" id="confRecNotaId">
+      <input type="hidden" id="confRecId">
+      <div class="field-group">
+        <label for="confRecData">Data em que o valor caiu</label>
+        <input type="date" id="confRecData">
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label for="confRecValorBruto">Valor recebido (bruto)</label>
+          <input type="number" id="confRecValorBruto" placeholder="0" min="0" step="0.01">
+        </div>
+        <div class="field-group">
+          <label for="confRecTaxa">Taxa descontada (R$, opcional)</label>
+          <input type="number" id="confRecTaxa" placeholder="0" min="0" step="0.01" value="0">
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Já vem com o valor previsto — ajuste se o que caiu foi diferente (juros por atraso, taxa real da maquininha/adquirente etc).</p>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarConfirmarRecebimento">Cancelar</button>
+        <button class="btn-save" id="btnSalvarConfirmarRecebimento">Confirmar recebimento</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import {
@@ -476,19 +506,52 @@
         try { await deleteRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebExcluir); await abrirModalRecebimentos(_notaRecebimentosAtual); }
         catch (err) { alert(msgErro(err)); }
       }));
-      el.querySelectorAll('[data-receb-confirmar]').forEach(b => b.addEventListener('click', async () => {
-        const hoje = new Date().toISOString().slice(0, 10);
-        const data = prompt('Data em que o valor caiu (AAAA-MM-DD):', hoje);
-        if (!data) return;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { alert('Data inválida — use o formato AAAA-MM-DD.'); return; }
-        try { await confirmarRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebConfirmar, data); await abrirModalRecebimentos(_notaRecebimentosAtual); }
-        catch (err) { alert(msgErro(err)); }
+      el.querySelectorAll('[data-receb-confirmar]').forEach(b => b.addEventListener('click', () => {
+        const receb = _recebimentosCache.find(r => r.id === b.dataset.recebConfirmar);
+        if (receb) abrirModalConfirmarRecebimento(receb);
       }));
       el.querySelectorAll('[data-receb-estornar]').forEach(b => b.addEventListener('click', async () => {
         try { await estornarRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebEstornar); await abrirModalRecebimentos(_notaRecebimentosAtual); }
         catch (err) { alert(msgErro(err)); }
       }));
     }
+
+    // ── Modal: Confirmar recebimento (valor recebido pode diferir do
+    // previsto — juros por atraso, taxa real da adquirente etc, mesmo
+    // padrão de "pagarParcela" no admin — achado 27/07/2026, Flávia: "igual
+    // meu admin, qdo confirmar, registra qual foi o valor recebido") ──
+    const modalConfirmarRecebimento = document.getElementById('modalConfirmarRecebimento');
+    function abrirModalConfirmarRecebimento(receb) {
+      document.getElementById('confRecNotaId').value = _notaRecebimentosAtual.id;
+      document.getElementById('confRecId').value = receb.id;
+      document.getElementById('confRecData').value = receb.dataPrevista || new Date().toISOString().slice(0, 10);
+      document.getElementById('confRecValorBruto').value = receb.valorBruto ?? '';
+      document.getElementById('confRecTaxa').value = receb.taxa ?? 0;
+      modalConfirmarRecebimento.classList.remove('hidden');
+    }
+    document.getElementById('btnCancelarConfirmarRecebimento').addEventListener('click', () => modalConfirmarRecebimento.classList.add('hidden'));
+    document.getElementById('btnSalvarConfirmarRecebimento').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarConfirmarRecebimento');
+      const notaId = document.getElementById('confRecNotaId').value;
+      const id = document.getElementById('confRecId').value;
+      const dataRecebimento = document.getElementById('confRecData').value;
+      const valorBruto = parseFloat(document.getElementById('confRecValorBruto').value);
+      const taxa = parseFloat(document.getElementById('confRecTaxa').value) || 0;
+      if (!dataRecebimento) { alert('Informe a data.'); return; }
+      if (isNaN(valorBruto) || valorBruto <= 0) { alert('Informe um valor recebido válido.'); return; }
+      if (taxa > valorBruto) { alert('A taxa não pode ser maior que o valor bruto.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Confirmando…';
+      try {
+        await confirmarRecebimento(currentUser.uid, notaId, id, dataRecebimento, valorBruto, taxa);
+        modalConfirmarRecebimento.classList.add('hidden');
+        await abrirModalRecebimentos(_notaRecebimentosAtual);
+      } catch (err) {
+        alert(msgErro(err));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Confirmar recebimento';
+      }
+    });
 
     function _valorRestante() {
       return Math.max(0, (_notaRecebimentosAtual?.valor || 0) - _recebimentosCache.reduce((s, r) => s + (r.valorBruto || 0), 0)) || _notaRecebimentosAtual?.valor || 0;

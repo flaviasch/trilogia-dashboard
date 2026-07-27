@@ -5641,7 +5641,7 @@ exports.gerarParcelasRecebimento = onCall({}, async (request) => {
 });
 
 exports.confirmarRecebimento = onCall({}, async (request) => {
-  const { uid, notaId, id, dataRecebimento } = request.data;
+  const { uid, notaId, id, dataRecebimento, valorBruto, taxa } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!notaId || !id) throw new HttpsError('invalid-argument', 'notaId e id são obrigatórios.');
   if (!dataRecebimento || !/^\d{4}-\d{2}-\d{2}$/.test(dataRecebimento))
@@ -5651,7 +5651,21 @@ exports.confirmarRecebimento = onCall({}, async (request) => {
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Recebimento não encontrado.');
   if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
-  await ref.update({ dataRecebimento });
+
+  const dados = { dataRecebimento };
+  // O valor efetivamente recebido pode diferir do previsto (juros por
+  // atraso, taxa real da adquirente diferente da estimada na hora do
+  // parcelamento) — mesmo padrão de pagarParcela no admin (achado
+  // 27/07/2026, Flávia: "igual meu admin, qdo confirmar, registra qual foi
+  // o valor recebido"). Sem valorBruto no request, mantém o valor já salvo.
+  if (typeof valorBruto === 'number' && valorBruto > 0) {
+    const taxaNum = typeof taxa === 'number' && taxa >= 0 ? taxa : 0;
+    if (taxaNum > valorBruto) throw new HttpsError('invalid-argument', 'taxa não pode ser maior que o valor bruto.');
+    dados.valorBruto = valorBruto;
+    dados.taxa = taxaNum;
+    dados.valorLiquido = Math.round((valorBruto - taxaNum) * 100) / 100;
+  }
+  await ref.update(dados);
   return { ok: true };
 });
 

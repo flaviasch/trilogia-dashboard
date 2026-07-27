@@ -687,8 +687,8 @@ export async function salvarRecebimento(uid, notaId, dados) {
 export async function gerarParcelasRecebimento(uid, notaId, dados) {
   return callPJ('gerarParcelasRecebimento')({ uid, notaId, ...dados });
 }
-export async function confirmarRecebimento(uid, notaId, id, dataRecebimento) {
-  return callPJ('confirmarRecebimento')({ uid, notaId, id, dataRecebimento });
+export async function confirmarRecebimento(uid, notaId, id, dataRecebimento, valorBruto, taxa) {
+  return callPJ('confirmarRecebimento')({ uid, notaId, id, dataRecebimento, valorBruto, taxa });
 }
 export async function estornarRecebimento(uid, notaId, id) {
   return callPJ('estornarRecebimento')({ uid, notaId, id });

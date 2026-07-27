@@ -52,6 +52,19 @@
     .badge-vencido { background: rgba(248,113,113,.15); color: var(--negative); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
     .badge-avencer { background: rgba(96,165,250,.15); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
     .btn-confirmar { background: none; border: 1px solid rgba(74,222,128,.3); color: var(--positive); cursor: pointer; font-size: 12px; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
+    .field-group input { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-row { display: flex; gap: 10px; }
+    .field-row .field-group { flex: 1; }
+    .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -116,6 +129,36 @@
     </div>
   </main>
 
+  <!-- Modal: Confirmar recebimento (valor realmente recebido pode diferir do
+       previsto — juros por atraso, taxa real da adquirente etc, mesmo padrão
+       de "pagarParcela" no admin — achado 27/07/2026) -->
+  <div class="modal-overlay hidden" id="modalConfirmarRecebimento">
+    <div class="modal-card">
+      <h3>Confirmar recebimento</h3>
+      <input type="hidden" id="confRecNotaId">
+      <input type="hidden" id="confRecId">
+      <div class="field-group">
+        <label for="confRecData">Data em que o valor caiu</label>
+        <input type="date" id="confRecData">
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label for="confRecValorBruto">Valor recebido (bruto)</label>
+          <input type="number" id="confRecValorBruto" placeholder="0" min="0" step="0.01">
+        </div>
+        <div class="field-group">
+          <label for="confRecTaxa">Taxa descontada (R$, opcional)</label>
+          <input type="number" id="confRecTaxa" placeholder="0" min="0" step="0.01" value="0">
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Já vem com o valor previsto — ajuste se o que caiu foi diferente (juros por atraso, taxa real da maquininha/adquirente etc).</p>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarConfirmarRecebimento">Cancelar</button>
+        <button class="btn-save" id="btnSalvarConfirmarRecebimento">Confirmar recebimento</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { getContaPJ, getRecebimentosPendentesPJ, confirmarRecebimento, msgErro } from './js/api.js?v=50';
@@ -155,12 +198,15 @@
       renderPendentes();
     });
 
+    let _pendentesCache = [];
+
     async function renderPendentes() {
       document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
 
       let dados;
       try { dados = await getRecebimentosPendentesPJ(currentUser.uid, mesAtual, anoAtual); }
       catch (err) { alert(msgErro(err)); return; }
+      _pendentesCache = dados.pendentes;
 
       document.getElementById('kpiPrevisto').textContent = brl(dados.kpis.previstoNoMes);
       document.getElementById('kpiRecebido').textContent = brl(dados.kpis.recebidoNoMes);
@@ -183,17 +229,9 @@
           <td class="td-fin"><button class="btn-confirmar" data-confirmar-nota="${r.notaId}" data-confirmar-id="${r.id}">✓ Confirmar</button></td>
         </tr>`).join('');
 
-      tbody.querySelectorAll('[data-confirmar-id]').forEach(b => b.addEventListener('click', async () => {
-        const hoje = new Date().toISOString().slice(0, 10);
-        const data = prompt('Data em que o valor caiu (AAAA-MM-DD):', hoje);
-        if (!data) return;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { toast('Data inválida — use o formato AAAA-MM-DD.', 'warning'); return; }
-        setLoading(b, true, 'Confirmando…');
-        try {
-          await confirmarRecebimento(currentUser.uid, b.dataset.confirmarNota, b.dataset.confirmarId, data);
-          toast('Recebimento confirmado.');
-          renderPendentes();
-        } catch (err) { toast(msgErro(err), 'error'); setLoading(b, false); }
+      tbody.querySelectorAll('[data-confirmar-id]').forEach(b => b.addEventListener('click', () => {
+        const receb = _pendentesCache.find(r => r.id === b.dataset.confirmarId);
+        if (receb) abrirModalConfirmarRecebimento(receb);
       }));
     }
 
@@ -204,6 +242,43 @@
     document.getElementById('mesProximo').addEventListener('click', () => {
       mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
       renderPendentes();
+    });
+
+    // ── Modal: Confirmar recebimento (valor recebido pode diferir do
+    // previsto — juros por atraso, taxa real da adquirente etc, mesmo
+    // padrão de "pagarParcela" no admin — achado 27/07/2026) ──
+    const modalConfirmarRecebimento = document.getElementById('modalConfirmarRecebimento');
+    function abrirModalConfirmarRecebimento(receb) {
+      document.getElementById('confRecNotaId').value = receb.notaId;
+      document.getElementById('confRecId').value = receb.id;
+      document.getElementById('confRecData').value = receb.dataPrevista || new Date().toISOString().slice(0, 10);
+      document.getElementById('confRecValorBruto').value = receb.valorBruto ?? '';
+      document.getElementById('confRecTaxa').value = receb.taxa ?? 0;
+      modalConfirmarRecebimento.classList.remove('hidden');
+    }
+    document.getElementById('btnCancelarConfirmarRecebimento').addEventListener('click', () => modalConfirmarRecebimento.classList.add('hidden'));
+    document.getElementById('btnSalvarConfirmarRecebimento').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarConfirmarRecebimento');
+      const notaId = document.getElementById('confRecNotaId').value;
+      const id = document.getElementById('confRecId').value;
+      const dataRecebimento = document.getElementById('confRecData').value;
+      const valorBruto = parseFloat(document.getElementById('confRecValorBruto').value);
+      const taxa = parseFloat(document.getElementById('confRecTaxa').value) || 0;
+      if (!dataRecebimento) { toast('Informe a data.', 'warning'); return; }
+      if (isNaN(valorBruto) || valorBruto <= 0) { toast('Informe um valor recebido válido.', 'warning'); return; }
+      if (taxa > valorBruto) { toast('A taxa não pode ser maior que o valor bruto.', 'warning'); return; }
+
+      setLoading(btn, true, 'Confirmando…');
+      try {
+        await confirmarRecebimento(currentUser.uid, notaId, id, dataRecebimento, valorBruto, taxa);
+        modalConfirmarRecebimento.classList.add('hidden');
+        toast('Recebimento confirmado.');
+        await renderPendentes();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
+      }
     });
   </script>
 
