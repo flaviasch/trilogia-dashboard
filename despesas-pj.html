@@ -52,6 +52,7 @@
     .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
     .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
     .field-group input, .field-group select { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-group select option { background: var(--navy); }
     .field-row { display: flex; gap: 10px; }
     .field-row .field-group { flex: 1; }
     .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
@@ -259,9 +260,14 @@
       // pelo número de parcelas e guarda o valor por parcela + o total.
       const valor = parseFloat(document.getElementById('despValor').value);
       const tipo = document.getElementById('despTipo').value;
-      const diaVencimento = parseInt(document.getElementById('despDiaVencimento').value, 10);
-      const data = document.getElementById('despData').value;
-      const numeroParcelas = parseInt(document.getElementById('despNumeroParcelas').value, 10);
+      // Campos escondidos conforme o tipo ficam vazios no form — parseInt('')
+      // vira NaN, e o Firebase recusa enviar NaN ("Data cannot be encoded in
+      // JSON"). Sempre normaliza pra null quando não é um número válido.
+      const diaVencimentoNum = parseInt(document.getElementById('despDiaVencimento').value, 10);
+      const diaVencimento = Number.isInteger(diaVencimentoNum) ? diaVencimentoNum : null;
+      const data = document.getElementById('despData').value || null;
+      const numeroParcelasNum = parseInt(document.getElementById('despNumeroParcelas').value, 10);
+      const numeroParcelas = Number.isInteger(numeroParcelasNum) ? numeroParcelasNum : null;
       const mesesRestantesVal = document.getElementById('despMesesRestantes').value;
       const mesesRestantes = mesesRestantesVal ? parseInt(mesesRestantesVal, 10) : null;
       const categoria = document.getElementById('despCategoria').value.trim() || null;
