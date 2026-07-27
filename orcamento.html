@@ -4641,9 +4641,13 @@
 
         if (alertasResumo.length > 0) {
           const itens = alertasResumo.map(a => {
-            const cor = a.pct >= 100 ? 'var(--negative)' : '#f59e0b';
-            const bg  = a.pct >= 100 ? 'rgba(248,113,113,0.15)' : 'rgba(245,158,11,0.15)';
-            const msg = a.pct >= 100
+            // Estritamente maior que 100% — bater exatamente no limite não é
+            // estourar, é usar o planejado até o fim (achado 27/07/2026,
+            // Flávia: categoria em 100% não deveria contar como "acima do
+            // limite" nem no score, e aqui era >=, mesma inconsistência).
+            const cor = a.pct > 100 ? 'var(--negative)' : '#f59e0b';
+            const bg  = a.pct > 100 ? 'rgba(248,113,113,0.15)' : 'rgba(245,158,11,0.15)';
+            const msg = a.pct > 100
               ? `${brl(a.real - a.limite)} acima do limite`
               : `restam ${brl(a.limite - a.real)}`;
             return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:rgba(255,255,255,0.8);">
@@ -5635,8 +5639,8 @@
       let alertasHTML = '';
       if (alertas.length > 0) {
         const itens = alertas.map(a => {
-          const cls = a.pct >= 100 ? 'vermelho' : 'amarelo';
-          const msg = a.pct >= 100
+          const cls = a.pct > 100 ? 'vermelho' : 'amarelo';
+          const msg = a.pct > 100
             ? `${brl(a.real - a.limite)} acima do limite`
             : `restam ${brl(a.limite - a.real)}`;
           return `<div class="alertas-item">
@@ -5758,8 +5762,8 @@
       if (alertasCartao.length > 0) {
         const totalAlertas = alertas.length + alertasCartao.length;
         const renderAlertaItem = (pct, label, real, limite) => {
-          const cls = pct >= 100 ? 'vermelho' : 'amarelo';
-          const msg = pct >= 100
+          const cls = pct > 100 ? 'vermelho' : 'amarelo';
+          const msg = pct > 100
             ? `${brl(real - limite)} acima do limite`
             : `restam ${brl(limite - real)}`;
           return `<div class="alertas-item">

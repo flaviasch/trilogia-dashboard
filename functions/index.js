@@ -5682,7 +5682,7 @@ exports.getDespesasPJ = onCall({}, async (request) => {
 });
 
 exports.saveDespesaPJ = onCall({}, async (request) => {
-  const { uid, id, nome, valor, diaVencimento, data, tipo, mesesRestantes, numeroParcelas, categoria, ativo } = request.data;
+  const { uid, id, nome, valor, diaVencimento, data, tipo, mesesRestantes, numeroParcelas, mesInicio, anoInicio, categoria, ativo } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!nome || typeof nome !== 'string' || !nome.trim())
     throw new HttpsError('invalid-argument', 'nome é obrigatório.');
@@ -5733,6 +5733,15 @@ exports.saveDespesaPJ = onCall({}, async (request) => {
       throw new HttpsError('invalid-argument', 'diaVencimento deve ser um inteiro entre 1 e 28.');
     dados.diaVencimento = dia;
     dados.data = null;
+    // Data inicial de cobrança (mesInicio/anoInicio) — achado 27/07/2026,
+    // Flávia: editável de propósito (diferente de saveRecorrente do PF, que
+    // trava isso). Uma despesa real pode já vir sendo paga há meses antes de
+    // ser cadastrada aqui (ex: contador desde janeiro); travar o início na
+    // data de cadastro geraria atraso retroativo falso em Contas a Pagar.
+    const mi = Number(mesInicio), ai = Number(anoInicio);
+    const hoje = new Date();
+    dados.mesInicio = Number.isInteger(mi) && mi >= 1 && mi <= 12 ? mi : hoje.getMonth() + 1;
+    dados.anoInicio = Number.isInteger(ai) && ai >= 2020 && ai <= 2100 ? ai : hoje.getFullYear();
     if (tipoDespesa === 'parcelada') {
       dados.numeroParcelas = Number(numeroParcelas);
       dados.mesesRestantes = null;
@@ -5751,14 +5760,8 @@ exports.saveDespesaPJ = onCall({}, async (request) => {
     const snap = await ref.get();
     if (!snap.exists) throw new HttpsError('not-found', 'Despesa não encontrada.');
     if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
-    // mesInicio/anoInicio nunca mudam numa edição (mesmo padrão de
-    // `saveRecorrente` do PF) — senão editar valor/nome empurraria o início
-    // da recorrência/parcelamento pra frente.
     await ref.update(dados);
   } else {
-    const hoje = new Date();
-    dados.mesInicio = hoje.getMonth() + 1;
-    dados.anoInicio = hoje.getFullYear();
     const countSnap = await db.collection('despesasPJ').where('uid', '==', uid).get();
     dados.uid = uid;
     dados.ordem = countSnap.size;
@@ -5847,6 +5850,28 @@ exports.estornarPagamentoDespesaPJ = onCall({}, async (request) => {
 });
 
 /**
+ * Dispensa uma ocorrência sem marcar como paga — achado 27/07/2026, Flávia:
+ * uma despesa cadastrada com data inicial errada (ou legado sem mesInicio)
+ * gera ocorrências passadas que nunca aconteceram de verdade; "Confirmar"
+ * mentiria (não foi pago), então precisa de um jeito de dispensar sem
+ * confirmar. Reaproveita o mesmo documento de pagamentos (mesma chave),
+ * marcado com `cancelado: true` em vez de `dataPagamento` — em ambos os
+ * lugares que leem essa subcoleção (getFluxoCaixaPJ, getContasPagarPendentesPJ)
+ * a ocorrência cancelada some da lista de pendentes e NÃO vira saída no
+ * Fluxo de Caixa (diferente de confirmada, que vira saída "paga").
+ */
+exports.cancelarOcorrenciaDespesaPJ = onCall({}, async (request) => {
+  const { uid, despesaId, mesAno } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!despesaId || !mesAno) throw new HttpsError('invalid-argument', 'despesaId e mesAno são obrigatórios.');
+  const { ref } = await _despesaDoUid(uid, despesaId);
+  await ref.collection('pagamentos').doc(mesAno).set({
+    uid, cancelado: true, canceladoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true };
+});
+
+/**
  * Lista consolidada de ocorrências de despesas ainda não pagas, pra "Contas
  * a Pagar" — mesmo papel de getRecebimentosPendentesPJ, adaptado pro fato de
  * despesa fixa sem mesesRestantes gerar ocorrência infinita: em vez de
@@ -5878,8 +5903,11 @@ exports.getContasPagarPendentesPJ = onCall({}, async (request) => {
 
   function _processarOcorrencia(despesaId, desp, oc) {
     const pagamento = pagamentosPorChave[`${despesaId}_${oc.mesAno}`];
+    // Cancelada: dispensada, nunca aconteceu de verdade — não entra em
+    // previsto/pago/pendente, some da lista inteira.
+    if (pagamento?.cancelado) return;
     if (oc.mesAno === prefixoMes) previstoNoMes += desp.valor;
-    if (pagamento && pagamento.dataPagamento.startsWith(prefixoMes)) pagoNoMes += desp.valor;
+    if (pagamento?.dataPagamento && pagamento.dataPagamento.startsWith(prefixoMes)) pagoNoMes += desp.valor;
     if (pagamento) return; // já confirmada, não entra em pendentes/aPagar
     if (oc.dataVenc > hojeISO) return; // ainda não venceu, nada a confirmar
     aPagar += desp.valor;
@@ -6342,10 +6370,11 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
       const oc = _ocorrenciaDespesaPJ(desp, mesX, anoX);
       if (!oc) return;
       const pagamento = pagamentosPorChave[`${d.id}_${oc.mesAno}`];
+      if (pagamento?.cancelado) return; // dispensada em Contas a Pagar — nunca aconteceu, não é saída
       movs.push({
         data: pagamento?.dataPagamento || oc.dataVenc, tipo: 'saida',
         descricao: `${desp.nome}${oc.sufixo}`, valor: desp.valor,
-        confirmado: !!pagamento,
+        confirmado: !!pagamento?.dataPagamento,
       });
     });
 

@@ -719,6 +719,9 @@ export async function confirmarPagamentoDespesaPJ(uid, despesaId, mesAno, dataPa
 export async function estornarPagamentoDespesaPJ(uid, despesaId, mesAno) {
   return callPJ('estornarPagamentoDespesaPJ')({ uid, despesaId, mesAno });
 }
+export async function cancelarOcorrenciaDespesaPJ(uid, despesaId, mesAno) {
+  return callPJ('cancelarOcorrenciaDespesaPJ')({ uid, despesaId, mesAno });
+}
 
 export async function getFluxoCaixaPJ(uid, mes, ano) {
   return callPJ('getFluxoCaixaPJ')({ uid, mes, ano });
