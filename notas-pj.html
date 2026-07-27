@@ -359,7 +359,6 @@
     }
     document.getElementById('btnNovaNota').addEventListener('click', () => abrirModalNota());
     document.getElementById('btnCancelarNota').addEventListener('click', () => modalNota.classList.add('hidden'));
-    modalNota.addEventListener('click', e => { if (e.target === modalNota) modalNota.classList.add('hidden'); });
     document.getElementById('notaForma').addEventListener('change', (e) => {
       document.getElementById('fgNotaParcelas').style.display = e.target.value === 'credito_parcelado' ? '' : 'none';
     });
@@ -382,10 +381,19 @@
 
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await saveNotaEmitida(currentUser.uid, { id, valor, mes, ano, dataEmissao, ...dadosExtra });
+        const resultado = await saveNotaEmitida(currentUser.uid, { id, valor, mes, ano, dataEmissao, ...dadosExtra });
         modalNota.classList.add('hidden');
         mesAtual = mes; anoAtual = ano;
-        renderNotas();
+        await renderNotas();
+        // Nota nova (não edição): abre Recebimentos na hora, sem precisar de
+        // clique extra — achado 27/07/2026, Flávia (pedido repetido): quem
+        // acabou de lançar a nota já está no contexto de decidir a forma de
+        // pagamento/parcelas, não devia precisar procurar o botão de novo.
+        if (!id) {
+          const notaNova = _notasCache.find(n => n.id === resultado.id)
+            || { id: resultado.id, valor, dataEmissao: dataEmissao || new Date().toISOString().slice(0, 10) };
+          await abrirModalRecebimentos(notaNova);
+        }
       } catch (err) {
         alert(msgErro(err));
       } finally {
@@ -410,7 +418,6 @@
       modalRecebimentos.classList.remove('hidden');
     }
     document.getElementById('btnFecharModalRecebimentos').addEventListener('click', () => modalRecebimentos.classList.add('hidden'));
-    modalRecebimentos.addEventListener('click', e => { if (e.target === modalRecebimentos) modalRecebimentos.classList.add('hidden'); });
 
     function renderListaRecebimentos() {
       const el = document.getElementById('listaRecebimentos');

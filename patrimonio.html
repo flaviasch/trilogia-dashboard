@@ -1821,7 +1821,6 @@
       document.getElementById('patrimonioVazioConfirmado').style.display = '';
     });
     document.getElementById('btnCancelAtivo').addEventListener('click', fecharModalAtivo);
-    modalAtivo.addEventListener('click', e => { if (e.target === modalAtivo) fecharModalAtivo(); });
 
     document.getElementById('btnSaveAtivo').addEventListener('click', async () => {
       const btnSaveAtivo = document.getElementById('btnSaveAtivo');
@@ -1930,7 +1929,6 @@
 
     document.getElementById('btnAddDivida').addEventListener('click', () => abrirModalDivida());
     document.getElementById('btnCancelDivida').addEventListener('click', fecharModalDivida);
-    modalEl.addEventListener('click', (e) => { if (e.target === modalEl) fecharModalDivida(); });
 
     function resetModal() {
       document.getElementById('dividaNome').value    = '';
@@ -2111,7 +2109,6 @@
     }
 
     document.getElementById('btnCancelPagamento').addEventListener('click', fecharModalPagamento);
-    modalPagamento.addEventListener('click', e => { if (e.target === modalPagamento) fecharModalPagamento(); });
 
     document.getElementById('btnSavePagamento').addEventListener('click', async () => {
       const id = pagandoDividaId;

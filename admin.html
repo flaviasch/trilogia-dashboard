@@ -2138,9 +2138,6 @@
     document.getElementById('btnFecharComunicados').addEventListener('click', () => {
       modalCom.style.display = 'none';
     });
-    modalCom.addEventListener('click', e => {
-      if (e.target === modalCom) modalCom.style.display = 'none';
-    });
     document.getElementById('btnMigrarOrcamento').addEventListener('click', async () => {
       const btn    = document.getElementById('btnMigrarOrcamento');
       const status = document.getElementById('statusMigracao');
@@ -4085,7 +4082,6 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
     }
     document.getElementById('btnNovaNotaEmitida').addEventListener('click', () => abrirModalNotaEmitida());
     document.getElementById('btnCancelarNotaEmitida').addEventListener('click', () => modalNotaEmitida.classList.add('hidden'));
-    modalNotaEmitida.addEventListener('click', e => { if (e.target === modalNotaEmitida) modalNotaEmitida.classList.add('hidden'); });
 
     document.getElementById('btnSalvarNotaEmitida').addEventListener('click', async () => {
       const btn = document.getElementById('btnSalvarNotaEmitida');
@@ -4152,7 +4148,6 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
     }
     document.getElementById('btnConfigurarTributos').addEventListener('click', abrirModalTributos);
     document.getElementById('btnFecharModalTributos').addEventListener('click', () => modalTributos.classList.add('hidden'));
-    modalTributos.addEventListener('click', e => { if (e.target === modalTributos) modalTributos.classList.add('hidden'); });
 
     function abrirFormTributo(trib = null) {
       document.getElementById('tribId').value = trib?.id || '';

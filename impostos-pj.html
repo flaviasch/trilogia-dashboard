@@ -93,7 +93,7 @@
 
   <main>
     <h1>Impostos</h1>
-    <p class="subtitulo">Acompanhe os impostos provisionados automaticamente a partir das notas lançadas em "Notas".</p>
+    <p class="subtitulo">Provisão automática a partir das notas lançadas em "Notas". Os impostos devidos (vencimento, confirmação de pagamento) agora ficam em "Contas a Pagar".</p>
 
     <div class="mes-nav">
       <button class="btn-mes" id="mesAnterior">‹</button>
@@ -113,11 +113,6 @@
         <div class="kpi-value" id="totalPrevisto">—</div>
         <div class="kpi-sub" id="totalPrevistoSub">—</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Ainda a pagar</div>
-        <div class="kpi-value" id="totalPendente">—</div>
-        <div class="kpi-sub" id="totalPendenteSub">pendente</div>
-      </div>
     </div>
 
     <div class="secao">
@@ -128,17 +123,6 @@
           <tbody id="tabelaProvisaoBody"></tbody>
         </table>
         <div class="vazio" id="provisaoVazio" style="display:none">Nenhum tributo configurado ainda, ou nenhuma nota lançada neste mês.</div>
-      </div>
-    </div>
-
-    <div class="secao">
-      <div class="secao-header"><span class="secao-titulo">Impostos devidos</span></div>
-      <div class="card-lista">
-        <table>
-          <thead><tr><th class="td-fin nome">Tributo</th><th class="td-fin">Vencimento</th><th class="td-fin valor">Valor</th><th class="td-fin">Status</th><th class="td-fin"></th></tr></thead>
-          <tbody id="tabelaDevidosBody"></tbody>
-        </table>
-        <div class="vazio" id="devidosVazio" style="display:none">Nada com vencimento neste mês.</div>
       </div>
     </div>
   </main>
@@ -463,7 +447,6 @@
     }
     document.getElementById('btnConfigurarTributos').addEventListener('click', abrirModalTributos);
     document.getElementById('btnFecharModalTributos').addEventListener('click', () => { modalTributos.classList.add('hidden'); renderImpostos(); });
-    modalTributos.addEventListener('click', e => { if (e.target === modalTributos) { modalTributos.classList.add('hidden'); renderImpostos(); } });
 
     function abrirFormTributo(trib = null) {
       document.getElementById('tribId').value = trib?.id || '';

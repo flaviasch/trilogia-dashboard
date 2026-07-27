@@ -53,6 +53,8 @@
     .td-fin.valor { text-align: right; font-weight: 600; }
     .badge-vencido { background: rgba(248,113,113,.15); color: var(--negative); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
     .badge-avencer { background: rgba(96,165,250,.15); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-pago { background: rgba(74,222,128,.15); color: var(--positive); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-amanha { background: rgba(96,165,250,.15); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
     .btn-confirmar { background: none; border: 1px solid rgba(74,222,128,.3); color: var(--positive); cursor: pointer; font-size: 12px; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
     .btn-cancelar-oc { background: none; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
     .acoes-cell { display: flex; gap: 6px; justify-content: flex-end; }
@@ -135,6 +137,17 @@
     </div>
 
     <div class="secao-header">
+      <span class="secao-titulo">Impostos devidos</span>
+    </div>
+    <div class="card-lista">
+      <table>
+        <thead><tr><th class="td-fin">Tributo</th><th class="td-fin">Vencimento</th><th class="td-fin valor">Valor</th><th class="td-fin">Status</th><th class="td-fin"></th></tr></thead>
+        <tbody id="tabelaDevidosBody"></tbody>
+      </table>
+      <div class="vazio" id="devidosVazio" style="display:none">Nada com vencimento neste mês. Configure os tributos em "Impostos".</div>
+    </div>
+
+    <div class="secao-header">
       <span class="secao-titulo">Despesas cadastradas</span>
       <button class="btn-acao" id="btnAddDespesa">+ Adicionar despesa</button>
     </div>
@@ -203,6 +216,7 @@
       getContaPJ,
       getContasPagarPendentesPJ, confirmarPagamentoDespesaPJ, cancelarOcorrenciaDespesaPJ,
       getDespesasPJ, saveDespesaPJ, deleteDespesaPJ,
+      getImpostosPrevistos, marcarImpostoPago, deleteImpostoPrevisto,
       msgErro,
     } from './js/api.js?v=50';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -239,7 +253,59 @@
       }
       renderPendentes();
       renderDespesas();
+      renderImpostosDevidos();
     });
+
+    // ─── Impostos devidos (movido de Impostos pra cá — achado 27/07/2026,
+    // Flávia: faz mais sentido a confirmação de pagamento ficar junto de
+    // Contas a Pagar; Provisão continua em Impostos) ────────────────────────
+    function badgeImposto(imp) {
+      if (imp.pago) return `<span class="badge-pago">Pago</span>`;
+      const hoje   = new Date().toISOString().slice(0, 10);
+      const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      if (imp.vencimento < hoje)    return `<span class="badge-vencido">Vencido</span>`;
+      if (imp.vencimento === amanha) return `<span class="badge-amanha">Amanhã</span>`;
+      return '';
+    }
+    async function renderImpostosDevidos() {
+      let impostos = [];
+      try { impostos = await getImpostosPrevistos(currentUser.uid, mesAtual, anoAtual); }
+      catch (err) { alert(msgErro(err)); return; }
+      const devidos = impostos.filter(i => !i.somenteLeitura);
+
+      if (!devidos.length) {
+        document.getElementById('devidosVazio').style.display = '';
+        document.getElementById('tabelaDevidosBody').innerHTML = '';
+        return;
+      }
+      document.getElementById('devidosVazio').style.display = 'none';
+      document.getElementById('tabelaDevidosBody').innerHTML = devidos.map(i => `
+        <tr>
+          <td class="td-fin">${i.tributoNome}</td>
+          <td class="td-fin">${fmtData(i.vencimento)}</td>
+          <td class="td-fin valor">${brl(i.valor)}</td>
+          <td class="td-fin">${badgeImposto(i)}</td>
+          <td class="td-fin" style="white-space:nowrap">
+            ${!i.pago ? `<button data-imp-pagar="${i.id}" class="btn-confirmar">✓ Pago</button>`
+              : `<button data-imp-estornar="${i.id}" class="btn-cancelar-oc">desfazer</button>`}
+            <button data-imp-excluir="${i.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;margin-left:4px">✕</button>
+          </td>
+        </tr>`).join('');
+      document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-pagar]').forEach(b => b.addEventListener('click', async () => {
+        b.disabled = true;
+        try { await marcarImpostoPago(currentUser.uid, b.dataset.impPagar, true); renderImpostosDevidos(); }
+        catch (err) { alert(msgErro(err)); b.disabled = false; }
+      }));
+      document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-estornar]').forEach(b => b.addEventListener('click', async () => {
+        try { await marcarImpostoPago(currentUser.uid, b.dataset.impEstornar, false); renderImpostosDevidos(); }
+        catch (err) { alert(msgErro(err)); }
+      }));
+      document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-excluir]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Remover esta linha de imposto previsto?')) return;
+        try { await deleteImpostoPrevisto(currentUser.uid, b.dataset.impExcluir); renderImpostosDevidos(); }
+        catch (err) { alert(msgErro(err)); }
+      }));
+    }
 
     // ─── Contas pendentes ───────────────────────────────────────────────────
     async function renderPendentes() {
@@ -296,10 +362,12 @@
     document.getElementById('mesAnterior').addEventListener('click', () => {
       mesAtual--; if (mesAtual < 1) { mesAtual = 12; anoAtual--; }
       renderPendentes();
+      renderImpostosDevidos();
     });
     document.getElementById('mesProximo').addEventListener('click', () => {
       mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
       renderPendentes();
+      renderImpostosDevidos();
     });
 
     // ─── Despesas cadastradas (CRUD dos modelos) ───────────────────────────
@@ -376,7 +444,6 @@
     }
     document.getElementById('btnAddDespesa').addEventListener('click', () => abrirModalDespesa());
     document.getElementById('btnCancelarDespesa').addEventListener('click', () => modalDespesa.classList.add('hidden'));
-    modalDespesa.addEventListener('click', e => { if (e.target === modalDespesa) modalDespesa.classList.add('hidden'); });
     document.getElementById('despTipo').addEventListener('change', (e) => aplicarTipoDespesa(e.target.value));
 
     document.getElementById('btnSalvarDespesa').addEventListener('click', async () => {

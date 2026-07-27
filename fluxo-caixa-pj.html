@@ -346,7 +346,6 @@
     }
     document.getElementById('btnNovaOutraEntrada').addEventListener('click', () => abrirModalOutraEntrada());
     document.getElementById('btnCancelarOutraEntrada').addEventListener('click', () => modalOutraEntrada.classList.add('hidden'));
-    modalOutraEntrada.addEventListener('click', e => { if (e.target === modalOutraEntrada) modalOutraEntrada.classList.add('hidden'); });
 
     document.getElementById('btnSalvarOutraEntrada').addEventListener('click', async () => {
       const btn = document.getElementById('btnSalvarOutraEntrada');

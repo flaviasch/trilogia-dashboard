@@ -3009,7 +3009,6 @@
     }
 
     document.getElementById('btnCancelarItem').addEventListener('click', fecharModal);
-    modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
 
     // Toggle tipo → atualiza visibilidade de cartão e toggles
     document.getElementById('mTipo').addEventListener('change', function() {
@@ -3537,13 +3536,6 @@
       valorAportePendente = null;
       alocacoesPendentes  = [];
     });
-    modalReservas.addEventListener('click', e => {
-      if (e.target === modalReservas) {
-        modalReservas.classList.add('hidden');
-        valorAportePendente = null;
-        alocacoesPendentes  = [];
-      }
-    });
 
     // ─── Saldo em Conta — edição inline ──────────────────────────────────────
     window._editarSaldoConta = () => {
@@ -3653,13 +3645,6 @@
       modalClasse.classList.add('hidden');
       valorAportePendente = null;
       alocacoesPendentes  = [];
-    });
-    modalClasse.addEventListener('click', e => {
-      if (e.target === modalClasse) {
-        modalClasse.classList.add('hidden');
-        valorAportePendente = null;
-        alocacoesPendentes  = [];
-      }
     });
 
     // ── Pular: salva aporte + reservas sem registrar classe no patrimônio ─────
@@ -4806,7 +4791,6 @@
       modalTransferencia.classList.remove('hidden');
     };
     document.getElementById('btnCancelarTransferencia').addEventListener('click', () => modalTransferencia.classList.add('hidden'));
-    modalTransferencia.addEventListener('click', e => { if (e.target === modalTransferencia) modalTransferencia.classList.add('hidden'); });
 
     document.getElementById('btnSalvarTransferencia').addEventListener('click', async () => {
       const origemId  = document.getElementById('trfOrigem').value;
@@ -6481,9 +6465,6 @@
       modalLimite.classList.add('hidden');
       editandoLimiteCat = null;
     });
-    modalLimite.addEventListener('click', e => {
-      if (e.target === modalLimite) { modalLimite.classList.add('hidden'); editandoLimiteCat = null; }
-    });
 
     document.getElementById('btnSalvarLimite').addEventListener('click', async () => {
       const btn    = document.getElementById('btnSalvarLimite');
@@ -6559,7 +6540,6 @@
     window.abrirModalRendaPlan = abrirModalRendaPlan;
 
     document.getElementById('btnCancelarRendaPlan').addEventListener('click', () => modalRendaPlan.classList.add('hidden'));
-    modalRendaPlan.addEventListener('click', e => { if (e.target === modalRendaPlan) modalRendaPlan.classList.add('hidden'); });
 
     document.getElementById('btnSalvarRendaPlan').addEventListener('click', async () => {
       const btn = document.getElementById('btnSalvarRendaPlan');
@@ -6759,9 +6739,6 @@
     document.getElementById('btnCancelarAporteEdit').addEventListener('click', () => {
       modalAporteEdit.classList.add('hidden');
       editandoAporteIdx = null;
-    });
-    modalAporteEdit.addEventListener('click', e => {
-      if (e.target === modalAporteEdit) { modalAporteEdit.classList.add('hidden'); editandoAporteIdx = null; }
     });
 
     document.getElementById('btnSalvarAporteEdit').addEventListener('click', async () => {

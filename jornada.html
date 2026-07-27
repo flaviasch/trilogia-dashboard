@@ -1181,7 +1181,6 @@
       recalcular();
 
       document.getElementById('riBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
-      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
 
       btnUsar.addEventListener('click', async () => {
         const { gasto, meses, valor } = recalcular();
@@ -1295,7 +1294,6 @@
       });
 
       document.getElementById('prBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
-      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
     }
 
     // ── Quiz dos Vieses Comportamentais ──
@@ -1374,7 +1372,6 @@
       avaliarResultado();
 
       document.getElementById('qvBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
-      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
     }
 
     // ── Plano Financeiro Comportamental ──
@@ -1489,7 +1486,6 @@
       });
 
       document.getElementById('pcBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
-      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
     }
 
     // ── Diário das Histórias com o Dinheiro ──
@@ -1550,7 +1546,6 @@
       });
 
       document.getElementById('dhBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
-      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
     }
 
     // ── Mapa do Ambiente Financeiro ──
@@ -1602,7 +1597,6 @@
       });
 
       document.getElementById('maBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
-      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
     }
 
     // ── Desafio 7 Dias da Consciência Financeira ──
@@ -1664,7 +1658,6 @@
       });
 
       document.getElementById('d7BtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
-      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
     }
 
     // ── Antes de Decidir: P.A.R.I.S. + Anti-Impulso (log recorrente) ──
@@ -1773,7 +1766,6 @@
       });
 
       document.getElementById('dfBtnFechar1').addEventListener('click', () => modal.classList.remove('aberto'));
-      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('aberto'); });
     }
 
     async function carregarHistoricoDecisoes() {

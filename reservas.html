@@ -1611,7 +1611,6 @@
 
     document.getElementById('btnNovaReserva').addEventListener('click', () => abrirModal());
     document.getElementById('btnCancelarModal').addEventListener('click', fecharModal);
-    modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
     document.getElementById('rDataMeta').addEventListener('change', atualizarPreview);
     document.getElementById('rDataInicioAporte').addEventListener('change', atualizarPreview);
     document.getElementById('rNome').addEventListener('input', atualizarPreview);
@@ -1689,7 +1688,6 @@
     }
 
     document.getElementById('btnCancelarAlocar').addEventListener('click', fecharModalAlocar);
-    modalAlocar.addEventListener('click', e => { if (e.target === modalAlocar) fecharModalAlocar(); });
     document.getElementById('alocarValor').addEventListener('input', () =>
       document.getElementById('fgAlocar').classList.remove('has-error'));
 
@@ -1748,7 +1746,6 @@
     }
 
     document.getElementById('btnCancelarRetirada').addEventListener('click', fecharModalRetirada);
-    modalRetirada.addEventListener('click', e => { if (e.target === modalRetirada) fecharModalRetirada(); });
     document.getElementById('retiradaValor').addEventListener('input', () =>
       document.getElementById('fgRetirada').classList.remove('has-error'));
 
@@ -1873,10 +1870,6 @@
     document.getElementById('btnFecharPosRetirada').addEventListener('click', () => {
       posStep('posStep3');
     });
-    modalPosRetirada.addEventListener('click', e => {
-      if (e.target === modalPosRetirada) fecharPosRetirada();
-    });
-
     // ── Passo 1: "Não, encerrar" — executa direto, sem tela de confirmação ──
     document.getElementById('btnEncerrar').addEventListener('click', async () => {
       const btn = document.getElementById('btnEncerrar');
