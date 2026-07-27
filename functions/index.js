@@ -6121,8 +6121,6 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
   // (sugerida por forma de pagamento em SUGESTAO_PRAZO_DIAS).
   const pmrEfetivo = pmrCalculado ?? 30;
 
-  const movimentos = [];
-
   // Entradas: todos os recebimentos da conta, projetando quem ainda não foi
   // confirmado na dataPrevista (a própria dataPrevista já é a melhor
   // estimativa por forma de pagamento — só cai no PMR genérico se a nota tiver
@@ -6130,86 +6128,116 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
   // saveNotaEmitida sempre cria um default, mas o fallback protege contra
   // dado legado/editado na mão).
   const recebSnap = await db.collectionGroup('recebimentos').where('uid', '==', uid).get();
-  recebSnap.docs.forEach(d => {
-    const r = d.data();
-    const dataEfetiva = r.dataRecebimento || r.dataPrevista || r.dataEmissaoNota;
-    if (!dataEfetiva || !dataEfetiva.startsWith(prefixoMes)) return;
-    movimentos.push({
-      data: dataEfetiva,
-      tipo: 'entrada',
-      descricao: `Recebimento (${r.formaPagamento})${r.parcelaTotal ? ` ${r.parcelaAtual}/${r.parcelaTotal}` : ''}`,
-      valor: r.valorLiquido,
-      confirmado: !!r.dataRecebimento,
-    });
-  });
-
-  // Entradas: lançamentos avulsos que não são venda (aporte de sócio,
-  // reembolso, outro) — não passam por nota fiscal nem entram na DRE, só no
-  // caixa (achado 27/07/2026).
+  // Outras entradas (aporte de sócio, reembolso, outro) — busca tudo (não só
+  // o mês pedido) porque agora também é usado pra rolar o saldo de meses
+  // anteriores pra frente (ver _movimentosDoMes/diffMeses abaixo).
   const CATEGORIA_LABEL_ENTRADA = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outra entrada' };
-  const outrasSnap = await db.collection('outrasEntradasPJ')
-    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
-  outrasSnap.docs.forEach(d => {
-    const o = d.data();
-    movimentos.push({
-      data: o.data, tipo: 'entrada',
-      descricao: `${CATEGORIA_LABEL_ENTRADA[o.categoria] || 'Outra entrada'}: ${o.descricao}`,
-      valor: o.valor, confirmado: true,
-    });
-  });
-
-  // Saídas: 'unica' só entra no mês da sua própria data; 'fixa' recorre todo
-  // mês a partir de mesInicio/anoInicio, parando depois de mesesRestantes se
-  // definido (senão pra sempre); 'parcelada' recorre só durante numeroParcelas
-  // meses a partir de mesInicio/anoInicio, com o número da parcela atual no
-  // nome (achado 27/07/2026: mesma lógica de recorrente/parcelamento do PF,
-  // mas calculada na hora — sem materializar um doc por mês). Documentos
-  // legados sem mesInicio/anoInicio (criados antes desse campo existir) usam
-  // anoInicio=0, o que os mantém sempre visíveis — preserva o comportamento
-  // de antes pra quem já tinha despesa fixa cadastrada.
-  // Despesa não tem um botão de "confirmar" — o vencimento já é o próprio
-  // sinal: se a data já chegou (hoje ou passado), considera realizada; só
-  // fica "previsto" enquanto a data ainda não chegou (achado 27/07/2026,
-  // Flávia: "mesmo raciocínio do PF" — mesma ideia de isPendenteEfetivo em
-  // js/orcamento-calc.js, adaptada aqui pra não precisar de confirmação manual).
+  const outrasSnap = await db.collection('outrasEntradasPJ').where('uid', '==', uid).get();
   const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
-  despesasSnap.docs.forEach(d => {
-    const desp = d.data();
-    if (desp.tipo === 'unica') {
-      if (!desp.data || !desp.data.startsWith(prefixoMes)) return;
-      movimentos.push({ data: desp.data, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: desp.data <= hoje });
-      return;
-    }
-    const inicioM = desp.mesInicio || 1;
-    const inicioA = desp.anoInicio || 0;
-    const mesesDesdeInicio = (ano - inicioA) * 12 + (mes - inicioM);
-    if (mesesDesdeInicio < 0) return; // ainda não começou
-    if (desp.tipo === 'parcelada') {
-      const n = desp.numeroParcelas || 1;
-      if (mesesDesdeInicio >= n) return; // já terminou
-      const dataVenc = `${prefixoMes}-${String(desp.diaVencimento).padStart(2, '0')}`;
-      movimentos.push({ data: dataVenc, tipo: 'saida', descricao: `${desp.nome} (${mesesDesdeInicio + 1}/${n})`, valor: desp.valor, confirmado: dataVenc <= hoje });
-      return;
-    }
-    if (desp.mesesRestantes != null && mesesDesdeInicio >= desp.mesesRestantes) return; // já terminou
-    const dataVenc = `${prefixoMes}-${String(desp.diaVencimento).padStart(2, '0')}`;
-    movimentos.push({ data: dataVenc, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: dataVenc <= hoje });
-  });
-
-  // Saídas: impostos previstos com vencimento real neste mês (exclui linhas
-  // só-informativas do trimestral — referenciaTrimestral nunca é saída de
-  // caixa própria, quem paga de fato é a linha acumulada no mês de fechamento).
+  // Saídas: impostos previstos (exclui linhas só-informativas do trimestral —
+  // referenciaTrimestral nunca é saída de caixa própria, quem paga de fato é
+  // a linha acumulada no mês de fechamento).
   const impSnap = await db.collection('impostosPrevistos').where('uid', '==', uid).get();
-  impSnap.docs.forEach(d => {
-    const imp = d.data();
-    if (imp.referenciaTrimestral) return;
-    if (!imp.vencimento || !imp.vencimento.startsWith(prefixoMes)) return;
-    movimentos.push({ data: imp.vencimento, tipo: 'saida', descricao: imp.tributoNome, valor: imp.valor, confirmado: !!imp.pago });
-  });
 
+  /**
+   * Monta a lista de movimentos de um mês específico — extraído numa função
+   * porque agora é chamado tanto pro mês pedido quanto pra cada mês
+   * intermediário entre a última atualização do saldo e o mês pedido (rolar
+   * o saldo pra frente, ver mais abaixo).
+   */
+  function _movimentosDoMes(mesX, anoX) {
+    const prefixoX = `${anoX}-${String(mesX).padStart(2, '0')}`;
+    const movs = [];
+
+    recebSnap.docs.forEach(d => {
+      const r = d.data();
+      const dataEfetiva = r.dataRecebimento || r.dataPrevista || r.dataEmissaoNota;
+      if (!dataEfetiva || !dataEfetiva.startsWith(prefixoX)) return;
+      movs.push({
+        data: dataEfetiva, tipo: 'entrada',
+        descricao: `Recebimento (${r.formaPagamento})${r.parcelaTotal ? ` ${r.parcelaAtual}/${r.parcelaTotal}` : ''}`,
+        valor: r.valorLiquido, confirmado: !!r.dataRecebimento,
+      });
+    });
+
+    outrasSnap.docs.forEach(d => {
+      const o = d.data();
+      if (o.mes !== mesX || o.ano !== anoX) return;
+      movs.push({
+        data: o.data, tipo: 'entrada',
+        descricao: `${CATEGORIA_LABEL_ENTRADA[o.categoria] || 'Outra entrada'}: ${o.descricao}`,
+        valor: o.valor, confirmado: true,
+      });
+    });
+
+    // 'unica' só entra no mês da sua própria data; 'fixa' recorre todo mês a
+    // partir de mesInicio/anoInicio, parando depois de mesesRestantes se
+    // definido (senão pra sempre); 'parcelada' recorre só durante
+    // numeroParcelas meses a partir de mesInicio/anoInicio, com o número da
+    // parcela atual no nome (achado 27/07/2026: mesma lógica de
+    // recorrente/parcelamento do PF, mas calculada na hora — sem
+    // materializar um doc por mês). Documentos legados sem mesInicio/anoInicio
+    // usam anoInicio=0, o que os mantém sempre visíveis. Despesa não tem
+    // botão de "confirmar": se a data já chegou (hoje ou passado), considera
+    // realizada — mesmo raciocínio de isPendenteEfetivo em orcamento-calc.js.
+    despesasSnap.docs.forEach(d => {
+      const desp = d.data();
+      if (desp.tipo === 'unica') {
+        if (!desp.data || !desp.data.startsWith(prefixoX)) return;
+        movs.push({ data: desp.data, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: desp.data <= hoje });
+        return;
+      }
+      const inicioM = desp.mesInicio || 1;
+      const inicioA = desp.anoInicio || 0;
+      const mesesDesdeInicio = (anoX - inicioA) * 12 + (mesX - inicioM);
+      if (mesesDesdeInicio < 0) return; // ainda não começou
+      if (desp.tipo === 'parcelada') {
+        const n = desp.numeroParcelas || 1;
+        if (mesesDesdeInicio >= n) return; // já terminou
+        const dataVenc = `${prefixoX}-${String(desp.diaVencimento).padStart(2, '0')}`;
+        movs.push({ data: dataVenc, tipo: 'saida', descricao: `${desp.nome} (${mesesDesdeInicio + 1}/${n})`, valor: desp.valor, confirmado: dataVenc <= hoje });
+        return;
+      }
+      if (desp.mesesRestantes != null && mesesDesdeInicio >= desp.mesesRestantes) return; // já terminou
+      const dataVenc = `${prefixoX}-${String(desp.diaVencimento).padStart(2, '0')}`;
+      movs.push({ data: dataVenc, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: dataVenc <= hoje });
+    });
+
+    impSnap.docs.forEach(d => {
+      const imp = d.data();
+      if (imp.referenciaTrimestral) return;
+      if (!imp.vencimento || !imp.vencimento.startsWith(prefixoX)) return;
+      movs.push({ data: imp.vencimento, tipo: 'saida', descricao: imp.tributoNome, valor: imp.valor, confirmado: !!imp.pago });
+    });
+
+    return movs;
+  }
+
+  // Rola o saldo informado pra frente até o mês pedido — sem isso, todo mês
+  // futuro começava do mesmo saldo informado, ignorando as entradas/saídas
+  // dos meses entre a última atualização e o mês visto (achado 27/07/2026,
+  // Flávia: "agosto não pode começar com o mesmo saldo de julho"). Mês
+  // anterior ao da última atualização não é reconstruído (não temos como
+  // saber o saldo de antes) — continua mostrando o valor informado, igual
+  // antes desta correção.
+  const anchorDate = conta.saldoCaixaAtualizadoEm?.toDate ? conta.saldoCaixaAtualizadoEm.toDate() : new Date();
+  const anchorMes = anchorDate.getMonth() + 1;
+  const anchorAno = anchorDate.getFullYear();
+  const diffMeses = (ano - anchorAno) * 12 + (mes - anchorMes);
+
+  let saldoInicial = conta.saldoCaixaAtual ?? 0;
+  for (let i = 0; i < diffMeses; i++) {
+    const dIter = new Date(anchorAno, anchorMes - 1 + i, 1);
+    const netMes = _movimentosDoMes(dIter.getMonth() + 1, dIter.getFullYear())
+      .reduce((s, m) => s + (m.tipo === 'entrada' ? m.valor : -m.valor), 0);
+    saldoInicial += netMes;
+  }
+  saldoInicial = Math.round(saldoInicial * 100) / 100;
+
+  const movimentos = _movimentosDoMes(mes, ano);
   movimentos.sort((a, b) => a.data.localeCompare(b.data));
 
-  let saldo = conta.saldoCaixaAtual ?? 0;
+  let saldo = saldoInicial;
   const linhas = movimentos.map(m => {
     saldo += m.tipo === 'entrada' ? m.valor : -m.valor;
     return { ...m, saldoAcumulado: Math.round(saldo * 100) / 100 };
@@ -6217,9 +6245,9 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
 
   return {
     movimentos: linhas,
-    saldoInicial: conta.saldoCaixaAtual ?? 0,
+    saldoInicial,
     saldoCaixaAtualizadoEm: conta.saldoCaixaAtualizadoEm || null,
-    saldoFinal: linhas.length ? linhas[linhas.length - 1].saldoAcumulado : (conta.saldoCaixaAtual ?? 0),
+    saldoFinal: linhas.length ? linhas[linhas.length - 1].saldoAcumulado : saldoInicial,
     pmrEfetivo,
     pmrCalculado: pmrCalculado !== null,
   };

@@ -245,12 +245,13 @@
         ? `Atualizado em ${atualizadoEm}`
         : 'Ainda não informado — atualize pra ter uma projeção real.';
 
-      const entradas = dados.movimentos.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.valor, 0);
-      const saidas   = dados.movimentos.filter(m => m.tipo === 'saida').reduce((s, m) => s + m.valor, 0);
-      // Subconjunto ainda não confirmado (recebimento sem dataRecebimento,
-      // despesa/imposto sem pago) — achado 27/07/2026, Flávia: o total do
-      // mês mistura confirmado com projetado, precisa dar pra ver o que
-      // ainda não é certeza separado.
+      // "Entradas/saídas do mês" mostra só o que já foi efetivado (confirmado)
+      // — achado 27/07/2026, Flávia: misturar confirmado com projetado no
+      // total principal confundia. O projetado aparece à parte, em "a
+      // confirmar", e o "Saldo final projetado" continua somando tudo (é
+      // uma projeção de propósito).
+      const entradas = dados.movimentos.filter(m => m.tipo === 'entrada' && m.confirmado).reduce((s, m) => s + m.valor, 0);
+      const saidas   = dados.movimentos.filter(m => m.tipo === 'saida'   && m.confirmado).reduce((s, m) => s + m.valor, 0);
       const entradasPrevistas = dados.movimentos.filter(m => m.tipo === 'entrada' && !m.confirmado).reduce((s, m) => s + m.valor, 0);
       const saidasPrevistas   = dados.movimentos.filter(m => m.tipo === 'saida'   && !m.confirmado).reduce((s, m) => s + m.valor, 0);
       document.getElementById('totalEntradas').textContent = brl(entradas);
