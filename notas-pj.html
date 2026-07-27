@@ -473,16 +473,21 @@
     function _valorRestante() {
       return Math.max(0, (_notaRecebimentosAtual?.valor || 0) - _recebimentosCache.reduce((s, r) => s + (r.valorBruto || 0), 0)) || _notaRecebimentosAtual?.valor || 0;
     }
-    // Modo "parcelado" (gerar N de uma vez) só faz sentido pra recebimento
-    // novo — editar um já existente sempre mexe num registro só, mesmo que a
-    // forma seja crédito parcelado (achado 27/07/2026: cadastrar parcela por
-    // parcela na mão era impraticável, mas isso vale pra criar, não editar).
+    // Modo "parcelado" (gerar N de uma vez) também vale editando um
+    // recebimento existente — trocar a Forma pra Crédito parcelado ali
+    // substitui aquele registro único pelas N parcelas geradas (achado
+    // 27/07/2026, 6º pedido: travar isso só pra lançamento novo obrigava a
+    // excluir e recriar na mão pra corrigir um PIX/à vista lançado por
+    // engano quando na verdade foi parcelado).
     function _atualizarModoRecebForma() {
       const editando = !!document.getElementById('recebId').value;
-      const parcelado = !editando && document.getElementById('recebForma').value === 'credito_parcelado';
+      const parcelado = document.getElementById('recebForma').value === 'credito_parcelado';
       document.getElementById('blocoRecebUnico').style.display     = parcelado ? 'none' : '';
       document.getElementById('blocoRecebParcelado').style.display = parcelado ? '' : 'none';
-      if (parcelado) document.getElementById('recebValorTotalAuto').value = _valorRestante();
+      if (parcelado) {
+        const recebAtual = editando ? _recebimentosCache.find(r => r.id === document.getElementById('recebId').value) : null;
+        document.getElementById('recebValorTotalAuto').value = recebAtual?.valorBruto ?? _valorRestante();
+      }
     }
     function abrirFormRecebimento(receb = null) {
       document.getElementById('recebId').value = receb?.id || '';
@@ -510,6 +515,7 @@
 
     document.getElementById('btnGerarParcelas').addEventListener('click', async () => {
       const btn = document.getElementById('btnGerarParcelas');
+      const idEditando = document.getElementById('recebId').value || null;
       const valorTotal = parseFloat(document.getElementById('recebValorTotalAuto').value);
       const numeroParcelas = parseInt(document.getElementById('recebNumParcelasAuto').value, 10) || 2;
       const taxaTotal = parseFloat(document.getElementById('recebTaxaTotalAuto').value) || 0;
@@ -518,6 +524,10 @@
 
       btn.disabled = true; btn.textContent = 'Gerando…';
       try {
+        // Editando um recebimento existente pra virar parcelado: apaga o
+        // registro único antes de gerar as N parcelas, senão o valor dele
+        // ficaria somado junto (achado 27/07/2026).
+        if (idEditando) await deleteRecebimento(currentUser.uid, _notaRecebimentosAtual.id, idEditando);
         await gerarParcelasRecebimento(currentUser.uid, _notaRecebimentosAtual.id, {
           valorTotal, numeroParcelas, taxaTotal,
           dataBase: _notaRecebimentosAtual.dataEmissao || new Date().toISOString().slice(0, 10),
