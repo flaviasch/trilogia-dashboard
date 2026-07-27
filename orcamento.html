@@ -2747,6 +2747,11 @@
     // realizado bater com o fluxo de caixa, em vez de só avisar a diferença.
     let _diffNaoIdentificadoMes = 0;
     let _ehFuturoAtual = false;
+    // Componentes individuais de diffNaoIdentificadoMes, guardados só pro
+    // "ver detalhes" do ajuste em Detalhe/Planejamento (achado 27/07/2026,
+    // Flávia: valor negativo em "Lançamentos não identificados" precisa dar
+    // pra investigar de onde vem, sem precisar abrir o console).
+    let _debugAjusteComponentes = null;
     let _tabAtiva = 'resumo';
     const _periodoCache = new Map(); // { '2026-5': { data, cats } }
     const _invalPeriodo = (m, a) => _periodoCache.delete(`${a}-${m}`);
@@ -3113,17 +3118,38 @@
       if (cartao && !fatura) { toast('Selecione o mês da fatura.', 'warning'); return; }
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
 
-      // Lançamento MANUAL com data de hoje (ou passada) já nasce confirmado —
+      // Item original (se estamos editando, não criando) — usado para preservar
+      // origem/recorrência/status de confirmação abaixo (achado 27/07/2026:
+      // editar só o valor de uma receita pendente estava "confirmando" ela
+      // sozinha, porque esse status era recalculado do zero a cada edição).
+      const itemOriginal = editandoIdx
+        ? (editandoIdx.tipo === 'receita' ? currentData.receitas : currentData.despesas)[editandoIdx.idx]
+        : null;
+
+      // Lançamento MANUAL NOVO com data de hoje (ou passada) já nasce confirmado —
       // a própria usuária digitando na hora É a confirmação, diferente de um
       // item importado/projetado (recorrente, CSV) que ela ainda não revisou
       // (achado 13/07/2026: distinção pedida entre entrada manual e
       // importada; a regra de "hoje exige confirmação" de 10/07/2026
       // continua valendo só para o que chega sem revisão da usuária).
+      // Isso só vale para item NOVO — editar um item existente preserva o
+      // status de confirmação que ele já tinha (achado 27/07/2026: ver acima).
       const hojeNovoItem = new Date(); hojeNovoItem.setHours(0, 0, 0, 0);
       const jaAconteceuNovoItem = data && new Date(data + 'T00:00:00') <= hojeNovoItem;
       // Data futura: marca pendente explicitamente (fica esperando confirmação
       // da usuária mesmo depois que a data passar — ver isPendenteEfetivo).
-      const novoItem = { categoria, tipo, valor, data, descricao, cartao, fatura, origem: 'manual', ...(cartaoId ? { cartaoId } : {}), ...(contaId ? { contaId } : {}), ...(jaAconteceuNovoItem ? { confirmado: true } : { pendente: true }) };
+      const statusPendenciaItem = itemOriginal
+        ? { ...(itemOriginal.pendente ? { pendente: true } : {}), ...(itemOriginal.confirmado ? { confirmado: true } : {}) }
+        : (jaAconteceuNovoItem ? { confirmado: true } : { pendente: true });
+      const novoItem = {
+        categoria, tipo, valor, data, descricao, cartao, fatura,
+        origem: itemOriginal?.origem || 'manual',
+        ...(itemOriginal?.recorrenteId ? { recorrenteId: itemOriginal.recorrenteId } : {}),
+        ...(itemOriginal?.parcelamentoId ? { parcelamentoId: itemOriginal.parcelamentoId, parcelaAtual: itemOriginal.parcelaAtual, parcelasTotal: itemOriginal.parcelasTotal } : {}),
+        ...(cartaoId ? { cartaoId } : {}),
+        ...(contaId ? { contaId } : {}),
+        ...statusPendenciaItem,
+      };
 
       if (cartao && fatura) {
         // Salva diretamente no mês da fatura (não no mês exibido)
@@ -4242,6 +4268,15 @@
       // pra criar a categoria "Lançamentos não identificados".
       _diffNaoIdentificadoMes = _diffNaoIdentificadoMesCalculado;
       _ehFuturoAtual = _ehFuturo;
+      _debugAjusteComponentes = {
+        despesaCaixa: totalDespesa,
+        totalPendente,
+        totalFaturas,
+        totalFixasVirtuais,
+        totalComprometidoMes: agregados.totalComprometidoMes,
+        despesaComprometida: agregados.despesaComprometida,
+        diffNaoIdentificadoMes: _diffNaoIdentificadoMesCalculado,
+      };
 
       // ── Saldo Projetado ─────────────────────────────────────────────────────
       // Eventos conhecidos ainda não confirmados dentro do mês (faturas fechadas
@@ -5275,6 +5310,31 @@
         }));
     }
 
+    // "Ver detalhes" do ajuste "Lançamentos não identificados" — expõe os
+    // componentes que formam esse valor na tela, sem precisar abrir o console
+    // (achado 27/07/2026, Flávia: valor negativo precisava dar pra investigar).
+    function _debugAjusteHTML() {
+      const c = _debugAjusteComponentes;
+      if (!c) return '';
+      const linha = (label, valor) => `
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:var(--text-muted)">
+          <span>${label}</span><span>${brl(valor)}</span>
+        </div>`;
+      return `
+        <details style="margin-top:10px">
+          <summary style="cursor:pointer;font-size:12px;color:var(--text-muted)">Ver detalhes de "Lançamentos não identificados"</summary>
+          <div style="margin-top:6px;padding:10px 12px;background:var(--card-bg,rgba(255,255,255,.03));border-radius:8px">
+            ${linha('Despesas em caixa', c.despesaCaixa)}
+            ${linha('Pendentes (ainda não confirmadas)', c.totalPendente)}
+            ${linha('Faturas de cartão', c.totalFaturas)}
+            ${linha('Fixas ainda não lançadas no mês', c.totalFixasVirtuais)}
+            ${linha('Total comprometido no mês', c.totalComprometidoMes)}
+            ${linha('Despesa comprometida', c.despesaComprometida)}
+            ${linha('Diferença não identificada', c.diffNaoIdentificadoMes)}
+          </div>
+        </details>`;
+    }
+
     // ─── Despesas agrupadas por categoria com limite ──────────────────────────
     function renderDespesasGrupos(data, totalDespesa) {
       const despList = document.getElementById('detalheContent');
@@ -5510,6 +5570,7 @@
           <span class="total-label">Total despesas</span>
           <span class="total-value despesa">${brl(totalListadoDetalhe)}</span>
         </div>
+        ${_debugAjusteHTML()}
         <button class="btn-add-item" id="btnAddDespesa">+ Nova categoria de despesa</button>`;
 
       despList.querySelectorAll('[data-edit-desp]').forEach(btn =>
@@ -5860,6 +5921,7 @@
             </tfoot>
           </table>
         </div>
+        ${_debugAjusteHTML()}
         <button class="btn-add-item" style="margin-top:10px;margin-bottom:4px" onclick="editarLimitePlan('')">+ Definir limite para nova categoria</button>
         ${cartoesHTML}
         <div class="notif-info-box" style="margin-top:16px;">

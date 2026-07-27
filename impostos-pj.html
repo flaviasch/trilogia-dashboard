@@ -202,7 +202,7 @@
       getContaPJ,
       getTributosConfig, saveTributoConfig, deleteTributoConfig,
       getNotasEmitidas,
-      getImpostosPrevistos, marcarImpostoPago, deleteImpostoPrevisto,
+      getImpostosPrevistos,
       msgErro,
     } from './js/api.js?v=50';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -279,15 +279,6 @@
       renderImpostos();
     });
 
-    function badgeImposto(imp) {
-      if (imp.pago) return `<span class="badge-pago">Pago</span>`;
-      const hoje   = new Date().toISOString().slice(0, 10);
-      const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-      if (imp.vencimento < hoje)    return `<span class="badge-vencido">Vencido</span>`;
-      if (imp.vencimento === amanha) return `<span class="badge-amanha">Amanhã</span>`;
-      return '';
-    }
-
     async function renderImpostos() {
       document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
 
@@ -302,21 +293,19 @@
         return;
       }
 
+      // "somenteLeitura" = linha de provisão (mostrada aqui); as que sobram
+      // (impostos devidos, com vencimento e ação de pagar) ficam em Contas a
+      // Pagar agora — acessadas por lá, não usadas nesta tela.
       const provisao = impostos.filter(i => i.somenteLeitura);
-      const devidos  = impostos.filter(i => !i.somenteLeitura);
       const provisaoSomavel = provisao.filter(i => !i.referenciaTrimestral);
 
       const totalNotas    = notas.reduce((s, n) => s + (n.valor || 0), 0);
       const totalPrevisto = provisaoSomavel.reduce((s, i) => s + (i.valor || 0), 0);
-      const pendentes      = devidos.filter(i => !i.pago);
-      const totalPendente = pendentes.reduce((s, i) => s + (i.valor || 0), 0);
 
       document.getElementById('totalNotas').textContent       = brl(totalNotas);
       document.getElementById('totalNotasSub').textContent    = `${notas.length} nota${notas.length !== 1 ? 's' : ''}`;
       document.getElementById('totalPrevisto').textContent    = brl(totalPrevisto);
       document.getElementById('totalPrevistoSub').textContent = `${provisaoSomavel.length} tributo${provisaoSomavel.length !== 1 ? 's' : ''}`;
-      document.getElementById('totalPendente').textContent    = brl(totalPendente);
-      document.getElementById('totalPendenteSub').textContent = `${pendentes.length} pendente${pendentes.length !== 1 ? 's' : ''}`;
 
       if (!provisao.length) {
         document.getElementById('provisaoVazio').style.display = '';
@@ -330,39 +319,6 @@
             <td class="td-fin">${i.referenciaTrimestral ? '—' : fmtData(i.vencimento)}</td>
             <td class="td-fin valor">${brl(i.valor)}</td>
           </tr>`).join('');
-      }
-
-      if (!devidos.length) {
-        document.getElementById('devidosVazio').style.display = '';
-        document.getElementById('tabelaDevidosBody').innerHTML = '';
-      } else {
-        document.getElementById('devidosVazio').style.display = 'none';
-        document.getElementById('tabelaDevidosBody').innerHTML = devidos.map(i => `
-          <tr>
-            <td class="td-fin nome">${i.tributoNome}</td>
-            <td class="td-fin">${fmtData(i.vencimento)}</td>
-            <td class="td-fin valor">${brl(i.valor)}</td>
-            <td class="td-fin">${badgeImposto(i)}</td>
-            <td class="td-fin" style="white-space:nowrap">
-              ${!i.pago ? `<button data-imp-pagar="${i.id}" style="background:none;border:1px solid rgba(74,222,128,.3);color:var(--positive);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:4px;margin-right:4px">✓ Pago</button>`
-                : `<button data-imp-estornar="${i.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px">desfazer</button>`}
-              <button data-imp-excluir="${i.id}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
-            </td>
-          </tr>`).join('');
-        document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-pagar]').forEach(b => b.addEventListener('click', async () => {
-          b.disabled = true;
-          try { await marcarImpostoPago(currentUser.uid, b.dataset.impPagar, true); renderImpostos(); }
-          catch (err) { alert(msgErro(err)); b.disabled = false; }
-        }));
-        document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-estornar]').forEach(b => b.addEventListener('click', async () => {
-          try { await marcarImpostoPago(currentUser.uid, b.dataset.impEstornar, false); renderImpostos(); }
-          catch (err) { alert(msgErro(err)); }
-        }));
-        document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-excluir]').forEach(b => b.addEventListener('click', async () => {
-          if (!confirm('Remover esta linha de imposto previsto?')) return;
-          try { await deleteImpostoPrevisto(currentUser.uid, b.dataset.impExcluir); renderImpostos(); }
-          catch (err) { alert(msgErro(err)); }
-        }));
       }
     }
 
