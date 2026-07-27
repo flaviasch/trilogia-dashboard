@@ -220,6 +220,7 @@
       msgErro,
     } from './js/api.js?v=50';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { toast, setLoading, confirmDelete } from './js/ui.js';
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
       'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -292,18 +293,20 @@
           </td>
         </tr>`).join('');
       document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-pagar]').forEach(b => b.addEventListener('click', async () => {
-        b.disabled = true;
-        try { await marcarImpostoPago(currentUser.uid, b.dataset.impPagar, true); renderImpostosDevidos(); }
-        catch (err) { alert(msgErro(err)); b.disabled = false; }
+        setLoading(b, true, 'Confirmando…');
+        try { await marcarImpostoPago(currentUser.uid, b.dataset.impPagar, true); toast('Imposto marcado como pago.'); renderImpostosDevidos(); }
+        catch (err) { toast(msgErro(err), 'error'); setLoading(b, false); }
       }));
       document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-estornar]').forEach(b => b.addEventListener('click', async () => {
-        try { await marcarImpostoPago(currentUser.uid, b.dataset.impEstornar, false); renderImpostosDevidos(); }
-        catch (err) { alert(msgErro(err)); }
+        setLoading(b, true, 'Desfazendo…');
+        try { await marcarImpostoPago(currentUser.uid, b.dataset.impEstornar, false); toast('Pagamento desfeito.'); renderImpostosDevidos(); }
+        catch (err) { toast(msgErro(err), 'error'); setLoading(b, false); }
       }));
       document.getElementById('tabelaDevidosBody').querySelectorAll('[data-imp-excluir]').forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Remover esta linha de imposto previsto?')) return;
-        try { await deleteImpostoPrevisto(currentUser.uid, b.dataset.impExcluir); renderImpostosDevidos(); }
-        catch (err) { alert(msgErro(err)); }
+        if (!(await confirmDelete('Remover esta linha de imposto previsto?'))) return;
+        setLoading(b, true, '');
+        try { await deleteImpostoPrevisto(currentUser.uid, b.dataset.impExcluir); toast('Removido.'); renderImpostosDevidos(); }
+        catch (err) { toast(msgErro(err), 'error'); setLoading(b, false); }
       }));
     }
 
@@ -344,18 +347,22 @@
         const hoje = new Date().toISOString().slice(0, 10);
         const data = prompt('Data em que foi pago (AAAA-MM-DD):', hoje);
         if (!data) return;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { alert('Data inválida — use o formato AAAA-MM-DD.'); return; }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { toast('Data inválida — use o formato AAAA-MM-DD.', 'warning'); return; }
+        setLoading(b, true, 'Confirmando…');
         try {
           await confirmarPagamentoDespesaPJ(currentUser.uid, b.dataset.confirmarDespesa, b.dataset.confirmarMesano, data);
+          toast('Pagamento confirmado.');
           renderPendentes();
-        } catch (err) { alert(msgErro(err)); }
+        } catch (err) { toast(msgErro(err), 'error'); setLoading(b, false); }
       }));
       tbody.querySelectorAll('[data-cancelar-despesa]').forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Dispensar esta ocorrência? Ela some da lista sem contar como paga — use quando a cobrança não aconteceu de verdade (ex: despesa cadastrada com data inicial incorreta).')) return;
+        if (!(await confirmDelete('Dispensar esta ocorrência? Ela some da lista sem contar como paga — use quando a cobrança não aconteceu de verdade (ex: despesa cadastrada com data inicial incorreta).', 'Dispensar'))) return;
+        setLoading(b, true, '');
         try {
           await cancelarOcorrenciaDespesaPJ(currentUser.uid, b.dataset.cancelarDespesa, b.dataset.cancelarMesano);
+          toast('Ocorrência dispensada.');
           renderPendentes();
-        } catch (err) { alert(msgErro(err)); }
+        } catch (err) { toast(msgErro(err), 'error'); setLoading(b, false); }
       }));
     }
 
@@ -394,9 +401,10 @@
         </div>`).join('');
       el.querySelectorAll('[data-desp-editar]').forEach(b => b.addEventListener('click', () => abrirModalDespesa(_despesasCache.find(d => d.id === b.dataset.despEditar))));
       el.querySelectorAll('[data-desp-excluir]').forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Excluir esta despesa?')) return;
-        try { await deleteDespesaPJ(currentUser.uid, b.dataset.despExcluir); renderDespesas(); }
-        catch (err) { alert(msgErro(err)); }
+        if (!(await confirmDelete('Excluir esta despesa?'))) return;
+        setLoading(b, true, '');
+        try { await deleteDespesaPJ(currentUser.uid, b.dataset.despExcluir); toast('Despesa excluída.'); renderDespesas(); }
+        catch (err) { toast(msgErro(err), 'error'); setLoading(b, false); }
       }));
     }
 
@@ -466,28 +474,29 @@
       const categoria = document.getElementById('despCategoria').value.trim() || null;
       const ativo = document.getElementById('despAtivo').checked;
 
-      if (!nome) { alert('Informe o nome da despesa.'); return; }
-      if (isNaN(valor) || valor < 0) { alert('Informe um valor válido.'); return; }
+      if (!nome) { toast('Informe o nome da despesa.', 'warning'); return; }
+      if (isNaN(valor) || valor < 0) { toast('Informe um valor válido.', 'warning'); return; }
       if (tipo === 'unica') {
-        if (!data) { alert('Informe a data desta despesa.'); return; }
+        if (!data) { toast('Informe a data desta despesa.', 'warning'); return; }
       } else {
-        if (!diaVencimento || diaVencimento < 1 || diaVencimento > 28) { alert('Dia de vencimento deve ser entre 1 e 28.'); return; }
-        if (!inicioVal) { alert('Informe a data inicial de cobrança.'); return; }
+        if (!diaVencimento || diaVencimento < 1 || diaVencimento > 28) { toast('Dia de vencimento deve ser entre 1 e 28.', 'warning'); return; }
+        if (!inicioVal) { toast('Informe a data inicial de cobrança.', 'warning'); return; }
         if (tipo === 'parcelada' && (!numeroParcelas || numeroParcelas < 2 || numeroParcelas > 60)) {
-          alert('Número de parcelas deve ser entre 2 e 60.'); return;
+          toast('Número de parcelas deve ser entre 2 e 60.', 'warning'); return;
         }
       }
 
-      btn.disabled = true; btn.textContent = 'Salvando…';
+      setLoading(btn, true);
       try {
         await saveDespesaPJ(currentUser.uid, { id, nome, valor, tipo, diaVencimento, data, numeroParcelas, mesesRestantes, mesInicio, anoInicio, categoria, ativo });
         modalDespesa.classList.add('hidden');
+        toast('Despesa salva.');
         renderDespesas();
         renderPendentes();
       } catch (err) {
-        alert(msgErro(err));
+        toast(msgErro(err), 'error');
       } finally {
-        btn.disabled = false; btn.textContent = 'Salvar';
+        setLoading(btn, false);
       }
     });
   </script>

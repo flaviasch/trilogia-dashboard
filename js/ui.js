@@ -89,7 +89,8 @@ export function confirmDelete(msg, labelConfirm = 'Excluir') {
     const done = r => { overlay.remove(); resolve(r); };
     overlay.querySelector('#_cfNo').onclick  = () => done(false);
     overlay.querySelector('#_cfYes').onclick = () => done(true);
-    overlay.onclick = e => { if (e.target === overlay) done(false); };
+    // Clicar fora não fecha (achado 27/07/2026, Flávia: nenhum modal deveria
+    // fechar ao clicar fora) — só os dois botões decidem.
   });
 }
 

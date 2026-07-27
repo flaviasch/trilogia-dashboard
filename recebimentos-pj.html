@@ -120,6 +120,7 @@
     import { auth } from './js/firebase-config.js';
     import { getContaPJ, getRecebimentosPendentesPJ, confirmarRecebimento, msgErro } from './js/api.js?v=50';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { toast, setLoading } from './js/ui.js';
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
       'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -186,11 +187,13 @@
         const hoje = new Date().toISOString().slice(0, 10);
         const data = prompt('Data em que o valor caiu (AAAA-MM-DD):', hoje);
         if (!data) return;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { alert('Data inválida — use o formato AAAA-MM-DD.'); return; }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { toast('Data inválida — use o formato AAAA-MM-DD.', 'warning'); return; }
+        setLoading(b, true, 'Confirmando…');
         try {
           await confirmarRecebimento(currentUser.uid, b.dataset.confirmarNota, b.dataset.confirmarId, data);
+          toast('Recebimento confirmado.');
           renderPendentes();
-        } catch (err) { alert(msgErro(err)); }
+        } catch (err) { toast(msgErro(err), 'error'); setLoading(b, false); }
       }));
     }
 
