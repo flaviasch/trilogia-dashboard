@@ -80,11 +80,11 @@
 
   <main>
     <h1>Despesas</h1>
-    <p class="subtitulo">Cadastre despesas fixas (recorrem todo mês) ou únicas (uma data só) — elas entram automaticamente como saída no Fluxo de Caixa.</p>
+    <p class="subtitulo">Cadastre despesas fixas (recorrem todo mês), parceladas (número fixo de parcelas) ou únicas (uma data só) — elas entram automaticamente como saída no Fluxo de Caixa.</p>
 
     <div class="kpis">
       <div class="kpi-card">
-        <div class="kpi-label">Total mensal (fixas ativas)</div>
+        <div class="kpi-label">Total mensal (fixas + parceladas ativas)</div>
         <div class="kpi-value" id="totalDespesas">—</div>
       </div>
     </div>
@@ -106,19 +106,28 @@
         <input type="text" id="despNome" placeholder="Ex: Aluguel, Contador, Software...">
       </div>
       <div class="field-group">
-        <label for="despValor">Valor (R$)</label>
-        <input type="number" id="despValor" placeholder="0" min="0" step="0.01">
-      </div>
-      <div class="field-group">
         <label for="despTipo">Tipo</label>
         <select id="despTipo">
           <option value="fixa">Fixa — recorre todo mês</option>
+          <option value="parcelada">Parcelada — número fixo de parcelas</option>
           <option value="unica">Única — só nesta data</option>
         </select>
+      </div>
+      <div class="field-group">
+        <label for="despValor" id="lblDespValor">Valor (R$)</label>
+        <input type="number" id="despValor" placeholder="0" min="0" step="0.01">
+      </div>
+      <div class="field-group" id="fgDespNumeroParcelas" style="display:none">
+        <label for="despNumeroParcelas">Número de parcelas</label>
+        <input type="number" id="despNumeroParcelas" min="2" max="60" placeholder="Ex: 10">
       </div>
       <div class="field-group" id="fgDespDiaVencimento">
         <label for="despDiaVencimento">Dia de vencimento</label>
         <input type="number" id="despDiaVencimento" min="1" max="28" placeholder="10">
+      </div>
+      <div class="field-group" id="fgDespMesesRestantes">
+        <label for="despMesesRestantes">Meses restantes (opcional)</label>
+        <input type="number" id="despMesesRestantes" min="1" placeholder="Em branco = recorre pra sempre">
       </div>
       <div class="field-group" id="fgDespData" style="display:none">
         <label for="despData">Data</label>
@@ -189,7 +198,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
           <div>
             <div style="font-size:14px;font-weight:600">${d.nome}${d.ativo === false ? ' <span style="color:var(--text-muted);font-weight:400">(inativa)</span>' : ''}</div>
-            <div style="font-size:12px;color:var(--text-muted)">${d.categoria ? `${d.categoria} · ` : ''}${d.tipo === 'unica' ? `única · ${fmtData(d.data)}` : `fixa · vence dia ${d.diaVencimento}`}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${d.categoria ? `${d.categoria} · ` : ''}${_descTipoDespesa(d)}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <strong style="font-size:14px">${brl(d.valor)}</strong>
@@ -205,20 +214,33 @@
       }));
     }
 
+    function _descTipoDespesa(d) {
+      if (d.tipo === 'unica') return `única · ${fmtData(d.data)}`;
+      if (d.tipo === 'parcelada') return `parcelada · vence dia ${d.diaVencimento} · ${brl(d.valorTotal)} em ${d.numeroParcelas}x`;
+      return `fixa · vence dia ${d.diaVencimento}${d.mesesRestantes != null ? ` · por mais ${d.mesesRestantes} ${d.mesesRestantes === 1 ? 'mês' : 'meses'}` : ''}`;
+    }
+
     const modalDespesa = document.getElementById('modalDespesa');
     function aplicarTipoDespesa(tipo) {
-      document.getElementById('fgDespDiaVencimento').style.display = tipo === 'unica' ? 'none' : '';
-      document.getElementById('fgDespData').style.display          = tipo === 'unica' ? '' : 'none';
+      document.getElementById('lblDespValor').textContent = tipo === 'parcelada' ? 'Valor total da compra (R$)' : 'Valor (R$)';
+      document.getElementById('fgDespNumeroParcelas').style.display  = tipo === 'parcelada' ? '' : 'none';
+      document.getElementById('fgDespMesesRestantes').style.display  = tipo === 'fixa' ? '' : 'none';
+      document.getElementById('fgDespDiaVencimento').style.display   = tipo === 'unica' ? 'none' : '';
+      document.getElementById('fgDespData').style.display            = tipo === 'unica' ? '' : 'none';
     }
     function abrirModalDespesa(desp = null) {
       document.getElementById('tituloModalDespesa').textContent = desp ? 'Editar despesa' : 'Nova despesa';
       document.getElementById('despId').value = desp?.id || '';
       document.getElementById('despNome').value = desp?.nome || '';
-      document.getElementById('despValor').value = desp?.valor ?? '';
-      const tipo = desp?.tipo === 'unica' ? 'unica' : 'fixa';
+      // Parcelada guarda valor POR PARCELA em `valor` — reexibe o total
+      // (`valorTotal`) no campo, senão salvar de novo dividiria outra vez.
+      document.getElementById('despValor').value = desp?.tipo === 'parcelada' ? (desp?.valorTotal ?? '') : (desp?.valor ?? '');
+      const tipo = ['fixa', 'parcelada', 'unica'].includes(desp?.tipo) ? desp.tipo : 'fixa';
       document.getElementById('despTipo').value = tipo;
       document.getElementById('despDiaVencimento').value = desp?.diaVencimento ?? '';
       document.getElementById('despData').value = desp?.data ?? '';
+      document.getElementById('despNumeroParcelas').value = desp?.numeroParcelas ?? '';
+      document.getElementById('despMesesRestantes').value = desp?.mesesRestantes ?? '';
       aplicarTipoDespesa(tipo);
       document.getElementById('despCategoria').value = desp?.categoria || '';
       document.getElementById('despAtivo').checked = desp ? desp.ativo !== false : true;
@@ -233,10 +255,15 @@
       const btn = document.getElementById('btnSalvarDespesa');
       const id = document.getElementById('despId').value || undefined;
       const nome = document.getElementById('despNome').value.trim();
+      // Parcelada: o campo "Valor" é o TOTAL da compra — o backend divide
+      // pelo número de parcelas e guarda o valor por parcela + o total.
       const valor = parseFloat(document.getElementById('despValor').value);
       const tipo = document.getElementById('despTipo').value;
       const diaVencimento = parseInt(document.getElementById('despDiaVencimento').value, 10);
       const data = document.getElementById('despData').value;
+      const numeroParcelas = parseInt(document.getElementById('despNumeroParcelas').value, 10);
+      const mesesRestantesVal = document.getElementById('despMesesRestantes').value;
+      const mesesRestantes = mesesRestantesVal ? parseInt(mesesRestantesVal, 10) : null;
       const categoria = document.getElementById('despCategoria').value.trim() || null;
       const ativo = document.getElementById('despAtivo').checked;
 
@@ -244,13 +271,16 @@
       if (isNaN(valor) || valor < 0) { alert('Informe um valor válido.'); return; }
       if (tipo === 'unica') {
         if (!data) { alert('Informe a data desta despesa.'); return; }
-      } else if (!diaVencimento || diaVencimento < 1 || diaVencimento > 28) {
-        alert('Dia de vencimento deve ser entre 1 e 28.'); return;
+      } else {
+        if (!diaVencimento || diaVencimento < 1 || diaVencimento > 28) { alert('Dia de vencimento deve ser entre 1 e 28.'); return; }
+        if (tipo === 'parcelada' && (!numeroParcelas || numeroParcelas < 2 || numeroParcelas > 60)) {
+          alert('Número de parcelas deve ser entre 2 e 60.'); return;
+        }
       }
 
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await saveDespesaPJ(currentUser.uid, { id, nome, valor, tipo, diaVencimento, data, categoria, ativo });
+        await saveDespesaPJ(currentUser.uid, { id, nome, valor, tipo, diaVencimento, data, numeroParcelas, mesesRestantes, categoria, ativo });
         modalDespesa.classList.add('hidden');
         renderDespesas();
       } catch (err) {

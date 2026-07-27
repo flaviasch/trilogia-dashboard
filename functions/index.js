@@ -5682,35 +5682,67 @@ exports.getDespesasPJ = onCall({}, async (request) => {
 });
 
 exports.saveDespesaPJ = onCall({}, async (request) => {
-  const { uid, id, nome, valor, diaVencimento, data, tipo, categoria, ativo } = request.data;
+  const { uid, id, nome, valor, diaVencimento, data, tipo, mesesRestantes, numeroParcelas, categoria, ativo } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!nome || typeof nome !== 'string' || !nome.trim())
     throw new HttpsError('invalid-argument', 'nome é obrigatório.');
-  if (typeof valor !== 'number' || valor < 0)
+  // tipo 'fixa' (default, retrocompatível) recorre todo mês no diaVencimento,
+  // opcionalmente com fim (mesesRestantes) — mesma lógica de `recorrentes` do
+  // PF. 'parcelada' é um número fixo de parcelas (mesma lógica de
+  // `saveParcelamento` do PF: valor digitado é o TOTAL, dividido aqui pelo
+  // número de parcelas). 'unica' é lançamento avulso numa data específica,
+  // não repete. Achado 27/07/2026, Flávia: Despesas PJ precisava das mesmas
+  // 3 formas que o Orçamento PF já tem (fixa/parcelada/avulsa).
+  const tipoDespesa = ['fixa', 'parcelada', 'unica'].includes(tipo) ? tipo : 'fixa';
+
+  let valorFinal = valor;
+  if (tipoDespesa === 'parcelada') {
+    const n = Number(numeroParcelas);
+    if (!Number.isInteger(n) || n < 2 || n > 60)
+      throw new HttpsError('invalid-argument', 'numeroParcelas deve ser um inteiro entre 2 e 60.');
+    if (typeof valor !== 'number' || valor <= 0)
+      throw new HttpsError('invalid-argument', 'valor (total da compra) deve ser maior que zero.');
+    valorFinal = Math.round((valor / n) * 100) / 100;
+  } else if (typeof valor !== 'number' || valor < 0) {
     throw new HttpsError('invalid-argument', 'valor deve ser um número não-negativo.');
-  // tipo 'fixa' (default, retrocompatível) recorre todo mês no diaVencimento;
-  // 'unica' é lançamento avulso numa data específica, não repete — achado
-  // 27/07/2026, Flávia: nem toda despesa é recorrente/fixa (ex: comprou um
-  // notebook uma vez só).
-  const tipoDespesa = tipo === 'unica' ? 'unica' : 'fixa';
+  }
+
   const dados = {
     nome: nome.trim().slice(0, 150),
-    valor,
+    valor: valorFinal,
+    // valorTotal só existe pra 'parcelada' — guardado à parte porque `valor`
+    // vira o valor POR PARCELA; sem isso, reabrir pra editar e salvar de novo
+    // dividiria o valor por n outra vez (frontend reexibe valorTotal, não
+    // valor, no campo "Valor" quando tipo é parcelada).
+    valorTotal: tipoDespesa === 'parcelada' ? valor : null,
     tipo: tipoDespesa,
     categoria: categoria ? String(categoria).trim().slice(0, 100) : null,
     ativo: ativo !== false,
   };
+
   if (tipoDespesa === 'unica') {
     if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data))
       throw new HttpsError('invalid-argument', 'data deve estar no formato YYYY-MM-DD.');
     dados.data = data;
     dados.diaVencimento = null;
+    dados.mesesRestantes = null;
+    dados.numeroParcelas = null;
   } else {
     const dia = Number(diaVencimento);
     if (!Number.isInteger(dia) || dia < 1 || dia > 28)
       throw new HttpsError('invalid-argument', 'diaVencimento deve ser um inteiro entre 1 e 28.');
     dados.diaVencimento = dia;
     dados.data = null;
+    if (tipoDespesa === 'parcelada') {
+      dados.numeroParcelas = Number(numeroParcelas);
+      dados.mesesRestantes = null;
+    } else {
+      // mesesRestantes: null = recorre pra sempre (padrão); número = pára
+      // automaticamente depois de N meses (ex: assinatura de 12 meses).
+      const restantes = Number.isInteger(mesesRestantes) && mesesRestantes >= 1 ? mesesRestantes : null;
+      dados.mesesRestantes = restantes;
+      dados.numeroParcelas = null;
+    }
   }
 
   let despesaId = id;
@@ -5719,8 +5751,14 @@ exports.saveDespesaPJ = onCall({}, async (request) => {
     const snap = await ref.get();
     if (!snap.exists) throw new HttpsError('not-found', 'Despesa não encontrada.');
     if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+    // mesInicio/anoInicio nunca mudam numa edição (mesmo padrão de
+    // `saveRecorrente` do PF) — senão editar valor/nome empurraria o início
+    // da recorrência/parcelamento pra frente.
     await ref.update(dados);
   } else {
+    const hoje = new Date();
+    dados.mesInicio = hoje.getMonth() + 1;
+    dados.anoInicio = hoje.getFullYear();
     const countSnap = await db.collection('despesasPJ').where('uid', '==', uid).get();
     dados.uid = uid;
     dados.ordem = countSnap.size;
@@ -6119,9 +6157,15 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
     });
   });
 
-  // Saídas: despesas fixas recorrem todo mês no diaVencimento; despesas
-  // únicas (tipo 'unica') só entram no mês da sua própria data (achado
-  // 27/07/2026: nem toda despesa é recorrente).
+  // Saídas: 'unica' só entra no mês da sua própria data; 'fixa' recorre todo
+  // mês a partir de mesInicio/anoInicio, parando depois de mesesRestantes se
+  // definido (senão pra sempre); 'parcelada' recorre só durante numeroParcelas
+  // meses a partir de mesInicio/anoInicio, com o número da parcela atual no
+  // nome (achado 27/07/2026: mesma lógica de recorrente/parcelamento do PF,
+  // mas calculada na hora — sem materializar um doc por mês). Documentos
+  // legados sem mesInicio/anoInicio (criados antes desse campo existir) usam
+  // anoInicio=0, o que os mantém sempre visíveis — preserva o comportamento
+  // de antes pra quem já tinha despesa fixa cadastrada.
   const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
   despesasSnap.docs.forEach(d => {
     const desp = d.data();
@@ -6130,6 +6174,18 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
       movimentos.push({ data: desp.data, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: false });
       return;
     }
+    const inicioM = desp.mesInicio || 1;
+    const inicioA = desp.anoInicio || 0;
+    const mesesDesdeInicio = (ano - inicioA) * 12 + (mes - inicioM);
+    if (mesesDesdeInicio < 0) return; // ainda não começou
+    if (desp.tipo === 'parcelada') {
+      const n = desp.numeroParcelas || 1;
+      if (mesesDesdeInicio >= n) return; // já terminou
+      const dataVenc = `${prefixoMes}-${String(desp.diaVencimento).padStart(2, '0')}`;
+      movimentos.push({ data: dataVenc, tipo: 'saida', descricao: `${desp.nome} (${mesesDesdeInicio + 1}/${n})`, valor: desp.valor, confirmado: false });
+      return;
+    }
+    if (desp.mesesRestantes != null && mesesDesdeInicio >= desp.mesesRestantes) return; // já terminou
     const dataVenc = `${prefixoMes}-${String(desp.diaVencimento).padStart(2, '0')}`;
     movimentos.push({ data: dataVenc, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: false });
   });
