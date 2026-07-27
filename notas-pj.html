@@ -73,6 +73,7 @@
       <p class="empresa-nome" id="empresaNome">—</p>
       <nav class="nav-pj">
         <a href="notas-pj.html" class="ativo">Notas</a>
+        <a href="recebimentos-pj.html">Contas a Receber</a>
         <a href="impostos-pj.html">Impostos</a>
         <a href="despesas-pj.html">Despesas</a>
         <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
@@ -101,13 +102,6 @@
     </div>
 
     <div class="card-lista" id="listaNotas"></div>
-
-    <div class="secao-header" style="margin-top:28px">
-      <span class="secao-titulo">Outras entradas</span>
-      <button class="btn-acao-secundario" id="btnNovaOutraEntrada">+ Lançar entrada</button>
-    </div>
-    <p class="subtitulo" style="margin-top:-6px">Dinheiro que entra no caixa sem ser venda — aporte de sócio ou reembolso. Não conta como faturamento nem aparece nos Impostos.</p>
-    <div class="card-lista" id="listaOutrasEntradas"></div>
   </main>
 
   <!-- Modal: Nota emitida -->
@@ -224,49 +218,14 @@
     </div>
   </div>
 
-  <!-- Modal: Outra entrada (aporte de sócio / reembolso) -->
-  <div class="modal-overlay hidden" id="modalOutraEntrada">
-    <div class="modal-card">
-      <h3 id="tituloModalOutraEntrada">Nova entrada</h3>
-      <input type="hidden" id="outraId">
-      <div class="field-group">
-        <label for="outraCategoria">Categoria</label>
-        <select id="outraCategoria">
-          <option value="aporte_socio">Aporte de sócio</option>
-          <option value="reembolso">Reembolso</option>
-          <option value="outro">Outro</option>
-        </select>
-      </div>
-      <div class="field-group">
-        <label for="outraDescricao">Descrição</label>
-        <input type="text" id="outraDescricao" placeholder="Ex: Aporte para capital de giro">
-      </div>
-      <div class="field-row">
-        <div class="field-group">
-          <label for="outraValor">Valor</label>
-          <input type="number" id="outraValor" placeholder="0" min="0" step="0.01">
-        </div>
-        <div class="field-group">
-          <label for="outraData">Data</label>
-          <input type="date" id="outraData">
-        </div>
-      </div>
-      <div class="modal-acoes">
-        <button class="btn-cancel" id="btnCancelarOutraEntrada">Cancelar</button>
-        <button class="btn-save" id="btnSalvarOutraEntrada">Salvar</button>
-      </div>
-    </div>
-  </div>
-
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import {
       getContaPJ,
       getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
       getRecebimentosNota, salvarRecebimento, confirmarRecebimento, estornarRecebimento, deleteRecebimento,
-      getOutrasEntradasPJ, saveOutraEntradaPJ, deleteOutraEntradaPJ,
       msgErro,
-    } from './js/api.js?v=46';
+    } from './js/api.js?v=47';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -307,7 +266,6 @@
         console.error('[notas-pj] Falha ao carregar conta:', err.message);
       }
       renderNotas();
-      renderOutrasEntradas();
     });
 
     async function renderNotas() {
@@ -346,84 +304,10 @@
     document.getElementById('mesAnterior').addEventListener('click', () => {
       mesAtual--; if (mesAtual < 1) { mesAtual = 12; anoAtual--; }
       renderNotas();
-      renderOutrasEntradas();
     });
     document.getElementById('mesProximo').addEventListener('click', () => {
       mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
       renderNotas();
-      renderOutrasEntradas();
-    });
-
-    // ── Outras entradas (aporte de sócio / reembolso) ──
-    const CATEGORIA_LABEL = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outro' };
-    let _outrasCache = [];
-    async function renderOutrasEntradas() {
-      try { _outrasCache = await getOutrasEntradasPJ(currentUser.uid, mesAtual, anoAtual); }
-      catch (err) { alert(msgErro(err)); return; }
-      const el = document.getElementById('listaOutrasEntradas');
-      if (!_outrasCache.length) {
-        el.innerHTML = `<p class="vazio">Nenhuma entrada avulsa lançada neste mês.</p>`;
-        return;
-      }
-      el.innerHTML = _outrasCache.map(o => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
-          <div>
-            <div style="font-size:14px;font-weight:600">${o.descricao}</div>
-            <div style="font-size:12px;color:var(--text-muted)">${CATEGORIA_LABEL[o.categoria] || o.categoria} · ${fmtData(o.data)}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <strong style="font-size:14px">${brl(o.valor)}</strong>
-            <button data-outra-editar="${o.id}" title="Editar" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✎</button>
-            <button data-outra-excluir="${o.id}" title="Excluir" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
-          </div>
-        </div>`).join('');
-      el.querySelectorAll('[data-outra-editar]').forEach(b => b.addEventListener('click', () => abrirModalOutraEntrada(_outrasCache.find(o => o.id === b.dataset.outraEditar))));
-      el.querySelectorAll('[data-outra-excluir]').forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Excluir esta entrada?')) return;
-        try { await deleteOutraEntradaPJ(currentUser.uid, b.dataset.outraExcluir); renderOutrasEntradas(); }
-        catch (err) { alert(msgErro(err)); }
-      }));
-    }
-
-    const modalOutraEntrada = document.getElementById('modalOutraEntrada');
-    function abrirModalOutraEntrada(outra = null) {
-      document.getElementById('tituloModalOutraEntrada').textContent = outra ? 'Editar entrada' : 'Nova entrada';
-      document.getElementById('outraId').value = outra?.id || '';
-      document.getElementById('outraCategoria').value = outra?.categoria || 'aporte_socio';
-      document.getElementById('outraDescricao').value = outra?.descricao || '';
-      document.getElementById('outraValor').value = outra?.valor ?? '';
-      document.getElementById('outraData').value = outra?.data || new Date().toISOString().slice(0, 10);
-      modalOutraEntrada.classList.remove('hidden');
-    }
-    document.getElementById('btnNovaOutraEntrada').addEventListener('click', () => abrirModalOutraEntrada());
-    document.getElementById('btnCancelarOutraEntrada').addEventListener('click', () => modalOutraEntrada.classList.add('hidden'));
-    modalOutraEntrada.addEventListener('click', e => { if (e.target === modalOutraEntrada) modalOutraEntrada.classList.add('hidden'); });
-
-    document.getElementById('btnSalvarOutraEntrada').addEventListener('click', async () => {
-      const btn = document.getElementById('btnSalvarOutraEntrada');
-      const id = document.getElementById('outraId').value || undefined;
-      const categoria = document.getElementById('outraCategoria').value;
-      const descricao = document.getElementById('outraDescricao').value.trim();
-      const valor = parseFloat(document.getElementById('outraValor').value);
-      const data = document.getElementById('outraData').value;
-
-      if (!descricao) { alert('Descreva a entrada.'); return; }
-      if (isNaN(valor) || valor <= 0) { alert('Informe um valor válido.'); return; }
-      if (!data) { alert('Informe a data.'); return; }
-
-      btn.disabled = true; btn.textContent = 'Salvando…';
-      try {
-        await saveOutraEntradaPJ(currentUser.uid, { id, categoria, descricao, valor, data });
-        modalOutraEntrada.classList.add('hidden');
-        const [ano, mes] = data.split('-').map(Number);
-        mesAtual = mes; anoAtual = ano;
-        renderNotas();
-        renderOutrasEntradas();
-      } catch (err) {
-        alert(msgErro(err));
-      } finally {
-        btn.disabled = false; btn.textContent = 'Salvar';
-      }
     });
 
     // ── Modal: Nota emitida ──

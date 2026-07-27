@@ -693,6 +693,9 @@ export async function estornarRecebimento(uid, notaId, id) {
 export async function deleteRecebimento(uid, notaId, id) {
   return callPJ('deleteRecebimento')({ uid, notaId, id });
 }
+export async function getRecebimentosPendentesPJ(uid, mes, ano) {
+  return callPJ('getRecebimentosPendentesPJ')({ uid, mes, ano });
+}
 
 export async function getDespesasPJ(uid) {
   return callPJ('getDespesasPJ')({ uid });

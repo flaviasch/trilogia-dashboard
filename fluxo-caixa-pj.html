@@ -59,6 +59,21 @@
     .badge-previsto { background: rgba(96,165,250,.15); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
     .badge-confirmado { background: rgba(74,222,128,.15); color: var(--positive); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
     .btn-acao-secundario { background: none; border: 1px solid rgba(207,174,101,0.4); color: var(--gold); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .secao-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; margin-top: 28px; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
+    .field-group input, .field-group select { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-group select option { background: var(--navy); }
+    .field-row { display: flex; gap: 10px; }
+    .field-row .field-group { flex: 1; }
+    .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -69,6 +84,7 @@
       <p class="empresa-nome" id="empresaNome">—</p>
       <nav class="nav-pj">
         <a href="notas-pj.html">Notas</a>
+        <a href="recebimentos-pj.html">Contas a Receber</a>
         <a href="impostos-pj.html">Impostos</a>
         <a href="despesas-pj.html">Despesas</a>
         <a href="fluxo-caixa-pj.html" class="ativo">Fluxo de Caixa</a>
@@ -121,11 +137,52 @@
       </table>
       <div class="vazio" id="movimentosVazio" style="display:none">Nenhum movimento previsto para este mês.</div>
     </div>
+
+    <div class="secao-header">
+      <span class="secao-titulo" style="margin-bottom:0">Outras entradas</span>
+      <button class="btn-acao-secundario" id="btnNovaOutraEntrada">+ Lançar entrada</button>
+    </div>
+    <p class="subtitulo" style="margin-top:-6px">Dinheiro que entra no caixa sem ser venda — aporte de sócio ou reembolso. Não conta como faturamento nem aparece nos Impostos.</p>
+    <div class="card-lista" id="listaOutrasEntradas"></div>
   </main>
+
+  <!-- Modal: Outra entrada (aporte de sócio / reembolso) -->
+  <div class="modal-overlay hidden" id="modalOutraEntrada">
+    <div class="modal-card">
+      <h3 id="tituloModalOutraEntrada">Nova entrada</h3>
+      <input type="hidden" id="outraId">
+      <div class="field-group">
+        <label for="outraCategoria">Categoria</label>
+        <select id="outraCategoria">
+          <option value="aporte_socio">Aporte de sócio</option>
+          <option value="reembolso">Reembolso</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label for="outraDescricao">Descrição</label>
+        <input type="text" id="outraDescricao" placeholder="Ex: Aporte para capital de giro">
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label for="outraValor">Valor</label>
+          <input type="number" id="outraValor" placeholder="0" min="0" step="0.01">
+        </div>
+        <div class="field-group">
+          <label for="outraData">Data</label>
+          <input type="date" id="outraData">
+        </div>
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarOutraEntrada">Cancelar</button>
+        <button class="btn-save" id="btnSalvarOutraEntrada">Salvar</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, getFluxoCaixaPJ, atualizarSaldoCaixaPJ, msgErro } from './js/api.js?v=46';
+    import { getContaPJ, getFluxoCaixaPJ, atualizarSaldoCaixaPJ, getOutrasEntradasPJ, saveOutraEntradaPJ, deleteOutraEntradaPJ, msgErro } from './js/api.js?v=47';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -164,6 +221,7 @@
         console.error('[fluxo-caixa-pj] Falha ao carregar conta:', err.message);
       }
       renderFluxoCaixa();
+      renderOutrasEntradas();
     });
 
     async function renderFluxoCaixa() {
@@ -209,10 +267,12 @@
     document.getElementById('mesAnterior').addEventListener('click', () => {
       mesAtual--; if (mesAtual < 1) { mesAtual = 12; anoAtual--; }
       renderFluxoCaixa();
+      renderOutrasEntradas();
     });
     document.getElementById('mesProximo').addEventListener('click', () => {
       mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
       renderFluxoCaixa();
+      renderOutrasEntradas();
     });
 
     document.getElementById('btnEditarSaldo').addEventListener('click', async () => {
@@ -223,6 +283,79 @@
       if (isNaN(valor)) { alert('Valor inválido.'); return; }
       try { await atualizarSaldoCaixaPJ(currentUser.uid, valor); renderFluxoCaixa(); }
       catch (err) { alert(msgErro(err)); }
+    });
+
+    // ── Outras entradas (aporte de sócio / reembolso) — movido de Notas pra
+    // cá em 27/07/2026: é lançamento de caixa, não de nota fiscal. ──
+    const CATEGORIA_LABEL = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outro' };
+    let _outrasCache = [];
+    async function renderOutrasEntradas() {
+      try { _outrasCache = await getOutrasEntradasPJ(currentUser.uid, mesAtual, anoAtual); }
+      catch (err) { alert(msgErro(err)); return; }
+      const el = document.getElementById('listaOutrasEntradas');
+      if (!_outrasCache.length) {
+        el.innerHTML = `<p class="vazio">Nenhuma entrada avulsa lançada neste mês.</p>`;
+        return;
+      }
+      el.innerHTML = _outrasCache.map(o => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:14px;font-weight:600">${o.descricao}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${CATEGORIA_LABEL[o.categoria] || o.categoria} · ${fmtData(o.data)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <strong style="font-size:14px">${brl(o.valor)}</strong>
+            <button data-outra-editar="${o.id}" title="Editar" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✎</button>
+            <button data-outra-excluir="${o.id}" title="Excluir" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+          </div>
+        </div>`).join('');
+      el.querySelectorAll('[data-outra-editar]').forEach(b => b.addEventListener('click', () => abrirModalOutraEntrada(_outrasCache.find(o => o.id === b.dataset.outraEditar))));
+      el.querySelectorAll('[data-outra-excluir]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Excluir esta entrada?')) return;
+        try { await deleteOutraEntradaPJ(currentUser.uid, b.dataset.outraExcluir); renderOutrasEntradas(); renderFluxoCaixa(); }
+        catch (err) { alert(msgErro(err)); }
+      }));
+    }
+
+    const modalOutraEntrada = document.getElementById('modalOutraEntrada');
+    function abrirModalOutraEntrada(outra = null) {
+      document.getElementById('tituloModalOutraEntrada').textContent = outra ? 'Editar entrada' : 'Nova entrada';
+      document.getElementById('outraId').value = outra?.id || '';
+      document.getElementById('outraCategoria').value = outra?.categoria || 'aporte_socio';
+      document.getElementById('outraDescricao').value = outra?.descricao || '';
+      document.getElementById('outraValor').value = outra?.valor ?? '';
+      document.getElementById('outraData').value = outra?.data || new Date().toISOString().slice(0, 10);
+      modalOutraEntrada.classList.remove('hidden');
+    }
+    document.getElementById('btnNovaOutraEntrada').addEventListener('click', () => abrirModalOutraEntrada());
+    document.getElementById('btnCancelarOutraEntrada').addEventListener('click', () => modalOutraEntrada.classList.add('hidden'));
+    modalOutraEntrada.addEventListener('click', e => { if (e.target === modalOutraEntrada) modalOutraEntrada.classList.add('hidden'); });
+
+    document.getElementById('btnSalvarOutraEntrada').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarOutraEntrada');
+      const id = document.getElementById('outraId').value || undefined;
+      const categoria = document.getElementById('outraCategoria').value;
+      const descricao = document.getElementById('outraDescricao').value.trim();
+      const valor = parseFloat(document.getElementById('outraValor').value);
+      const data = document.getElementById('outraData').value;
+
+      if (!descricao) { alert('Descreva a entrada.'); return; }
+      if (isNaN(valor) || valor <= 0) { alert('Informe um valor válido.'); return; }
+      if (!data) { alert('Informe a data.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await saveOutraEntradaPJ(currentUser.uid, { id, categoria, descricao, valor, data });
+        modalOutraEntrada.classList.add('hidden');
+        const [ano, mes] = data.split('-').map(Number);
+        mesAtual = mes; anoAtual = ano;
+        renderFluxoCaixa();
+        renderOutrasEntradas();
+      } catch (err) {
+        alert(msgErro(err));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
     });
   </script>
 

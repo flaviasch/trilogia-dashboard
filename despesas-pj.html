@@ -69,6 +69,7 @@
       <p class="empresa-nome" id="empresaNome">—</p>
       <nav class="nav-pj">
         <a href="notas-pj.html">Notas</a>
+        <a href="recebimentos-pj.html">Contas a Receber</a>
         <a href="impostos-pj.html">Impostos</a>
         <a href="despesas-pj.html" class="ativo">Despesas</a>
         <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
@@ -131,7 +132,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, getDespesasPJ, saveDespesaPJ, deleteDespesaPJ, msgErro } from './js/api.js?v=46';
+    import { getContaPJ, getDespesasPJ, saveDespesaPJ, deleteDespesaPJ, msgErro } from './js/api.js?v=47';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });

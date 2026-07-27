@@ -6109,6 +6109,66 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
   };
 });
 
+// ─── Contas a Receber consolidada (achado 27/07/2026) ─────────────────────────
+// A fatia 2 entregou o auto-split de parcelas e o registro de recebimentos
+// por nota, mas não entregou nenhuma visão que cruze todas as notas — pra ver
+// o que está pendente era preciso abrir nota por nota. Esta function agrega
+// os recebimentos ainda não confirmados de todas as notas da conta, junto
+// com os totais do mês em foco, pra alimentar uma tela única (mesmo espírito
+// da sub-aba "Recebimentos" de Financeiro no admin.html).
+exports.getRecebimentosPendentesPJ = onCall({}, async (request) => {
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
+  const prefixoMes = `${ano}-${String(mes).padStart(2, '0')}`;
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  // Mesmo padrão de getFluxoCaixaPJ/_calcularPMR: filtra só por uid no
+  // Firestore (já coberto pelo fieldOverride de collectionGroup criado na
+  // fatia 2), resto — período e status — em memória. Volume por conta é
+  // baixo o suficiente pra não justificar índice composto novo.
+  const snap = await db.collectionGroup('recebimentos').where('uid', '==', uid).get();
+
+  let previstoNoMes = 0, recebidoNoMes = 0, aReceber = 0;
+  const pendentes = [];
+
+  snap.docs.forEach(d => {
+    const r = d.data();
+    if (r.dataPrevista && r.dataPrevista.startsWith(prefixoMes)) previstoNoMes += r.valorLiquido;
+    if (r.dataRecebimento && r.dataRecebimento.startsWith(prefixoMes)) recebidoNoMes += r.valorLiquido;
+    if (r.dataRecebimento) return; // já confirmado, não entra na lista de pendentes
+
+    // "A receber" não é filtrado por mês de propósito — um recebimento
+    // vencido em mês anterior continua pendente até ser confirmado, não
+    // pode sumir só porque a usuária navegou pro mês seguinte.
+    aReceber += r.valorLiquido;
+    pendentes.push({
+      id: d.id,
+      notaId: d.ref.parent.parent.id,
+      formaPagamento: r.formaPagamento,
+      valorBruto: r.valorBruto,
+      taxa: r.taxa || 0,
+      valorLiquido: r.valorLiquido,
+      dataPrevista: r.dataPrevista,
+      parcelaAtual: r.parcelaAtual || null,
+      parcelaTotal: r.parcelaTotal || null,
+      vencido: !!r.dataPrevista && r.dataPrevista < hoje,
+    });
+  });
+
+  pendentes.sort((a, b) => (a.dataPrevista || '').localeCompare(b.dataPrevista || ''));
+
+  return {
+    kpis: {
+      previstoNoMes: Math.round(previstoNoMes * 100) / 100,
+      recebidoNoMes: Math.round(recebidoNoMes * 100) / 100,
+      aReceber: Math.round(aReceber * 100) / 100,
+    },
+    pendentes,
+  };
+});
+
 // Bootstrap de conta de teste PJ é feito via script (scripts/criar-conta-pj-teste.js),
 // mesmo padrão de criar-perfil-admin.js — não precisa de Cloud Function pra
 // isso, e evita expor mais um endpoint admin-only sem produto Kiwify real
