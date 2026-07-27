@@ -5586,12 +5586,23 @@
         gruposPorNorm[norm].total += d.valor;
         gruposPorNorm[norm].labels[d.categoria] = (gruposPorNorm[norm].labels[d.categoria] || 0) + 1;
       });
+      // Compras já importadas na fatura ABERTA entram na categoria real acima
+      // (contaComoComprometido não filtra isso, de propósito — achado
+      // 13/07/2026), mas _diffNaoIdentificadoMes é calibrado contra
+      // totalComprometidoMes, que SEMPRE exclui fatura aberta (orcamento-calc.js)
+      // — sem subtrair esse valor do ajuste, "Lançamentos não identificados"
+      // absorve a fatura aberta errado e a soma das categorias passa a ficar
+      // maior que o total (achado 27/07/2026, Flávia: "a soma das categorias
+      // não bate com a soma"). Mesmo padrão que a aba Detalhe já usa pras
+      // fixas virtuais (_totalVirtualSomado).
+      const _abertaSomadoPlanejamento = _ehFuturoAtual ? 0
+        : data.despesas.filter(d => contaComoComprometido(d) && d._faturaAberta).reduce((s, d) => s + d.valor, 0);
 
       // O realizado tem que bater com a reconciliação de caixa (caixa +
       // pendentes + faturas + compras em aberto, calculada no Resumo). Se não
       // bater, em vez de sumir a diferença, ela vira uma categoria própria —
       // assim o total do Planejamento sempre coincide com o fluxo de caixa.
-      const { temAjuste, valorAjuste: _valorAjustePlanejamento } = calcularAjuste(_diffNaoIdentificadoMes);
+      const { temAjuste, valorAjuste: _valorAjustePlanejamento } = calcularAjuste(_diffNaoIdentificadoMes, _abertaSomadoPlanejamento);
       if (temAjuste) {
         gruposPorNorm[normCat(CATEGORIA_AJUSTE)] = { total: _valorAjustePlanejamento, labels: { [CATEGORIA_AJUSTE]: 1 } };
       }
@@ -5664,23 +5675,15 @@
       const totalPlan = naoPlan.totalPlanejado != null
         ? naoPlan.totalPlanejado
         : cats.reduce((s, c) => s + (c.limite || 0), 0);
-      // O total soma base + valorAjuste, mas valorAjuste foi calibrado contra
-      // totalComprometidoMes (que SEMPRE exclui fatura aberta, orcamento-calc.js)
-      // — usar a base com aberta incluída aqui (mesma de gruposPorNorm, correta
-      // pra exibição por categoria) somava a fatura aberta duas vezes: uma na
-      // base, outra embutida no ajuste. Por isso essa base exclui aberta,
-      // igual a aba Detalhe já faz (achado 15/07/2026, Flávia: Realizado do
-      // Planejamento não batia com Despesas do Resumo).
-      //
-      // EXCEÇÃO — mês futuro: "fatura aberta" é sempre calculada em relação a
-      // HOJE, não ao mês em tela — então, olhando o Planejamento de um mês que
-      // ainda não chegou, a fatura "em aberto" hoje já vai estar fechada
-      // quando esse mês realmente acontecer, e por isso deve contar (Flávia,
-      // achado 20/07/2026: "só não vai contar em julho"). Sem risco de contar
-      // em dobro via o ajuste — em mês futuro diffNaoIdentificadoMes é sempre
-      // 0 (orcamento-calc.js), então temAjuste nunca é true aqui.
-      const totalReal = data.despesas.filter(d => contaComoComprometido(d) && (!d._faturaAberta || _ehFuturoAtual)).reduce((s, d) => s + d.valor, 0)
-        + (temAjuste ? _valorAjustePlanejamento : 0);
+      // Total = soma do que está listado na tela (mesmo princípio da aba
+      // Detalhe, totalListadoDetalhe) — garante por construção que "soma das
+      // categorias" e "total" nunca divergem, ponto que a versão anterior
+      // (recalculada à parte, filtrando fatura aberta) quebrava sempre que
+      // havia compra na fatura aberta este mês (achado 27/07/2026). O ajuste
+      // já vem líquido de _abertaSomadoPlanejamento acima, então esse total
+      // continua batendo com despesaComprometida (Resumo/Detalhe), só que
+      // agora por soma direta das linhas em vez de uma fórmula paralela.
+      const totalReal = Object.values(gruposPorNorm).reduce((s, g) => s + g.total, 0);
 
       // Linhas da tabela
       const linhas = todasCats.map(cat => {
