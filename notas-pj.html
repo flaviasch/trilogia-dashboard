@@ -60,6 +60,8 @@
     .field-group select option { background: var(--navy); }
     .field-row { display: flex; gap: 10px; }
     .field-row .field-group { flex: 1; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .checkbox-row input { width: auto; }
     .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
     .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
     .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
@@ -129,11 +131,14 @@
             <option value="pix">PIX</option>
             <option value="dinheiro">Dinheiro</option>
             <option value="debito">Débito</option>
-            <option value="credito_avista">Crédito à vista</option>
-            <option value="credito_parcelado">Crédito parcelado</option>
+            <option value="credito">Crédito</option>
             <option value="boleto">Boleto</option>
             <option value="outro">Outro</option>
           </select>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="notaParcelado">
+          <label for="notaParcelado" style="margin:0">Pagamento parcelado</label>
         </div>
         <div class="field-row" id="fgNotaParcelas" style="display:none">
           <div class="field-group">
@@ -176,11 +181,14 @@
             <option value="pix">PIX</option>
             <option value="dinheiro">Dinheiro</option>
             <option value="debito">Débito</option>
-            <option value="credito_avista">Crédito à vista</option>
-            <option value="credito_parcelado">Crédito parcelado</option>
+            <option value="credito">Crédito</option>
             <option value="boleto">Boleto</option>
             <option value="outro">Outro</option>
           </select>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="recebParcelado">
+          <label for="recebParcelado" style="margin:0">Gerar como parcelado (várias datas de uma vez)</label>
         </div>
         <div id="blocoRecebUnico">
           <div class="field-row">
@@ -259,8 +267,13 @@
       const [a, m, d] = iso.split('-');
       return `${d}/${m}/${a}`;
     }
-    const FORMA_LABEL = { pix: 'PIX', dinheiro: 'Dinheiro', debito: 'Débito', credito_avista: 'Crédito à vista', credito_parcelado: 'Crédito parcelado', boleto: 'Boleto', outro: 'Outro' };
-    const SUGESTAO_PRAZO_DIAS = { pix: 0, dinheiro: 0, debito: 2, credito_avista: 30, credito_parcelado: 30, boleto: 3, outro: 0 };
+    // credito_avista/credito_parcelado ficam só pra exibir registros antigos
+    // (achado 27/07/2026, Flávia: "parcelado é a condição de pagamento, PIX é
+    // a forma, são coisas separadas" — antes "Crédito parcelado" era tratado
+    // como uma forma à parte, misturando as duas coisas). Forma nova é só
+    // 'credito'; parcelado agora é o campo independente recebParcelado/notaParcelado.
+    const FORMA_LABEL = { pix: 'PIX', dinheiro: 'Dinheiro', debito: 'Débito', credito: 'Crédito', credito_avista: 'Crédito à vista', credito_parcelado: 'Crédito parcelado', boleto: 'Boleto', outro: 'Outro' };
+    const SUGESTAO_PRAZO_DIAS = { pix: 0, dinheiro: 0, debito: 2, credito: 30, boleto: 3, outro: 0 };
     function somarDias(iso, dias) {
       const d = new Date(iso + 'T00:00:00');
       d.setDate(d.getDate() + dias);
@@ -351,6 +364,7 @@
       document.getElementById('notaEditandoNota').style.display = nota ? '' : 'none';
       if (!nota) {
         document.getElementById('notaForma').value = 'pix';
+        document.getElementById('notaParcelado').checked = false;
         document.getElementById('notaNumParcelas').value = 2;
         document.getElementById('notaTaxaTotal').value = 0;
         document.getElementById('fgNotaParcelas').style.display = 'none';
@@ -359,8 +373,12 @@
     }
     document.getElementById('btnNovaNota').addEventListener('click', () => abrirModalNota());
     document.getElementById('btnCancelarNota').addEventListener('click', () => modalNota.classList.add('hidden'));
-    document.getElementById('notaForma').addEventListener('change', (e) => {
-      document.getElementById('fgNotaParcelas').style.display = e.target.value === 'credito_parcelado' ? '' : 'none';
+    // Parcelado é a condição de pagamento, independente da forma (PIX,
+    // crédito, boleto...) — achado 27/07/2026, Flávia: antes "Crédito
+    // parcelado" era uma opção à parte dentro de Forma, misturando as duas
+    // coisas (ex: não dava pra registrar um boleto parcelado).
+    document.getElementById('notaParcelado').addEventListener('change', (e) => {
+      document.getElementById('fgNotaParcelas').style.display = e.target.checked ? '' : 'none';
     });
 
     document.getElementById('btnSalvarNota').addEventListener('click', async () => {
@@ -373,9 +391,11 @@
       if (!competencia) { alert('Informe a competência.'); return; }
       const [ano, mes] = competencia.split('-').map(Number);
 
+      const parcelado = document.getElementById('notaParcelado').checked;
       const dadosExtra = id ? {} : {
         formaPagamento: document.getElementById('notaForma').value,
-        numeroParcelas: parseInt(document.getElementById('notaNumParcelas').value, 10) || 2,
+        parcelado,
+        numeroParcelas: parcelado ? (parseInt(document.getElementById('notaNumParcelas').value, 10) || 2) : null,
         taxaTotal: parseFloat(document.getElementById('notaTaxaTotal').value) || 0,
       };
 
@@ -473,15 +493,16 @@
     function _valorRestante() {
       return Math.max(0, (_notaRecebimentosAtual?.valor || 0) - _recebimentosCache.reduce((s, r) => s + (r.valorBruto || 0), 0)) || _notaRecebimentosAtual?.valor || 0;
     }
-    // Modo "parcelado" (gerar N de uma vez) também vale editando um
-    // recebimento existente — trocar a Forma pra Crédito parcelado ali
-    // substitui aquele registro único pelas N parcelas geradas (achado
-    // 27/07/2026, 6º pedido: travar isso só pra lançamento novo obrigava a
-    // excluir e recriar na mão pra corrigir um PIX/à vista lançado por
-    // engano quando na verdade foi parcelado).
+    // Modo "parcelado" (gerar N de uma vez) é um campo independente da Forma
+    // de pagamento — achado 27/07/2026, Flávia: "parcelado é a condição de
+    // pagamento e PIX é a forma, são coisas separadas" (antes "Crédito
+    // parcelado" era uma opção à parte dentro de Forma, o que não deixava
+    // registrar, por exemplo, um boleto parcelado). Vale editando um
+    // recebimento existente também — marcar essa caixa ali substitui aquele
+    // registro único pelas N parcelas geradas.
     function _atualizarModoRecebForma() {
       const editando = !!document.getElementById('recebId').value;
-      const parcelado = document.getElementById('recebForma').value === 'credito_parcelado';
+      const parcelado = document.getElementById('recebParcelado').checked;
       document.getElementById('blocoRecebUnico').style.display     = parcelado ? 'none' : '';
       document.getElementById('blocoRecebParcelado').style.display = parcelado ? '' : 'none';
       if (parcelado) {
@@ -491,24 +512,32 @@
     }
     function abrirFormRecebimento(receb = null) {
       document.getElementById('recebId').value = receb?.id || '';
-      document.getElementById('recebForma').value = receb?.formaPagamento || 'pix';
+      // credito_avista/credito_parcelado são valores legados (achado
+      // 27/07/2026) — o select só tem 'credito' agora, então normaliza aqui
+      // pra não deixar a seleção em branco ao editar um lançamento antigo.
+      const formaLegado = receb?.formaPagamento === 'credito_avista' || receb?.formaPagamento === 'credito_parcelado';
+      document.getElementById('recebForma').value = formaLegado ? 'credito' : (receb?.formaPagamento || 'pix');
       document.getElementById('recebValorBruto').value = receb?.valorBruto ?? _valorRestante();
       document.getElementById('recebTaxa').value = receb?.taxa ?? 0;
       document.getElementById('recebDataPrevista').value = receb?.dataPrevista
         || somarDias(_notaRecebimentosAtual?.dataEmissao, SUGESTAO_PRAZO_DIAS['pix']);
       document.getElementById('recebParcelaAtual').value = receb?.parcelaAtual ?? '';
       document.getElementById('recebParcelaTotal').value = receb?.parcelaTotal ?? '';
+      // "Parcelado" é uma ação (gerar N parcelas agora), não um reflexo do
+      // estado atual — sempre começa desmarcado, mesmo editando um
+      // recebimento que já é parcela de um conjunto.
+      document.getElementById('recebParcelado').checked = false;
       document.getElementById('recebNumParcelasAuto').value = 2;
       document.getElementById('recebTaxaTotalAuto').value = 0;
       _atualizarModoRecebForma();
       document.getElementById('formRecebimento').style.display = '';
     }
     document.getElementById('recebForma').addEventListener('change', (e) => {
-      _atualizarModoRecebForma();
       if (document.getElementById('recebId').value) return;
       document.getElementById('recebDataPrevista').value =
         somarDias(_notaRecebimentosAtual?.dataEmissao, SUGESTAO_PRAZO_DIAS[e.target.value] ?? 0);
     });
+    document.getElementById('recebParcelado').addEventListener('change', () => _atualizarModoRecebForma());
     document.getElementById('btnAddRecebimento').addEventListener('click', () => abrirFormRecebimento());
     document.getElementById('btnCancelarRecebimento').addEventListener('click', () => { document.getElementById('formRecebimento').style.display = 'none'; });
     document.getElementById('btnCancelarRecebimentoParcelado').addEventListener('click', () => { document.getElementById('formRecebimento').style.display = 'none'; });
@@ -516,6 +545,7 @@
     document.getElementById('btnGerarParcelas').addEventListener('click', async () => {
       const btn = document.getElementById('btnGerarParcelas');
       const idEditando = document.getElementById('recebId').value || null;
+      const formaPagamento = document.getElementById('recebForma').value;
       const valorTotal = parseFloat(document.getElementById('recebValorTotalAuto').value);
       const numeroParcelas = parseInt(document.getElementById('recebNumParcelasAuto').value, 10) || 2;
       const taxaTotal = parseFloat(document.getElementById('recebTaxaTotalAuto').value) || 0;
@@ -529,7 +559,7 @@
         // ficaria somado junto (achado 27/07/2026).
         if (idEditando) await deleteRecebimento(currentUser.uid, _notaRecebimentosAtual.id, idEditando);
         await gerarParcelasRecebimento(currentUser.uid, _notaRecebimentosAtual.id, {
-          valorTotal, numeroParcelas, taxaTotal,
+          formaPagamento, valorTotal, numeroParcelas, taxaTotal,
           dataBase: _notaRecebimentosAtual.dataEmissao || new Date().toISOString().slice(0, 10),
         });
         await abrirModalRecebimentos(_notaRecebimentosAtual);

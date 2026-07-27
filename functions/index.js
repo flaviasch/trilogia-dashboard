@@ -5410,7 +5410,14 @@ exports.getNotasEmitidas = onCall({}, async (request) => {
 // débito/crédito têm prazo de liquidação da adquirente E taxa descontada,
 // mesmo em pagamento único. Só um ponto de partida, sempre editável depois
 // (ver salvarRecebimento/_notaDoUid mais abaixo).
-const SUGESTAO_PRAZO_DIAS = { pix: 0, dinheiro: 0, debito: 2, credito_avista: 30, credito_parcelado: 30, boleto: 3, outro: 0 };
+// 'credito_avista'/'credito_parcelado' existiam como formas separadas antes
+// de 27/07/2026 — colapsadas em 'credito' porque parcelado é a CONDIÇÃO de
+// pagamento, não a forma (achado 27/07/2026, Flávia: "parcelado é a condição
+// de pgto e pix é a forma, são coisas separadas" — misturar as duas não
+// deixava, por exemplo, registrar um boleto parcelado). Ver `parcelado`
+// como parâmetro independente em _gerarRecebimentosIniciais/saveNotaEmitida/
+// gerarParcelasRecebimento.
+const SUGESTAO_PRAZO_DIAS = { pix: 0, dinheiro: 0, debito: 2, credito: 30, boleto: 3, outro: 0 };
 const FORMAS_PAGAMENTO = Object.keys(SUGESTAO_PRAZO_DIAS);
 
 function _somarDiasISO(iso, dias) {
@@ -5420,17 +5427,19 @@ function _somarDiasISO(iso, dias) {
 }
 
 /**
- * Gera os recebimentos iniciais de uma nota nova, a partir só de forma de
- * pagamento (+ nº de parcelas quando for crédito parcelado) — achado
- * 27/07/2026 (Flávia: cadastrar parcela por parcela na mão é trabalhoso).
- * Faz o split automático (valor e taxa divididos igualmente entre as
- * parcelas, resto na última pra fechar o total certinho) com datas espaçadas
- * de 30 em 30 dias a partir do prazo sugerido da forma de pagamento. É só um
- * ponto de partida: cada parcela continua editável individualmente depois
+ * Gera os recebimentos iniciais de uma nota nova, a partir de forma de
+ * pagamento + condição (parcelado ou não, com nº de parcelas quando for) —
+ * achado 27/07/2026 (Flávia: cadastrar parcela por parcela na mão é
+ * trabalhoso). `parcelado` é independente de `formaPagamento` (qualquer
+ * forma pode ser parcelada, ex: boleto parcelado — não só crédito). Faz o
+ * split automático (valor e taxa divididos igualmente entre as parcelas,
+ * resto na última pra fechar o total certinho) com datas espaçadas de 30 em
+ * 30 dias a partir do prazo sugerido da forma de pagamento. É só um ponto de
+ * partida: cada parcela continua editável individualmente depois
  * (salvarRecebimento) se a divisão real não for exatamente igual.
  */
-function _gerarRecebimentosIniciais(valor, dataEmissao, formaPagamento, numeroParcelas, taxaTotal) {
-  const n = formaPagamento === 'credito_parcelado'
+function _gerarRecebimentosIniciais(valor, dataEmissao, formaPagamento, parcelado, numeroParcelas, taxaTotal) {
+  const n = parcelado
     ? Math.max(2, Math.min(24, Number.isInteger(numeroParcelas) ? numeroParcelas : 2))
     : 1;
   const prazoBase   = SUGESTAO_PRAZO_DIAS[formaPagamento] ?? 0;
@@ -5444,7 +5453,7 @@ function _gerarRecebimentosIniciais(valor, dataEmissao, formaPagamento, numeroPa
     const ultima     = i === n - 1;
     const vBrutoCents = ultima ? valorCents - baseValor * (n - 1) : baseValor;
     const vTaxaCents  = ultima ? taxaCents  - baseTaxa  * (n - 1) : baseTaxa;
-    const dias = formaPagamento === 'credito_parcelado' ? prazoBase + 30 * i : prazoBase;
+    const dias = parcelado ? prazoBase + 30 * i : prazoBase;
     recebimentos.push({
       formaPagamento,
       valorBruto:    vBrutoCents / 100,
@@ -5460,7 +5469,7 @@ function _gerarRecebimentosIniciais(valor, dataEmissao, formaPagamento, numeroPa
 }
 
 exports.saveNotaEmitida = onCall({}, async (request) => {
-  const { uid, id, valor, mes, ano, dataEmissao, formaPagamento, numeroParcelas, taxaTotal } = request.data;
+  const { uid, id, valor, mes, ano, dataEmissao, formaPagamento, parcelado, numeroParcelas, taxaTotal } = request.data;
   requireSelfOrAdmin(request, uid);
   if (typeof valor !== 'number' || valor <= 0) throw new HttpsError('invalid-argument', 'valor deve ser maior que zero.');
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
@@ -5486,7 +5495,7 @@ exports.saveNotaEmitida = onCall({}, async (request) => {
     const ref = await db.collection('notasEmitidas')
       .add({ ...dados, uid, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
     notaId = ref.id;
-    const recebimentos = _gerarRecebimentosIniciais(valor, dados.dataEmissao, forma, numeroParcelas, taxaTotal);
+    const recebimentos = _gerarRecebimentosIniciais(valor, dados.dataEmissao, forma, !!parcelado, numeroParcelas, taxaTotal);
     const batch = db.batch();
     recebimentos.forEach(r => {
       batch.set(ref.collection('recebimentos').doc(), {
@@ -5595,20 +5604,23 @@ exports.salvarRecebimento = onCall({}, async (request) => {
 });
 
 /**
- * Gera N recebimentos de crédito parcelado de uma vez pra uma nota já
- * existente — achado 27/07/2026, Flávia: cadastrar parcela por parcela na
- * mão em "+ Adicionar recebimento" é impraticável. Reaproveita o mesmo split
+ * Gera N recebimentos parcelados de uma vez pra uma nota já existente —
+ * achado 27/07/2026, Flávia: cadastrar parcela por parcela na mão em
+ * "+ Adicionar recebimento" é impraticável. Reaproveita o mesmo split
  * automático (valor/taxa divididos, resto na última, datas de 30 em 30 dias)
  * já usado em saveNotaEmitida quando a forma é escolhida na criação da nota;
  * aqui serve pra quando a nota já foi criada (ex: como PIX por engano) e a
- * usuária precisa registrar que na verdade foi parcelado. Soma-se aos
- * recebimentos que já existem — não apaga nada; a usuária exclui manualmente
- * o que não fizer mais sentido (ex: o PIX default gerado na criação).
+ * usuária precisa registrar que na verdade foi parcelado, em qualquer forma
+ * de pagamento (não só crédito). Soma-se aos recebimentos que já existem —
+ * não apaga nada; a usuária exclui manualmente o que não fizer mais sentido
+ * (ex: o PIX default gerado na criação).
  */
 exports.gerarParcelasRecebimento = onCall({}, async (request) => {
-  const { uid, notaId, valorTotal, numeroParcelas, taxaTotal, dataBase } = request.data;
+  const { uid, notaId, formaPagamento, valorTotal, numeroParcelas, taxaTotal, dataBase } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!notaId) throw new HttpsError('invalid-argument', 'notaId é obrigatório.');
+  if (!FORMAS_PAGAMENTO.includes(formaPagamento))
+    throw new HttpsError('invalid-argument', `formaPagamento deve ser uma de: ${FORMAS_PAGAMENTO.join(', ')}.`);
   if (typeof valorTotal !== 'number' || valorTotal <= 0)
     throw new HttpsError('invalid-argument', 'valorTotal deve ser maior que zero.');
   const taxaNum = typeof taxaTotal === 'number' && taxaTotal >= 0 ? taxaTotal : 0;
@@ -5617,7 +5629,7 @@ exports.gerarParcelasRecebimento = onCall({}, async (request) => {
     throw new HttpsError('invalid-argument', 'dataBase deve estar no formato YYYY-MM-DD.');
 
   const { ref: notaRef } = await _notaDoUid(uid, notaId);
-  const recebimentos = _gerarRecebimentosIniciais(valorTotal, dataBase, 'credito_parcelado', numeroParcelas, taxaNum);
+  const recebimentos = _gerarRecebimentosIniciais(valorTotal, dataBase, formaPagamento, true, numeroParcelas, taxaNum);
   const batch = db.batch();
   recebimentos.forEach(r => {
     batch.set(notaRef.collection('recebimentos').doc(), {
