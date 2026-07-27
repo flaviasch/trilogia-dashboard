@@ -6110,6 +6110,7 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
   if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
   const prefixoMes = `${ano}-${String(mes).padStart(2, '0')}`;
+  const hoje = new Date().toISOString().slice(0, 10);
 
   const contaSnap = await db.collection('contasPJ').doc(uid).get();
   const conta = contaSnap.exists ? contaSnap.data() : {};
@@ -6166,12 +6167,17 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
   // legados sem mesInicio/anoInicio (criados antes desse campo existir) usam
   // anoInicio=0, o que os mantém sempre visíveis — preserva o comportamento
   // de antes pra quem já tinha despesa fixa cadastrada.
+  // Despesa não tem um botão de "confirmar" — o vencimento já é o próprio
+  // sinal: se a data já chegou (hoje ou passado), considera realizada; só
+  // fica "previsto" enquanto a data ainda não chegou (achado 27/07/2026,
+  // Flávia: "mesmo raciocínio do PF" — mesma ideia de isPendenteEfetivo em
+  // js/orcamento-calc.js, adaptada aqui pra não precisar de confirmação manual).
   const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
   despesasSnap.docs.forEach(d => {
     const desp = d.data();
     if (desp.tipo === 'unica') {
       if (!desp.data || !desp.data.startsWith(prefixoMes)) return;
-      movimentos.push({ data: desp.data, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: false });
+      movimentos.push({ data: desp.data, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: desp.data <= hoje });
       return;
     }
     const inicioM = desp.mesInicio || 1;
@@ -6182,12 +6188,12 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
       const n = desp.numeroParcelas || 1;
       if (mesesDesdeInicio >= n) return; // já terminou
       const dataVenc = `${prefixoMes}-${String(desp.diaVencimento).padStart(2, '0')}`;
-      movimentos.push({ data: dataVenc, tipo: 'saida', descricao: `${desp.nome} (${mesesDesdeInicio + 1}/${n})`, valor: desp.valor, confirmado: false });
+      movimentos.push({ data: dataVenc, tipo: 'saida', descricao: `${desp.nome} (${mesesDesdeInicio + 1}/${n})`, valor: desp.valor, confirmado: dataVenc <= hoje });
       return;
     }
     if (desp.mesesRestantes != null && mesesDesdeInicio >= desp.mesesRestantes) return; // já terminou
     const dataVenc = `${prefixoMes}-${String(desp.diaVencimento).padStart(2, '0')}`;
-    movimentos.push({ data: dataVenc, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: false });
+    movimentos.push({ data: dataVenc, tipo: 'saida', descricao: desp.nome, valor: desp.valor, confirmado: dataVenc <= hoje });
   });
 
   // Saídas: impostos previstos com vencimento real neste mês (exclui linhas
