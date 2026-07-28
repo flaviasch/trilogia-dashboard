@@ -730,6 +730,16 @@ export async function atualizarSaldoCaixaPJ(uid, saldo) {
   return callPJ('atualizarSaldoCaixaPJ')({ uid, saldo });
 }
 
+export async function getDRESimplificadoPJ(uid, mes, ano) {
+  return callPJ('getDRESimplificadoPJ')({ uid, mes, ano });
+}
+export async function getPontoEquilibrioPJ(uid, mes, ano) {
+  return callPJ('getPontoEquilibrioPJ')({ uid, mes, ano });
+}
+export async function salvarRetiradaMinimaPJ(uid, valor) {
+  return callPJ('salvarRetiradaMinimaPJ')({ uid, valor });
+}
+
 // Entradas de caixa que não são venda (aporte de sócio, reembolso, outro) —
 // não passam por nota fiscal nem entram na DRE, só no Fluxo de Caixa.
 export async function getOutrasEntradasPJ(uid, mes, ano) {

@@ -6454,6 +6454,109 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
   };
 });
 
+// ─── DRE Simplificado + Ponto de Equilíbrio (27/07/2026) ──────────────────────
+// Retomado do desenho fechado em 02-estrutura/RESULTADO-dossie.md. DRE é
+// regime de COMPETÊNCIA (difere do Fluxo de Caixa, que é regime de caixa) —
+// por isso soma impostosPrevistos pela própria competência (mes/ano), não
+// pelo vencimento, e inclui as linhas informativas do trimestral
+// (referenciaTrimestral:true — uma estimativa por mês, exatamente o que uma
+// DRE de competência precisa), excluindo só a linha acumulada REAL do
+// trimestre (tem campo `trimestre` mas não `referenciaTrimestral` — essa é
+// vencimento de caixa, contada à parte no Fluxo de Caixa, não na DRE).
+exports.getDRESimplificadoPJ = onCall({}, async (request) => {
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
+
+  const notasSnap = await db.collection('notasEmitidas')
+    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
+  const receitaBruta = notasSnap.docs.reduce((s, d) => s + (d.data().valor || 0), 0);
+
+  const impSnap = await db.collection('impostosPrevistos')
+    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
+  const impostos = impSnap.docs.reduce((s, d) => {
+    const imp = d.data();
+    if (imp.trimestre && !imp.referenciaTrimestral) return s; // linha acumulada real — é vencimento de caixa, não competência
+    return s + (imp.valor || 0);
+  }, 0);
+
+  const receitaLiquida = receitaBruta - impostos;
+
+  const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
+  const despesasOperacionais = despesasSnap.docs.reduce((s, d) => {
+    const desp = d.data();
+    const oc = _ocorrenciaDespesaPJ(desp, mes, ano);
+    return oc ? s + (desp.valor || 0) : s;
+  }, 0);
+
+  const lucroLiquido = receitaLiquida - despesasOperacionais;
+
+  const arredonda = v => Math.round(v * 100) / 100;
+  return {
+    receitaBruta: arredonda(receitaBruta),
+    impostos: arredonda(impostos),
+    receitaLiquida: arredonda(receitaLiquida),
+    despesasOperacionais: arredonda(despesasOperacionais),
+    lucroLiquido: arredonda(lucroLiquido),
+  };
+});
+
+// Ponto de Equilíbrio é sobre a CONFIGURAÇÃO atual (tributos + despesas
+// fixas), não sobre o histórico de um mês — por isso só usa tributosConfig e
+// despesasPJ tipo 'fixa' (a base estável do negócio), não notasEmitidas nem
+// impostosPrevistos. `mes`/`ano` servem só pra resolver ocorrência de
+// despesas fixas com mesInicio/mesesRestantes (mesma função já usada no
+// Fluxo de Caixa e na DRE) — não representa "o ponto de equilíbrio de julho",
+// e sim "dado o que está configurado hoje, quanto preciso faturar por mês".
+// Só tributos periodicidade:'mensal' entram — trimestral/anual ficam de fora
+// (simplificação assumida: indicador direcional, não contábil exato).
+exports.getPontoEquilibrioPJ = onCall({}, async (request) => {
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
+
+  const tribSnap = await db.collection('tributosConfig')
+    .where('uid', '==', uid).where('ativo', '==', true).where('periodicidade', '==', 'mensal').get();
+  let somaPercentuais = 0;
+  let tributosFixosMensais = 0;
+  tribSnap.docs.forEach(d => {
+    const t = d.data();
+    if (t.tipo === 'percentual') somaPercentuais += (t.percentual || 0);
+    else tributosFixosMensais += (t.valorFixo || 0);
+  });
+
+  const despesasSnap = await db.collection('despesasPJ')
+    .where('uid', '==', uid).where('ativo', '==', true).where('tipo', '==', 'fixa').get();
+  const despesasFixas = despesasSnap.docs.reduce((s, d) => {
+    const desp = d.data();
+    const oc = _ocorrenciaDespesaPJ(desp, mes, ano);
+    return oc ? s + (desp.valor || 0) : s;
+  }, 0);
+
+  const contaSnap = await db.collection('contasPJ').doc(uid).get();
+  const retiradaMinima = (contaSnap.exists && typeof contaSnap.data().retiradaMinimaDesejada === 'number')
+    ? contaSnap.data().retiradaMinimaDesejada : 0;
+
+  const arredonda = v => Math.round(v * 100) / 100;
+  const base = { despesasFixas: arredonda(despesasFixas), tributosFixosMensais: arredonda(tributosFixosMensais), somaPercentuais: arredonda(somaPercentuais), retiradaMinima: arredonda(retiradaMinima) };
+
+  if (somaPercentuais >= 100) {
+    return { ...base, faturamentoMinimo: null, erro: 'A soma dos tributos percentuais mensais configurados é maior ou igual a 100% — não dá pra calcular um faturamento mínimo viável com essa configuração. Revise os tributos em Impostos.' };
+  }
+  const faturamentoMinimo = (despesasFixas + tributosFixosMensais + retiradaMinima) / (1 - somaPercentuais / 100);
+  return { ...base, faturamentoMinimo: arredonda(faturamentoMinimo), erro: null };
+});
+
+exports.salvarRetiradaMinimaPJ = onCall({}, async (request) => {
+  const { uid, valor } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (typeof valor !== 'number' || valor < 0) throw new HttpsError('invalid-argument', 'valor deve ser um número não-negativo.');
+  await db.collection('contasPJ').doc(uid).set({ retiradaMinimaDesejada: valor }, { merge: true });
+  return { ok: true };
+});
+
 // ─── Contas a Receber consolidada (achado 27/07/2026) ─────────────────────────
 // A fatia 2 entregou o auto-split de parcelas e o registro de recebimentos
 // por nota, mas não entregou nenhuma visão que cruze todas as notas — pra ver
