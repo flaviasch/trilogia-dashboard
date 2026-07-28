@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard PJ — Ajuda</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45; --navy-dark: #081e30;
+      --gold: #CFAE65; --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.1);
+      --text-muted: rgba(255,255,255,0.45);
+      --card-bg: rgba(255,255,255,0.03);
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--navy);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
+    .empresa-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .nav-pj { display: flex; gap: 4px; flex-wrap: wrap; }
+    .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+    .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
+    .header-acoes { display: flex; align-items: center; gap: 10px; }
+    .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+    .secao-titulo { font-family: 'Playfair Display', serif; font-size: 15px; color: var(--gold); margin: 32px 0 12px; }
+    .secao-titulo:first-of-type { margin-top: 0; }
+    .faq-item { border-bottom: 1px solid var(--border); padding: 16px 0; }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-q { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .faq-a { font-size: 13px; color: var(--text-muted); line-height: 1.65; }
+    .faq-a code { background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .suporte-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-top: 32px; }
+    .suporte-titulo { font-family: 'Playfair Display', serif; font-size: 15px; margin-bottom: 12px; }
+    .suporte-link { display: flex; align-items: center; gap: 10px; padding: 8px 0; color: var(--white); text-decoration: none; font-size: 13px; }
+    .suporte-link em { display: block; font-style: normal; color: var(--text-muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
+      <p class="empresa-nome" id="empresaNome">—</p>
+      <nav class="nav-pj">
+        <a href="notas-pj.html">Notas</a>
+        <a href="recebimentos-pj.html">Contas a Receber</a>
+        <a href="impostos-pj.html">Impostos</a>
+        <a href="contas-a-pagar-pj.html">Contas a Pagar</a>
+        <a href="dre-pj.html">DRE</a>
+        <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
+      </nav>
+    </div>
+    <div class="header-acoes">
+      <a href="ajuda-pj.html" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">❓ Ajuda</a>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <h1>Perguntas frequentes</h1>
+    <p class="subtitulo">Dúvidas comuns sobre o Dashboard PJ, organizadas por tela. Se não achar sua dúvida aqui, fale com a Flávia no fim da página.</p>
+
+    <div class="secao-titulo">Conta e acesso</div>
+    <div class="faq-item">
+      <p class="faq-q">Uso a mesma senha do meu Dashboard pessoal?</p>
+      <p class="faq-a">Sim. O login é o mesmo e-mail/senha da sua conta pessoal (PF) — a separação é de tela e de dado, não de identidade. Os dados da empresa (notas, recebimentos, impostos, despesas) nunca se misturam com os seus dados pessoais, mesmo sendo você a mesma pessoa logando nos dois.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">Meu acesso ao Dashboard PJ apareceu suspenso, mas minha mentoria/assinatura pessoal está ativa. Por quê?</p>
+      <p class="faq-a">O acesso ao PJ é controlado separadamente do seu acesso pessoal — se isso aconteceu, provavelmente foi um ajuste manual ou uma pendência específica da conta da empresa. Fale com a Flávia pra reativar.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">Pra que serve o campo "Regime tributário" no cadastro da empresa?</p>
+      <p class="faq-a">É só informativo — ajuda o sistema a sugerir nomes de tributos comuns (ex: "DAS" pra MEI/Simples). Ele não calcula nada automaticamente por faixa ou atividade: os valores exatos de cada tributo você configura você mesma (ou com sua contadora), na tela Impostos.</p>
+    </div>
+
+    <div class="secao-titulo">Notas</div>
+    <div class="faq-item">
+      <p class="faq-q">Por que a nota emitida e o recebimento aparecem em telas diferentes?</p>
+      <p class="faq-a">Nota emitida é o valor faturado (o que você vendeu, usado na DRE). Recebimento é o que efetivamente cai na sua conta — PIX e dinheiro caem na hora e sem desconto, mas débito e crédito (à vista ou parcelado) têm prazo de liquidação da adquirente E uma taxa descontada, mesmo em pagamento único. Por isso cada nota pode ter mais de um recebimento vinculado.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">Preciso cadastrar cada parcela na mão quando o cliente paga no crédito parcelado?</p>
+      <p class="faq-a">Não. Ao lançar a nota, escolha a forma de pagamento e, se for parcelado, o número de parcelas e a taxa total — o sistema já gera todos os recebimentos automaticamente, com valor, taxa e datas divididas. Você pode ajustar cada parcela depois em "💰 Recebimentos" se a divisão real for diferente.</p>
+    </div>
+
+    <div class="secao-titulo">Contas a Receber</div>
+    <div class="faq-item">
+      <p class="faq-q">Qual a diferença entre "Vencido" e "A vencer"?</p>
+      <p class="faq-a">"A vencer" é um recebimento ainda não confirmado, com data prevista no futuro. "Vencido" é a mesma coisa, mas a data prevista já passou e você ainda não confirmou que caiu. Confirmar um recebimento aqui atualiza o Fluxo de Caixa automaticamente, sem precisar fazer mais nada.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">Dá pra lançar um aporte de sócio ou reembolso como se fosse venda?</p>
+      <p class="faq-a">Não, e é proposital: "Outras entradas" (na tela Fluxo de Caixa) tem categoria fechada — aporte de sócio, reembolso ou outro — exatamente pra impedir que dinheiro que não é faturamento entre como se fosse venda. Isso também vale ao contrário: não existe (e não vai existir) categoria de "venda não declarada" no sistema.</p>
+    </div>
+
+    <div class="secao-titulo">Impostos</div>
+    <div class="faq-item">
+      <p class="faq-q">O sistema calcula sozinho quanto de imposto eu devo?</p>
+      <p class="faq-a">Não calcula por faixa/tabela automaticamente — isso mudaria por atividade e município e exigiria manutenção constante. Você configura cada tributo (nome, se é percentual ou valor fixo, dia de vencimento) uma vez, com base no que sua contadora te passar, e o sistema provisiona automaticamente sobre as notas emitidas a partir daí.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">Sou MEI/Simples — preciso cadastrar ISS, PIS, COFINS, IRPJ, CSLL separados?</p>
+      <p class="faq-a">Não. No MEI e no Simples Nacional, tudo isso já vem embutido num único tributo (o DAS). Cadastrar os outros separados gera duplicidade. Quando a lista de tributos está vazia, a tela sugere o ponto de partida certo pro seu regime — aplique a sugestão e ajuste depois se precisar.</p>
+    </div>
+
+    <div class="secao-titulo">Contas a Pagar</div>
+    <div class="faq-item">
+      <p class="faq-q">Qual a diferença entre despesa fixa, parcelada e única?</p>
+      <p class="faq-a">Fixa recorre todo mês (ex: aluguel, contador) até você desativar. Parcelada tem um número fixo de parcelas (você digita o valor total, o sistema divide). Única é um lançamento avulso numa data específica, sem repetir.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">Preciso confirmar o pagamento de cada despesa todo mês?</p>
+      <p class="faq-a">A confirmação existe pra você registrar quando o pagamento realmente aconteceu (aparece como "pago" no Fluxo de Caixa). Enquanto não confirmar, a despesa aparece como prevista pela data de vencimento configurada — o sistema não trava nada, é só um registro a mais de controle.</p>
+    </div>
+
+    <div class="secao-titulo">DRE e Ponto de Equilíbrio</div>
+    <div class="faq-item">
+      <p class="faq-q">Qual a diferença entre o Fluxo de Caixa e a DRE?</p>
+      <p class="faq-a">Fluxo de Caixa responde "tenho dinheiro disponível agora?" — olha a data real em que cada valor entra ou sai da conta. DRE responde "minha empresa é lucrativa nesse período?" — olha o valor faturado e os custos daquele mês, independente de quando o dinheiro efetivamente vai cair ou sair (regime de competência). Os dois números podem ser bem diferentes no mesmo mês, e isso é esperado.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">O que é o Ponto de Equilíbrio?</p>
+      <p class="faq-a">É o faturamento mínimo que você precisa emitir por mês pra cobrir suas despesas fixas, os tributos configurados e ainda sobrar a retirada mínima que você definiu. É um indicador direcional (baseado na configuração atual de tributos e despesas fixas), não uma conta contábil exata — tributos trimestrais e anuais ficam de fora do cálculo, de propósito, pra não distorcer o indicador mensal.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">A "Retirada mínima desejada" é por mês?</p>
+      <p class="faq-a">Sim — é o quanto você quer poder tirar por mês. O valor salvo vale pra todos os meses até você mudar de novo; não precisa redigitar mês a mês.</p>
+    </div>
+
+    <div class="suporte-card">
+      <div class="suporte-titulo">Não achou sua dúvida?</div>
+      <a href="https://wa.me/5511995658658" target="_blank" class="suporte-link">
+        💬 <span>WhatsApp<em>Flávia Shuscimann</em></span>
+      </a>
+      <a href="mailto:flaviasch@gmail.com" class="suporte-link">
+        ✉️ <span>E-mail<em>flaviasch@gmail.com</em></span>
+      </a>
+    </div>
+  </main>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getContaPJ } from './js/api.js?v=51';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login-pj.html';
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login-pj.html'; return; }
+      try {
+        const conta = await getContaPJ(user.uid);
+        if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+        if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+        document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
+      } catch (err) {
+        console.error('[ajuda-pj] Falha ao carregar conta:', err.message);
+      }
+    });
+  </script>
+
+</body>
+</html>
