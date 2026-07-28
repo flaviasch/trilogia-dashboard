@@ -2898,67 +2898,84 @@ exports.aportePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) =
     throw new HttpsError('invalid-argument', 'classe e valor são obrigatórios.');
   }
 
-  const patRef  = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
-  const patSnap = await patRef.get();
-  let ir        = patSnap.exists ? (patSnap.data().ir        || []) : [];
-  let corretora = patSnap.exists ? (patSnap.data().corretora || []) : [];
-  let dividas   = patSnap.exists ? (patSnap.data().dividas   || []) : [];
+  const patRef = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
+  const classeLC = classe.toLowerCase();
 
-  // Fallback Sheets se Firestore ainda não tem dados
-  if (!patSnap.exists) {
+  // Fallback Sheets pra semear o Firestore na primeira vez — fica FORA da
+  // transação abaixo, porque I/O externo (Sheets API) não pode entrar numa
+  // runTransaction, que o SDK pode reexecutar do zero em caso de conflito.
+  let seed = null;
+  const patSnapPrevio = await patRef.get();
+  if (!patSnapPrevio.exists) {
     try {
       const sheetId = await getSheetId(db, uid);
       if (sheetId) {
         const sheets = new SheetsClient(sheetId);
-        [ir, corretora, dividas] = await Promise.all([
+        const [ir, corretora, dividas] = await Promise.all([
           sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas(),
         ]);
+        seed = { ir, corretora, dividas };
       }
     } catch (e) { console.warn('[aportePatrimonio] Fallback Sheets falhou:', e.message); }
   }
 
-  const classeLC = classe.toLowerCase();
+  // Um único aporte dividido em mais de uma classe dispara esta function em
+  // paralelo, uma vez por classe (orcamento.html, Promise.allSettled) — sem
+  // transação, cada chamada lia o doc, mexia só na própria classe e
+  // regravava os arrays inteiros por cima, apagando a mudança da outra
+  // chamada que tivesse terminado no meio (lost update). O snapshot do mês
+  // em `historico` sofria o mesmo problema, ficando com um total menor que
+  // o valor ao vivo (achado 28/07/2026, Flávia: aporte em mais de uma
+  // classe deixou o gráfico de Evolução divergindo do card de Patrimônio
+  // Líquido). runTransaction serializa as chamadas concorrentes — a que
+  // perde a corrida reexecuta com o dado já atualizado pela outra.
+  const { totalAtivos, totalDividas, ir: irFinal, corretora: corretoraFinal, mesKey } =
+    await db.runTransaction(async (tx) => {
+      const patSnap = await tx.get(patRef);
+      const ir        = patSnap.exists ? (patSnap.data().ir        || []) : (seed?.ir        || []);
+      const corretora = patSnap.exists ? (patSnap.data().corretora || []) : (seed?.corretora || []);
+      const dividas   = patSnap.exists ? (patSnap.data().dividas   || []) : (seed?.dividas   || []);
 
-  // Corretora tem prioridade — atualiza lá se a classe já existir
-  const idxInv = corretora.findIndex(i => i.classe.toLowerCase() === classeLC);
-  if (idxInv !== -1) {
-    corretora[idxInv].valor += valor;
-  } else {
-    const idxPat = ir.findIndex(i => i.classe.toLowerCase() === classeLC);
-    if (idxPat !== -1) ir[idxPat].valor += valor;
-    else               ir.push({ classe, valor });
-  }
+      // Corretora tem prioridade — atualiza lá se a classe já existir
+      const idxInv = corretora.findIndex(i => i.classe.toLowerCase() === classeLC);
+      if (idxInv !== -1) {
+        corretora[idxInv].valor += valor;
+      } else {
+        const idxPat = ir.findIndex(i => i.classe.toLowerCase() === classeLC);
+        if (idxPat !== -1) ir[idxPat].valor += valor;
+        else               ir.push({ classe, valor });
+      }
 
-  // Salva no Firestore
-  await patRef.set({
-    ir, corretora, dividas,
-    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-  });
+      tx.set(patRef, {
+        ir, corretora, dividas,
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
 
-  // Atualiza cache de PL + upsert histórico no Firestore
-  const consolidado = consolidarAtivos(ir, corretora);
-  const totalAtivos = consolidado.reduce((s, i) => s + i.valor, 0);
-  const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
-  const mesKey = hoje().slice(0, 7);
-  await Promise.allSettled([
-    db.collection('mentoradas').doc(uid).update({
-      pl: totalAtivos - totalDividas,
-      dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-    }),
-    db.collection('mentoradas').doc(uid).collection('historico').doc(mesKey).set({
-      data: mesKey, ativos: totalAtivos, dividas: totalDividas,
-      pl: totalAtivos - totalDividas,
-      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true }),
-  ]);
+      const consolidado = consolidarAtivos(ir, corretora);
+      const totalAtivos  = consolidado.reduce((s, i) => s + i.valor, 0);
+      const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+      const mesKey = hoje().slice(0, 7);
 
-  // Backup Sheets (fire-and-forget)
+      tx.update(db.collection('mentoradas').doc(uid), {
+        pl: totalAtivos - totalDividas,
+        dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      tx.set(db.collection('mentoradas').doc(uid).collection('historico').doc(mesKey), {
+        data: mesKey, ativos: totalAtivos, dividas: totalDividas,
+        pl: totalAtivos - totalDividas,
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return { totalAtivos, totalDividas, ir, corretora, mesKey };
+    });
+
+  // Backup Sheets (fire-and-forget) — usa o estado final pós-transação
   getSheetId(db, uid).then(sheetId => {
     if (!sheetId) return;
     const sheets = new SheetsClient(sheetId);
     return Promise.all([
-      sheets.saveInvestimentos(corretora),
-      sheets.savePatrimonio(ir),
+      sheets.saveInvestimentos(corretoraFinal),
+      sheets.savePatrimonio(irFinal),
       sheets.upsertHistorico(mesKey, totalAtivos, totalDividas),
     ]);
   }).catch(e => console.warn('[aportePatrimonio] Backup Sheets falhou:', e.message));
