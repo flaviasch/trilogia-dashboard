@@ -70,6 +70,24 @@
     .page-header h1 { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 600; margin-bottom: 6px; }
     .page-header p { font-size: 14px; color: var(--text-muted); }
 
+    /* ─── Busca ──────────────────────────────── */
+    .busca-wrap {
+      position: relative; margin-bottom: 32px;
+    }
+    .busca-icon {
+      position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+      font-size: 14px; opacity: 0.5; pointer-events: none;
+    }
+    #buscaClube {
+      width: 100%; background: var(--navy); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 16px 12px 42px;
+      font-size: 14px; color: var(--white); font-family: 'Inter', sans-serif;
+      transition: border-color 0.2s;
+    }
+    #buscaClube::placeholder { color: var(--text-muted); }
+    #buscaClube:focus { outline: none; border-color: var(--border-gold); }
+    .busca-vazia { color: var(--text-muted); font-size: 14px; padding: 20px 0; text-align: center; }
+
     /* ─── Seção ──────────────────────────────── */
     .secao { margin-bottom: 48px; }
     .secao-titulo {
@@ -226,6 +244,12 @@
       <p>Gravações dos encontros, materiais exclusivos e próximos eventos.</p>
     </div>
 
+    <div class="busca-wrap">
+      <span class="busca-icon">🔎</span>
+      <input type="search" id="buscaClube" placeholder="Buscar gravações, documentos, agenda..." autocomplete="off">
+    </div>
+    <p class="busca-vazia" id="buscaVazia" style="display:none">Nenhum resultado pra essa busca.</p>
+
     <!-- Gravações -->
     <section class="secao" id="secaoGravacoes">
       <div class="secao-titulo"><span>▶</span> Gravações</div>
@@ -344,6 +368,24 @@
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
 
+      _itensCache = itens;
+      aplicarFiltro('');
+    }
+
+    // Busca client-side sobre o conteúdo já carregado — filtra por
+    // título/descrição, ignorando acento e maiúscula/minúscula (achado
+    // 28/07/2026, Flávia: com muito conteúdo acumulado fica difícil achar
+    // uma gravação/documento específico só rolando a tela).
+    let _itensCache = [];
+    function normTexto(s) {
+      return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    }
+    function aplicarFiltro(termoBruto) {
+      const termo = normTexto(termoBruto.trim());
+      const itens = termo
+        ? _itensCache.filter(i => normTexto(i.titulo).includes(termo) || normTexto(i.descricao).includes(termo))
+        : _itensCache;
+
       const gravacoes = itens.filter(i => i.tipo === 'gravacao');
       const documentos = itens.filter(i => i.tipo === 'documento');
       const agenda = itens.filter(i => i.tipo === 'agenda');
@@ -351,7 +393,16 @@
       renderGravacoes(gravacoes);
       renderDocumentos(documentos);
       renderAgenda(agenda);
+
+      document.getElementById('buscaVazia').style.display =
+        (termo && !gravacoes.length && !documentos.length && !agenda.length) ? '' : 'none';
     }
+    let _buscaDebounce = null;
+    document.getElementById('buscaClube').addEventListener('input', (e) => {
+      clearTimeout(_buscaDebounce);
+      const valor = e.target.value;
+      _buscaDebounce = setTimeout(() => aplicarFiltro(valor), 150);
+    });
 
     function isNovo(dataStr) {
       if (!dataStr) return false;
