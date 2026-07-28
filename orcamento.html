@@ -4861,13 +4861,30 @@
     });
 
     // ─── Faturas por cartão (aba Resumo) ─────────────────────────────────────
+    // Uma "chave de fatura" (YYYY-MM) é o mês de VENCIMENTO, por construção de
+    // sugerirFatura() (que soma +1 mês extra quando diaVencimento <= diaCorte,
+    // porque nesse caso o débito só cai no mês seguinte ao fechamento). Pra
+    // saber o mês em que o fechamento FÍSICO acontece de verdade, é preciso
+    // desfazer esse deslocamento — sem isso, o card de fatura aberta mostrava
+    // "Fecha em 25/09 · Vence 01/09" (fechamento depois do próprio vencimento,
+    // logicamente impossível — achado 28/07/2026, Juliana Valerio). O
+    // fechamento real desse exemplo é em agosto, não setembro.
+    function _mesFechamentoDaChave(faturaAno, faturaMes, diaCorte, diaVencimento) {
+      const vence = diaVencimento || 1;
+      if (vence > diaCorte) return { ano: faturaAno, mes: faturaMes };
+      let mes = faturaMes - 1, ano = faturaAno;
+      if (mes < 1) { mes = 12; ano -= 1; }
+      return { ano, mes };
+    }
+
     // Retorna estado da fatura: 'aberta' | 'fechada'
     function _faturaEstado(cartaoObj, faturaKey) {
       if (!faturaKey || !cartaoObj?.diaCorte) return 'aberta';
       const [fAno, fMes] = faturaKey.split('-').map(Number);
-      const ultimoDia = new Date(fAno, fMes, 0).getDate();
+      const { ano: cAno, mes: cMes } = _mesFechamentoDaChave(fAno, fMes, cartaoObj.diaCorte, cartaoObj.diaVencimento);
+      const ultimoDia = new Date(cAno, cMes, 0).getDate();
       const diaFechamento = Math.min(cartaoObj.diaCorte, ultimoDia);
-      const dataFechamento = new Date(fAno, fMes - 1, diaFechamento);
+      const dataFechamento = new Date(cAno, cMes - 1, diaFechamento);
       const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
       return hoje > dataFechamento ? 'fechada' : 'aberta';
     }
@@ -5090,18 +5107,23 @@
         const [aAno, aMes] = abertaKey ? abertaKey.split('-').map(Number) : [0, 0];
         const estado     = _faturaEstado(cartaoObj, abertaKey);
         const diaCorte   = cartaoObj?.diaCorte || 0;
-        const ultimoDia  = aAno ? new Date(aAno, aMes, 0).getDate() : 31;
+        // aMes/aAno é o mês de VENCIMENTO (chave da fatura) — o fechamento
+        // físico pode cair no mês anterior (ver _mesFechamentoDaChave acima).
+        const { ano: cAno, mes: cMes } = aAno
+          ? _mesFechamentoDaChave(aAno, aMes, diaCorte, cartaoObj?.diaVencimento)
+          : { ano: 0, mes: 0 };
+        const ultimoDia  = cAno ? new Date(cAno, cMes, 0).getDate() : 31;
         const diaFecha   = Math.min(diaCorte, ultimoDia);
         const mesNome    = aAno ? `${MESES[aMes - 1]} ${aAno}` : '—';
         const totalAberta= abertaItens.reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
 
         const fechaStr = (() => {
-          if (!diaCorte || !aAno) return '';
+          if (!diaCorte || !cAno) return '';
           const hoje = new Date(); hoje.setHours(0,0,0,0);
-          const dataCorte = new Date(aAno, aMes - 1, diaFecha);
+          const dataCorte = new Date(cAno, cMes - 1, diaFecha);
           return hoje > dataCorte
-            ? `Fechou em ${String(diaFecha).padStart(2,'0')}/${String(aMes).padStart(2,'0')}`
-            : `Fecha em ${String(diaFecha).padStart(2,'0')}/${String(aMes).padStart(2,'0')}`;
+            ? `Fechou em ${String(diaFecha).padStart(2,'0')}/${String(cMes).padStart(2,'0')}`
+            : `Fecha em ${String(diaFecha).padStart(2,'0')}/${String(cMes).padStart(2,'0')}`;
         })();
         const vctoStr  = _vctoLabel(cartaoObj?.diaVencimento, diaCorte, aMes, aAno);
         const subLabel = [fechaStr, vctoStr].filter(Boolean).join(' · ');
