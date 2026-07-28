@@ -7555,7 +7555,7 @@
 
         if (!_legadoMeses.length) {
           toast('Não encontrei dados reconhecíveis nessa planilha. Confira se é a planilha "Orçamento Sob Medida".', 'error');
-          document.getElementById('modalImportarIA').classList.add('hidden');
+          document.getElementById('modalImportarIA').classList.add('hidden'); _unlockBody();
           return;
         }
 
@@ -7583,7 +7583,7 @@
         });
       } catch (err) {
         toast('Não consegui ler essa planilha. Confira se o arquivo não está corrompido.', 'error');
-        document.getElementById('modalImportarIA').classList.add('hidden');
+        document.getElementById('modalImportarIA').classList.add('hidden'); _unlockBody();
       } finally {
         document.getElementById('iaLegadoLoading').style.display = 'none';
       }
@@ -7610,7 +7610,7 @@
           });
         }
 
-        document.getElementById('modalImportarIA').classList.add('hidden');
+        document.getElementById('modalImportarIA').classList.add('hidden'); _unlockBody();
         await processarItensImportados(itens, {
           origemLabel: 'Planilha', origemTag: 'planilha-legada', eventoNome: 'planilha_legada_importada',
           escopo: { tipo: 'conta' }, mesForcado: m.mes, anoForcado: ano,
@@ -7668,6 +7668,12 @@
     });
 
     // ─── Importação via IA (substitui o Agente Raio-X do ChatGPT) ────────────
+    // _lockBody()/_unlockBody() faltavam neste modal — sem travar o scroll do
+    // body por trás do bottom-sheet, o toque no botão "Continuar" só
+    // registrava num ponto específico no Android (achado 28/07/2026,
+    // mentorada Juliana Valerio: "fiquei clicando em vários cantos do
+    // botão"), mesmo bug de desalinhamento de toque já documentado acima em
+    // _lockBody/_unlockBody pra outros modais.
     document.getElementById('btnUploadIA').addEventListener('click', () => {
       document.getElementById('iaExtratoTexto').value = '';
       document.getElementById('iaArquivoInput').value = '';
@@ -7685,6 +7691,7 @@
       document.getElementById('iaPasso2').style.display = 'none';
       document.getElementById('iaPasso3').style.display = 'none';
       document.getElementById('modalImportarIA').classList.remove('hidden');
+      _lockBody();
     });
 
     // Conta corrente só faz sentido perguntar quando não é fatura de cartão
@@ -7697,15 +7704,15 @@
     document.getElementById('iaCartaoSelecionado').addEventListener('change', _atualizarVisibilidadeContaIA);
 
     document.getElementById('btnCancelarImportarIA1').addEventListener('click', () => {
-      document.getElementById('modalImportarIA').classList.add('hidden');
+      document.getElementById('modalImportarIA').classList.add('hidden'); _unlockBody();
     });
 
     document.getElementById('btnCancelarImportarIA2').addEventListener('click', () => {
-      document.getElementById('modalImportarIA').classList.add('hidden');
+      document.getElementById('modalImportarIA').classList.add('hidden'); _unlockBody();
     });
 
     document.getElementById('btnCancelarImportarIA3').addEventListener('click', () => {
-      document.getElementById('modalImportarIA').classList.add('hidden');
+      document.getElementById('modalImportarIA').classList.add('hidden'); _unlockBody();
     });
 
     document.getElementById('btnIaProximo').addEventListener('click', () => {
@@ -7775,12 +7782,12 @@
             .trim();
           if (!xlsxComoTexto) {
             toast('Essa planilha parece vazia.', 'error');
-            document.getElementById('modalImportarIA').classList.add('hidden');
+            document.getElementById('modalImportarIA').classList.add('hidden'); _unlockBody();
             return;
           }
         } catch (err) {
           toast('Não consegui ler essa planilha. Confira se o arquivo não está corrompido.', 'error');
-          document.getElementById('modalImportarIA').classList.add('hidden');
+          document.getElementById('modalImportarIA').classList.add('hidden'); _unlockBody();
           return;
         }
         document.getElementById('iaPasso3').style.display = 'none';
@@ -7869,7 +7876,7 @@
           ? { tipo: 'cartao', cartaoId: cartaoObjSel.id }
           : { tipo: 'conta', contaId: contaIdSel || CONTA_PRINCIPAL_ID };
 
-        document.getElementById('modalImportarIA').classList.add('hidden');
+        document.getElementById('modalImportarIA').classList.add('hidden'); _unlockBody();
 
         // Fatura de cartão importada: procura um lançamento avulso já existente
         // que pareça ser o pagamento dessa mesma fatura (valor batendo) —
