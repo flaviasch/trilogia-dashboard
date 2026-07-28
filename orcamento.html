@@ -9161,15 +9161,18 @@
         avulsoSection.style.display = 'none';
       }
 
-      const dl = document.getElementById('iaCategoriasSugeridas');
-      if (dl) {
-        const cats = new Set([
-          ...currentData.despesas.map(d => d.categoria),
-          ...currentData.receitas.map(r => r.categoria),
-          ..._recorrentes.map(r => r.categoria),
-        ]);
-        dl.innerHTML = [...cats].filter(Boolean).map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
-      }
+      // Select de categorias existentes em vez de campo livre — texto livre
+      // deixava fácil criar categorias quase-duplicadas sem perceber (ex:
+      // "Outros Artigos" vs "Outros artigos" vs "Compras diversas"), achado
+      // 28/07/2026, Flávia + Juliana Valerio (mentorada): "possível a
+      // usuária poder criar as categorias que ela quer e depois usar
+      // métodos de seleção?". "+ Nova categoria" revela um campo de texto
+      // só quando ela realmente quer criar uma nova.
+      const catsExistentes = [...new Set([
+        ...currentData.despesas.map(d => d.categoria),
+        ...currentData.receitas.map(r => r.categoria),
+        ..._recorrentes.map(r => r.categoria),
+      ])].filter(Boolean).sort();
 
       const lista = document.getElementById('listaCategoriasIncertas');
       lista.innerHTML = incertos.map(({ item, idx }) => `
@@ -9190,9 +9193,25 @@
             </label>
           </div>` : ''}
           ${item.categoriaIncerta ? `
-          <input type="text" data-incerta-idx="${idx}" value="${escapeHtml(item.categoria)}" list="iaCategoriasSugeridas" autocomplete="off"
-            style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">` : ''}
+          <select data-incerta-idx="${idx}" style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+            ${item.categoria
+              ? `<option value="${escapeHtml(item.categoria)}">${escapeHtml(item.categoria)} (sugestão)</option>`
+              : `<option value="" disabled selected>Selecione uma categoria</option>`}
+            ${catsExistentes.filter(c => c !== item.categoria).map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+            <option value="__nova__">+ Nova categoria…</option>
+          </select>
+          <input type="text" data-incerta-nova-idx="${idx}" placeholder="Nome da nova categoria" autocomplete="off"
+            style="display:none;width:100%;box-sizing:border-box;padding:8px 10px;margin-top:6px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">` : ''}
         </div>`).join('');
+
+      lista.querySelectorAll('[data-incerta-idx]').forEach(select => {
+        select.addEventListener('change', () => {
+          const novoInput = lista.querySelector(`[data-incerta-nova-idx="${select.dataset.incertaIdx}"]`);
+          if (!novoInput) return;
+          novoInput.style.display = select.value === '__nova__' ? '' : 'none';
+          if (select.value === '__nova__') novoInput.focus();
+        });
+      });
 
       document.getElementById('modalCategoriasIncertas')?.classList.remove('hidden');
       _lockBody();
@@ -9211,9 +9230,13 @@
             delete itens[idx].tipoIncerto;
           });
           const aprendizados = [];
-          lista.querySelectorAll('[data-incerta-idx]').forEach(input => {
-            const idx = Number(input.dataset.incertaIdx);
-            const novaCategoria = input.value.trim();
+          lista.querySelectorAll('[data-incerta-idx]').forEach(select => {
+            const idx = Number(select.dataset.incertaIdx);
+            let novaCategoria = select.value;
+            if (novaCategoria === '__nova__') {
+              const novoInput = lista.querySelector(`[data-incerta-nova-idx="${idx}"]`);
+              novaCategoria = novoInput?.value.trim() || '';
+            }
             if (novaCategoria) {
               itens[idx] = { ...itens[idx], categoria: novaCategoria };
               delete itens[idx].categoriaIncerta;
