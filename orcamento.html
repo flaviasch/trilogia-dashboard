@@ -3541,6 +3541,7 @@
 
       atualizarDistribuido();
       modalReservas.classList.remove('hidden');
+      _lockBody();
     }
 
     function atualizarDistribuido() {
@@ -3558,7 +3559,7 @@
     }
 
     document.getElementById('btnCancelarReservas').addEventListener('click', () => {
-      modalReservas.classList.add('hidden');
+      modalReservas.classList.add('hidden'); _unlockBody();
       valorAportePendente = null;
       alocacoesPendentes  = [];
     });
@@ -3614,7 +3615,7 @@
         .map(inp => ({ reservaId: inp.dataset.reservaId, valor: readMoney(inp) }))
         .filter(a => a.valor > 0);
 
-      modalReservas.classList.add('hidden');
+      modalReservas.classList.add('hidden'); _unlockBody();
 
       // Busca os ativos reais já cadastrados pra resolver cada classe sugerida
       // pro nome que já existe no patrimônio (achado 15/07/2026) — se falhar,
@@ -3663,12 +3664,13 @@
       document.getElementById('modalClasseSub').textContent =
         `Confirme a classe para atualizar o patrimônio agora (${brl(valorAportePendente)}), ou clique em Pular e importe o extrato da corretora depois.`;
       modalClasse.classList.remove('hidden');
+      _lockBody();
     };
     document.getElementById('btnProximoClasse').addEventListener('click', window._btnProximoClasse);
 
     // ── Passo 2: modal de classe ──────────────────────────────────────────────
     document.getElementById('btnCancelarClasse').addEventListener('click', () => {
-      modalClasse.classList.add('hidden');
+      modalClasse.classList.add('hidden'); _unlockBody();
       valorAportePendente = null;
       alocacoesPendentes  = [];
     });
@@ -3678,7 +3680,7 @@
       if (valorAportePendente == null) return;
       const valor     = valorAportePendente;
       const alocacoes = [...alocacoesPendentes];
-      modalClasse.classList.add('hidden');
+      modalClasse.classList.add('hidden'); _unlockBody();
       valorAportePendente = null;
       alocacoesPendentes  = [];
 
@@ -3722,7 +3724,7 @@
     document.getElementById('btnConfirmarClasse').addEventListener('click', async () => {
       if (valorAportePendente == null) return;
       const valor = valorAportePendente;
-      modalClasse.classList.add('hidden');
+      modalClasse.classList.add('hidden'); _unlockBody();
       valorAportePendente = null;
 
       const alocacoes = [...alocacoesPendentes];
@@ -4824,8 +4826,9 @@
       document.getElementById('trfData').value = new Date().toISOString().slice(0, 10);
       document.getElementById('trfNota').value  = '';
       modalTransferencia.classList.remove('hidden');
+      _lockBody();
     };
-    document.getElementById('btnCancelarTransferencia').addEventListener('click', () => modalTransferencia.classList.add('hidden'));
+    document.getElementById('btnCancelarTransferencia').addEventListener('click', () => { modalTransferencia.classList.add('hidden'); _unlockBody(); });
 
     document.getElementById('btnSalvarTransferencia').addEventListener('click', async () => {
       const origemId  = document.getElementById('trfOrigem').value;
@@ -4847,7 +4850,7 @@
           { id: transferenciaId + '_e', transferenciaId, direcao: 'entrada', valor, contaId: destinoId, contaContraparte: _nomeConta(origemId),  data, nota },
         );
         await salvarEAtualizar();
-        modalTransferencia.classList.add('hidden');
+        modalTransferencia.classList.add('hidden'); _unlockBody();
         toast('Transferência registrada.', 'success');
         render(currentData);
       } catch (err) {
@@ -6520,11 +6523,12 @@
         document.getElementById('mLimiteValor').value = '';
       }
       modalLimite.classList.remove('hidden');
+      _lockBody();
       setTimeout(() => (nomeTravado ? elValor : elNome).focus(), 80);
     }
 
     document.getElementById('btnCancelarLimite').addEventListener('click', () => {
-      modalLimite.classList.add('hidden');
+      modalLimite.classList.add('hidden'); _unlockBody();
       editandoLimiteCat = null;
     });
 
@@ -6565,7 +6569,7 @@
           // com dados desatualizados na memória sobrescreva esta edição.
           await upsertCategoriaLimite(mes, ano, nomeCat, limite);
         }
-        modalLimite.classList.add('hidden');
+        modalLimite.classList.add('hidden'); _unlockBody();
         editandoLimiteCat = null;
         _invalPeriodo(mes, ano);
         // Busca os limites de novo do banco em vez de confiar só no retorno da
@@ -6597,11 +6601,12 @@
       else document.getElementById('mRendaValor').value = '';
       document.getElementById('mPercentualValor').value = planejamentoMeta.percentual ?? '';
       modalRendaPlan.classList.remove('hidden');
+      _lockBody();
       setTimeout(() => document.getElementById('mRendaValor').focus(), 80);
     }
     window.abrirModalRendaPlan = abrirModalRendaPlan;
 
-    document.getElementById('btnCancelarRendaPlan').addEventListener('click', () => modalRendaPlan.classList.add('hidden'));
+    document.getElementById('btnCancelarRendaPlan').addEventListener('click', () => { modalRendaPlan.classList.add('hidden'); _unlockBody(); });
 
     document.getElementById('btnSalvarRendaPlan').addEventListener('click', async () => {
       const btn = document.getElementById('btnSalvarRendaPlan');
@@ -6612,7 +6617,7 @@
       if (isNaN(percentual) || percentual < 0 || percentual > 100) { toast('Percentual deve estar entre 0 e 100.', 'warning'); return; }
 
       const { mes, ano } = currentData.periodo;
-      modalRendaPlan.classList.add('hidden');
+      modalRendaPlan.classList.add('hidden'); _unlockBody();
       setLoading(btn, true);
       try {
         await savePlanejamentoMeta(mes, ano, renda, percentual);
@@ -6678,13 +6683,14 @@
       document.getElementById('btnNovaContaToggle').style.display = '';
       document.getElementById('btnAbrirTransferencia').style.display = _contas.length > 1 ? '' : 'none';
       document.getElementById('modalContas').classList.remove('hidden');
+      _lockBody();
     };
     document.getElementById('btnFecharContas').addEventListener('click', () => {
       document.getElementById('modalContas').classList.add('hidden');
+      _unlockBody();
     });
-    document.getElementById('modalContas').addEventListener('click', e => {
-      if (e.target.id === 'modalContas') document.getElementById('modalContas').classList.add('hidden');
-    });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
 
     window._abrirNovaConta = () => {
       document.getElementById('novaContaForm').style.display = '';
@@ -6779,7 +6785,7 @@
       if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
     }
     window._trocarConta = async (id) => {
-      document.getElementById('modalContas').classList.add('hidden');
+      document.getElementById('modalContas').classList.add('hidden'); _unlockBody();
       await trocarContaAtiva(id || null);
     };
 
@@ -6795,11 +6801,12 @@
       document.getElementById('aeNota').value = a.nota || '';
       setMoney(document.getElementById('aeValor'), a.valor);
       modalAporteEdit.classList.remove('hidden');
+      _lockBody();
       document.getElementById('aeValor').focus();
     }
 
     document.getElementById('btnCancelarAporteEdit').addEventListener('click', () => {
-      modalAporteEdit.classList.add('hidden');
+      modalAporteEdit.classList.add('hidden'); _unlockBody();
       editandoAporteIdx = null;
     });
 
@@ -6815,7 +6822,7 @@
         await salvarEAtualizar();
         // Só fecha depois do salvamento confirmado — mesmo achado 14/07/2026
         // do modal de lançamento (fechar antes deixava a espera sem feedback).
-        modalAporteEdit.classList.add('hidden');
+        modalAporteEdit.classList.add('hidden'); _unlockBody();
         editandoAporteIdx = null;
       } finally {
         setLoading(btnSalvarAporteEdit, false);
@@ -8057,7 +8064,7 @@
         b.addEventListener('click', async () => {
           const s = _smsPendentes.find(x => x.id === b.dataset.smsRegistrar);
           if (!s) return;
-          document.getElementById('modalSMS').classList.add('hidden');
+          document.getElementById('modalSMS').classList.add('hidden'); _unlockBody();
           if (s.isCartao) {
             const container = b.closest('[data-sms-id]');
             const cartaoSel = container?.querySelector('[data-sms-cartao]');
@@ -8109,6 +8116,7 @@
         localStorage.setItem('sms_tutorial_visto', '1');
       }
       document.getElementById('modalSMS').classList.remove('hidden');
+      _lockBody();
       setTimeout(() => document.getElementById('smsTexto')?.focus(), 80);
     }
 
@@ -8265,11 +8273,12 @@
       _smsPendentes = []; salvarSmsPendentes(); atualizarBadgeSMS(); renderSmsPendentes();
     });
 
-    document.getElementById('btnFecharModalSMS')?.addEventListener('click', () =>
-      document.getElementById('modalSMS').classList.add('hidden'));
-    document.getElementById('modalSMS')?.addEventListener('click', e => {
-      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    document.getElementById('btnFecharModalSMS')?.addEventListener('click', () => {
+      document.getElementById('modalSMS').classList.add('hidden');
+      _unlockBody();
     });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
 
     // ─── FATURA ESTADOS ──────────────────────────────────────────────────────
 
@@ -8344,8 +8353,8 @@
     });
 
     document.getElementById('cpCancelar').addEventListener('click', fecharModalConfirmarPagamento);
-    document.getElementById('modalConfirmarPagamento').addEventListener('click',
-      e => { if (e.target.id === 'modalConfirmarPagamento') fecharModalConfirmarPagamento(); });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
 
     document.getElementById('cpConfirmar').addEventListener('click', async () => {
       if (!_cpEstadoKey) return;
@@ -8457,8 +8466,8 @@
     }
 
     document.getElementById('afCancelar').addEventListener('click', fecharModalAjustarFatura);
-    document.getElementById('modalAjustarFatura').addEventListener('click',
-      e => { if (e.target.id === 'modalAjustarFatura') fecharModalAjustarFatura(); });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
 
     document.getElementById('afSalvar').addEventListener('click', async () => {
       if (!_afEstadoKey) return;
@@ -8709,9 +8718,8 @@
       document.getElementById('modalCartaoDespesa').classList.add('hidden');
       document.getElementById('fabSpeedDial').style.display = '';
     });
-    document.getElementById('modalCartaoDespesa')?.addEventListener('click', e => {
-      if (e.target === e.currentTarget) { _unlockBody(); e.currentTarget.classList.add('hidden'); document.getElementById('fabSpeedDial').style.display = ''; }
-    });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
     document.getElementById('btnLancarNoCartao')?.addEventListener('click', () => abrirModalCartaoDespesa());
     document.getElementById('btnSalvarCartaoDespesa')?.addEventListener('click', _salvarCartaoDespesa);
     document.getElementById('cdCartao')?.addEventListener('change', _calcFaturaCartaoModal);
@@ -8828,6 +8836,7 @@
       renderListaCartoes();
       document.getElementById('formCartao').classList.add('hidden');
       document.getElementById('modalCartoes').classList.remove('hidden');
+      _lockBody();
     }
 
     function abrirFormCartao(id) {
@@ -8888,11 +8897,12 @@
       }
     }
 
-    document.getElementById('btnFecharModalCartoes')?.addEventListener('click', () =>
-      document.getElementById('modalCartoes').classList.add('hidden'));
-    document.getElementById('modalCartoes')?.addEventListener('click', e => {
-      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    document.getElementById('btnFecharModalCartoes')?.addEventListener('click', () => {
+      document.getElementById('modalCartoes').classList.add('hidden');
+      _unlockBody();
     });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
     document.getElementById('btnAddCartao')?.addEventListener('click', () => abrirFormCartao(null));
     document.getElementById('btnSalvarCartao')?.addEventListener('click', salvarCartao);
     document.getElementById('btnCancelarCartao')?.addEventListener('click', () =>
@@ -9070,14 +9080,15 @@
       });
 
       document.getElementById('modalPagamentosFatura')?.classList.remove('hidden');
+      _lockBody();
 
       return new Promise(resolve => {
         document.getElementById('btnCancelarPagamentosFatura').onclick = () => {
-          document.getElementById('modalPagamentosFatura')?.classList.add('hidden');
+          document.getElementById('modalPagamentosFatura')?.classList.add('hidden'); _unlockBody();
           resolve({ despesasExtras: [], marcacoesExtras: [], cancelado: true });
         };
         document.getElementById('btnPularPagamentosFatura').onclick = () => {
-          document.getElementById('modalPagamentosFatura')?.classList.add('hidden');
+          document.getElementById('modalPagamentosFatura')?.classList.add('hidden'); _unlockBody();
           resolve({ despesasExtras: [], marcacoesExtras: [], cancelado: false });
         };
         document.getElementById('btnConfirmarPagamentosFatura').onclick = () => {
@@ -9098,7 +9109,7 @@
             }
           });
           if (faltouCategoria) { toast('Preencha a categoria dos itens marcados como despesa.', 'warning'); return; }
-          document.getElementById('modalPagamentosFatura')?.classList.add('hidden');
+          document.getElementById('modalPagamentosFatura')?.classList.add('hidden'); _unlockBody();
           resolve({ despesasExtras, marcacoesExtras, cancelado: false });
         };
       });
@@ -9162,10 +9173,11 @@
         </div>`).join('');
 
       document.getElementById('modalCategoriasIncertas')?.classList.remove('hidden');
+      _lockBody();
 
       return new Promise(resolve => {
         document.getElementById('btnCancelarCategoriasIncertas').onclick = () => {
-          document.getElementById('modalCategoriasIncertas')?.classList.add('hidden');
+          document.getElementById('modalCategoriasIncertas')?.classList.add('hidden'); _unlockBody();
           resolve({ itens, cancelado: true, excluirAvulso: false });
         };
         document.getElementById('btnConfirmarCategoriasIncertas').onclick = async () => {
@@ -9191,7 +9203,7 @@
           await Promise.all(aprendizados);
           const excluirAvulso = !!avulsoInfo && document.getElementById('avulsoDuplicidadeCheck').checked;
           setLoading(btn, false);
-          document.getElementById('modalCategoriasIncertas')?.classList.add('hidden');
+          document.getElementById('modalCategoriasIncertas')?.classList.add('hidden'); _unlockBody();
           resolve({ itens, cancelado: false, excluirAvulso });
         };
       });
@@ -9597,10 +9609,12 @@
       sel.innerHTML = todas.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
       document.getElementById('formFixa').classList.add('hidden');
       document.getElementById('modalFixas').classList.remove('hidden');
+      _lockBody();
     }
 
     function fecharModalFixas() {
       document.getElementById('modalFixas').classList.add('hidden');
+      _unlockBody();
     }
 
     function atualizarFixaDiaUI(freq) {
@@ -9786,10 +9800,12 @@
       sel.innerHTML = todas.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
       document.getElementById('formFixaReceita').classList.add('hidden');
       document.getElementById('modalFixasReceita').classList.remove('hidden');
+      _lockBody();
     }
 
     function fecharModalFixasReceita() {
       document.getElementById('modalFixasReceita').classList.add('hidden');
+      _unlockBody();
     }
 
     function atualizarFixaReceitaDiaUI(freq) {
@@ -9960,6 +9976,7 @@
       document.getElementById('editRecValor').value    = item.valor;
       document.getElementById('editRecDescricao').value = item.descricao || '';
       document.getElementById('modalEditRecorrente').classList.remove('hidden');
+      _lockBody();
     }
 
     async function aplicarEditRecorrente(escopo, btnClicado) {
@@ -10000,12 +10017,12 @@
           if (btnClicado) setLoading(btnClicado, true, 'Atualizando todos os meses…');
           const { mesesAlterados } = await atualizarRecorrenteEmTodos(_editRecId, novoValor, novaDesc);
           _periodoCache.clear(); // invalida cache local — dados podem ter mudado
-          document.getElementById('modalEditRecorrente').classList.add('hidden');
+          document.getElementById('modalEditRecorrente').classList.add('hidden'); _unlockBody();
           mostrarToast(`Atualizado em ${mesesAlterados} mês${mesesAlterados !== 1 ? 'es' : ''}.`);
           return;
         }
 
-        document.getElementById('modalEditRecorrente').classList.add('hidden');
+        document.getElementById('modalEditRecorrente').classList.add('hidden'); _unlockBody();
         mostrarToast(escopo === 'proximos' ? 'Alterado neste e nos próximos meses.' : 'Alterado só neste mês.');
       } catch (e) {
         mostrarToast('Erro ao salvar: ' + (e.message || e), 'error');
@@ -10088,10 +10105,12 @@
       if (document.getElementById('pPreview')) document.getElementById('pPreview').style.display = 'none';
 
       modal.classList.remove('hidden');
+      _lockBody();
     }
 
     function fecharModalParcelamento() {
       document.getElementById('modalParcelamento')?.classList.add('hidden');
+      _unlockBody();
     }
 
     async function salvarParcelamentoUI() {
@@ -10148,7 +10167,8 @@
 
     document.getElementById('btnNovoParcelamento')?.addEventListener('click', abrirModalParcelamento);
     document.getElementById('btnCancelarModalParcelamento')?.addEventListener('click', fecharModalParcelamento);
-    document.getElementById('modalParcelamento')?.addEventListener('click', e => { if (e.target === e.currentTarget) fecharModalParcelamento(); });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
     document.getElementById('btnSalvarParcelamento')?.addEventListener('click', salvarParcelamentoUI);
 
     ['pValorTotal', 'pNParcelas', 'pMesInicio', 'pDescricao', 'pCategoria'].forEach(id =>
@@ -10206,7 +10226,8 @@
       if (this.checked) preencherSeletorCartoesFixa(null);
     });
     document.getElementById('btnFecharModalFixas')?.addEventListener('click', fecharModalFixas);
-    document.getElementById('modalFixas')?.addEventListener('click', e => { if (e.target === e.currentTarget) fecharModalFixas(); });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
     document.getElementById('btnAddFixa')?.addEventListener('click', () => abrirFormFixa(null));
     document.getElementById('btnSalvarFixa')?.addEventListener('click', salvarFixa);
     document.getElementById('btnCancelarFixa')?.addEventListener('click', () => {
@@ -10233,7 +10254,8 @@
     document.getElementById('btnGerenciarFixasReceita')?.addEventListener('click', abrirModalFixasReceita);
     document.getElementById('btnGerenciarFixasReceitaTop')?.addEventListener('click', abrirModalFixasReceita);
     document.getElementById('btnFecharModalFixasReceita')?.addEventListener('click', fecharModalFixasReceita);
-    document.getElementById('modalFixasReceita')?.addEventListener('click', e => { if (e.target === e.currentTarget) fecharModalFixasReceita(); });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
     document.getElementById('btnAddFixaReceita')?.addEventListener('click', () => abrirFormFixaReceita(null));
     document.getElementById('btnSalvarFixaReceita')?.addEventListener('click', salvarFixaReceita);
     document.getElementById('btnCancelarFixaReceita')?.addEventListener('click', () => {
@@ -10260,8 +10282,12 @@
     document.getElementById('btnEditRecSoMes')?.addEventListener('click', e => aplicarEditRecorrente('soeste', e.currentTarget));
     document.getElementById('btnEditRecEProximos')?.addEventListener('click', e => aplicarEditRecorrente('proximos', e.currentTarget));
     document.getElementById('btnEditRecTodos')?.addEventListener('click', e => aplicarEditRecorrente('todos', e.currentTarget));
-    document.getElementById('btnEditRecCancelar')?.addEventListener('click', () => document.getElementById('modalEditRecorrente').classList.add('hidden'));
-    document.getElementById('modalEditRecorrente')?.addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
+    document.getElementById('btnEditRecCancelar')?.addEventListener('click', () => {
+      document.getElementById('modalEditRecorrente').classList.add('hidden');
+      _unlockBody();
+    });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
 
     // Expõe funções de modal para o FAB externo (script não-module)
     window._orcAbrirModal = abrirModal;
