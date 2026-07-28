@@ -9198,6 +9198,9 @@
     }
 
     // ─── Modal: fixas detectadas no CSV (11.2) ───────────────────────────────
+    // Também sem _lockBody/_unlockBody, mesmo bug de toque desalinhado no
+    // Android do modal Importar IA (achado 28/07/2026, mentorada Juliana
+    // Valerio: "mesmo problema no botão Pular").
     let _fixasCsvPendentes = [];
 
     function abrirModalFixasCsv(fixas) {
@@ -9221,13 +9224,14 @@
         </label>`;
       }).join('');
       document.getElementById('modalFixasCsv')?.classList.remove('hidden');
+      _lockBody();
     }
 
     async function confirmarFixasCsv() {
       const checks = document.querySelectorAll('#listaFixasCsv input[type=checkbox]');
       const selecionadas = [...checks].filter(c => c.checked).map(c => _fixasCsvPendentes[+c.value]);
       if (!selecionadas.length) {
-        document.getElementById('modalFixasCsv')?.classList.add('hidden');
+        document.getElementById('modalFixasCsv')?.classList.add('hidden'); _unlockBody();
         return;
       }
       const btn = document.getElementById('btnConfirmarFixasCsv');
@@ -9260,7 +9264,7 @@
           }
         }
         await carregarRecorrentes();
-        document.getElementById('modalFixasCsv')?.classList.add('hidden');
+        document.getElementById('modalFixasCsv')?.classList.add('hidden'); _unlockBody();
         const n = selecionadas.length;
         toast(`${n} despesa${n > 1 ? 's fixas cadastradas' : ' fixa cadastrada'} com sucesso!`, 'success');
       } catch (e) {
@@ -9271,11 +9275,12 @@
     }
 
     document.getElementById('btnConfirmarFixasCsv')?.addEventListener('click', confirmarFixasCsv);
-    document.getElementById('btnPularFixasCsv')?.addEventListener('click', () =>
-      document.getElementById('modalFixasCsv')?.classList.add('hidden'));
-    document.getElementById('modalFixasCsv')?.addEventListener('click', e => {
-      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    document.getElementById('btnPularFixasCsv')?.addEventListener('click', () => {
+      document.getElementById('modalFixasCsv')?.classList.add('hidden');
+      _unlockBody();
     });
+    // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
+    // clicando fora) — este aqui tinha escapado daquele ajuste.
 
     // ─── Suporte ─────────────────────────────
     (function() {
