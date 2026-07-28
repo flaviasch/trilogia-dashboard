@@ -9057,14 +9057,14 @@
     const _PAG_DESPESA = '__despesa__';
 
     function confirmarPagamentosFatura(pagamentos, cartoesAtivos) {
-      const dl = document.getElementById('iaCategoriasSugeridas');
-      if (dl && !dl.childElementCount) {
-        const cats = new Set([
-          ...currentData.despesas.map(d => d.categoria),
-          ..._recorrentes.map(r => r.categoria),
-        ]);
-        dl.innerHTML = [...cats].filter(Boolean).map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
-      }
+      // Select de categorias existentes em vez de campo livre — mesmo
+      // ajuste do modal de categorias incertas (achado 28/07/2026, Flávia +
+      // Juliana Valerio: texto livre deixava fácil criar categorias
+      // quase-duplicadas sem perceber).
+      const catsExistentesPag = [...new Set([
+        ...currentData.despesas.map(d => d.categoria),
+        ..._recorrentes.map(r => r.categoria),
+      ])].filter(Boolean).sort();
 
       const lista = document.getElementById('listaPagamentosFatura');
       lista.innerHTML = pagamentos.map((pag, idx) => {
@@ -9089,15 +9089,28 @@
             <option value="${_PAG_DESPESA}"${pag.cartaoSugerido ? ' selected' : ''}>Não é cartão / fatura ainda não importada — lançar como despesa</option>
             ${cartoesAtivos.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}${pag.cartaoSugerido?.id === c.id ? ' (sugerido)' : ''}</option>`).join('')}
           </select>
-          <input type="text" data-pag-cat-idx="${idx}" placeholder="Categoria (ex: Condomínio)" list="iaCategoriasSugeridas" autocomplete="off"
-            style="display:${pag.cartaoSugerido ? 'block' : 'none'};width:100%;box-sizing:border-box;padding:8px 10px;margin-top:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+          <select data-pag-cat-idx="${idx}" style="display:${pag.cartaoSugerido ? 'block' : 'none'};width:100%;box-sizing:border-box;padding:8px 10px;margin-top:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+            <option value="" disabled selected>Selecione uma categoria</option>
+            ${catsExistentesPag.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+            <option value="__nova__">+ Nova categoria…</option>
+          </select>
+          <input type="text" data-pag-cat-nova-idx="${idx}" placeholder="Nome da nova categoria" autocomplete="off"
+            style="display:none;width:100%;box-sizing:border-box;padding:8px 10px;margin-top:6px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
         </div>`;
       }).join('');
 
       lista.querySelectorAll('[data-pag-idx]').forEach(sel => {
         sel.addEventListener('change', () => {
-          const catInput = lista.querySelector(`[data-pag-cat-idx="${sel.dataset.pagIdx}"]`);
-          catInput.style.display = sel.value === _PAG_DESPESA ? 'block' : 'none';
+          const catSelect = lista.querySelector(`[data-pag-cat-idx="${sel.dataset.pagIdx}"]`);
+          catSelect.style.display = sel.value === _PAG_DESPESA ? 'block' : 'none';
+        });
+      });
+      lista.querySelectorAll('[data-pag-cat-idx]').forEach(catSelect => {
+        catSelect.addEventListener('change', () => {
+          const novoInput = lista.querySelector(`[data-pag-cat-nova-idx="${catSelect.dataset.pagCatIdx}"]`);
+          if (!novoInput) return;
+          novoInput.style.display = catSelect.value === '__nova__' ? '' : 'none';
+          if (catSelect.value === '__nova__') novoInput.focus();
         });
       });
 
@@ -9121,8 +9134,12 @@
             const idx = Number(sel.dataset.pagIdx);
             const pag = pagamentos[idx];
             if (sel.value === _PAG_DESPESA) {
-              const catInput = lista.querySelector(`[data-pag-cat-idx="${idx}"]`);
-              const categoria = catInput.value.trim();
+              const catSelect = lista.querySelector(`[data-pag-cat-idx="${idx}"]`);
+              let categoria = catSelect.value;
+              if (categoria === '__nova__') {
+                const novoInput = lista.querySelector(`[data-pag-cat-nova-idx="${idx}"]`);
+                categoria = novoInput?.value.trim() || '';
+              }
               if (!categoria) { faltouCategoria = true; return; }
               despesasExtras.push({ tipo: 'despesa', categoria, valor: pag.valor, data: pag.data, descricao: pag.descricao });
             } else if (sel.value) {
