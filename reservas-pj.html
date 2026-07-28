@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard PJ — Reservas</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45; --navy-dark: #081e30;
+      --gold: #CFAE65; --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.1);
+      --text-muted: rgba(255,255,255,0.45);
+      --positive: #4ade80; --negative: #f87171;
+      --card-bg: rgba(255,255,255,0.03);
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--navy);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
+    .empresa-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .nav-pj { display: flex; gap: 4px; flex-wrap: wrap; }
+    .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+    .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
+    .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+    .mes-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .btn-mes { background: var(--card-bg); border: 1px solid var(--border); color: var(--white); border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 14px; }
+    .mes-label { font-size: 15px; font-weight: 600; min-width: 140px; text-align: center; }
+
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+    .card-ouro { background: linear-gradient(135deg, rgba(207,174,101,0.12), rgba(207,174,101,0.03)); border: 1px solid rgba(207,174,101,0.3); }
+    .card-titulo { font-family: 'Playfair Display', serif; font-size: 16px; margin-bottom: 4px; }
+    .card-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+    .card-valor { font-size: 26px; font-weight: 700; color: var(--gold); margin-bottom: 4px; }
+    .card-valor.negativo { color: var(--negative); }
+    .card-composicao { font-size: 12px; color: var(--text-muted); }
+    .card-aviso { font-size: 11px; color: var(--text-muted); margin-top: 10px; font-style: italic; }
+    .card-ok { font-size: 13px; color: var(--positive); background: rgba(74,222,128,.1); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; padding: 12px 14px; }
+
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
+    .field-group input { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-row { display: flex; gap: 10px; align-items: flex-end; }
+    .field-row .field-group { flex: 1; margin-bottom: 0; }
+    input[type="range"] { width: 100%; accent-color: var(--gold); }
+    .range-valor { font-size: 13px; color: var(--gold); font-weight: 600; text-align: right; }
+
+    .btn-acao { background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 10px 16px; font-weight: 700; cursor: pointer; font-size: 13px; white-space: nowrap; }
+    .btn-acao-secundario { background: none; border: 1px solid rgba(207,174,101,0.4); color: var(--gold); border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .btn-acao-fraco { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+
+    .secao-titulo { font-size: 14px; font-weight: 600; margin-bottom: 12px; margin-top: 32px; }
+    .reserva-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); gap: 12px; flex-wrap: wrap; }
+    .reserva-item:last-child { border-bottom: none; }
+    .reserva-info { flex: 1; min-width: 180px; }
+    .reserva-nome { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .reserva-tipo { font-size: 11px; color: var(--text-muted); }
+    .reserva-progresso-track { background: rgba(255,255,255,.06); border-radius: 20px; height: 6px; margin-top: 8px; overflow: hidden; }
+    .reserva-progresso-fill { background: var(--gold); height: 100%; }
+    .reserva-valores { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .reserva-acoes { display: flex; gap: 8px; }
+    .vazio { padding: 20px; text-align: center; font-size: 13px; color: var(--text-muted); }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
+    .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
+    .tipo-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+    .tipo-toggle button { flex: 1; background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 10px; font-size: 13px; cursor: pointer; }
+    .tipo-toggle button.ativo { background: rgba(207,174,101,.15); color: var(--gold); border-color: rgba(207,174,101,.4); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
+      <p class="empresa-nome" id="empresaNome">—</p>
+      <nav class="nav-pj">
+        <a href="notas-pj.html">Notas</a>
+        <a href="recebimentos-pj.html">Contas a Receber</a>
+        <a href="impostos-pj.html">Impostos</a>
+        <a href="contas-a-pagar-pj.html">Contas a Pagar</a>
+        <a href="dre-pj.html">DRE</a>
+        <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
+        <a href="reservas-pj.html" class="ativo">Reservas</a>
+      </nav>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="ajuda-pj.html" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">❓ Ajuda</a>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <h1>Reservas</h1>
+    <p class="subtitulo">Quanto guardar, quanto ter disponível e quanto pode tirar por mês.</p>
+
+    <div class="mes-nav">
+      <button class="btn-mes" id="mesAnterior">‹</button>
+      <span class="mes-label" id="mesLabel">—</span>
+      <button class="btn-mes" id="mesProximo">›</button>
+    </div>
+
+    <div class="card card-ouro">
+      <div class="card-titulo">Capital de giro</div>
+      <div class="card-sub">Quanto precisa ter disponível pra cobrir o intervalo entre pagar e receber — não é reserva de segurança, é caixa de giro do dia a dia.</div>
+      <div id="capitalGiroConteudo"></div>
+    </div>
+
+    <div class="card card-ouro">
+      <div class="card-titulo">Retirada sugerida do mês</div>
+      <div class="card-sub">Lucro líquido do mês, descontada a reserva mínima de caixa que você quer manter guardada.</div>
+      <div id="retiradaSugeridaConteudo"></div>
+      <div class="field-row" style="margin-top:14px">
+        <div class="field-group">
+          <label for="reservaMinCaixaInput">Reserva mínima de caixa (R$)</label>
+          <input type="number" id="reservaMinCaixaInput" min="0" step="0.01" placeholder="0">
+        </div>
+        <button class="btn-acao-secundario" id="btnSalvarReservaMinCaixa">Salvar</button>
+      </div>
+    </div>
+
+    <div class="secao-titulo">Criar reserva</div>
+
+    <div class="card">
+      <div class="card-titulo" style="font-size:14px">Reserva de emergência</div>
+      <div class="card-sub">Colchão de segurança em meses de despesa operacional. Negócio pequeno costuma precisar de mais meses que uma pessoa física.</div>
+      <div class="field-group">
+        <label for="reMesesInput">Meses de despesa (<span id="reMesesValor">9</span>)</label>
+        <input type="range" id="reMesesInput" min="6" max="12" value="9">
+      </div>
+      <div class="card-valor" id="reValorSugerido">—</div>
+      <div class="card-composicao" id="reComposicao"></div>
+      <div style="margin-top:14px"><button class="btn-acao" id="btnCriarReservaEmergencia">Criar reserva</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-titulo" style="font-size:14px">Reserva de investimento</div>
+      <div class="card-sub">Meta livre — nome, valor e data. O aporte mensal sugerido é uma % do lucro líquido do mês.</div>
+      <div class="field-group">
+        <label for="riNomeInput">Nome da meta</label>
+        <input type="text" id="riNomeInput" placeholder="ex: Expansão, reforma, novo equipamento…">
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label for="riValorInput">Valor da meta (R$)</label>
+          <input type="number" id="riValorInput" min="0.01" step="0.01" placeholder="0">
+        </div>
+        <div class="field-group">
+          <label for="riDataInput">Data alvo (opcional)</label>
+          <input type="date" id="riDataInput">
+        </div>
+      </div>
+      <div class="field-group">
+        <label for="riPercentualInput">Aporte sugerido: <span id="riPercentualValor">10</span>% do lucro líquido do mês</label>
+        <input type="range" id="riPercentualInput" min="1" max="50" value="10">
+      </div>
+      <div class="card-valor" id="riAporteSugerido">—</div>
+      <div style="margin-top:14px"><button class="btn-acao" id="btnCriarReservaInvestimento">Criar reserva</button></div>
+    </div>
+
+    <div class="secao-titulo">Reservas ativas</div>
+    <div class="card" id="listaReservasCard">
+      <div class="vazio" id="reservasVazio" style="display:none">Nenhuma reserva criada ainda.</div>
+      <div id="listaReservas"></div>
+    </div>
+  </main>
+
+  <!-- Modal: Registrar aporte/retirada -->
+  <div class="modal-overlay hidden" id="modalMovimento">
+    <div class="modal-card">
+      <h3 id="modalMovimentoTitulo">Registrar movimento</h3>
+      <input type="hidden" id="movReservaId">
+      <div class="tipo-toggle">
+        <button type="button" id="btnTipoAporte" class="ativo">Aporte</button>
+        <button type="button" id="btnTipoRetirada">Retirada</button>
+      </div>
+      <div class="field-group">
+        <label for="movValor">Valor (R$)</label>
+        <input type="number" id="movValor" min="0.01" step="0.01" placeholder="0">
+      </div>
+      <div class="field-group">
+        <label for="movData">Data</label>
+        <input type="date" id="movData">
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarMovimento">Cancelar</button>
+        <button class="btn-save" id="btnSalvarMovimento">Registrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import {
+      getContaPJ, getIndicadoresReservasPJ, salvarReservaMinimaCaixaPJ,
+      criarReservaPJ, getReservasPJ, registrarMovimentoReservaPJ, excluirReservaPJ,
+      msgErro,
+    } from './js/api.js?v=51';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { toast, setLoading } from './js/ui.js';
+
+    const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+      'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
+    const TIPO_LABEL = { emergencia: 'Reserva de emergência', investimento: 'Reserva de investimento', outro: 'Outra reserva' };
+
+    let currentUser = null;
+    let mesAtual = new Date().getMonth() + 1;
+    let anoAtual = new Date().getFullYear();
+    let _indicadoresCache = null;
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login-pj.html';
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login-pj.html'; return; }
+      currentUser = user;
+      try {
+        const conta = await getContaPJ(user.uid);
+        if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+        if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+        document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
+      } catch (err) {
+        console.error('[reservas-pj] Falha ao carregar conta:', err.message);
+      }
+      renderTudo();
+    });
+
+    async function renderTudo() {
+      document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
+      await Promise.all([renderIndicadores(), renderReservas()]);
+    }
+
+    async function renderIndicadores() {
+      let ind;
+      try { ind = await getIndicadoresReservasPJ(currentUser.uid, mesAtual, anoAtual); }
+      catch (err) { toast(msgErro(err), 'error'); return; }
+      _indicadoresCache = ind;
+
+      const elCG = document.getElementById('capitalGiroConteudo');
+      if (ind.autofinanciado) {
+        elCG.innerHTML = `<div class="card-ok">✓ Seu negócio se autofinancia: recebe antes de precisar pagar (PMR ${ind.pmr}d, PMP ${ind.pmp}d). Não precisa de reserva adicional pra isso.</div>`;
+      } else {
+        elCG.innerHTML = `
+          <div class="card-valor">${brl(ind.capitalDeGiro)}</div>
+          <div class="card-composicao">Ciclo financeiro de ${ind.cicloFinanceiro} dias (PMR ${ind.pmr}d − PMP ${ind.pmp}d) sobre despesa operacional de ${brl(ind.despesaOperacionalMensal)}/mês.</div>`;
+      }
+      if (!ind.pmrCalculado || !ind.pmpCalculado) {
+        elCG.innerHTML += `<div class="card-aviso">${!ind.pmrCalculado ? 'PMR' : 'PMP'} ainda usa estimativa padrão de 30 dias — falta histórico suficiente confirmado (mín. 3) pra calcular o prazo real.</div>`;
+      }
+
+      document.getElementById('retiradaSugeridaConteudo').innerHTML = `
+        <div class="card-valor ${ind.retiradaSugerida < 0 ? 'negativo' : ''}">${brl(ind.retiradaSugerida)}</div>
+        <div class="card-composicao">Lucro líquido do mês ${brl(ind.lucroLiquido)} − reserva mínima de caixa ${brl(ind.reservaMinimaCaixa)}.</div>`;
+      document.getElementById('reservaMinCaixaInput').value = ind.reservaMinimaCaixa || '';
+
+      atualizarCalculadoraEmergencia();
+      atualizarCalculadoraInvestimento();
+    }
+
+    document.getElementById('btnSalvarReservaMinCaixa').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarReservaMinCaixa');
+      const valor = parseFloat(document.getElementById('reservaMinCaixaInput').value) || 0;
+      if (valor < 0) { toast('Informe um valor não-negativo.', 'warning'); return; }
+      setLoading(btn, true, 'Salvando…');
+      try {
+        await salvarReservaMinimaCaixaPJ(currentUser.uid, valor);
+        await renderIndicadores();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false, 'Salvar');
+      }
+    });
+
+    // ── Calculadora Reserva de Emergência ──
+    function atualizarCalculadoraEmergencia() {
+      if (!_indicadoresCache) return;
+      const meses = +document.getElementById('reMesesInput').value;
+      const valor = _indicadoresCache.despesaOperacionalMensal * meses;
+      document.getElementById('reMesesValor').textContent = meses;
+      document.getElementById('reValorSugerido').textContent = brl(valor);
+      document.getElementById('reComposicao').textContent = `${brl(_indicadoresCache.despesaOperacionalMensal)}/mês de despesa operacional × ${meses} meses.`;
+    }
+    document.getElementById('reMesesInput').addEventListener('input', atualizarCalculadoraEmergencia);
+
+    document.getElementById('btnCriarReservaEmergencia').addEventListener('click', async () => {
+      if (!_indicadoresCache) return;
+      const meses = +document.getElementById('reMesesInput').value;
+      const valorMeta = Math.round(_indicadoresCache.despesaOperacionalMensal * meses * 100) / 100;
+      if (!(valorMeta > 0)) { toast('Sem despesa operacional configurada, não dá pra sugerir um valor. Cadastre despesas fixas primeiro.', 'warning'); return; }
+      const btn = document.getElementById('btnCriarReservaEmergencia');
+      setLoading(btn, true, 'Criando…');
+      try {
+        await criarReservaPJ(currentUser.uid, { nome: 'Reserva de Emergência', tipo: 'emergencia', valorMeta, dataMeta: null });
+        toast('Reserva de emergência criada.');
+        await renderReservas();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false, 'Criar reserva');
+      }
+    });
+
+    // ── Calculadora Reserva de Investimento ──
+    function atualizarCalculadoraInvestimento() {
+      if (!_indicadoresCache) return;
+      const pct = +document.getElementById('riPercentualInput').value;
+      document.getElementById('riPercentualValor').textContent = pct;
+      const aporte = Math.max(0, _indicadoresCache.lucroLiquido) * (pct / 100);
+      document.getElementById('riAporteSugerido').textContent = `Aporte sugerido este mês: ${brl(aporte)}`;
+    }
+    document.getElementById('riPercentualInput').addEventListener('input', atualizarCalculadoraInvestimento);
+
+    document.getElementById('btnCriarReservaInvestimento').addEventListener('click', async () => {
+      const nome = document.getElementById('riNomeInput').value.trim();
+      const valorMeta = parseFloat(document.getElementById('riValorInput').value);
+      const dataMeta = document.getElementById('riDataInput').value || null;
+      if (!nome) { toast('Dê um nome pra meta.', 'warning'); return; }
+      if (!(valorMeta > 0)) { toast('Informe um valor de meta válido.', 'warning'); return; }
+      const btn = document.getElementById('btnCriarReservaInvestimento');
+      setLoading(btn, true, 'Criando…');
+      try {
+        await criarReservaPJ(currentUser.uid, { nome, tipo: 'investimento', valorMeta, dataMeta });
+        toast('Reserva de investimento criada.');
+        document.getElementById('riNomeInput').value = '';
+        document.getElementById('riValorInput').value = '';
+        document.getElementById('riDataInput').value = '';
+        await renderReservas();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false, 'Criar reserva');
+      }
+    });
+
+    // ── Lista de reservas ativas ──
+    async function renderReservas() {
+      let dados;
+      try { dados = await getReservasPJ(currentUser.uid); }
+      catch (err) { toast(msgErro(err), 'error'); return; }
+
+      const lista = document.getElementById('listaReservas');
+      const vazio = document.getElementById('reservasVazio');
+      if (!dados.reservas.length) {
+        vazio.style.display = '';
+        lista.innerHTML = '';
+        return;
+      }
+      vazio.style.display = 'none';
+      lista.innerHTML = dados.reservas.map(r => `
+        <div class="reserva-item">
+          <div class="reserva-info">
+            <div class="reserva-nome">${r.nome}</div>
+            <div class="reserva-tipo">${TIPO_LABEL[r.tipo] || r.tipo}${r.dataMeta ? ` · meta ${r.dataMeta.split('-').reverse().join('/')}` : ''}</div>
+            <div class="reserva-progresso-track"><div class="reserva-progresso-fill" style="width:${Math.round(r.progresso * 100)}%"></div></div>
+            <div class="reserva-valores">${brl(r.saldoAtual)} de ${brl(r.valorMeta)} (${Math.round(r.progresso * 100)}%)</div>
+          </div>
+          <div class="reserva-acoes">
+            <button class="btn-acao-secundario" data-aportar="${r.id}">+ Aportar</button>
+            <button class="btn-acao-fraco" data-retirar="${r.id}">Retirar</button>
+            <button class="btn-acao-fraco" data-encerrar="${r.id}">Encerrar</button>
+          </div>
+        </div>`).join('');
+
+      lista.querySelectorAll('[data-aportar]').forEach(b => b.addEventListener('click', () => abrirModalMovimento(b.dataset.aportar, 'aporte')));
+      lista.querySelectorAll('[data-retirar]').forEach(b => b.addEventListener('click', () => abrirModalMovimento(b.dataset.retirar, 'retirada')));
+      lista.querySelectorAll('[data-encerrar]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Encerrar esta reserva? Ela sai da lista de reservas ativas.')) return;
+        try {
+          await excluirReservaPJ(currentUser.uid, b.dataset.encerrar);
+          toast('Reserva encerrada.');
+          await renderReservas();
+        } catch (err) {
+          toast(msgErro(err), 'error');
+        }
+      }));
+    }
+
+    document.getElementById('mesAnterior').addEventListener('click', () => {
+      mesAtual--; if (mesAtual < 1) { mesAtual = 12; anoAtual--; }
+      renderTudo();
+    });
+    document.getElementById('mesProximo').addEventListener('click', () => {
+      mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
+      renderTudo();
+    });
+
+    // ── Modal: Registrar aporte/retirada ──
+    const modalMovimento = document.getElementById('modalMovimento');
+    let _tipoMovAtual = 'aporte';
+    function abrirModalMovimento(reservaId, tipo) {
+      document.getElementById('movReservaId').value = reservaId;
+      document.getElementById('movValor').value = '';
+      document.getElementById('movData').value = new Date().toISOString().slice(0, 10);
+      selecionarTipoMov(tipo);
+      modalMovimento.classList.remove('hidden');
+    }
+    function selecionarTipoMov(tipo) {
+      _tipoMovAtual = tipo;
+      document.getElementById('btnTipoAporte').classList.toggle('ativo', tipo === 'aporte');
+      document.getElementById('btnTipoRetirada').classList.toggle('ativo', tipo === 'retirada');
+      document.getElementById('modalMovimentoTitulo').textContent = tipo === 'aporte' ? 'Registrar aporte' : 'Registrar retirada';
+    }
+    document.getElementById('btnTipoAporte').addEventListener('click', () => selecionarTipoMov('aporte'));
+    document.getElementById('btnTipoRetirada').addEventListener('click', () => selecionarTipoMov('retirada'));
+    document.getElementById('btnCancelarMovimento').addEventListener('click', () => modalMovimento.classList.add('hidden'));
+    document.getElementById('btnSalvarMovimento').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarMovimento');
+      const reservaId = document.getElementById('movReservaId').value;
+      const valor = parseFloat(document.getElementById('movValor').value);
+      const data = document.getElementById('movData').value;
+      if (!(valor > 0)) { toast('Informe um valor válido.', 'warning'); return; }
+      if (!data) { toast('Informe a data.', 'warning'); return; }
+      setLoading(btn, true, 'Registrando…');
+      try {
+        await registrarMovimentoReservaPJ(currentUser.uid, reservaId, _tipoMovAtual, valor, data);
+        modalMovimento.classList.add('hidden');
+        toast(_tipoMovAtual === 'aporte' ? 'Aporte registrado.' : 'Retirada registrada.');
+        await renderReservas();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false, 'Registrar');
+      }
+    });
+  </script>
+
+</body>
+</html>

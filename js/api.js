@@ -740,6 +740,26 @@ export async function salvarRetiradaMinimaPJ(uid, valor) {
   return callPJ('salvarRetiradaMinimaPJ')({ uid, valor });
 }
 
+// Retirada Sugerida + 3 Reservas (28/07/2026, fatia final)
+export async function getIndicadoresReservasPJ(uid, mes, ano) {
+  return callPJ('getIndicadoresReservasPJ')({ uid, mes, ano });
+}
+export async function salvarReservaMinimaCaixaPJ(uid, valor) {
+  return callPJ('salvarReservaMinimaCaixaPJ')({ uid, valor });
+}
+export async function criarReservaPJ(uid, dados) {
+  return callPJ('criarReservaPJ')({ uid, ...dados });
+}
+export async function getReservasPJ(uid) {
+  return callPJ('getReservasPJ')({ uid });
+}
+export async function registrarMovimentoReservaPJ(uid, reservaId, tipoMov, valor, data) {
+  return callPJ('registrarMovimentoReservaPJ')({ uid, reservaId, tipoMov, valor, data });
+}
+export async function excluirReservaPJ(uid, reservaId) {
+  return callPJ('excluirReservaPJ')({ uid, reservaId });
+}
+
 // Entradas de caixa que não são venda (aporte de sócio, reembolso, outro) —
 // não passam por nota fiscal nem entram na DRE, só no Fluxo de Caixa.
 export async function getOutrasEntradasPJ(uid, mes, ano) {

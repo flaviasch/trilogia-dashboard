@@ -6326,6 +6326,42 @@ async function _calcularPMR(uid) {
   return Math.round(somaDiasPonderada / somaValor);
 }
 
+/**
+ * Prazo médio de pagamento sugerido (dias), calculado a partir das
+ * ocorrências de despesasPJ já confirmadas (`despesasPJ/*​/pagamentos` com
+ * `dataPagamento`), ponderado por valor. Espelha `_calcularPMR`, com uma
+ * diferença deliberada: aqui NÃO descarta dias negativos — pagar antes do
+ * vencimento é normal (diferente de "receber antes de emitir a nota", que é
+ * dado inconsistente no PMR). null se < 3 pagamentos confirmados válidos —
+ * quem chama decide o fallback (ver getIndicadoresReservasPJ).
+ */
+async function _calcularPMP(uid) {
+  const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).get();
+  const despesasPorId = {};
+  despesasSnap.docs.forEach(d => { despesasPorId[d.id] = d.data(); });
+
+  const pagSnap = await db.collectionGroup('pagamentos').where('uid', '==', uid).get();
+  let somaDiasPonderada = 0;
+  let somaValor = 0;
+  let validos = 0;
+  for (const d of pagSnap.docs) {
+    const pagamento = d.data();
+    if (pagamento.cancelado || !pagamento.dataPagamento) continue;
+    const despesaId = d.ref.parent.parent.id;
+    const desp = despesasPorId[despesaId];
+    if (!desp) continue;
+    const [anoStr, mesStr] = d.id.split('-'); // id do doc = mesAno "YYYY-MM"
+    const oc = _ocorrenciaDespesaPJ(desp, Number(mesStr), Number(anoStr));
+    if (!oc) continue;
+    const dias = (new Date(pagamento.dataPagamento) - new Date(oc.dataVenc)) / 86_400_000;
+    somaDiasPonderada += dias * (desp.valor || 0);
+    somaValor += (desp.valor || 0);
+    validos++;
+  }
+  if (validos < 3 || somaValor === 0) return null;
+  return Math.round(somaDiasPonderada / somaValor);
+}
+
 exports.getFluxoCaixaPJ = onCall({}, async (request) => {
   const { uid, mes, ano } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -6480,12 +6516,10 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
 // DRE de competência precisa), excluindo só a linha acumulada REAL do
 // trimestre (tem campo `trimestre` mas não `referenciaTrimestral` — essa é
 // vencimento de caixa, contada à parte no Fluxo de Caixa, não na DRE).
-exports.getDRESimplificadoPJ = onCall({}, async (request) => {
-  const { uid, mes, ano } = request.data;
-  requireSelfOrAdmin(request, uid);
-  if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
-  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
-
+// Extraído em 28/07/2026 (fatia Reservas) pra ser reaproveitado também por
+// getIndicadoresReservasPJ (Retirada Sugerida precisa do mesmo Lucro Líquido)
+// sem duplicar a lógica — mesmo cálculo de sempre, só virou helper interno.
+async function _calcularDRESimplificado(uid, mes, ano) {
   const notasSnap = await db.collection('notasEmitidas')
     .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
   const receitaBruta = notasSnap.docs.reduce((s, d) => s + (d.data().valor || 0), 0);
@@ -6517,6 +6551,14 @@ exports.getDRESimplificadoPJ = onCall({}, async (request) => {
     despesasOperacionais: arredonda(despesasOperacionais),
     lucroLiquido: arredonda(lucroLiquido),
   };
+}
+
+exports.getDRESimplificadoPJ = onCall({}, async (request) => {
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
+  return _calcularDRESimplificado(uid, mes, ano);
 });
 
 // Ponto de Equilíbrio é sobre a CONFIGURAÇÃO atual (tributos + despesas
@@ -6571,6 +6613,146 @@ exports.salvarRetiradaMinimaPJ = onCall({}, async (request) => {
   requireSelfOrAdmin(request, uid);
   if (typeof valor !== 'number' || valor < 0) throw new HttpsError('invalid-argument', 'valor deve ser um número não-negativo.');
   await db.collection('contasPJ').doc(uid).set({ retiradaMinimaDesejada: valor }, { merge: true });
+  return { ok: true };
+});
+
+// ─── Retirada Sugerida + 3 Reservas (28/07/2026, fatia final) ─────────────────
+// Retomado do desenho fechado em 02-estrutura/RESULTADO-dossie.md, seção
+// "Reservas — 3 cálculos distintos" + item 7 (Retirada Sugerida). Aba própria
+// "Reservas". Reserva de Investimento tem rastreamento completo (saldo
+// acumulado + aportes/retiradas), diferente do cartão de Ponto de Equilíbrio
+// (que é só cálculo, sem persistir meta) — decisão de Flávia em 28/07.
+//
+// `reservaMinimaCaixa` (contasPJ) é um campo NOVO, deliberadamente separado de
+// `retiradaMinimaDesejada` (usado no Ponto de Equilíbrio): o primeiro é
+// "quanto deixar de colchão antes de tirar o lucro", o segundo é "quanto
+// preciso faturar pra bater minha meta de retirada" — perguntas diferentes,
+// mesmo se o número escolhido pela usuária for o mesmo por coincidência.
+
+exports.getIndicadoresReservasPJ = onCall({}, async (request) => {
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
+
+  const [dre, pmrCalculado, pmpCalculado, contaSnap, despesasSnap] = await Promise.all([
+    _calcularDRESimplificado(uid, mes, ano),
+    _calcularPMR(uid),
+    _calcularPMP(uid),
+    db.collection('contasPJ').doc(uid).get(),
+    db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get(),
+  ]);
+
+  const despesaOperacionalMensal = despesasSnap.docs.reduce((s, d) => {
+    const desp = d.data();
+    const oc = _ocorrenciaDespesaPJ(desp, mes, ano);
+    return oc ? s + (desp.valor || 0) : s;
+  }, 0);
+
+  // Sem histórico suficiente (< 3 confirmados), cai num padrão de 30 dias
+  // pros dois — mesmo espírito do fallback já usado em getFluxoCaixaPJ.
+  const pmr = pmrCalculado ?? 30;
+  const pmp = pmpCalculado ?? 30;
+  const cicloFinanceiro = pmr - pmp;
+  const capitalDeGiroBruto = (despesaOperacionalMensal / 30) * cicloFinanceiro;
+  const capitalDeGiro = Math.max(0, capitalDeGiroBruto);
+  const autofinanciado = capitalDeGiroBruto <= 0;
+
+  const conta = contaSnap.exists ? contaSnap.data() : {};
+  const reservaMinimaCaixa = typeof conta.reservaMinimaCaixa === 'number' ? conta.reservaMinimaCaixa : 0;
+  const retiradaSugerida = dre.lucroLiquido - reservaMinimaCaixa;
+
+  const arredonda = v => Math.round(v * 100) / 100;
+  return {
+    despesaOperacionalMensal: arredonda(despesaOperacionalMensal),
+    lucroLiquido: dre.lucroLiquido,
+    pmr, pmp, cicloFinanceiro,
+    pmrCalculado: pmrCalculado !== null, pmpCalculado: pmpCalculado !== null,
+    capitalDeGiro: arredonda(capitalDeGiro), autofinanciado,
+    reservaMinimaCaixa: arredonda(reservaMinimaCaixa),
+    retiradaSugerida: arredonda(retiradaSugerida),
+  };
+});
+
+exports.salvarReservaMinimaCaixaPJ = onCall({}, async (request) => {
+  const { uid, valor } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (typeof valor !== 'number' || valor < 0) throw new HttpsError('invalid-argument', 'valor deve ser um número não-negativo.');
+  await db.collection('contasPJ').doc(uid).set({ reservaMinimaCaixa: valor }, { merge: true });
+  return { ok: true };
+});
+
+const TIPOS_RESERVA_PJ = new Set(['emergencia', 'investimento', 'outro']);
+
+exports.criarReservaPJ = onCall({}, async (request) => {
+  const { uid, nome, tipo, valorMeta, dataMeta } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!nome || typeof nome !== 'string' || !nome.trim()) throw new HttpsError('invalid-argument', 'nome é obrigatório.');
+  if (!TIPOS_RESERVA_PJ.has(tipo)) throw new HttpsError('invalid-argument', 'tipo inválido.');
+  if (typeof valorMeta !== 'number' || valorMeta <= 0) throw new HttpsError('invalid-argument', 'valorMeta deve ser um número positivo.');
+  if (dataMeta != null && !/^\d{4}-\d{2}-\d{2}$/.test(dataMeta)) throw new HttpsError('invalid-argument', 'dataMeta deve estar no formato YYYY-MM-DD.');
+
+  const ref = await db.collection('reservasPJ').add({
+    uid, nome: nome.trim(), tipo, valorMeta, dataMeta: dataMeta || null,
+    saldoAtual: 0, ativa: true, criadaEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { id: ref.id };
+});
+
+exports.getReservasPJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const snap = await db.collection('reservasPJ').where('uid', '==', uid).where('ativa', '==', true).get();
+  const reservas = snap.docs.map(d => {
+    const r = d.data();
+    return {
+      id: d.id, nome: r.nome, tipo: r.tipo, valorMeta: r.valorMeta,
+      dataMeta: r.dataMeta || null, saldoAtual: r.saldoAtual || 0,
+      progresso: r.valorMeta > 0 ? Math.min(1, (r.saldoAtual || 0) / r.valorMeta) : 0,
+    };
+  });
+  reservas.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+  return { reservas };
+});
+
+async function _reservaDoUid(uid, reservaId) {
+  const ref = db.collection('reservasPJ').doc(reservaId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Reserva não encontrada.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  return { ref, reserva: snap.data() };
+}
+
+exports.registrarMovimentoReservaPJ = onCall({}, async (request) => {
+  const { uid, reservaId, tipoMov, valor, data } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!reservaId) throw new HttpsError('invalid-argument', 'reservaId é obrigatório.');
+  if (tipoMov !== 'aporte' && tipoMov !== 'retirada') throw new HttpsError('invalid-argument', 'tipoMov deve ser "aporte" ou "retirada".');
+  if (typeof valor !== 'number' || valor <= 0) throw new HttpsError('invalid-argument', 'valor deve ser um número positivo.');
+  if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new HttpsError('invalid-argument', 'data deve estar no formato YYYY-MM-DD.');
+
+  const { ref, reserva } = await _reservaDoUid(uid, reservaId);
+  const saldoAtual = reserva.saldoAtual || 0;
+  if (tipoMov === 'retirada' && valor > saldoAtual) {
+    throw new HttpsError('failed-precondition', `Saldo insuficiente: a reserva tem ${saldoAtual.toFixed(2)} e a retirada é de ${valor.toFixed(2)}.`);
+  }
+  const novoSaldo = tipoMov === 'aporte' ? saldoAtual + valor : saldoAtual - valor;
+
+  await db.runTransaction(async (tx) => {
+    tx.update(ref, { saldoAtual: novoSaldo });
+    tx.set(ref.collection('movimentos').doc(), {
+      uid, tipo: tipoMov, valor, data, criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+  return { ok: true, saldoAtual: novoSaldo };
+});
+
+exports.excluirReservaPJ = onCall({}, async (request) => {
+  const { uid, reservaId } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!reservaId) throw new HttpsError('invalid-argument', 'reservaId é obrigatório.');
+  const { ref } = await _reservaDoUid(uid, reservaId);
+  await ref.update({ ativa: false });
   return { ok: true };
 });
 
