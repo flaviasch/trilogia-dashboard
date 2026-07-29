@@ -228,6 +228,9 @@ function emailReenvioAcesso(nome, linkSenha) {
  * @param {string} linkSenha — link gerado pelo Firebase para definir senha
  */
 function emailBoasVindas(nome, contexto = 'mentoria') {
+  const linkLogin = contexto === 'dashboard-pj'
+    ? 'https://dashboard.flaviaschusciman.com/login-pj.html'
+    : 'https://dashboard.flaviaschusciman.com/login.html';
   const intro = contexto === 'raio-x'
     ? {
         titulo: 'Bem-vinda ao seu Raio-X Financeiro',
@@ -236,6 +239,7 @@ function emailBoasVindas(nome, contexto = 'mentoria') {
           Orçamento do Trilogia Dashboard. É só entrar, colar ou anexar seu extrato e fatura,
           e a inteligência artificial classifica tudo automaticamente para você.
         `,
+        botao: 'Acessar o Dashboard',
         extra: `
           <p style="${S.p}">
             Dentro do Orçamento, clique em <strong>"Importar extrato com IA"</strong> para começar.
@@ -247,20 +251,36 @@ function emailBoasVindas(nome, contexto = 'mentoria') {
           </p>
         `,
       }
+    : contexto === 'dashboard-pj'
+    ? {
+        titulo: 'Bem-vinda ao Dashboard PJ',
+        paragrafo: `
+          Sua conta está criada e o Dashboard PJ da sua empresa já está pronto para você.
+          Para definir sua senha e acessar pela primeira vez, clique no botão abaixo:
+        `,
+        botao: 'Acessar o Dashboard PJ',
+        extra: `
+          <p style="${S.pSmall}">
+            No primeiro acesso, você vai preencher um cadastro rápido da sua empresa
+            (nome, CNPJ opcional e regime tributário) antes de começar a usar.
+          </p>
+        `,
+      }
     : {
         titulo: 'Bem-vinda ao Trilogia Dashboard',
         paragrafo: `
           Sua conta está criada e o Dashboard já está pronto para você.
           Para definir sua senha e acessar pela primeira vez, clique no botão abaixo:
         `,
+        botao: 'Acessar o Dashboard',
         extra: '',
       };
   return layout(`
     <h2 style="${S.h2}">${intro.titulo}</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">${intro.paragrafo}</p>
-    <a href="https://dashboard.flaviaschusciman.com/login.html" style="${S.btn}">
-      Acessar o Dashboard
+    <a href="${linkLogin}" style="${S.btn}">
+      ${intro.botao}
     </a>
     <p style="${S.p}" style="margin-top:20px">
       Na tela de login, clique em <strong>"Primeiro acesso — criar minha senha"</strong>

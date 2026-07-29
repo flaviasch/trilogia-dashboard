@@ -4181,7 +4181,7 @@ exports.removeAdmin = onCall({}, async (request) => {
 // ─── CONTRATOS & COBRANÇAS ───────────────────────────────────────────────────
 
 const ADMIN_EMAIL       = 'flaviasch@gmail.com';
-const PRODUTOS_RECORRENTES = ['clube', 'dashboard', 'combo'];
+const PRODUTOS_RECORRENTES = ['clube', 'dashboard', 'combo', 'combo_pj_pf', 'combo_pj_pf_clube'];
 
 /** Avança uma data YYYY-MM-DD por uma periodicidade. */
 function proximoVencimento(iso, periodicidade) {
@@ -4282,8 +4282,8 @@ exports.pagarParcela = onCall({}, async (request) => {
   await cobRef.update({ pago: true, dataPagamento, valorRecebido });
 
   // Ativa flags de acesso conforme produto pago (espelha lógica do kiwifyWebhook)
-  const ehClube     = cob.produto === 'clube'     || cob.produto === 'combo';
-  const ehDashboard = cob.produto === 'dashboard' || cob.produto === 'combo';
+  const ehClube     = cob.produto === 'clube'     || cob.produto === 'combo' || cob.produto === 'combo_pj_pf_clube';
+  const ehDashboard = cob.produto === 'dashboard' || cob.produto === 'combo' || cob.produto === 'combo_pj_pf' || cob.produto === 'combo_pj_pf_clube';
   if (ehClube || ehDashboard) {
     const flagUpdates = {};
     if (ehClube)     flagUpdates.assinaturaClube     = true;
@@ -4583,11 +4583,46 @@ async function acionarEsteiraPosVenda({ email, nome, telefone, produto, produtoE
 }
 
 /**
+ * Identifica o produto Kiwify a partir do nome (já em lowercase). Usada nos
+ * dois branches do kiwifyWebhook (cancelamento e pagamento confirmado) — até
+ * 29/07/2026 eram duas cópias de regex que já haviam divergido uma da outra.
+ * Produtos com "pj" no nome são checados ANTES do dashboard/clube PF
+ * genérico, porque "Dashboard PJ" contém a palavra "dashboard" e cairia por
+ * engano no branch do Dashboard PF puro (ativaria assinaturaDashboard da
+ * mentorada errada). Nomes esperados no Kiwify: "Dashboard PJ",
+ * "Combo Dashboard PJ + PF", "Combo Dashboard PJ + PF + Clube".
+ */
+function _identificarProdutoKiwify(nomeProdutoLower) {
+  const hasDash  = /dashboard|dash/i.test(nomeProdutoLower);
+  const hasClube = /clube|club/i.test(nomeProdutoLower);
+  const hasPJ    = /\bpj\b/i.test(nomeProdutoLower);
+  let codigo = null;
+  let especifico = null;
+  if (hasPJ) {
+    if (hasClube) codigo = 'combo_pj_pf_clube';
+    else if (/combo/i.test(nomeProdutoLower) || /\+\s*pf\b/i.test(nomeProdutoLower)) codigo = 'combo_pj_pf';
+    else codigo = 'dashboard_pj';
+  }
+  else if ((hasDash && hasClube) || /combo/i.test(nomeProdutoLower)) codigo = 'combo';
+  else if (/private/i.test(nomeProdutoLower))                        codigo = 'private';
+  else if (/mentoria|mentoring/i.test(nomeProdutoLower))              codigo = 'mentoria';
+  else if (hasClube)                                                   codigo = 'clube';
+  else if (hasDash)                                                    codigo = 'dashboard';
+  else if (/raio.?x/i.test(nomeProdutoLower))                      { codigo = 'ebook'; especifico = 'raiox'; }
+  else if (/mapa da reserva|mapa reserva/i.test(nomeProdutoLower)) { codigo = 'ebook'; especifico = 'mapa'; }
+  else if (/jornada domine|jdd/i.test(nomeProdutoLower))           { codigo = 'curso'; especifico = 'jdd'; }
+  else if (/reserva que rende/i.test(nomeProdutoLower))            { codigo = 'curso'; especifico = 'reserva_rende'; }
+  else if (/curso|course/i.test(nomeProdutoLower))                   codigo = 'curso';
+  else if (/ebook|e-book|livro digital/i.test(nomeProdutoLower))     codigo = 'ebook';
+  return { codigo, especifico };
+}
+
+/**
  * Webhook do Kiwify — registra pagamento automaticamente.
  * Endpoint público: POST /kiwifyWebhook
  *
  * Matching: e-mail da cliente + produto (nome do produto Kiwify deve conter
- * uma das palavras-chave: combo, mentoria, private, clube, dashboard).
+ * uma das palavras-chave: combo, mentoria, private, clube, dashboard, pj).
  * Cobrança alvo: a não paga com vencimento no mês atual; se não houver,
  * a mais antiga não paga.
  *
@@ -4646,15 +4681,21 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         data2?.customer?.email || data2?.subscriber?.email || data2?.buyer?.email || ''
       ).toLowerCase().trim();
 
-      // Identifica o produto do cancelamento
+      // Identifica o produto do cancelamento — mesma função usada no fluxo de
+      // pagamento confirmado (achado 29/07/2026: eram duas cópias de regex
+      // divergentes; "Dashboard PJ" caía aqui como ehDashboard=true por engano).
       const nomeProdutoCancelado = (
         body.Product?.name || body.Subscription?.Product?.name ||
         data2?.product?.name || data2?.plan?.name || ''
       ).toLowerCase();
-      const ehCombo     = /combo/i.test(nomeProdutoCancelado);
-      const ehDashboard = !ehCombo && /dashboard|dash/i.test(nomeProdutoCancelado);
-      const ehClube     = !ehCombo && /clube|club/i.test(nomeProdutoCancelado);
-      const ehMentoria  = /mentoria|mentoring|private/i.test(nomeProdutoCancelado);
+      const { codigo: codigoCancelado } = _identificarProdutoKiwify(nomeProdutoCancelado);
+      const ehCombo          = codigoCancelado === 'combo';
+      const ehDashboard      = codigoCancelado === 'dashboard';
+      const ehClube          = codigoCancelado === 'clube';
+      const ehMentoria       = codigoCancelado === 'mentoria' || codigoCancelado === 'private';
+      const ehDashboardPJ    = codigoCancelado === 'dashboard_pj';
+      const ehComboPJPF      = codigoCancelado === 'combo_pj_pf';
+      const ehComboPJPFClube = codigoCancelado === 'combo_pj_pf_clube';
 
       if (!emailCancelado) {
         res.status(200).json({ ok: false, msg: 'E-mail ausente.' });
@@ -4662,6 +4703,34 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       }
 
       console.log(`[kiwify] Cancelamento/atraso: ${maskEmail(emailCancelado)} | produto: ${nomeProdutoCancelado} | ehDashboard: ${ehDashboard}`);
+
+      // Dashboard PJ avulso não depende de `mentoradas` — uma cliente PJ pura
+      // (nunca comprou nada PF) pode não ter doc nenhum lá. Resolve via Auth.
+      if (ehDashboardPJ) {
+        const userRecordPJ = await admin.auth().getUserByEmail(emailCancelado).catch(() => null);
+        if (!userRecordPJ) {
+          res.status(200).json({ ok: false, msg: 'Usuário não encontrado no Auth.' });
+          return;
+        }
+        const pjUid = userRecordPJ.uid;
+        if (eventosCancelamento.includes(event)) {
+          const pjRefCancel = db.collection('contasPJ').doc(pjUid);
+          if ((await pjRefCancel.get()).exists) await pjRefCancel.update({ ativo: false });
+          // Só desabilita o Auth se não houver PF ativo pro mesmo uid.
+          const mDocPJ = await db.collection('mentoradas').doc(pjUid).get();
+          const temPFAtivo = mDocPJ.exists && (mDocPJ.data().assinaturaDashboard === true || mDocPJ.data().assinaturaClube === true);
+          if (!temPFAtivo) {
+            await admin.auth().updateUser(pjUid, { disabled: true });
+            await admin.auth().revokeRefreshTokens(pjUid);
+          }
+          console.log(`[kiwify] 🔴 Dashboard PJ avulso cancelado: ${maskEmail(emailCancelado)}`);
+          res.status(200).json({ ok: true, acao: 'pj_avulso_cancelado', uid: pjUid });
+        } else {
+          console.log(`[kiwify] ⚠️ Dashboard PJ avulso em atraso: ${maskEmail(emailCancelado)}`);
+          res.status(200).json({ ok: true, acao: 'pj_avulso_atraso', uid: pjUid });
+        }
+        return;
+      }
 
       const mSnap = await db.collection('mentoradas').where('email', '==', emailCancelado).limit(1).get();
       if (mSnap.empty) {
@@ -4678,14 +4747,20 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         const temDashboardAtivo = mData.assinaturaDashboard === true;
 
         const flagsRevogados = {};
-        if (ehDashboard || ehCombo) flagsRevogados.assinaturaDashboard = false;
-        if (ehClube     || ehCombo) flagsRevogados.assinaturaClube     = false;
+        if (ehDashboard || ehCombo || ehComboPJPF || ehComboPJPFClube) flagsRevogados.assinaturaDashboard = false;
+        if (ehClube     || ehCombo || ehComboPJPFClube)                flagsRevogados.assinaturaClube     = false;
         if (ehMentoria) flagsRevogados.mentoriaEncerrada = true;
+
+        // Combo PJ+PF cancelado também desativa o acesso PJ (mesmo uid).
+        if (ehComboPJPF || ehComboPJPFClube) {
+          const pjRefComboCancel = db.collection('contasPJ').doc(mUid);
+          if ((await pjRefComboCancel.get()).exists) await pjRefComboCancel.update({ ativo: false });
+        }
 
         // Só bloqueia Auth e marca inativa se não houver dashboard ativo nem
         // conta PJ ativa (Auth é compartilhado entre PF e PJ — achado
         // 26/07/2026: cancelar produto PF não pode derrubar acesso PJ dela).
-        const mantemAcesso = (temDashboardAtivo && !ehDashboard && !ehCombo) || await _temAcessoPJAtivo(mUid);
+        const mantemAcesso = (temDashboardAtivo && !ehDashboard && !ehCombo && !ehComboPJPF && !ehComboPJPFClube) || await _temAcessoPJAtivo(mUid);
         if (!mantemAcesso) {
           await Promise.all([
             admin.auth().updateUser(mUid, { disabled: true }),
@@ -4754,29 +4829,11 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       ''
     ).toLowerCase();
 
-    // Mapeia nome do produto para código interno
-    // Combo deve vir antes de clube/dashboard (pode conter ambas as palavras)
-    // Identifica produto — ordem importa:
-    // 1. Combo: nome contém AMBOS "dashboard" e "clube" (ex: "Dashboard + Clube Trilogia")
-    //           OU contém a palavra "combo" explicitamente
-    // 2. Private: antes de mentoria (ex: "Mentoria Trilogia Private" contém "mentoria" E "private")
-    // 3. Mentoria / Clube / Dashboard
-    const hasDash  = /dashboard|dash/i.test(nomeProduto);
-    const hasClube = /clube|club/i.test(nomeProduto);
-    let produtoCodigo    = null;
-    let produtoEspecifico = null;
-    if ((hasDash && hasClube) || /combo/i.test(nomeProduto)) produtoCodigo = 'combo';
-    else if (/private/i.test(nomeProduto))                   produtoCodigo = 'private';
-    else if (/mentoria|mentoring/i.test(nomeProduto))        produtoCodigo = 'mentoria';
-    else if (hasClube)                                       produtoCodigo = 'clube';
-    else if (hasDash)                                        produtoCodigo = 'dashboard';
-    // Produtos de entrada — mapeados com código específico para MailerLite
-    else if (/raio.?x/i.test(nomeProduto))                      { produtoCodigo = 'ebook'; produtoEspecifico = 'raiox'; }
-    else if (/mapa da reserva|mapa reserva/i.test(nomeProduto)) { produtoCodigo = 'ebook'; produtoEspecifico = 'mapa'; }
-    else if (/jornada domine|jdd/i.test(nomeProduto))           { produtoCodigo = 'curso'; produtoEspecifico = 'jdd'; }
-    else if (/reserva que rende/i.test(nomeProduto))            { produtoCodigo = 'curso'; produtoEspecifico = 'reserva_rende'; }
-    else if (/curso|course/i.test(nomeProduto))                  produtoCodigo = 'curso';
-    else if (/ebook|e-book|livro digital/i.test(nomeProduto))    produtoCodigo = 'ebook';
+    // Mapeia nome do produto para código interno — mesma função usada no
+    // branch de cancelamento (ver _identificarProdutoKiwify).
+    const produtoDetectado = _identificarProdutoKiwify(nomeProduto);
+    let produtoCodigo     = produtoDetectado.codigo;
+    let produtoEspecifico = produtoDetectado.especifico;
 
     // Extrai valor
     // Kiwify usa Order.amount (em reais), ou Subscription.charge_amount
@@ -4796,13 +4853,16 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
 
     // Validação por range esperado por produto — alerta se valor for suspeito
     const RANGES_VALOR = {
-      mentoria:  { min: 500,  max: 15000 },
-      private:   { min: 2000, max: 30000 },
-      dashboard: { min: 60,   max: 1000  },  // R$67/mês ou R$670/ano standalone (atualizado 17/07/2026)
-      clube:     { min: 50,   max: 200   },  // legado — fundadoras R$67
-      combo:     { min: 60,   max: 1000  },  // R$97/mês ou R$970/ano com Clube (atualizado 17/07/2026)
-      curso:     { min: 97,   max: 997   },  // produtos de entrada
-      ebook:     { min: 9,    max: 97    },  // ebook / material digital
+      mentoria:          { min: 500,  max: 15000 },
+      private:           { min: 2000, max: 30000 },
+      dashboard:         { min: 60,   max: 1000  },  // R$67/mês ou R$670/ano standalone (atualizado 17/07/2026)
+      clube:             { min: 50,   max: 200   },  // legado — fundadoras R$67
+      combo:             { min: 60,   max: 1000  },  // R$97/mês ou R$970/ano com Clube (atualizado 17/07/2026)
+      curso:             { min: 97,   max: 997   },  // produtos de entrada
+      ebook:             { min: 9,    max: 97    },  // ebook / material digital
+      dashboard_pj:      { min: 60,   max: 1000  },  // R$67/mês ou R$670/ano (29/07/2026)
+      combo_pj_pf:       { min: 100,  max: 1500  },  // R$117/mês ou R$1.170/ano (29/07/2026)
+      combo_pj_pf_clube: { min: 130,  max: 1800  },  // R$147/mês ou R$1.470/ano (29/07/2026)
     };
     const rangeValor = produtoCodigo ? RANGES_VALOR[produtoCodigo] : null;
     if (rangeValor && (valorRecebido < rangeValor.min || valorRecebido > rangeValor.max)) {
@@ -4812,6 +4872,48 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
     const dataPagamento = new Date().toISOString().slice(0, 10);
 
     console.log(`[kiwify] Evento: ${event} | E-mail: ${maskEmail(email)} | Produto: ${nomeProduto} (${produtoCodigo}) | Valor: R$${valorRecebido}`);
+
+    // Dashboard PJ avulso não usa o sistema de cobrancas/contratos (é todo PF)
+    // — resolvido direto via Auth, pra não arriscar cair no fallback de
+    // "nenhuma cobranca bateu, usa a mais antiga pendente" e marcar como paga
+    // uma cobrança PF de outra pessoa por coincidência (achado 29/07/2026).
+    if (produtoCodigo === 'dashboard_pj') {
+      let userRecordPJ = await admin.auth().getUserByEmail(email).catch(() => null);
+      let acaoPJ;
+      if (!userRecordPJ) {
+        const nomeClientePJ = (
+          body.Customer?.name        || body.Customer?.full_name ||
+          body.Order?.Customer?.name || data?.customer?.name || ''
+        ).trim();
+        if (!nomeClientePJ) {
+          console.warn(`[kiwify] Auto-criação PJ impossível — nome ausente para: ${maskEmail(email)}`);
+          res.status(200).json({ ok: false, msg: 'Nome ausente para auto-criação PJ.' });
+          return;
+        }
+        if (email.toLowerCase() === ADMIN_MASTER_EMAIL.toLowerCase()) {
+          console.error(`[kiwify] Tentativa de auto-criação PJ bloqueada para e-mail admin.`);
+          errors.report(new Error('[kiwify] Tentativa de auto-criação PJ com e-mail admin'));
+          res.status(200).json({ ok: false, msg: 'Operação não permitida.' });
+          return;
+        }
+        const senhaPJ = Math.random().toString(36).slice(-8) + 'Aa1!';
+        userRecordPJ = await admin.auth().createUser({ email, password: senhaPJ, displayName: nomeClientePJ });
+        try {
+          await sendEmail({ to: email, subject: 'Bem-vinda ao Dashboard PJ', html: emailBoasVindas(nomeClientePJ, 'dashboard-pj') });
+        } catch (err) {
+          console.error(`[kiwify] Falha no e-mail de boas-vindas PJ para ${maskEmail(email)}:`, err.message);
+        }
+        acaoPJ = 'pj_avulso_criado';
+      } else {
+        if (userRecordPJ.disabled) await admin.auth().updateUser(userRecordPJ.uid, { disabled: false });
+        const pjRefAvulso = db.collection('contasPJ').doc(userRecordPJ.uid);
+        if ((await pjRefAvulso.get()).exists) await pjRefAvulso.update({ ativo: true });
+        acaoPJ = 'pj_avulso_confirmado';
+      }
+      console.log(`[kiwify] ✅ ${acaoPJ}: ${maskEmail(email)}`);
+      res.status(200).json({ ok: true, acao: acaoPJ, uid: userRecordPJ.uid });
+      return;
+    }
 
     // Busca mentorada pelo e-mail
     const mentSnap = await db.collection('mentoradas')
@@ -4854,14 +4956,15 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
       }
 
       // 3. Flags de produto
-      const produtoParaFS = produtoCodigo === 'combo' ? 'dashboard' : (produtoCodigo || 'mentoria');
+      const PRODUTOS_COMBO_PJ = ['combo_pj_pf', 'combo_pj_pf_clube'];
+      const produtoParaFS = (produtoCodigo === 'combo' || PRODUTOS_COMBO_PJ.includes(produtoCodigo)) ? 'dashboard' : (produtoCodigo || 'mentoria');
       const flagsNovaM   = { status: 'ativa' };
-      if (produtoCodigo === 'dashboard' || produtoCodigo === 'combo') flagsNovaM.assinaturaDashboard = true;
-      if (produtoCodigo === 'clube'     || produtoCodigo === 'combo') flagsNovaM.assinaturaClube     = true;
+      if (produtoCodigo === 'dashboard' || produtoCodigo === 'combo' || PRODUTOS_COMBO_PJ.includes(produtoCodigo)) flagsNovaM.assinaturaDashboard = true;
+      if (produtoCodigo === 'clube'     || produtoCodigo === 'combo' || produtoCodigo === 'combo_pj_pf_clube')    flagsNovaM.assinaturaClube     = true;
 
       // dataExpiracao para produtos recorrentes
       // Detecta anual pelo valor: >= R$500 após conversão de centavos = plano anual
-      if (['dashboard', 'clube', 'combo'].includes(produtoCodigo)) {
+      if (['dashboard', 'clube', 'combo', 'combo_pj_pf', 'combo_pj_pf_clube'].includes(produtoCodigo)) {
         const ehAnual = valorRecebido >= 500;
         const exp = new Date();
         if (ehAnual) exp.setFullYear(exp.getFullYear() + 1);
@@ -4959,6 +5062,40 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
     // ── FIM AUTO-CRIAÇÃO ──────────────────────────────────────────────────────
 
     let uidMentorada = mentSnap.docs[0].id;
+
+    // Combos PJ+PF tratados à parte do sistema de cobranças (mesmo racional
+    // do dashboard_pj acima): a primeira compra de um produto novo nunca tem
+    // cobrança pendente correspondente, e o fallback abaixo pegaria a
+    // cobrança pendente mais antiga de QUALQUER produto por engano.
+    if (produtoCodigo === 'combo_pj_pf' || produtoCodigo === 'combo_pj_pf_clube') {
+      const updatesCombo = { assinaturaDashboard: true };
+      if (produtoCodigo === 'combo_pj_pf_clube') updatesCombo.assinaturaClube = true;
+      const mDocCombo  = await db.collection('mentoradas').doc(uidMentorada).get();
+      const mDataCombo = mDocCombo.data() || {};
+      if (mDataCombo.status === 'inativa' || mDataCombo.status === 'alerta') updatesCombo.status = 'ativa';
+      if (mDataCombo.status === 'alerta') {
+        updatesCombo.alertaSince          = admin.firestore.FieldValue.delete();
+        updatesCombo.alertaEmailsEnviados = admin.firestore.FieldValue.delete();
+      }
+      const ehAnualCombo = valorRecebido >= 500;
+      const expCombo = new Date();
+      if (ehAnualCombo) expCombo.setFullYear(expCombo.getFullYear() + 1);
+      else              expCombo.setMonth(expCombo.getMonth() + 1);
+      updatesCombo.dataExpiracao = expCombo.toISOString().slice(0, 10);
+      await db.collection('mentoradas').doc(uidMentorada).update(updatesCombo);
+
+      const authUserCombo = await admin.auth().getUser(uidMentorada).catch(() => null);
+      if (authUserCombo && authUserCombo.disabled) {
+        await admin.auth().updateUser(uidMentorada, { disabled: false });
+      }
+
+      const pjRefComboExist = db.collection('contasPJ').doc(uidMentorada);
+      if ((await pjRefComboExist.get()).exists) await pjRefComboExist.update({ ativo: true });
+
+      console.log(`[kiwify] ✅ ${produtoCodigo} confirmado: ${maskEmail(email)} | exp: ${updatesCombo.dataExpiracao}`);
+      res.status(200).json({ ok: true, acao: produtoCodigo, uid: uidMentorada });
+      return;
+    }
 
     // Busca cobranças pendentes desta mentorada
     let query = db.collection('cobrancas')
