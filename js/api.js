@@ -652,8 +652,8 @@ export async function getImpostosPrevistos(uid, mes, ano) {
 export async function editarValorImpostoPrevisto(uid, id, valor) {
   return adminCall('editarValorImpostoPrevisto')({ uid, id, valor });
 }
-export async function marcarImpostoPago(uid, id, pago) {
-  return adminCall('marcarImpostoPago')({ uid, id, pago });
+export async function marcarImpostoPago(uid, id, pago, dataPagamento) {
+  return adminCall('marcarImpostoPago')({ uid, id, pago, dataPagamento });
 }
 export async function deleteImpostoPrevisto(uid, id) {
   return adminCall('deleteImpostoPrevisto')({ uid, id });
@@ -758,6 +758,11 @@ export async function registrarMovimentoReservaPJ(uid, reservaId, tipoMov, valor
 }
 export async function excluirReservaPJ(uid, reservaId) {
   return callPJ('excluirReservaPJ')({ uid, reservaId });
+}
+
+// Importação de extrato/fatura com IA (28/07/2026)
+export async function categorizarExtratoPJIA(uid, conteudo, tipoConteudo) {
+  return callPJ('categorizarExtratoPJIA')({ uid, conteudo, tipoConteudo });
 }
 
 // Entradas de caixa que não são venda (aporte de sócio, reembolso, outro) —

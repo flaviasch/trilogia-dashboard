@@ -72,6 +72,18 @@
     .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
     .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
     .checkbox-row input { width: auto; }
+    .modal-card.wide { max-width: 680px; }
+    .import-item { border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+    .import-item-topo { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+    .import-item-topo input[type="checkbox"] { width: auto; margin-top: 4px; }
+    .import-item-desc { flex: 1; }
+    .import-item-desc strong { font-size: 14px; }
+    .import-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .import-badge-incerto { background: rgba(96,165,250,.15); color: #60a5fa; font-size: 10px; padding: 1px 6px; border-radius: 20px; margin-left: 6px; }
+    .import-item-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .import-item-fields .field-group { margin-bottom: 0; }
+    .import-item-fields input, .import-item-fields select { font-size: 13px; padding: 8px 10px; }
+    .import-vazio { text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; }
   </style>
 </head>
 <body>
@@ -104,6 +116,7 @@
       <button class="btn-mes" id="mesAnterior">‹</button>
       <span class="mes-label" id="mesLabel">—</span>
       <button class="btn-mes" id="mesProximo">›</button>
+      <button class="btn-acao" id="btnImportarExtrato" style="margin-left:auto">📥 Importar extrato</button>
     </div>
 
     <div class="kpis">
@@ -215,6 +228,43 @@
     </div>
   </div>
 
+  <!-- Modal: Importar extrato/fatura com IA (28/07/2026) -->
+  <div class="modal-overlay hidden" id="modalImportarExtrato">
+    <div class="modal-card wide">
+      <h3>Importar extrato com IA</h3>
+
+      <div id="impPasso1">
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Cole o texto do extrato/fatura da empresa, ou envie um arquivo (PDF, foto, imagem). A IA extrai e classifica as transações — você revisa e confirma cada uma antes de qualquer coisa ser salva.</p>
+        <div class="field-group">
+          <label for="impTexto">Colar texto do extrato/fatura</label>
+          <textarea id="impTexto" rows="7" placeholder="Cole aqui o texto do extrato ou da fatura..." style="width:100%;box-sizing:border-box;padding:10px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:13px;font-family:inherit;resize:vertical"></textarea>
+        </div>
+        <div style="text-align:center;margin:8px 0;color:var(--text-muted);font-size:12px">— ou —</div>
+        <div class="field-group">
+          <label>Enviar arquivo (PDF ou imagem)</label>
+          <input type="file" id="impArquivoInput" accept=".pdf,image/*" style="display:none">
+          <div style="display:flex;align-items:center;gap:10px">
+            <button type="button" class="btn-acao-secundario" id="btnEscolherArquivoImp" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">Escolher arquivo</button>
+            <span id="impArquivoNome" style="font-size:13px;color:var(--text-muted)">Nenhum arquivo selecionado</span>
+          </div>
+        </div>
+        <div class="modal-acoes">
+          <button class="btn-cancel" id="btnCancelarImp1">Cancelar</button>
+          <button class="btn-save" id="btnCategorizarImp">Categorizar e revisar</button>
+        </div>
+      </div>
+
+      <div id="impPasso2" style="display:none">
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Revise cada linha. Desmarque o que não quiser importar, ajuste os campos e confirme.</p>
+        <div id="impListaItens"></div>
+        <div class="modal-acoes">
+          <button class="btn-cancel" id="btnCancelarImp2">Cancelar</button>
+          <button class="btn-save" id="btnSalvarImp">Salvar selecionados</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import {
@@ -222,6 +272,7 @@
       getContasPagarPendentesPJ, confirmarPagamentoDespesaPJ, cancelarOcorrenciaDespesaPJ,
       getDespesasPJ, saveDespesaPJ, deleteDespesaPJ,
       getImpostosPrevistos, marcarImpostoPago, deleteImpostoPrevisto,
+      categorizarExtratoPJIA, confirmarRecebimento, saveOutraEntradaPJ,
       msgErro,
     } from './js/api.js?v=51';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -234,6 +285,13 @@
       if (!iso) return '—';
       const [a, m, d] = iso.split('-');
       return `${d}/${m}/${a}`;
+    }
+    // Faltava nesta página (achado 28/07/2026, ao revisar a importação de
+    // extrato com IA) — nome/categoria/descrição vêm de texto livre digitado
+    // pela usuária OU extraído por IA de um documento enviado, nenhum dos
+    // dois é seguro pra jogar direto no innerHTML sem escapar.
+    function escapeHtml(str) {
+      return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
     let currentUser = null;
@@ -287,7 +345,7 @@
       document.getElementById('devidosVazio').style.display = 'none';
       document.getElementById('tabelaDevidosBody').innerHTML = devidos.map(i => `
         <tr>
-          <td class="td-fin">${i.tributoNome}</td>
+          <td class="td-fin">${escapeHtml(i.tributoNome)}</td>
           <td class="td-fin">${fmtData(i.vencimento)}</td>
           <td class="td-fin valor">${brl(i.valor)}</td>
           <td class="td-fin">${badgeImposto(i)}</td>
@@ -336,7 +394,7 @@
       document.getElementById('pendentesVazio').style.display = 'none';
       tbody.innerHTML = dados.pendentes.map(p => `
         <tr>
-          <td class="td-fin">${p.nome}${p.categoria ? ` <span style="color:var(--text-muted)">· ${p.categoria}</span>` : ''}</td>
+          <td class="td-fin">${escapeHtml(p.nome)}${p.categoria ? ` <span style="color:var(--text-muted)">· ${escapeHtml(p.categoria)}</span>` : ''}</td>
           <td class="td-fin">${fmtData(p.dataVencimento)}</td>
           <td class="td-fin">${p.vencido ? '<span class="badge-vencido">Vencido</span>' : '<span class="badge-avencer">A vencer</span>'}</td>
           <td class="td-fin valor">${brl(p.valor)}</td>
@@ -395,8 +453,8 @@
       el.innerHTML = _despesasCache.map(d => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
           <div>
-            <div style="font-size:14px;font-weight:600">${d.nome}${d.ativo === false ? ' <span style="color:var(--text-muted);font-weight:400">(inativa)</span>' : ''}</div>
-            <div style="font-size:12px;color:var(--text-muted)">${d.categoria ? `${d.categoria} · ` : ''}${_descTipoDespesa(d)}</div>
+            <div style="font-size:14px;font-weight:600">${escapeHtml(d.nome)}${d.ativo === false ? ' <span style="color:var(--text-muted);font-weight:400">(inativa)</span>' : ''}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${d.categoria ? `${escapeHtml(d.categoria)} · ` : ''}${_descTipoDespesa(d)}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <strong style="font-size:14px">${brl(d.valor)}</strong>
@@ -504,6 +562,243 @@
         setLoading(btn, false);
       }
     });
+
+    // ─── Importar extrato/fatura com IA (28/07/2026) ───────────────────────
+    // Alimenta Despesas + Outras Entradas (não Notas). Revisão manual de TUDO
+    // antes de salvar — feature nova mexendo em dinheiro real, mais seguro
+    // pedir confirmação explícita de cada linha (ver .build-scope.md desta
+    // fatia). Sem lógica de fatura de cartão: despesasPJ não tem esse
+    // conceito hoje, toda linha de débito é despesa avulsa.
+    const modalImportarExtrato = document.getElementById('modalImportarExtrato');
+    const CATEGORIA_ENTRADA_LABEL = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outro' };
+    let _arquivoImp = null;
+    let _itensImportados = [];
+
+    document.getElementById('btnImportarExtrato').addEventListener('click', () => {
+      document.getElementById('impTexto').value = '';
+      _arquivoImp = null;
+      document.getElementById('impArquivoNome').textContent = 'Nenhum arquivo selecionado';
+      document.getElementById('impPasso1').style.display = '';
+      document.getElementById('impPasso2').style.display = 'none';
+      modalImportarExtrato.classList.remove('hidden');
+    });
+    function fecharModalImportar() { modalImportarExtrato.classList.add('hidden'); }
+    document.getElementById('btnCancelarImp1').addEventListener('click', fecharModalImportar);
+    document.getElementById('btnCancelarImp2').addEventListener('click', fecharModalImportar);
+
+    document.getElementById('btnEscolherArquivoImp').addEventListener('click', () => document.getElementById('impArquivoInput').click());
+    document.getElementById('impArquivoInput').addEventListener('change', (e) => {
+      _arquivoImp = e.target.files[0] || null;
+      document.getElementById('impArquivoNome').textContent = _arquivoImp ? _arquivoImp.name : 'Nenhum arquivo selecionado';
+    });
+
+    document.getElementById('btnCategorizarImp').addEventListener('click', async () => {
+      const btn = document.getElementById('btnCategorizarImp');
+      const texto = document.getElementById('impTexto').value.trim();
+      if (!texto && !_arquivoImp) { toast('Cole o texto do extrato ou escolha um arquivo.', 'warning'); return; }
+
+      setLoading(btn, true, 'Categorizando…');
+      try {
+        let conteudo, tipoConteudo;
+        if (_arquivoImp) {
+          const base64completo = await new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result);
+            r.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
+            r.readAsDataURL(_arquivoImp);
+          });
+          conteudo = base64completo.split(',')[1] || '';
+          tipoConteudo = _arquivoImp.type === 'application/pdf' ? 'pdf' : 'imagem';
+        } else {
+          conteudo = texto;
+          tipoConteudo = 'texto';
+        }
+
+        const { itens } = await categorizarExtratoPJIA(currentUser.uid, conteudo, tipoConteudo);
+        _itensImportados = itens;
+        renderRevisaoImportacao();
+        document.getElementById('impPasso1').style.display = 'none';
+        document.getElementById('impPasso2').style.display = '';
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false, 'Categorizar e revisar');
+      }
+    });
+
+    function renderRevisaoImportacao() {
+      const el = document.getElementById('impListaItens');
+      if (!_itensImportados.length) {
+        el.innerHTML = `<p class="import-vazio">Nenhuma transação encontrada no documento.</p>`;
+        return;
+      }
+      el.innerHTML = _itensImportados.map((item, idx) => {
+        const incerto = (item.categoriaIncerta || item.tipoIncerto) ? '<span class="import-badge-incerto">confira</span>' : '';
+        if (item.tipo === 'despesa' && item.matchImposto) {
+          return `
+            <div class="import-item" data-idx="${idx}" data-acao="confirmar-imposto">
+              <div class="import-item-topo">
+                <input type="checkbox" data-inc checked>
+                <div class="import-item-desc">
+                  <strong>${escapeHtml(item.descricao)}</strong> — ${brl(item.valor)} em ${fmtData(item.data)}${incerto}
+                  <div class="import-item-sub">Parece pagamento do imposto: <strong>${escapeHtml(item.matchImposto.tributoNome)}</strong> (venc. ${fmtData(item.matchImposto.vencimento)})</div>
+                  <label style="font-size:11px;color:var(--text-muted);display:block;margin-top:6px">
+                    <input type="checkbox" data-override style="width:auto;vertical-align:middle"> Não é isso — criar despesa nova mesmo assim
+                  </label>
+                </div>
+              </div>
+              <div class="import-item-fields" data-fields-nova style="display:none">
+                <div class="field-group"><label>Nome</label><input type="text" data-f-nome value="${escapeHtml(item.descricao)}"></div>
+                <div class="field-group"><label>Categoria</label><input type="text" data-f-categoria value="${escapeHtml(item.categoriaSugerida || '')}"></div>
+                <div class="field-group"><label>Valor</label><input type="number" step="0.01" data-f-valor value="${item.valor}"></div>
+                <div class="field-group"><label>Data</label><input type="date" data-f-data value="${item.data}"></div>
+              </div>
+            </div>`;
+        }
+        if (item.tipo === 'despesa' && item.matchDespesa) {
+          return `
+            <div class="import-item" data-idx="${idx}" data-acao="confirmar-despesa">
+              <div class="import-item-topo">
+                <input type="checkbox" data-inc checked>
+                <div class="import-item-desc">
+                  <strong>${escapeHtml(item.descricao)}</strong> — ${brl(item.valor)} em ${fmtData(item.data)}${incerto}
+                  <div class="import-item-sub">Parece pagamento de: <strong>${escapeHtml(item.matchDespesa.nome)}</strong> (venc. ${fmtData(item.matchDespesa.dataVenc)})</div>
+                  <label style="font-size:11px;color:var(--text-muted);display:block;margin-top:6px">
+                    <input type="checkbox" data-override style="width:auto;vertical-align:middle"> Não é isso — criar despesa nova mesmo assim
+                  </label>
+                </div>
+              </div>
+              <div class="import-item-fields" data-fields-nova style="display:none">
+                <div class="field-group"><label>Nome</label><input type="text" data-f-nome value="${escapeHtml(item.descricao)}"></div>
+                <div class="field-group"><label>Categoria</label><input type="text" data-f-categoria value="${escapeHtml(item.categoriaSugerida || '')}"></div>
+                <div class="field-group"><label>Valor</label><input type="number" step="0.01" data-f-valor value="${item.valor}"></div>
+                <div class="field-group"><label>Data</label><input type="date" data-f-data value="${item.data}"></div>
+              </div>
+            </div>`;
+        }
+        if (item.tipo === 'despesa') {
+          return `
+            <div class="import-item" data-idx="${idx}" data-acao="nova-despesa">
+              <div class="import-item-topo">
+                <input type="checkbox" data-inc checked>
+                <div class="import-item-desc">
+                  <strong>Nova despesa</strong> — sem correspondência com nada cadastrado${incerto}
+                </div>
+              </div>
+              <div class="import-item-fields">
+                <div class="field-group"><label>Nome</label><input type="text" data-f-nome value="${escapeHtml(item.descricao)}"></div>
+                <div class="field-group"><label>Categoria</label><input type="text" data-f-categoria value="${escapeHtml(item.categoriaSugerida || '')}"></div>
+                <div class="field-group"><label>Valor</label><input type="number" step="0.01" data-f-valor value="${item.valor}"></div>
+                <div class="field-group"><label>Data</label><input type="date" data-f-data value="${item.data}"></div>
+              </div>
+            </div>`;
+        }
+        if (item.tipo === 'receita' && item.matchRecebimento) {
+          return `
+            <div class="import-item" data-idx="${idx}" data-acao="confirmar-recebimento">
+              <div class="import-item-topo">
+                <input type="checkbox" data-inc checked>
+                <div class="import-item-desc">
+                  <strong>${escapeHtml(item.descricao)}</strong> — ${brl(item.valor)} em ${fmtData(item.data)}${incerto}
+                  <div class="import-item-sub">Parece o recebimento de uma nota pendente (previsto ${brl(item.matchRecebimento.valorPrevisto)})</div>
+                </div>
+              </div>
+            </div>`;
+        }
+        // receita sem match — candidata a Outra Entrada
+        const catSugerida = ['aporte_socio', 'reembolso', 'outro'].includes(item.categoriaEntradaSugerida) ? item.categoriaEntradaSugerida : 'outro';
+        return `
+          <div class="import-item" data-idx="${idx}" data-acao="outra-entrada">
+            <div class="import-item-topo">
+              <input type="checkbox" data-inc checked>
+              <div class="import-item-desc">
+                <strong>Entrada não identificada como venda</strong>${incerto}
+              </div>
+            </div>
+            <div class="import-item-fields">
+              <div class="field-group"><label>Descrição</label><input type="text" data-f-descricao value="${escapeHtml(item.descricao)}"></div>
+              <div class="field-group"><label>Categoria</label>
+                <select data-f-categoria-entrada>
+                  ${Object.entries(CATEGORIA_ENTRADA_LABEL).map(([v, l]) => `<option value="${v}" ${v === catSugerida ? 'selected' : ''}>${l}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field-group"><label>Valor</label><input type="number" step="0.01" data-f-valor value="${item.valor}"></div>
+              <div class="field-group"><label>Data</label><input type="date" data-f-data value="${item.data}"></div>
+            </div>
+          </div>`;
+      }).join('');
+
+      // Toggle "criar despesa nova mesmo assim" mostra os campos editáveis
+      el.querySelectorAll('[data-override]').forEach(cb => cb.addEventListener('change', (e) => {
+        const item = e.target.closest('.import-item');
+        item.querySelector('[data-fields-nova]').style.display = e.target.checked ? '' : 'none';
+      }));
+    }
+
+    document.getElementById('btnSalvarImp').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarImp');
+      const linhas = Array.from(document.querySelectorAll('#impListaItens .import-item'));
+      const selecionadas = linhas.filter(l => l.querySelector('[data-inc]').checked);
+      if (!selecionadas.length) { toast('Nenhum item selecionado.', 'warning'); return; }
+
+      setLoading(btn, true, 'Salvando…');
+      let sucesso = 0, falha = 0;
+      for (const linha of selecionadas) {
+        const idx = Number(linha.dataset.idx);
+        const item = _itensImportados[idx];
+        const acao = linha.dataset.acao;
+        try {
+          if (acao === 'confirmar-imposto') {
+            const overriding = linha.querySelector('[data-override]')?.checked;
+            if (overriding) {
+              await criarDespesaAvulsaJaPaga(linha);
+            } else {
+              await marcarImpostoPago(currentUser.uid, item.matchImposto.id, true, item.data);
+            }
+          } else if (acao === 'confirmar-despesa') {
+            const overriding = linha.querySelector('[data-override]')?.checked;
+            if (overriding) {
+              await criarDespesaAvulsaJaPaga(linha);
+            } else {
+              await confirmarPagamentoDespesaPJ(currentUser.uid, item.matchDespesa.despesaId, item.matchDespesa.mesAno, item.data);
+            }
+          } else if (acao === 'nova-despesa') {
+            await criarDespesaAvulsaJaPaga(linha);
+          } else if (acao === 'confirmar-recebimento') {
+            await confirmarRecebimento(currentUser.uid, item.matchRecebimento.notaId, item.matchRecebimento.id, item.data, item.matchRecebimento.valorBruto, item.matchRecebimento.taxa);
+          } else if (acao === 'outra-entrada') {
+            const descricao = linha.querySelector('[data-f-descricao]').value.trim() || item.descricao;
+            const categoria = linha.querySelector('[data-f-categoria-entrada]').value;
+            const valor = parseFloat(linha.querySelector('[data-f-valor]').value);
+            const data = linha.querySelector('[data-f-data]').value;
+            await saveOutraEntradaPJ(currentUser.uid, { descricao, valor, data, categoria });
+          }
+          sucesso++;
+        } catch (err) {
+          falha++;
+          console.error('[importar-extrato] Falha ao salvar item:', err.message);
+        }
+      }
+
+      setLoading(btn, false, 'Salvar selecionados');
+      fecharModalImportar();
+      toast(falha ? `${sucesso} importado(s), ${falha} falharam.` : `${sucesso} item(ns) importado(s).`, falha ? 'warning' : 'success');
+      renderPendentes();
+      renderDespesas();
+    });
+
+    // Nova despesa (com ou sem override de match): cria como 'unica' e já
+    // marca como paga — o extrato prova que o dinheiro já saiu da conta,
+    // senão apareceria (errado) como pendente em Contas a Pagar.
+    async function criarDespesaAvulsaJaPaga(linha) {
+      const nome = linha.querySelector('[data-f-nome]').value.trim();
+      const categoria = linha.querySelector('[data-f-categoria]').value.trim() || null;
+      const valor = parseFloat(linha.querySelector('[data-f-valor]').value);
+      const data = linha.querySelector('[data-f-data]').value;
+      const { id: novaDespesaId } = await saveDespesaPJ(currentUser.uid, { nome, valor, tipo: 'unica', data, categoria, ativo: true });
+      const mesAno = data.slice(0, 7);
+      await confirmarPagamentoDespesaPJ(currentUser.uid, novaDespesaId, mesAno, data);
+    }
   </script>
 
 </body>

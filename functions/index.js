@@ -6137,9 +6137,17 @@ exports.editarValorImpostoPrevisto = onCall({}, async (request) => {
 });
 
 exports.marcarImpostoPago = onCall({}, async (request) => {
-  const { uid, id, pago } = request.data;
+  const { uid, id, pago, dataPagamento } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  // dataPagamento é opcional (retrocompatível — botão manual de "✓ Pago"
+  // não manda esse campo, cai no padrão de hoje). Passado explicitamente
+  // pela importação de extrato com IA (28/07/2026), pra não gravar a data de
+  // hoje quando o pagamento na verdade aconteceu numa data passada do
+  // extrato importado.
+  if (dataPagamento != null && !/^\d{4}-\d{2}-\d{2}$/.test(dataPagamento)) {
+    throw new HttpsError('invalid-argument', 'dataPagamento deve estar no formato YYYY-MM-DD.');
+  }
   const ref  = db.collection('impostosPrevistos').doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Imposto previsto não encontrado.');
@@ -6148,7 +6156,7 @@ exports.marcarImpostoPago = onCall({}, async (request) => {
   await ref.update({
     pago: marcarPago,
     ...(marcarPago
-      ? { pagoEm: new Date().toISOString().slice(0, 10) }
+      ? { pagoEm: dataPagamento || new Date().toISOString().slice(0, 10) }
       : { pagoEm: admin.firestore.FieldValue.delete() }),
   });
   return { ok: true };
@@ -6755,6 +6763,222 @@ exports.excluirReservaPJ = onCall({}, async (request) => {
   await ref.update({ ativa: false });
   return { ok: true };
 });
+
+// ─── Importação de extrato/fatura com IA (28/07/2026) ─────────────────────────
+// Mesmo padrão de categorizarExtratoIA (PF): Claude Haiku 4.5, mesmo secret já
+// configurado. Diferenças deliberadas pro contexto PJ: (1) categoria de
+// despesa é texto livre, não código de uma lista fechada — despesasPJ.categoria
+// já é campo livre; (2) sem lógica de fatura de cartão — despesasPJ não tem
+// nenhum conceito de cartão hoje, fora do v1; (3) o matching contra despesas
+// já cadastradas e recebimentos pendentes é feito em CÓDIGO depois da IA
+// responder (_sugerirMatchesExtratoPJ), não pedido ao modelo — mais
+// determinístico e mais barato que embutir listas inteiras no prompt.
+
+/**
+ * Depois que a IA classifica cada linha do extrato em despesa/receita, esta
+ * function tenta casar cada uma com o que já existe: PRIMEIRO com um imposto
+ * previsto ainda não pago (achado 28/07/2026, Flávia: sem isso, pagamento de
+ * DAS/ISS/imposto virava despesa nova duplicada E o imposto continuava
+ * pendente em "Impostos devidos" — duplicidade dupla); se não achar, com uma
+ * ocorrência de despesasPJ ainda não confirmada (evita duplicar em Contas a
+ * Pagar); receita com um recebimento pendente (evita confundir venda de
+ * verdade com aporte de sócio). Tolerância: ±10 dias de data, valor dentro de
+ * max(R$2, 5% do valor cadastrado) — cobre juros/desconto pequenos sem
+ * aceitar coincidência falsa. Cada imposto/despesa/recebimento só pode ser
+ * sugerido uma vez por importação (evita duas linhas parecidas "roubarem" o
+ * mesmo candidato).
+ */
+async function _sugerirMatchesExtratoPJ(uid, itensBrutos) {
+  const DIAS_TOLERANCIA = 10;
+  const MS_DIA = 86_400_000;
+  const dentroDaJanela = (dataA, dataB) => Math.abs((new Date(dataA) - new Date(dataB)) / MS_DIA) <= DIAS_TOLERANCIA;
+  const dentroDoValor = (valorCadastrado, valorLinha) => Math.abs(valorCadastrado - valorLinha) <= Math.max(2, valorCadastrado * 0.05);
+
+  // ── Candidatos de imposto: previstos, ainda não pagos, com vencimento real
+  // (referenciaTrimestral nunca tem ação de pagamento própria — é só a linha
+  // informativa mensal; quem é pago de fato é a linha acumulada do
+  // trimestre, que não tem essa flag) ──
+  const impostosSnap = await db.collection('impostosPrevistos')
+    .where('uid', '==', uid).where('pago', '==', false).get();
+  const candidatosImposto = impostosSnap.docs
+    .filter(d => !d.data().referenciaTrimestral)
+    .map(d => ({ id: d.id, tributoNome: d.data().tributoNome, vencimento: d.data().vencimento, valor: d.data().valor }));
+
+  // ── Candidatos de despesa: ocorrências ainda não confirmadas/canceladas ──
+  const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
+  const pagamentosSnap = await db.collectionGroup('pagamentos').where('uid', '==', uid).get();
+  const pagamentosPorChave = new Set();
+  pagamentosSnap.docs.forEach(d => pagamentosPorChave.add(`${d.ref.parent.parent.id}_${d.id}`));
+
+  const candidatosDespesa = [];
+  despesasSnap.docs.forEach(dSnap => {
+    const desp = dSnap.data();
+    const itensData = itensBrutos.filter(i => i.tipo === 'despesa').map(i => i.data);
+    const mesesRelevantes = new Set();
+    itensData.forEach(dataStr => {
+      const [ano, mes] = dataStr.split('-').map(Number);
+      for (const delta of [-1, 0, 1]) {
+        let m = mes + delta, a = ano;
+        if (m < 1) { m = 12; a--; } else if (m > 12) { m = 1; a++; }
+        mesesRelevantes.add(`${a}-${m}`);
+      }
+    });
+    mesesRelevantes.forEach(chave => {
+      const [ano, mes] = chave.split('-').map(Number);
+      const oc = _ocorrenciaDespesaPJ(desp, mes, ano);
+      if (!oc) return;
+      if (pagamentosPorChave.has(`${dSnap.id}_${oc.mesAno}`)) return; // já confirmada ou cancelada
+      candidatosDespesa.push({ despesaId: dSnap.id, mesAno: oc.mesAno, dataVenc: oc.dataVenc, nome: `${desp.nome}${oc.sufixo}`, valor: desp.valor });
+    });
+  });
+
+  // ── Candidatos de recebimento: pendentes (sem dataRecebimento) ──
+  const recebSnap = await db.collectionGroup('recebimentos').where('uid', '==', uid).get();
+  const candidatosRecebimento = [];
+  recebSnap.docs.forEach(d => {
+    const r = d.data();
+    if (r.dataRecebimento) return; // já confirmado
+    candidatosRecebimento.push({
+      notaId: d.ref.parent.parent.id, id: d.id, dataPrevista: r.dataPrevista,
+      valorLiquido: r.valorLiquido, valorBruto: r.valorBruto, taxa: r.taxa,
+    });
+  });
+
+  const impostoUsado = new Set();
+  const despesaUsada = new Set();
+  const recebimentoUsado = new Set();
+
+  return itensBrutos.map(item => {
+    if (item.tipo === 'despesa') {
+      // Imposto primeiro — é o match mais específico (coleção própria, sem
+      // ambiguidade com despesa comum) e evita a duplicidade dupla descrita
+      // acima.
+      let melhorImp = null, melhorImpDiff = Infinity;
+      for (const cand of candidatosImposto) {
+        if (impostoUsado.has(cand.id)) continue;
+        if (!cand.vencimento || !dentroDaJanela(cand.vencimento, item.data)) continue;
+        if (!dentroDoValor(cand.valor, item.valor)) continue;
+        const diff = Math.abs(new Date(cand.vencimento) - new Date(item.data));
+        if (diff < melhorImpDiff) { melhorImp = cand; melhorImpDiff = diff; }
+      }
+      if (melhorImp) {
+        impostoUsado.add(melhorImp.id);
+        return { ...item, matchImposto: { id: melhorImp.id, tributoNome: melhorImp.tributoNome, vencimento: melhorImp.vencimento }, matchDespesa: null, matchRecebimento: null };
+      }
+
+      let melhor = null, melhorDiff = Infinity;
+      for (const cand of candidatosDespesa) {
+        const chave = `${cand.despesaId}_${cand.mesAno}`;
+        if (despesaUsada.has(chave)) continue;
+        if (!dentroDaJanela(cand.dataVenc, item.data)) continue;
+        if (!dentroDoValor(cand.valor, item.valor)) continue;
+        const diff = Math.abs(new Date(cand.dataVenc) - new Date(item.data));
+        if (diff < melhorDiff) { melhor = cand; melhorDiff = diff; }
+      }
+      if (melhor) {
+        despesaUsada.add(`${melhor.despesaId}_${melhor.mesAno}`);
+        return { ...item, matchImposto: null, matchDespesa: { despesaId: melhor.despesaId, mesAno: melhor.mesAno, nome: melhor.nome, dataVenc: melhor.dataVenc }, matchRecebimento: null };
+      }
+      return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: null };
+    }
+    if (item.tipo === 'receita') {
+      let melhor = null, melhorDiff = Infinity;
+      for (const cand of candidatosRecebimento) {
+        const chave = `${cand.notaId}_${cand.id}`;
+        if (recebimentoUsado.has(chave)) continue;
+        if (!cand.dataPrevista || !dentroDaJanela(cand.dataPrevista, item.data)) continue;
+        if (!dentroDoValor(cand.valorLiquido, item.valor)) continue;
+        const diff = Math.abs(new Date(cand.dataPrevista) - new Date(item.data));
+        if (diff < melhorDiff) { melhor = cand; melhorDiff = diff; }
+      }
+      if (melhor) {
+        recebimentoUsado.add(`${melhor.notaId}_${melhor.id}`);
+        return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: { notaId: melhor.notaId, id: melhor.id, valorPrevisto: melhor.valorLiquido, valorBruto: melhor.valorBruto, taxa: melhor.taxa } };
+      }
+      return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: null };
+    }
+    return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: null };
+  });
+}
+
+exports.categorizarExtratoPJIA = onCall(
+  { secrets: [sAnthropic], timeoutSeconds: 120, memory: '512MiB' },
+  async (request) => {
+    const { uid, conteudo, tipoConteudo } = request.data;
+    requireSelfOrAdmin(request, uid);
+    // Mesmo limite do padrão PF — uso típico é 1-2 importações por mês.
+    await checkRateLimit(uid, 'categorizarExtratoPJIA', 10, 600_000);
+
+    if (!conteudo || typeof conteudo !== 'string') {
+      throw new HttpsError('invalid-argument', 'conteudo é obrigatório (texto colado ou base64 do arquivo).');
+    }
+    const TIPOS_CONTEUDO = new Set(['texto', 'pdf', 'imagem']);
+    if (!TIPOS_CONTEUDO.has(tipoConteudo)) {
+      throw new HttpsError('invalid-argument', 'tipoConteudo deve ser "texto", "pdf" ou "imagem".');
+    }
+    if (tipoConteudo === 'texto' && conteudo.length > 60_000) {
+      throw new HttpsError('invalid-argument', 'Texto muito longo (máximo ~60.000 caracteres). Envie em partes menores.');
+    }
+    if (tipoConteudo !== 'texto' && conteudo.length > 15_000_000) {
+      throw new HttpsError('invalid-argument', 'Arquivo muito grande (máximo ~10MB).');
+    }
+
+    const systemPrompt = `Você extrai e classifica transações de extratos bancários e faturas de cartão de crédito de uma EMPRESA brasileira (não pessoa física).
+
+Regras obrigatórias:
+- Formato do documento: extratos e faturas variam muito entre bancos — PDF, foto, ou texto/CSV com qualquer delimitador, qualquer ordem de colunas, datas em DD/MM/AAAA ou AAAA-MM-DD, valores como "1.234,56" ou "1234.56". Leia os cabeçalhos/estrutura reais do documento, não assuma um layout fixo.
+- Ignore saldos e linhas de resumo/cabeçalho. Duas linhas com a mesma descrição/valor em datas diferentes são DUAS transações reais, nunca duplicata — na dúvida, inclua as duas.
+- "tipo" (despesa/receita) é determinado SOMENTE pela coluna Crédito/Débito ou sinal (+/-) impresso no documento, nunca pelo texto da descrição. Se genuinamente não houver indicador estrutural, marque "tipoIncerto": true e preencha "tipo" com seu melhor palpite.
+- "categoriaSugerida" para DESPESA: um texto curto e livre descrevendo o gasto (ex: "Aluguel", "Contador", "Fornecedor", "Marketing", "Software", "Impostos", "Salários"). Não existe lista fechada — use o nome mais natural para o tipo de gasto.
+- "categoriaEntradaSugerida" para RECEITA: escolha exatamente uma destas três, como texto: "aporte_socio" (sócio colocando dinheiro próprio na empresa), "reembolso" (devolução de algo pago antes) ou "outro" (qualquer outra entrada que não pareça claramente uma dessas duas, incluindo venda/recebimento de cliente — o sistema já cruza isso separadamente com as vendas cadastradas).
+- "categoriaIncerta": marque true quando genuinamente não tiver confiança na categoria/categoriaEntrada escolhida.
+- "valor" sempre positivo, tipo número (não string), com ponto decimal.
+- "data" no formato AAAA-MM-DD. Se o ano não estiver explícito, use o ano corrente (${new Date().getFullYear()}).
+- Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só). Formato:
+  {"itens": [{"tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "categoriaSugerida": "<texto ou null>", "categoriaEntradaSugerida": "aporte_socio"|"reembolso"|"outro"|null, "categoriaIncerta": true|false, "tipoIncerto": true|false}, ...]}`;
+
+    const contentBlock = tipoConteudo === 'texto'
+      ? { type: 'text', text: conteudo }
+      : tipoConteudo === 'pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: conteudo } }
+        : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: conteudo } };
+
+    let respostaIA;
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': sAnthropic.value(),
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 8192,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: 'Extraia e classifique todas as transações deste documento.' }] }],
+        }),
+      });
+      if (!resp.ok) {
+        const errBody = await resp.text().catch(() => '');
+        throw new Error(`Anthropic API retornou ${resp.status}: ${errBody.slice(0, 300)}`);
+      }
+      const json = await resp.json();
+      const textoResposta = json?.content?.[0]?.text || '';
+      respostaIA = JSON.parse(textoResposta);
+    } catch (err) {
+      const msgOriginal = err.message || '';
+      if (/protegid[ao] por senha|password/i.test(msgOriginal)) {
+        throw new HttpsError('invalid-argument', 'O arquivo parece estar protegido por senha. Remova a senha e tente novamente.');
+      }
+      throw new HttpsError('internal', `Falha ao processar o documento com IA: ${msgOriginal.slice(0, 300)}`);
+    }
+
+    const itensBrutos = Array.isArray(respostaIA.itens) ? respostaIA.itens : [];
+    const itensComMatch = await _sugerirMatchesExtratoPJ(uid, itensBrutos);
+    return { itens: itensComMatch };
+  },
+);
 
 // ─── Contas a Receber consolidada (achado 27/07/2026) ─────────────────────────
 // A fatia 2 entregou o auto-split de parcelas e o registro de recebimentos
