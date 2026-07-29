@@ -31,6 +31,8 @@
     .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
     .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
     .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    .view-as-banner { display: none; background: rgba(207,174,101,0.12); border-bottom: 1px solid rgba(207,174,101,0.3); padding: 10px 24px; font-size: 13px; color: var(--gold); gap: 12px; align-items: center; }
+    .view-as-banner a { color: var(--gold); margin-left: auto; }
     main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
     h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
     .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
@@ -97,6 +99,11 @@
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </header>
+
+  <div class="view-as-banner" id="viewAsBanner">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html">← Voltar ao admin</a>
+  </div>
 
   <main>
     <h1>Fluxo de Caixa</h1>
@@ -195,7 +202,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, getFluxoCaixaPJ, atualizarSaldoCaixaPJ, getOutrasEntradasPJ, saveOutraEntradaPJ, deleteOutraEntradaPJ, msgErro } from './js/api.js?v=52';
+    import { getContaPJ, getFluxoCaixaPJ, atualizarSaldoCaixaPJ, getOutrasEntradasPJ, saveOutraEntradaPJ, deleteOutraEntradaPJ, msgErro, setViewAsUid, uidAtual } from './js/api.js?v=52';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -217,7 +224,33 @@
     let mesAtual = new Date().getMonth() + 1;
     let anoAtual = new Date().getFullYear();
 
+    // ─── ViewAs (admin visualizando dashboard PJ da mentorada) ────────────────
+    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','dre-pj.html','fluxo-caixa-pj.html','reservas-pj.html','ajuda-pj.html'];
+    const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
+                     || localStorage.getItem('viewAsUid');
+    if (VIEW_AS_UID) {
+      setViewAsUid(VIEW_AS_UID);
+      localStorage.setItem('viewAsUid', VIEW_AS_UID);
+      const banner = document.getElementById('viewAsBanner');
+      if (banner) banner.style.display = 'flex';
+      const suffix = `?viewAs=${VIEW_AS_UID}`;
+      PAGINAS_PJ.forEach(page => {
+        document.querySelectorAll(`a[href="${page}"], a[href^="${page}?"]`).forEach(a => { a.href = page + suffix; });
+      });
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!href || href.includes('viewAs=') || href.startsWith('http') ||
+            href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('admin')) return;
+        if (!PAGINAS_PJ.some(p => href === p || href.startsWith(p + '#') || href.startsWith(p + '?'))) return;
+        e.preventDefault();
+        window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;
+      }, true);
+    }
+
     document.getElementById('btnLogout').addEventListener('click', async () => {
+      localStorage.removeItem('viewAsUid');
       await signOut(auth);
       window.location.href = 'login-pj.html';
     });
@@ -226,10 +259,12 @@
       if (!user) { window.location.href = 'login-pj.html'; return; }
       currentUser = user;
       try {
-        const conta = await getContaPJ(user.uid);
-        if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
-        if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
-        document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
+        const conta = await getContaPJ(uidAtual());
+        if (!VIEW_AS_UID) {
+          if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+          if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+        }
+        document.getElementById('empresaNome').textContent = conta ? conta.nomeEmpresa : '—';
       } catch (err) {
         console.error('[fluxo-caixa-pj] Falha ao carregar conta:', err.message);
       }
@@ -241,7 +276,7 @@
       document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
 
       let dados;
-      try { dados = await getFluxoCaixaPJ(currentUser.uid, mesAtual, anoAtual); }
+      try { dados = await getFluxoCaixaPJ(uidAtual(), mesAtual, anoAtual); }
       catch (err) { alert(msgErro(err)); return; }
 
       document.getElementById('saldoAtual').textContent = brl(dados.saldoInicial);
@@ -303,7 +338,7 @@
       if (novo === null) return;
       const valor = parseFloat(novo.replace(',', '.'));
       if (isNaN(valor)) { alert('Valor inválido.'); return; }
-      try { await atualizarSaldoCaixaPJ(currentUser.uid, valor); renderFluxoCaixa(); }
+      try { await atualizarSaldoCaixaPJ(uidAtual(), valor); renderFluxoCaixa(); }
       catch (err) { alert(msgErro(err)); }
     });
 
@@ -312,7 +347,7 @@
     const CATEGORIA_LABEL = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outro' };
     let _outrasCache = [];
     async function renderOutrasEntradas() {
-      try { _outrasCache = await getOutrasEntradasPJ(currentUser.uid, mesAtual, anoAtual); }
+      try { _outrasCache = await getOutrasEntradasPJ(uidAtual(), mesAtual, anoAtual); }
       catch (err) { alert(msgErro(err)); return; }
       const el = document.getElementById('listaOutrasEntradas');
       if (!_outrasCache.length) {
@@ -334,7 +369,7 @@
       el.querySelectorAll('[data-outra-editar]').forEach(b => b.addEventListener('click', () => abrirModalOutraEntrada(_outrasCache.find(o => o.id === b.dataset.outraEditar))));
       el.querySelectorAll('[data-outra-excluir]').forEach(b => b.addEventListener('click', async () => {
         if (!confirm('Excluir esta entrada?')) return;
-        try { await deleteOutraEntradaPJ(currentUser.uid, b.dataset.outraExcluir); renderOutrasEntradas(); renderFluxoCaixa(); }
+        try { await deleteOutraEntradaPJ(uidAtual(), b.dataset.outraExcluir); renderOutrasEntradas(); renderFluxoCaixa(); }
         catch (err) { alert(msgErro(err)); }
       }));
     }
@@ -366,7 +401,7 @@
 
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await saveOutraEntradaPJ(currentUser.uid, { id, categoria, descricao, valor, data });
+        await saveOutraEntradaPJ(uidAtual(), { id, categoria, descricao, valor, data });
         modalOutraEntrada.classList.add('hidden');
         const [ano, mes] = data.split('-').map(Number);
         mesAtual = mes; anoAtual = ano;

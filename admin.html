@@ -596,6 +596,7 @@
       <button class="nav-tab" data-tab="financeiro">Financeiro</button>
       <button class="nav-tab" data-tab="clube">Clube</button>
       <button class="nav-tab" data-tab="pipeline">Pipeline</button>
+      <button class="nav-tab" data-tab="pj">🏢 PJ</button>
       <button class="nav-tab" data-tab="configuracoes">⚙️ Config</button>
     </div>
     <div class="navbar-right">
@@ -992,9 +993,12 @@
 
       <!-- Toggle PJ (só aparece se esse uid tiver conta PJ — independente do
            Dashboard/Clube PF, mesmo Auth compartilhado, achado 26/07/2026) -->
-      <div id="blocoTogglePJ" style="display:none;margin-top:10px;padding:14px 18px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;align-items:center;justify-content:space-between">
+      <div id="blocoTogglePJ" style="display:none;margin-top:10px;padding:14px 18px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;align-items:center;justify-content:space-between;gap:10px">
         <span style="font-size:13px;color:var(--text-secondary);font-weight:600">🏢 Dashboard PJ</span>
-        <button id="btnTogglePJ" style="border:2px solid var(--border);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:transparent;color:var(--text-muted)">PJ: —</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-acao" id="btnAbrirDashboardPJ" style="padding:6px 14px;font-size:12px">Ver dashboard PJ</button>
+          <button id="btnTogglePJ" style="border:2px solid var(--border);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:transparent;color:var(--text-muted)">PJ: —</button>
+        </div>
       </div>
 
       <!-- Ações rápidas -->
@@ -1591,6 +1595,53 @@
 
     </div><!-- /view-pipeline -->
 
+    <!-- ─── ABA PJ (todas as contas PJ, achado 29/07/2026: painel separado
+         do Mentoradas porque contasPJ é uma coleção à parte, uma conta PJ
+         avulsa via Kiwify pode nem ter doc em mentoradas) ────────────────── -->
+    <div class="view" id="view-pj">
+      <div class="page-header">
+        <div>
+          <h1>Dashboard PJ</h1>
+          <p>Todas as contas PJ (empresas das mentoradas), independente de terem Dashboard PF.</p>
+        </div>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-label">Total de contas</div>
+          <div class="kpi-value" id="kpiPJTotal">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ativas</div>
+          <div class="kpi-value" id="kpiPJAtivas">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Inativas</div>
+          <div class="kpi-value" id="kpiPJInativas">—</div>
+        </div>
+      </div>
+
+      <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse" id="tabelaPJTable">
+            <thead>
+              <tr style="background:rgba(255,255,255,.03)">
+                <th class="th-fin">Empresa</th>
+                <th class="th-fin">E-mail</th>
+                <th class="th-fin">Regime</th>
+                <th class="th-fin" style="text-align:center">Status</th>
+                <th class="th-fin"></th>
+              </tr>
+            </thead>
+            <tbody id="tabelaPJ"></tbody>
+          </table>
+          <div id="pjVazio" style="display:none;padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
+            Nenhuma conta PJ ainda.
+          </div>
+        </div>
+      </div>
+    </div><!-- /view-pj -->
+
     <!-- ─── ABA CONFIGURAÇÕES ──────────────────────────────────────────── -->
     <div id="view-configuracoes" class="view" style="max-width:600px;margin:0 auto;">
 
@@ -2007,8 +2058,8 @@
              getTributosConfig, saveTributoConfig, deleteTributoConfig,
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
-             getContaPJ, definirAcessoPJ,
-             msgErro } from './js/api.js?v=46';
+             getContaPJ, definirAcessoPJ, getContasPJTodas,
+             msgErro } from './js/api.js?v=47';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -2511,6 +2562,7 @@
         if (nome === 'financeiro')    renderFinanceiro();
         if (nome === 'clube')         renderClube();
         if (nome === 'pipeline')      renderPipeline();
+        if (nome === 'pj')            renderPJTodas();
         if (nome === 'configuracoes') carregarConfiguracoes();
       });
     });
@@ -3045,6 +3097,49 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       }
     }
 
+    // ─── Aba PJ (lista de todas as contas PJ) ─────────────────────────────
+    const REGIME_LABEL_PJ = { mei: 'MEI', simples: 'Simples Nacional', presumido: 'Lucro Presumido' };
+    function _escPJ(str) {
+      return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    async function renderPJTodas() {
+      const tbody = document.getElementById('tabelaPJ');
+      tbody.innerHTML = `<tr><td class="td-fin" colspan="5" style="text-align:center;color:var(--text-muted)">Carregando…</td></tr>`;
+      let contas;
+      try {
+        contas = await getContasPJTodas();
+      } catch (err) {
+        tbody.innerHTML = `<tr><td class="td-fin" colspan="5" style="text-align:center;color:var(--negative)">${_escPJ(msgErro(err))}</td></tr>`;
+        return;
+      }
+
+      document.getElementById('kpiPJTotal').textContent    = contas.length;
+      document.getElementById('kpiPJAtivas').textContent   = contas.filter(c => c.ativo !== false).length;
+      document.getElementById('kpiPJInativas').textContent = contas.filter(c => c.ativo === false).length;
+
+      if (!contas.length) {
+        tbody.innerHTML = '';
+        document.getElementById('pjVazio').style.display = '';
+        return;
+      }
+      document.getElementById('pjVazio').style.display = 'none';
+
+      tbody.innerHTML = contas.map(c => `
+        <tr>
+          <td class="td-fin nome">${_escPJ(c.nomeEmpresa) || '—'}</td>
+          <td class="td-fin">${_escPJ(c.email) || '—'}</td>
+          <td class="td-fin">${REGIME_LABEL_PJ[c.regime] || c.regime || '—'}</td>
+          <td class="td-fin" style="text-align:center">${c.ativo === false ? '<span class="badge-vencido">Inativa</span>' : '<span class="badge-pago">Ativa</span>'}</td>
+          <td class="td-fin" style="text-align:center;white-space:nowrap">
+            <button class="btn-acao" style="padding:5px 12px;font-size:12px" data-ver-pj="${c.uid}">Ver dashboard PJ</button>
+          </td>
+        </tr>`).join('');
+
+      tbody.querySelectorAll('[data-ver-pj]').forEach(b => b.addEventListener('click', () => {
+        window.location.href = `notas-pj.html?viewAs=${b.dataset.verPj}`;
+      }));
+    }
+
     async function carregarNotionCRM(uid) {
       const el = document.getElementById('detNotionConteudo');
       if (!el) return;
@@ -3507,6 +3602,12 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       if (!mentoradaEmDetalhe) return;
       const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
       window.location.href = `index.html?viewAs=${uid}`;
+    });
+
+    document.getElementById('btnAbrirDashboardPJ').addEventListener('click', () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      window.location.href = `notas-pj.html?viewAs=${uid}`;
     });
 
     document.getElementById('btnEnviarEmail').addEventListener('click', () => {

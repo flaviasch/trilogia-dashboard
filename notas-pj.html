@@ -31,6 +31,8 @@
     .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
     .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
     .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    .view-as-banner { display: none; background: rgba(207,174,101,0.12); border-bottom: 1px solid rgba(207,174,101,0.3); padding: 10px 24px; font-size: 13px; color: var(--gold); gap: 12px; align-items: center; }
+    .view-as-banner a { color: var(--gold); margin-left: auto; }
     main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
     h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
     .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
@@ -88,6 +90,11 @@
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </header>
+
+  <div class="view-as-banner" id="viewAsBanner">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html">← Voltar ao admin</a>
+  </div>
 
   <main>
     <h1>Notas emitidas</h1>
@@ -290,7 +297,7 @@
       getContaPJ,
       getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
       getRecebimentosNota, salvarRecebimento, gerarParcelasRecebimento, confirmarRecebimento, estornarRecebimento, deleteRecebimento,
-      msgErro,
+      msgErro, setViewAsUid, uidAtual,
     } from './js/api.js?v=52';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -320,7 +327,33 @@
     let anoAtual = new Date().getFullYear();
     let _notasCache = [];
 
+    // ─── ViewAs (admin visualizando dashboard PJ da mentorada) ────────────────
+    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','dre-pj.html','fluxo-caixa-pj.html','reservas-pj.html','ajuda-pj.html'];
+    const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
+                     || localStorage.getItem('viewAsUid');
+    if (VIEW_AS_UID) {
+      setViewAsUid(VIEW_AS_UID);
+      localStorage.setItem('viewAsUid', VIEW_AS_UID);
+      const banner = document.getElementById('viewAsBanner');
+      if (banner) banner.style.display = 'flex';
+      const suffix = `?viewAs=${VIEW_AS_UID}`;
+      PAGINAS_PJ.forEach(page => {
+        document.querySelectorAll(`a[href="${page}"], a[href^="${page}?"]`).forEach(a => { a.href = page + suffix; });
+      });
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!href || href.includes('viewAs=') || href.startsWith('http') ||
+            href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('admin')) return;
+        if (!PAGINAS_PJ.some(p => href === p || href.startsWith(p + '#') || href.startsWith(p + '?'))) return;
+        e.preventDefault();
+        window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;
+      }, true);
+    }
+
     document.getElementById('btnLogout').addEventListener('click', async () => {
+      localStorage.removeItem('viewAsUid');
       await signOut(auth);
       window.location.href = 'login-pj.html';
     });
@@ -329,10 +362,12 @@
       if (!user) { window.location.href = 'login-pj.html'; return; }
       currentUser = user;
       try {
-        const conta = await getContaPJ(user.uid);
-        if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
-        if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
-        document.getElementById('empresaNome').textContent = conta.nomeEmpresa;
+        const conta = await getContaPJ(uidAtual());
+        if (!VIEW_AS_UID) {
+          if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+          if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+        }
+        document.getElementById('empresaNome').textContent = conta ? conta.nomeEmpresa : '—';
       } catch (err) {
         console.error('[notas-pj] Falha ao carregar conta:', err.message);
       }
@@ -341,7 +376,7 @@
 
     async function renderNotas() {
       document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
-      try { _notasCache = await getNotasEmitidas(currentUser.uid, mesAtual, anoAtual); }
+      try { _notasCache = await getNotasEmitidas(uidAtual(), mesAtual, anoAtual); }
       catch (err) { alert(msgErro(err)); return; }
 
       const total = _notasCache.reduce((s, n) => s + (n.valor || 0), 0);
@@ -367,7 +402,7 @@
       el.querySelectorAll('[data-nota-editar]').forEach(b => b.addEventListener('click', () => abrirModalNota(_notasCache.find(n => n.id === b.dataset.notaEditar))));
       el.querySelectorAll('[data-nota-excluir]').forEach(b => b.addEventListener('click', async () => {
         if (!confirm('Excluir esta nota emitida? Os tributos automáticos (%) desta competência serão recalculados, e os recebimentos lançados pra ela serão apagados junto.')) return;
-        try { await deleteNotaEmitida(currentUser.uid, b.dataset.notaExcluir); renderNotas(); }
+        try { await deleteNotaEmitida(uidAtual(), b.dataset.notaExcluir); renderNotas(); }
         catch (err) { alert(msgErro(err)); }
       }));
     }
@@ -436,7 +471,7 @@
 
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        const resultado = await saveNotaEmitida(currentUser.uid, { id, valor, mes, ano, dataEmissao, ...dadosExtra });
+        const resultado = await saveNotaEmitida(uidAtual(), { id, valor, mes, ano, dataEmissao, ...dadosExtra });
         modalNota.classList.add('hidden');
         mesAtual = mes; anoAtual = ano;
         await renderNotas();
@@ -466,7 +501,7 @@
       document.getElementById('recebNotaId').value = nota.id;
       document.getElementById('recebNotaResumo').textContent =
         `Nota de ${brl(nota.valor)} emitida em ${fmtData(nota.dataEmissao)}`;
-      try { _recebimentosCache = await getRecebimentosNota(currentUser.uid, nota.id); }
+      try { _recebimentosCache = await getRecebimentosNota(uidAtual(), nota.id); }
       catch (err) { _recebimentosCache = []; alert(msgErro(err)); }
       renderListaRecebimentos();
       document.getElementById('formRecebimento').style.display = 'none';
@@ -508,7 +543,7 @@
       el.querySelectorAll('[data-receb-editar]').forEach(b => b.addEventListener('click', () => abrirFormRecebimento(_recebimentosCache.find(r => r.id === b.dataset.recebEditar))));
       el.querySelectorAll('[data-receb-excluir]').forEach(b => b.addEventListener('click', async () => {
         if (!confirm('Excluir este recebimento?')) return;
-        try { await deleteRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebExcluir); await abrirModalRecebimentos(_notaRecebimentosAtual); }
+        try { await deleteRecebimento(uidAtual(), _notaRecebimentosAtual.id, b.dataset.recebExcluir); await abrirModalRecebimentos(_notaRecebimentosAtual); }
         catch (err) { alert(msgErro(err)); }
       }));
       el.querySelectorAll('[data-receb-confirmar]').forEach(b => b.addEventListener('click', () => {
@@ -516,7 +551,7 @@
         if (receb) abrirModalConfirmarRecebimento(receb);
       }));
       el.querySelectorAll('[data-receb-estornar]').forEach(b => b.addEventListener('click', async () => {
-        try { await estornarRecebimento(currentUser.uid, _notaRecebimentosAtual.id, b.dataset.recebEstornar); await abrirModalRecebimentos(_notaRecebimentosAtual); }
+        try { await estornarRecebimento(uidAtual(), _notaRecebimentosAtual.id, b.dataset.recebEstornar); await abrirModalRecebimentos(_notaRecebimentosAtual); }
         catch (err) { alert(msgErro(err)); }
       }));
     }
@@ -548,7 +583,7 @@
 
       btn.disabled = true; btn.textContent = 'Confirmando…';
       try {
-        await confirmarRecebimento(currentUser.uid, notaId, id, dataRecebimento, valorBruto, taxa);
+        await confirmarRecebimento(uidAtual(), notaId, id, dataRecebimento, valorBruto, taxa);
         modalConfirmarRecebimento.classList.add('hidden');
         await abrirModalRecebimentos(_notaRecebimentosAtual);
       } catch (err) {
@@ -625,8 +660,8 @@
         // Editando um recebimento existente pra virar parcelado: apaga o
         // registro único antes de gerar as N parcelas, senão o valor dele
         // ficaria somado junto (achado 27/07/2026).
-        if (idEditando) await deleteRecebimento(currentUser.uid, _notaRecebimentosAtual.id, idEditando);
-        await gerarParcelasRecebimento(currentUser.uid, _notaRecebimentosAtual.id, {
+        if (idEditando) await deleteRecebimento(uidAtual(), _notaRecebimentosAtual.id, idEditando);
+        await gerarParcelasRecebimento(uidAtual(), _notaRecebimentosAtual.id, {
           formaPagamento, valorTotal, numeroParcelas, taxaTotal,
           dataBase: _notaRecebimentosAtual.dataEmissao || new Date().toISOString().slice(0, 10),
         });
@@ -654,7 +689,7 @@
 
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
-        await salvarRecebimento(currentUser.uid, _notaRecebimentosAtual.id, {
+        await salvarRecebimento(uidAtual(), _notaRecebimentosAtual.id, {
           id, formaPagamento, valorBruto, taxa, dataPrevista,
           parcelaAtual: Number.isInteger(parcelaAtualVal) ? parcelaAtualVal : null,
           parcelaTotal: Number.isInteger(parcelaTotalVal) ? parcelaTotalVal : null,

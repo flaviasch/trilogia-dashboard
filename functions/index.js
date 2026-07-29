@@ -6429,6 +6429,30 @@ async function _temAcessoPJAtivo(uid) {
   return snap.exists && snap.data().ativo !== false;
 }
 
+/**
+ * Lista todas as contas PJ pro painel admin (achado 29/07/2026: contasPJ não
+ * guarda e-mail/nome — o doc id É o uid, compartilhado com o Auth (e às
+ * vezes com `mentoradas`, quando a mesma pessoa também tem PF). Busca e-mail
+ * e nome direto no Auth, já que contas PJ avulsas (Kiwify "Dashboard PJ" sem
+ * combo) podem não ter doc nenhum em `mentoradas`.
+ */
+exports.getContasPJTodas = onCall({}, async (request) => {
+  requireAdmin(request);
+  const snap = await db.collection('contasPJ').orderBy('nomeEmpresa').get();
+  return Promise.all(snap.docs.map(async (doc) => {
+    const conta = { uid: doc.id, ...doc.data() };
+    try {
+      const userRecord = await admin.auth().getUser(doc.id);
+      conta.email = userRecord.email || null;
+      conta.nome  = userRecord.displayName || null;
+    } catch (err) {
+      conta.email = null;
+      conta.nome  = null;
+    }
+    return conta;
+  }));
+});
+
 // ─── Fluxo de Caixa PJ (fatia 2) ───────────────────────────────────────────
 // Saldo projetado: entradas de recebimentos (reais na dataRecebimento, ou
 // projetadas na dataPrevista enquanto não confirmado) menos saídas de

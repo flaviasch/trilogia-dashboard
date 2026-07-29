@@ -676,6 +676,11 @@ export async function definirAcessoPJ(uid, ativo) {
   return adminCall('definirAcessoPJ')({ uid, ativo });
 }
 
+// Admin-only — lista todas as contas PJ pro painel admin (achado 29/07/2026).
+export async function getContasPJTodas() {
+  return adminCall('getContasPJTodas')({});
+}
+
 // ─── Dashboard PJ (fatia 2: Contas a Receber, Despesas, Fluxo de Caixa) ───────
 
 export async function getRecebimentosNota(uid, notaId) {
