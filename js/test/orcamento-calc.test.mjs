@@ -236,6 +236,26 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.equal(r.despesaComprometida, 250);
   });
 
+  await t.test('achado 29/07/2026: despesa de "pagamento adiantado de fatura" (origem:antecipacao_fatura, sem cartao/fatura) conta como despesa comum, não é excluída nem contada em dobro', () => {
+    // Pagamento antecipado de fatura AINDA ABERTA (Dashboard PF) é modelado
+    // como despesa comum (sem as flags cartao/fatura) de propósito, pra não
+    // precisar de nenhuma mudança neste módulo — ver abrirModalAntecipacaoFatura
+    // em orcamento.html. Este teste prova que essa escolha de desenho não
+    // introduziu nenhum caminho especial: o item entra em despesaCaixa e
+    // despesaComprometida exatamente como qualquer despesa avulsa, mesmo
+    // tendo cartaoId/faturaAlvo como metadado (esses campos são ignorados
+    // por este módulo, que só reage a `cartao`/`fatura`).
+    const data = periodo([{
+      categoria: 'Cartão de crédito', valor: 500, data: '2026-07-05',
+      origem: 'antecipacao_fatura', cartaoId: 'c1', faturaAlvo: '2026-08',
+    }]);
+    const r = calcularAgregadosOrcamento({ data, agora: HOJE });
+    assert.equal(r.despesaCaixa, 500);
+    assert.equal(r.despesaComprometida, 500);
+    assert.equal(r.totalFaturas, 0);
+    assert.equal(r.totalCartaoPago, 0);
+  });
+
   await t.test('achado 09/07/2026: fatura SEM lançamento (só ajusteTotal) marcada como paga sensibiliza o caixa', () => {
     // Fatura confirmada só via "Ajustar fatura" (sem nenhuma despesa individual
     // lançada pra ela) — antes do fix, o backfill pulava chaves já paga_total,

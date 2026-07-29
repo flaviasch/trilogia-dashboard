@@ -2366,6 +2366,7 @@
           <span style="font-size:17px;font-weight:700;color:var(--negative);" id="cpTotalLabel">—</span>
         </div>
       </div>
+      <div id="cpAntecipadoInfo" style="display:none;font-size:12px;color:#34d399;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.25);border-radius:8px;padding:10px 12px;margin-bottom:14px;"></div>
       <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">O valor calculado está correto?</p>
       <div style="display:flex;gap:6px;margin-bottom:16px;">
         <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 6px;border:2px solid var(--gold);border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;color:var(--white);background:rgba(207,174,101,0.1);text-align:center;">
@@ -2425,6 +2426,37 @@
       <div class="modal-actions">
         <button class="btn-cancel" id="afCancelar">Cancelar</button>
         <button class="btn-save" id="afSalvar">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal pagar adiantado (fatura ainda aberta) — 29/07/2026 -->
+  <div class="modal-overlay hidden" id="modalAntecipacaoFatura">
+    <div class="modal-card">
+      <h2 class="modal-title">Pagar adiantado</h2>
+      <p class="modal-sub" id="afaSub">—</p>
+      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:12px;color:var(--text-muted);">Acumulado até agora nesta fatura</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-secondary);" id="afaAcumulado">—</span>
+        </div>
+      </div>
+      <div class="field-group">
+        <label for="afaValor">Valor que vai pagar agora (R$)</label>
+        <input type="text" inputmode="numeric" id="afaValor" placeholder="ex: 500" />
+        <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">Pode ser o total acumulado ou só uma parte — vira uma despesa comum, visível e editável, que já desconta do saldo hoje. Quando a fatura fechar, esse valor é descontado automaticamente do que falta pagar.</span>
+      </div>
+      <div class="field-group">
+        <label for="afaData">Data do pagamento</label>
+        <input type="date" id="afaData" />
+      </div>
+      <div class="field-group" id="afaFgConta" style="display:none">
+        <label for="afaConta">Pago com a conta</label>
+        <select id="afaConta" style="width:100%;padding:9px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;box-sizing:border-box;"></select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="afaCancelar">Cancelar</button>
+        <button class="btn-save" id="afaSalvar">Registrar pagamento</button>
       </div>
     </div>
   </div>
@@ -5161,6 +5193,8 @@
               ${_barraLimite(totalAberta, limite)}
               <div class="items-list" style="padding:0;margin-top:8px;">${_renderLinhas(abertaItens, cartaoObj)}</div>
               <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:6px 14px 0;width:calc(100% - 28px);">+ Adicionar a esta fatura</button>
+              ${abertaKey ? `<button class="btn-add-item" data-antecipar-fat="${cartaoId}_${abertaKey}" data-acumulado="${totalAberta}" data-nome="${nomeCartao}" data-mes="${mesNome}"
+                style="margin:6px 14px 0;width:calc(100% - 28px);background:rgba(52,211,153,0.08);color:#34d399;border-color:rgba(52,211,153,0.25);">💳 Pagar adiantado</button>` : ''}
               ${totalAberta > 0 && abertaKey ? `<button class="btn-add-item" data-ajustar-fat="${cartaoId}_${abertaKey}" data-total-calculado="${totalAberta}" data-nome="${nomeCartao}" data-mes="${mesNome}"
                 style="margin:6px 14px 0;width:calc(100% - 28px);background:transparent;color:var(--text-muted);border-color:var(--border);">✎ Ajustar fatura</button>` : ''}
             </div>
@@ -5176,11 +5210,20 @@
       // durante um import onde o avulso batia exato). Nunca exclui sozinho, só
       // avisa com um botão pra revisar.
       const _avulsosPorFechada = {};
+      // Total já adiantado (pago antes do fechamento) por fatura — 29/07/2026.
+      // Busca despesas comuns com origem:'antecipacao_fatura' vinculadas a
+      // este cartão/fatura (ver abrirModalAntecipacaoFatura) no mês da fatura
+      // e no mês anterior (janela onde uma antecipação realisticamente
+      // aconteceu, já que o ciclo dura ~1 mês). Não encontrar aqui não é
+      // erro — só significa que ninguém adiantou nada pra essa fatura.
+      const _antecipadoPorFechada = {};
       await Promise.all(idsFechadas.map(async estadoKey => {
         const [cartaoId, fechadaKey] = estadoKey.split('_');
         const cartaoObj = _cartoes.find(c => c.id === cartaoId);
         if (!cartaoObj || !fechadaKey) return;
         const totalG = gruposFechada[estadoKey].reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
+        const antecipado = await _buscarAntecipacoesDaFatura(cartaoId, fechadaKey).catch(() => 0);
+        if (antecipado > 0) _antecipadoPorFechada[estadoKey] = antecipado;
         if (totalG <= 0) return;
         const avulso = await _buscarAvulsoCorrespondenteAFatura(cartaoObj, fechadaKey, totalG).catch(() => null);
         if (avulso) _avulsosPorFechada[estadoKey] = avulso;
@@ -5224,9 +5267,16 @@
         const ajusteInfo = fatEstado.ajusteTotal != null && fatEstado.ajusteTotal !== totalCalc
           ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Calculado: ${brl(totalCalc)} → Ajustado: ${brl(fatEstado.ajusteTotal)}</div>`
           : '';
+        const antecipado = _antecipadoPorFechada[estadoKey] || 0;
         const btnConfirmar = fatEstado.estado === 'paga_total' ? '' :
-          `<button class="btn-add-item" data-confirmar-fat="${estadoKey}" data-total="${totalDisplay}" data-nome="${nomeCartao}" data-mes="${mesNome}"
+          `<button class="btn-add-item" data-confirmar-fat="${estadoKey}" data-total="${totalDisplay}" data-nome="${nomeCartao}" data-mes="${mesNome}" data-antecipado="${antecipado}"
             style="width:100%;background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.3);">✓ Confirmar pagamento</button>`;
+
+        const antecipadoAviso = antecipado > 0 && fatEstado.estado !== 'paga_total'
+          ? `<div style="margin:10px 16px 0;padding:10px 12px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.25);border-radius:8px;font-size:12px;color:#34d399;">
+              💳 Você já adiantou <strong>${brl(antecipado)}</strong> pra esta fatura. Falta: <strong>${brl(Math.max(0, totalDisplay - antecipado))}</strong>.
+            </div>`
+          : '';
 
         const avulsoMatch = _avulsosPorFechada[estadoKey];
         const avulsoAviso = avulsoMatch
@@ -5257,6 +5307,7 @@
                 <span style="color:var(--text-muted);">${expanded ? IC_CHEV_UP : IC_CHEV_DOWN}</span>
               </div>
             </div>
+            ${antecipadoAviso}
             ${avulsoAviso}
             <!-- Ações sempre visíveis, fora da parte que expande/colapsa — numa
             fatura com muitos lançamentos, o botão ficava enterrado lá embaixo,
@@ -5324,10 +5375,14 @@
         btn.addEventListener('click', () => abrirModalCartaoDespesa(btn.dataset.addCartao)));
       el.querySelectorAll('[data-confirmar-fat]').forEach(btn =>
         btn.addEventListener('click', () => abrirModalConfirmarPagamento(
-          btn.dataset.confirmarFat, parseFloat(btn.dataset.total), btn.dataset.nome, btn.dataset.mes)));
+          btn.dataset.confirmarFat, parseFloat(btn.dataset.total), btn.dataset.nome, btn.dataset.mes,
+          parseFloat(btn.dataset.antecipado) || 0)));
       el.querySelectorAll('[data-ajustar-fat]').forEach(btn =>
         btn.addEventListener('click', () => abrirModalAjustarFatura(
           btn.dataset.ajustarFat, parseFloat(btn.dataset.totalCalculado), btn.dataset.nome, btn.dataset.mes)));
+      el.querySelectorAll('[data-antecipar-fat]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModalAntecipacaoFatura(
+          btn.dataset.anteciparFat, parseFloat(btn.dataset.acumulado), btn.dataset.nome, btn.dataset.mes)));
       el.querySelectorAll('[data-revisar-avulso]').forEach(btn =>
         btn.addEventListener('click', () => {
           const avulso = _avulsosPorFechada[btn.dataset.revisarAvulso];
@@ -8322,18 +8377,39 @@
     // ── Modal confirmar pagamento ─────────────────────────────────────────────
     let _cpEstadoKey = null, _cpTotal = 0, _cpNomeCartao = '';
 
-    function abrirModalConfirmarPagamento(estadoKey, total, nomeCartao, mesFatura) {
+    function abrirModalConfirmarPagamento(estadoKey, total, nomeCartao, mesFatura, antecipado = 0) {
       _cpEstadoKey    = estadoKey;
       _cpTotal        = total;
       _cpNomeCartao   = nomeCartao || '';
       document.getElementById('cpSub').textContent       = `${nomeCartao} · ${mesFatura}`;
       document.getElementById('cpTotalLabel').textContent = brl(total);
-      document.getElementById('cpTotal').checked          = true;
       document.getElementById('cpValorPago').value        = '';
       document.getElementById('cpParcialSection').style.display   = 'none';
-      document.getElementById('cpDiferenteSection').style.display = 'none';
       document.getElementById('cpRolloverInfo').style.display   = 'none';
-      setMoney(document.getElementById('cpValorReal'), total);
+
+      // Já tem adiantamento registrado antes do fechamento (ver
+      // abrirModalAntecipacaoFatura) — 29/07/2026. Reaproveita o mecanismo de
+      // "Diferente" (já existente) pra descontar automaticamente, sem
+      // precisar de nenhum estado novo em saveFaturaEstado nem tocar em
+      // orcamento-calc.js: pré-seleciona "Diferente" com o valor restante
+      // sugerido (editável — a usuária pode ajustar se juros/taxa mudarem o
+      // valor real).
+      const antecipadoInfo = document.getElementById('cpAntecipadoInfo');
+      if (antecipado > 0) {
+        const restante = Math.max(0, Math.round((total - antecipado) * 100) / 100);
+        antecipadoInfo.textContent = `💳 Você já adiantou ${brl(antecipado)} pra esta fatura — valor sugerido pra confirmar agora: ${brl(restante)}.`;
+        antecipadoInfo.style.display = '';
+        document.getElementById('cpTotal').checked      = false;
+        document.getElementById('cpDiferente').checked  = true;
+        document.getElementById('cpDiferenteSection').style.display = '';
+        setMoney(document.getElementById('cpValorReal'), restante);
+      } else {
+        antecipadoInfo.style.display = 'none';
+        document.getElementById('cpTotal').checked          = true;
+        document.getElementById('cpDiferenteSection').style.display = 'none';
+        setMoney(document.getElementById('cpValorReal'), total);
+      }
+
       const fgConta = document.getElementById('cpFgConta');
       if (fgConta) {
         fgConta.style.display = _contas.length > 1 ? '' : 'none';
@@ -8531,6 +8607,82 @@
         toast('Ajuste lançado na fatura.', 'success');
       } catch (e) {
         toast('Erro ao salvar: ' + e.message, 'error');
+      } finally { setLoading(btn, false); }
+    });
+
+    // ── Modal pagar adiantado (fatura ainda aberta) — 29/07/2026 ──────────────
+    // Pedido de Flávia: registrar pagamento antecipado (total ou parcial) de
+    // uma fatura que ainda está em ciclo aberto (ainda pode receber compras
+    // novas). Desenho: NÃO é tratado como item da própria fatura (cartao:true
+    // + fatura:key) — é uma despesa comum, visível, categoria "Cartão de
+    // crédito", com cartaoId/faturaAlvo só como metadado. Por não ter as
+    // flags cartao/fatura, passa pelo caminho normal de despesa em
+    // calcularAgregadosOrcamento — sensibiliza o saldo do mês na hora, sem
+    // precisar de NENHUMA mudança em orcamento-calc.js (que hoje exclui de
+    // propósito itens de fatura aberta de todos os totais). Quando a fatura
+    // fechar de verdade, o valor já adiantado é descontado automaticamente
+    // reaproveitando o mecanismo de "Diferente" já existente (ver
+    // abrirModalConfirmarPagamento) — sem precisar de nenhum estado novo em
+    // saveFaturaEstado.
+    let _afaEstadoKey  = null;
+    let _afaNomeCartao = '';
+
+    function abrirModalAntecipacaoFatura(estadoKey, acumulado, nomeCartao, mesFatura) {
+      _afaEstadoKey  = estadoKey;
+      _afaNomeCartao = nomeCartao || '';
+      document.getElementById('afaSub').textContent = `${nomeCartao} · ${mesFatura}`;
+      document.getElementById('afaAcumulado').textContent = brl(acumulado || 0);
+      setMoney(document.getElementById('afaValor'), acumulado > 0 ? acumulado : '');
+      const hoje = new Date();
+      document.getElementById('afaData').value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+      const fgConta = document.getElementById('afaFgConta');
+      if (fgConta) {
+        fgConta.style.display = _contas.length > 1 ? '' : 'none';
+        if (_contas.length > 1) {
+          const sel = document.getElementById('afaConta');
+          sel.innerHTML = _contas.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nome)}</option>`).join('');
+          sel.value = _contaAtivaId || CONTA_PRINCIPAL_ID;
+        }
+      }
+      _lockBody();
+      document.getElementById('modalAntecipacaoFatura').classList.remove('hidden');
+    }
+
+    function fecharModalAntecipacaoFatura() {
+      document.getElementById('modalAntecipacaoFatura').classList.add('hidden');
+      _unlockBody();
+      _afaEstadoKey = null;
+    }
+
+    document.getElementById('afaCancelar').addEventListener('click', fecharModalAntecipacaoFatura);
+    // Clicar fora não fecha (mesmo padrão de todos os outros modais).
+
+    document.getElementById('afaSalvar').addEventListener('click', async () => {
+      if (!_afaEstadoKey) return;
+      const btn   = document.getElementById('afaSalvar');
+      const valor = readMoney(document.getElementById('afaValor'));
+      const data  = document.getElementById('afaData').value;
+      if (!(valor > 0)) { toast('Informe um valor válido.', 'warning'); return; }
+      if (!data) { toast('Informe a data do pagamento.', 'warning'); return; }
+      const [cartaoId, faturaKey] = _afaEstadoKey.split('_').reduce((acc, p, i, arr) =>
+        i === arr.length - 1 ? [arr.slice(0, -1).join('_'), p] : acc, ['', '']);
+      const contaId = _contas.length > 1 ? (document.getElementById('afaConta')?.value || CONTA_PRINCIPAL_ID) : '';
+
+      setLoading(btn, true);
+      try {
+        currentData.despesas.push({
+          categoria: 'Cartão de crédito', tipo: 'despesa', valor, data,
+          descricao: `Adiantamento fatura ${_afaNomeCartao}`,
+          origem: 'antecipacao_fatura', cartaoId, faturaAlvo: faturaKey,
+          ...(contaId ? { contaId } : {}),
+        });
+        await salvarEAtualizar();
+        fecharModalAntecipacaoFatura();
+        renderFaturas(currentData);
+        render(currentData); // atualiza Despesa Total/Sobra/Saldo Final no Resumo
+        toast('Pagamento adiantado registrado.', 'success');
+      } catch (e) {
+        toast('Erro ao registrar: ' + e.message, 'error');
       } finally { setLoading(btn, false); }
     });
 
@@ -8973,6 +9125,33 @@
     // ─── Procura uma despesa avulsa que pareça ser o pagamento de uma fatura
     // recém-importada (mesmo valor líquido, no mês da fatura ou no seguinte,
     // que costuma ser o mês do vencimento/débito) ──────────────────────────
+    // Soma quanto já foi adiantado (ver abrirModalAntecipacaoFatura) pra uma
+    // fatura específica antes dela fechar — 29/07/2026. Procura despesas
+    // comuns com origem:'antecipacao_fatura' vinculadas a este cartão/fatura
+    // no mês da própria fatura e no mês anterior (janela realista: o ciclo
+    // dura ~1 mês, então um adiantamento feito mais cedo que isso não seria
+    // encontrado aqui — limitação documentada em .build-scope.md; o valor já
+    // está correto no saldo de qualquer forma, só o aviso/desconto automático
+    // no fechamento é que não apareceria nesse caso raro).
+    async function _buscarAntecipacoesDaFatura(cartaoId, faturaKey) {
+      const [anoFatStr, mesFatStr] = faturaKey.split('-');
+      const anoFat = Number(anoFatStr), mesFat = Number(mesFatStr);
+      const prevMes = mesFat === 1 ? 12 : mesFat - 1;
+      const prevAno = mesFat === 1 ? anoFat - 1 : anoFat;
+      const candidatos = [{ mes: prevMes, ano: prevAno }, { mes: mesFat, ano: anoFat }];
+      let total = 0;
+      for (const { mes, ano } of candidatos) {
+        const dados = (mes === currentData.periodo.mes && ano === currentData.periodo.ano)
+          ? currentData
+          : await buscarPeriodo(mes, ano, false).catch(() => null);
+        if (!dados) continue;
+        dados.despesas
+          .filter(d => d.origem === 'antecipacao_fatura' && d.cartaoId === cartaoId && d.faturaAlvo === faturaKey)
+          .forEach(d => { total += d.valor; });
+      }
+      return Math.round(total * 100) / 100;
+    }
+
     async function _buscarAvulsoCorrespondenteAFatura(cartaoObj, faturaKey, totalFatura) {
       if (!totalFatura) return null;
       const [anoFatStr, mesFatStr] = faturaKey.split('-');
