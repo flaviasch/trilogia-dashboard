@@ -135,6 +135,23 @@
       text-align: center;
       line-height: 1.5;
     }
+    .divider { height: 1px; background: var(--border); margin: 24px 0; }
+    .btn-ir-pf {
+      display: block;
+      width: 100%;
+      padding: 13px;
+      background: transparent;
+      border: 1px solid rgba(207,174,101,0.4);
+      border-radius: 10px;
+      color: var(--gold);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .btn-ir-pf:hover { background: rgba(207,174,101,0.08); border-color: var(--gold); }
   </style>
 </head>
 <body>
@@ -162,6 +179,10 @@
     </div>
 
     <p class="nota-mesma-conta">Já é mentorada da Trilogia? Use o mesmo e-mail e senha da sua conta pessoal — a área da empresa é separada por dentro, não precisa de outro cadastro.</p>
+
+    <div class="divider"></div>
+
+    <a href="login.html" class="btn-ir-pf">👤 Entrar no Dashboard pessoal</a>
   </div>
 
   <script type="module">
