@@ -138,8 +138,8 @@
     <div class="secao-titulo">Criar reserva</div>
 
     <div class="card">
-      <div class="card-titulo" style="font-size:14px">Reserva de emergência</div>
-      <div class="card-sub">Colchão de segurança em meses de despesa operacional. Negócio pequeno costuma precisar de mais meses que uma pessoa física.</div>
+      <div class="card-titulo" style="font-size:14px">Reserva de sazonalidade</div>
+      <div class="card-sub">Colchão pra cobrir a despesa operacional nos meses de baixa do seu negócio. Negócio pequeno costuma precisar de mais meses de colchão que uma pessoa física.</div>
       <div class="field-group">
         <label for="reMesesInput">Meses de despesa (<span id="reMesesValor">9</span>)</label>
         <input type="range" id="reMesesInput" min="6" max="12" value="9">
@@ -218,7 +218,7 @@
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
       'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
-    const TIPO_LABEL = { emergencia: 'Reserva de emergência', investimento: 'Reserva de investimento', outro: 'Outra reserva' };
+    const TIPO_LABEL = { emergencia: 'Reserva de sazonalidade', investimento: 'Reserva de investimento', outro: 'Outra reserva' };
 
     let currentUser = null;
     let mesAtual = new Date().getMonth() + 1;
@@ -291,7 +291,10 @@
       }
     });
 
-    // ── Calculadora Reserva de Emergência ──
+    // ── Calculadora Reserva de Sazonalidade (achado 29/07/2026, Flávia:
+    // renomeada de "Emergência" — o cálculo continua o mesmo, tipo interno
+    // no banco continua 'emergencia' de propósito, pra não precisar migrar
+    // dado já existente) ──
     function atualizarCalculadoraEmergencia() {
       if (!_indicadoresCache) return;
       const meses = +document.getElementById('reMesesInput').value;
@@ -310,8 +313,8 @@
       const btn = document.getElementById('btnCriarReservaEmergencia');
       setLoading(btn, true, 'Criando…');
       try {
-        await criarReservaPJ(currentUser.uid, { nome: 'Reserva de Emergência', tipo: 'emergencia', valorMeta, dataMeta: null });
-        toast('Reserva de emergência criada.');
+        await criarReservaPJ(currentUser.uid, { nome: 'Reserva de Sazonalidade', tipo: 'emergencia', valorMeta, dataMeta: null });
+        toast('Reserva de sazonalidade criada.');
         await renderReservas();
       } catch (err) {
         toast(msgErro(err), 'error');
