@@ -3099,6 +3099,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 
     // ─── Aba PJ (lista de todas as contas PJ) ─────────────────────────────
     const REGIME_LABEL_PJ = { mei: 'MEI', simples: 'Simples Nacional', presumido: 'Lucro Presumido' };
+    let _contasPJCache = [];
     function _escPJ(str) {
       return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
@@ -3112,6 +3113,8 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         tbody.innerHTML = `<tr><td class="td-fin" colspan="5" style="text-align:center;color:var(--negative)">${_escPJ(msgErro(err))}</td></tr>`;
         return;
       }
+
+      _contasPJCache = contas;
 
       document.getElementById('kpiPJTotal').textContent    = contas.length;
       document.getElementById('kpiPJAtivas').textContent   = contas.filter(c => c.ativo !== false).length;
@@ -3132,12 +3135,17 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
           <td class="td-fin" style="text-align:center">${c.ativo === false ? '<span class="badge-vencido">Inativa</span>' : '<span class="badge-pago">Ativa</span>'}</td>
           <td class="td-fin" style="text-align:center;white-space:nowrap">
             <button class="btn-acao" style="padding:5px 12px;font-size:12px" data-ver-pj="${c.uid}">Ver dashboard PJ</button>
+            ${c.lgpdAceitePJ ? `<button class="btn-acao btn-secundario" style="padding:5px 12px;font-size:12px;margin-left:6px" data-comprovante-pj="${c.uid}">📄 Comprovante</button>` : ''}
             <button class="btn-acao danger" style="padding:5px 12px;font-size:12px;margin-left:6px" data-excluir-pj="${c.uid}" data-nome-pj="${_escPJ(c.nomeEmpresa) || c.uid}">Excluir conta</button>
           </td>
         </tr>`).join('');
 
       tbody.querySelectorAll('[data-ver-pj]').forEach(b => b.addEventListener('click', () => {
         window.location.href = `notas-pj.html?viewAs=${b.dataset.verPj}`;
+      }));
+
+      tbody.querySelectorAll('[data-comprovante-pj]').forEach(b => b.addEventListener('click', () => {
+        gerarComprovanteLGPDPJ(b.dataset.comprovantePj);
       }));
 
       tbody.querySelectorAll('[data-excluir-pj]').forEach(b => b.addEventListener('click', async () => {
@@ -3157,6 +3165,52 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
           b.textContent = 'Excluir conta';
         }
       }));
+    }
+
+    // Comprovante de aceite LGPD — versão PJ do gerarComprovanteLGPD (PF),
+    // mesmo formato de documento imprimível, texto adaptado pro escopo de
+    // dados da empresa (notas, recebimentos, impostos, despesas, reservas)
+    // em vez do dado financeiro pessoal.
+    function gerarComprovanteLGPDPJ(uid) {
+      const conta = _contasPJCache.find(c => c.uid === uid);
+      if (!conta) return;
+      const nome  = conta.nomeEmpresa || '—';
+      const email = conta.email || '—';
+      const raw   = conta.lgpdAceiteDataPJ;
+      let dataHora = 'Não registrada';
+      if (raw) {
+        const d = raw?.toDate ? raw.toDate() : (raw?._seconds ? new Date(raw._seconds * 1000) : new Date(raw));
+        if (!isNaN(d)) dataHora = `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+      }
+      const w = window.open('', '_blank');
+      w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Comprovante de Aceite LGPD — ${nome} (Dashboard PJ)</title>
+<style>
+  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
+  .campo { margin: 18px 0; }
+  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
+  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
+  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
+  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
+  @media print { button { display: none; } }
+</style></head><body>
+<h1>Comprovante de Aceite — LGPD (Dashboard PJ)</h1>
+<div class="campo"><div class="label">Titular dos dados (empresa)</div><div class="valor">${nome}</div></div>
+<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
+<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
+<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard PJ (dashboard.flaviaschusciman.com)</div></div>
+<div class="politica">
+<strong>Texto da política aceita:</strong><br><br>
+Os dados da empresa (notas fiscais emitidas, recebimentos, impostos previstos, despesas e seus pagamentos, outras entradas de caixa e reservas) ficam armazenados de forma segura na nuvem, acessíveis apenas pela titular e pela Flávia.<br><br>
+Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
+As informações são usadas exclusivamente para o funcionamento do Dashboard PJ e são mantidas enquanto a assinatura estiver ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente, salvo pedido de exclusão antecipada pela titular.<br><br>
+A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa são tratados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da assinatura."</em>
+</div>
+<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
+<br><button onclick="window.print()" style="padding:10px 24px;background:#0D2B45;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
+</body></html>`);
+      w.document.close();
     }
 
     async function carregarNotionCRM(uid) {
