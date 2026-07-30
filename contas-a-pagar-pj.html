@@ -87,8 +87,6 @@
     .import-item-fields input, .import-item-fields select { font-size: 13px; padding: 8px 10px; }
     .import-vazio { text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; }
     .import-aviso-duplicata { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.35); color: #d97706; font-size: 12px; padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; }
-    .import-invest-toggle { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin: 8px 0; }
-    .import-invest-toggle input { width: auto; }
     .import-invest-fields { display: none; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
     .import-invest-fields.mostrar { display: grid; }
   </style>
@@ -742,7 +740,11 @@
             </div>`;
         }
         if (item.tipo === 'despesa') {
-          const investDisp = item.pareceInvestimento && _reservasInvestimento.length;
+          // achado 30/07/2026 (Flávia testando): o checkbox separado "isto é
+          // investimento" passava despercebido. Investimento agora é só mais
+          // um valor possível no campo Categoria (mesmo lugar que já existia),
+          // via datalist — digitar/escolher "Investimento" alterna os campos.
+          const investDisp = item.pareceInvestimento;
           const avisoDup = item.possivelDuplicata
             ? `<div class="import-aviso-duplicata">⚠️ Já existe um lançamento parecido: <strong>${escapeHtml(item.possivelDuplicata.nome)}</strong> — ${brl(item.possivelDuplicata.valor)} em ${fmtData(item.possivelDuplicata.data)}. Confira antes de importar de novo.</div>`
             : '';
@@ -755,13 +757,13 @@
                 </div>
               </div>
               ${avisoDup}
-              <label class="import-invest-toggle">
-                <input type="checkbox" data-invest-toggle ${!_reservasInvestimento.length ? 'disabled' : ''} ${investDisp ? 'checked' : ''}>
-                💰 Isto é uma aplicação em investimento (não é despesa)
-              </label>
+              <div class="field-group">
+                <label>Categoria</label>
+                <input type="text" list="listaCatDesp${idx}" data-f-categoria value="${investDisp ? 'Investimento' : escapeHtml(item.categoriaSugerida || '')}" placeholder="Ex: Aluguel, Marketing...">
+                <datalist id="listaCatDesp${idx}"><option value="Investimento"></option></datalist>
+              </div>
               <div class="import-item-fields" data-fields-despesa style="${investDisp ? 'display:none' : ''}">
                 <div class="field-group"><label>Nome</label><input type="text" data-f-nome value="${escapeHtml(item.descricao)}"></div>
-                <div class="field-group"><label>Categoria</label><input type="text" data-f-categoria value="${escapeHtml(item.categoriaSugerida || '')}"></div>
                 <div class="field-group"><label>Valor</label><input type="number" step="0.01" data-f-valor value="${item.valor}"></div>
                 <div class="field-group"><label>Data</label><input type="date" data-f-data value="${item.data}"></div>
               </div>
@@ -786,7 +788,10 @@
         }
         // receita sem match — candidata a Outra Entrada
         const catSugerida = ['aporte_socio', 'reembolso', 'outro'].includes(item.categoriaEntradaSugerida) ? item.categoriaEntradaSugerida : 'outro';
-        const investDisp = item.pareceInvestimento && _reservasInvestimento.length;
+        // Mesmo achado do lado despesa (30/07/2026): resgate de investimento
+        // agora é só mais uma opção do próprio select de Categoria, não um
+        // checkbox separado que passava despercebido.
+        const investDisp = item.pareceInvestimento;
         const avisoDup = item.possivelDuplicata
           ? `<div class="import-aviso-duplicata">⚠️ Já existe um lançamento parecido: <strong>${escapeHtml(item.possivelDuplicata.nome)}</strong> — ${brl(item.possivelDuplicata.valor)} em ${fmtData(item.possivelDuplicata.data)}. Confira antes de importar de novo.</div>`
           : '';
@@ -799,17 +804,14 @@
               </div>
             </div>
             ${avisoDup}
-            <label class="import-invest-toggle">
-              <input type="checkbox" data-invest-toggle ${!_reservasInvestimento.length ? 'disabled' : ''} ${investDisp ? 'checked' : ''}>
-              💰 Isto é um resgate de investimento
-            </label>
+            <div class="field-group"><label>Categoria</label>
+              <select data-f-categoria-entrada>
+                ${Object.entries(CATEGORIA_ENTRADA_LABEL).map(([v, l]) => `<option value="${v}" ${!investDisp && v === catSugerida ? 'selected' : ''}>${l}</option>`).join('')}
+                <option value="investimento_resgate" ${investDisp ? 'selected' : ''}>💰 Resgate de investimento</option>
+              </select>
+            </div>
             <div class="import-item-fields" data-fields-entrada style="${investDisp ? 'display:none' : ''}">
               <div class="field-group"><label>Descrição</label><input type="text" data-f-descricao value="${escapeHtml(item.descricao)}"></div>
-              <div class="field-group"><label>Categoria</label>
-                <select data-f-categoria-entrada>
-                  ${Object.entries(CATEGORIA_ENTRADA_LABEL).map(([v, l]) => `<option value="${v}" ${v === catSugerida ? 'selected' : ''}>${l}</option>`).join('')}
-                </select>
-              </div>
               <div class="field-group"><label>Valor</label><input type="number" step="0.01" data-f-valor value="${item.valor}"></div>
               <div class="field-group"><label>Data</label><input type="date" data-f-data value="${item.data}"></div>
             </div>
@@ -840,27 +842,40 @@
         item.querySelector('[data-fields-nova]').style.display = e.target.checked ? '' : 'none';
       }));
 
-      // Toggle "aplicação/resgate de investimento": esconde os campos normais
-      // (despesa ou Outra Entrada) e mostra o seletor de reserva.
-      el.querySelectorAll('[data-invest-toggle]').forEach(cb => cb.addEventListener('change', (e) => {
-        const item = e.target.closest('.import-item');
-        const camposNormais = item.querySelector('[data-fields-despesa], [data-fields-entrada]');
-        const camposVendaSemNota = item.querySelector('[data-fields-vendasemnota]');
-        const camposInvest = item.querySelector('[data-fields-aplicacao], [data-fields-resgate]');
-        if (camposNormais) camposNormais.style.display = e.target.checked ? 'none' : '';
-        if (camposVendaSemNota) camposVendaSemNota.classList.toggle('mostrar', !e.target.checked && camposVendaSemNota._mostrarPendente);
-        if (camposInvest) camposInvest.classList.toggle('mostrar', e.target.checked);
-      }));
+      // Categoria "Investimento" (texto livre, despesa): achado 30/07/2026 —
+      // digitar/escolher "Investimento" no próprio campo Categoria alterna
+      // pros campos de aplicação, no lugar do checkbox separado que passava
+      // despercebido. Só existe pra nova-despesa (outros usos de
+      // data-f-categoria, tipo confirmar-imposto com override, não têm os
+      // campos data-fields-aplicacao ao lado — o guard abaixo pula esses).
+      el.querySelectorAll('[data-f-categoria]').forEach(inp => {
+        const item = inp.closest('.import-item');
+        const camposDespesa = item.querySelector('[data-fields-despesa]');
+        const camposAplicacao = item.querySelector('[data-fields-aplicacao]');
+        if (!camposDespesa || !camposAplicacao) return;
+        const atualizar = () => {
+          const ehInvest = inp.value.trim().toLowerCase() === 'investimento';
+          camposDespesa.style.display = ehInvest ? 'none' : '';
+          camposAplicacao.classList.toggle('mostrar', ehInvest);
+        };
+        inp.addEventListener('input', atualizar);
+        atualizar();
+      });
 
-      // Categoria "venda_sem_nota": mostra forma de pagamento/parcela opcional.
+      // Categoria (select, Outra Entrada): "venda_sem_nota" mostra forma de
+      // pagamento/parcela; "investimento_resgate" (achado 30/07/2026, mesmo
+      // motivo do lado despesa) mostra o seletor de reserva no lugar dos
+      // campos normais de Outra Entrada.
       el.querySelectorAll('[data-f-categoria-entrada]').forEach(sel => {
         const item = sel.closest('.import-item');
+        const camposEntrada = item.querySelector('[data-fields-entrada]');
         const camposVendaSemNota = item.querySelector('[data-fields-vendasemnota]');
-        if (!camposVendaSemNota) return;
+        const camposResgate = item.querySelector('[data-fields-resgate]');
         const atualizar = () => {
-          const mostrar = sel.value === 'venda_sem_nota';
-          camposVendaSemNota._mostrarPendente = mostrar;
-          camposVendaSemNota.classList.toggle('mostrar', mostrar);
+          const ehInvest = sel.value === 'investimento_resgate';
+          if (camposEntrada) camposEntrada.style.display = ehInvest ? 'none' : '';
+          if (camposVendaSemNota) camposVendaSemNota.classList.toggle('mostrar', sel.value === 'venda_sem_nota');
+          if (camposResgate) camposResgate.classList.toggle('mostrar', ehInvest);
         };
         sel.addEventListener('change', atualizar);
         atualizar();
@@ -879,8 +894,7 @@
         const idx = Number(linha.dataset.idx);
         const item = _itensImportados[idx];
         const acao = linha.dataset.acao;
-        const investToggle = linha.querySelector('[data-invest-toggle]');
-        const ehInvestimento = !!(investToggle && investToggle.checked && !investToggle.disabled);
+        const ehInvestimento = _ehCategoriaInvestimento(linha);
         try {
           if (ehInvestimento && acao === 'nova-despesa') {
             await registrarAplicacaoOuResgate(linha, 'aporte');
@@ -944,6 +958,16 @@
       const { id: novaDespesaId } = await saveDespesaPJ(uidAtual(), { nome, valor, tipo: 'unica', data, categoria, ativo: true });
       const mesAno = data.slice(0, 7);
       await confirmarPagamentoDespesaPJ(uidAtual(), novaDespesaId, mesAno, data);
+    }
+
+    // Categoria "Investimento" (despesa, texto livre) ou "investimento_resgate"
+    // (Outra Entrada, select) — ver achado 30/07/2026 acima nos templates.
+    function _ehCategoriaInvestimento(linha) {
+      const catInput  = linha.querySelector('[data-f-categoria]');
+      const catSelect = linha.querySelector('[data-f-categoria-entrada]');
+      if (catSelect) return catSelect.value === 'investimento_resgate';
+      if (catInput)  return catInput.value.trim().toLowerCase() === 'investimento';
+      return false;
     }
 
     // Aplicação (débito/saída → 'aporte') ou resgate (crédito/entrada →
