@@ -7294,7 +7294,9 @@ Regras obrigatórias:
       }
       const json = await resp.json();
       const textoResposta = json?.content?.[0]?.text || '';
-      respostaIA = JSON.parse(textoResposta);
+      // Remove eventuais cercas de markdown (```json ... ```) que o modelo às vezes inclui.
+      const limpo = textoResposta.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+      respostaIA = JSON.parse(limpo);
     } catch (err) {
       const msgOriginal = err.message || '';
       if (/protegid[ao] por senha|password/i.test(msgOriginal)) {
