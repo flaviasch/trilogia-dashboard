@@ -86,6 +86,11 @@
     .import-item-fields .field-group { margin-bottom: 0; }
     .import-item-fields input, .import-item-fields select { font-size: 13px; padding: 8px 10px; }
     .import-vazio { text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; }
+    .import-aviso-duplicata { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.35); color: #d97706; font-size: 12px; padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; }
+    .import-invest-toggle { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin: 8px 0; }
+    .import-invest-toggle input { width: auto; }
+    .import-invest-fields { display: none; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .import-invest-fields.mostrar { display: grid; }
   </style>
 </head>
 <body>
@@ -280,6 +285,7 @@
       getDespesasPJ, saveDespesaPJ, deleteDespesaPJ,
       getImpostosPrevistos, marcarImpostoPago, deleteImpostoPrevisto,
       categorizarExtratoPJIA, confirmarRecebimento, saveOutraEntradaPJ,
+      getReservasPJ, registrarMovimentoReservaPJ,
       msgErro, setViewAsUid, uidAtual,
     } from './js/api.js?v=52';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -605,9 +611,29 @@
     // fatia). Sem lógica de fatura de cartão: despesasPJ não tem esse
     // conceito hoje, toda linha de débito é despesa avulsa.
     const modalImportarExtrato = document.getElementById('modalImportarExtrato');
-    const CATEGORIA_ENTRADA_LABEL = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outro' };
+    const CATEGORIA_ENTRADA_LABEL = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outro', venda_sem_nota: 'Recebimento de venda (nota fora do sistema)' };
+    const FORMA_PAG_LABEL = { pix: 'PIX', dinheiro: 'Dinheiro', debito: 'Débito', credito: 'Crédito', boleto: 'Boleto', outro: 'Outro' };
     let _arquivoImp = null;
     let _itensImportados = [];
+    let _reservasInvestimento = [];
+
+    // Seletor de reserva reaproveitado nas duas ações (aplicação/resgate) —
+    // se não houver reserva do tipo 'investimento', desabilita com aviso; se
+    // houver 1 só, usa direto sem select; se houver mais de 1, mostra select.
+    function _htmlSeletorReservaInvestimento(idx) {
+      if (!_reservasInvestimento.length) {
+        return `<p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">Você ainda não tem uma Reserva de Investimento cadastrada. <a href="reservas-pj.html" target="_blank">Crie uma em Reservas</a> antes de importar isso.</p>`;
+      }
+      if (_reservasInvestimento.length === 1) {
+        return `<input type="hidden" data-f-reserva-id value="${_reservasInvestimento[0].id}">`;
+      }
+      return `
+        <div class="field-group"><label>Qual reserva?</label>
+          <select data-f-reserva-id>
+            ${_reservasInvestimento.map(r => `<option value="${r.id}">${escapeHtml(r.nome)}</option>`).join('')}
+          </select>
+        </div>`;
+    }
 
     document.getElementById('btnImportarExtrato').addEventListener('click', () => {
       document.getElementById('impTexto').value = '';
@@ -649,8 +675,12 @@
           tipoConteudo = 'texto';
         }
 
-        const { itens } = await categorizarExtratoPJIA(uidAtual(), conteudo, tipoConteudo);
+        const [{ itens }, { reservas }] = await Promise.all([
+          categorizarExtratoPJIA(uidAtual(), conteudo, tipoConteudo),
+          getReservasPJ(uidAtual()),
+        ]);
         _itensImportados = itens;
+        _reservasInvestimento = (reservas || []).filter(r => r.tipo === 'investimento');
         renderRevisaoImportacao();
         document.getElementById('impPasso1').style.display = 'none';
         document.getElementById('impPasso2').style.display = '';
@@ -712,19 +742,33 @@
             </div>`;
         }
         if (item.tipo === 'despesa') {
+          const investDisp = item.pareceInvestimento && _reservasInvestimento.length;
+          const avisoDup = item.possivelDuplicata
+            ? `<div class="import-aviso-duplicata">⚠️ Já existe um lançamento parecido: <strong>${escapeHtml(item.possivelDuplicata.nome)}</strong> — ${brl(item.possivelDuplicata.valor)} em ${fmtData(item.possivelDuplicata.data)}. Confira antes de importar de novo.</div>`
+            : '';
           return `
             <div class="import-item" data-idx="${idx}" data-acao="nova-despesa">
               <div class="import-item-topo">
-                <input type="checkbox" data-inc checked>
+                <input type="checkbox" data-inc ${item.possivelDuplicata ? '' : 'checked'}>
                 <div class="import-item-desc">
                   <strong>Nova despesa</strong> — sem correspondência com nada cadastrado${incerto}
                 </div>
               </div>
-              <div class="import-item-fields">
+              ${avisoDup}
+              <label class="import-invest-toggle">
+                <input type="checkbox" data-invest-toggle ${!_reservasInvestimento.length ? 'disabled' : ''} ${investDisp ? 'checked' : ''}>
+                💰 Isto é uma aplicação em investimento (não é despesa)
+              </label>
+              <div class="import-item-fields" data-fields-despesa style="${investDisp ? 'display:none' : ''}">
                 <div class="field-group"><label>Nome</label><input type="text" data-f-nome value="${escapeHtml(item.descricao)}"></div>
                 <div class="field-group"><label>Categoria</label><input type="text" data-f-categoria value="${escapeHtml(item.categoriaSugerida || '')}"></div>
                 <div class="field-group"><label>Valor</label><input type="number" step="0.01" data-f-valor value="${item.valor}"></div>
                 <div class="field-group"><label>Data</label><input type="date" data-f-data value="${item.data}"></div>
+              </div>
+              <div class="import-invest-fields${investDisp ? ' mostrar' : ''}" data-fields-aplicacao>
+                ${_htmlSeletorReservaInvestimento(idx)}
+                <div class="field-group"><label>Valor</label><input type="number" step="0.01" data-f-invest-valor value="${item.valor}"></div>
+                <div class="field-group"><label>Data</label><input type="date" data-f-invest-data value="${item.data}"></div>
               </div>
             </div>`;
         }
@@ -742,15 +786,24 @@
         }
         // receita sem match — candidata a Outra Entrada
         const catSugerida = ['aporte_socio', 'reembolso', 'outro'].includes(item.categoriaEntradaSugerida) ? item.categoriaEntradaSugerida : 'outro';
+        const investDisp = item.pareceInvestimento && _reservasInvestimento.length;
+        const avisoDup = item.possivelDuplicata
+          ? `<div class="import-aviso-duplicata">⚠️ Já existe um lançamento parecido: <strong>${escapeHtml(item.possivelDuplicata.nome)}</strong> — ${brl(item.possivelDuplicata.valor)} em ${fmtData(item.possivelDuplicata.data)}. Confira antes de importar de novo.</div>`
+          : '';
         return `
           <div class="import-item" data-idx="${idx}" data-acao="outra-entrada">
             <div class="import-item-topo">
-              <input type="checkbox" data-inc checked>
+              <input type="checkbox" data-inc ${item.possivelDuplicata ? '' : 'checked'}>
               <div class="import-item-desc">
                 <strong>Entrada não identificada como venda</strong>${incerto}
               </div>
             </div>
-            <div class="import-item-fields">
+            ${avisoDup}
+            <label class="import-invest-toggle">
+              <input type="checkbox" data-invest-toggle ${!_reservasInvestimento.length ? 'disabled' : ''} ${investDisp ? 'checked' : ''}>
+              💰 Isto é um resgate de investimento
+            </label>
+            <div class="import-item-fields" data-fields-entrada style="${investDisp ? 'display:none' : ''}">
               <div class="field-group"><label>Descrição</label><input type="text" data-f-descricao value="${escapeHtml(item.descricao)}"></div>
               <div class="field-group"><label>Categoria</label>
                 <select data-f-categoria-entrada>
@@ -760,6 +813,24 @@
               <div class="field-group"><label>Valor</label><input type="number" step="0.01" data-f-valor value="${item.valor}"></div>
               <div class="field-group"><label>Data</label><input type="date" data-f-data value="${item.data}"></div>
             </div>
+            <div class="import-invest-fields" data-fields-vendasemnota>
+              <div class="field-group"><label>Forma de pagamento</label>
+                <select data-f-forma-pag>
+                  ${Object.entries(FORMA_PAG_LABEL).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field-group"><label>Parcela (opcional)</label>
+                <div style="display:flex;gap:6px">
+                  <input type="number" min="1" placeholder="atual" data-f-parcela-atual style="width:50%">
+                  <input type="number" min="1" placeholder="total" data-f-parcela-total style="width:50%">
+                </div>
+              </div>
+            </div>
+            <div class="import-invest-fields${investDisp ? ' mostrar' : ''}" data-fields-resgate>
+              ${_htmlSeletorReservaInvestimento(idx)}
+              <div class="field-group"><label>Valor</label><input type="number" step="0.01" data-f-invest-valor value="${item.valor}"></div>
+              <div class="field-group"><label>Data</label><input type="date" data-f-invest-data value="${item.data}"></div>
+            </div>
           </div>`;
       }).join('');
 
@@ -768,6 +839,32 @@
         const item = e.target.closest('.import-item');
         item.querySelector('[data-fields-nova]').style.display = e.target.checked ? '' : 'none';
       }));
+
+      // Toggle "aplicação/resgate de investimento": esconde os campos normais
+      // (despesa ou Outra Entrada) e mostra o seletor de reserva.
+      el.querySelectorAll('[data-invest-toggle]').forEach(cb => cb.addEventListener('change', (e) => {
+        const item = e.target.closest('.import-item');
+        const camposNormais = item.querySelector('[data-fields-despesa], [data-fields-entrada]');
+        const camposVendaSemNota = item.querySelector('[data-fields-vendasemnota]');
+        const camposInvest = item.querySelector('[data-fields-aplicacao], [data-fields-resgate]');
+        if (camposNormais) camposNormais.style.display = e.target.checked ? 'none' : '';
+        if (camposVendaSemNota) camposVendaSemNota.classList.toggle('mostrar', !e.target.checked && camposVendaSemNota._mostrarPendente);
+        if (camposInvest) camposInvest.classList.toggle('mostrar', e.target.checked);
+      }));
+
+      // Categoria "venda_sem_nota": mostra forma de pagamento/parcela opcional.
+      el.querySelectorAll('[data-f-categoria-entrada]').forEach(sel => {
+        const item = sel.closest('.import-item');
+        const camposVendaSemNota = item.querySelector('[data-fields-vendasemnota]');
+        if (!camposVendaSemNota) return;
+        const atualizar = () => {
+          const mostrar = sel.value === 'venda_sem_nota';
+          camposVendaSemNota._mostrarPendente = mostrar;
+          camposVendaSemNota.classList.toggle('mostrar', mostrar);
+        };
+        sel.addEventListener('change', atualizar);
+        atualizar();
+      });
     }
 
     document.getElementById('btnSalvarImp').addEventListener('click', async () => {
@@ -782,8 +879,14 @@
         const idx = Number(linha.dataset.idx);
         const item = _itensImportados[idx];
         const acao = linha.dataset.acao;
+        const investToggle = linha.querySelector('[data-invest-toggle]');
+        const ehInvestimento = !!(investToggle && investToggle.checked && !investToggle.disabled);
         try {
-          if (acao === 'confirmar-imposto') {
+          if (ehInvestimento && acao === 'nova-despesa') {
+            await registrarAplicacaoOuResgate(linha, 'aporte');
+          } else if (ehInvestimento && acao === 'outra-entrada') {
+            await registrarAplicacaoOuResgate(linha, 'retirada');
+          } else if (acao === 'confirmar-imposto') {
             const overriding = linha.querySelector('[data-override]')?.checked;
             if (overriding) {
               await criarDespesaAvulsaJaPaga(linha);
@@ -802,8 +905,16 @@
           } else if (acao === 'confirmar-recebimento') {
             await confirmarRecebimento(uidAtual(), item.matchRecebimento.notaId, item.matchRecebimento.id, item.data, item.matchRecebimento.valorBruto, item.matchRecebimento.taxa);
           } else if (acao === 'outra-entrada') {
-            const descricao = linha.querySelector('[data-f-descricao]').value.trim() || item.descricao;
             const categoria = linha.querySelector('[data-f-categoria-entrada]').value;
+            let descricao = linha.querySelector('[data-f-descricao]').value.trim() || item.descricao;
+            if (categoria === 'venda_sem_nota') {
+              const forma = linha.querySelector('[data-f-forma-pag]')?.value;
+              const pAtual = linha.querySelector('[data-f-parcela-atual]')?.value;
+              const pTotal = linha.querySelector('[data-f-parcela-total]')?.value;
+              const formaTxt = FORMA_PAG_LABEL[forma] || '';
+              const parcelaTxt = (pAtual && pTotal) ? ` — parcela ${pAtual}/${pTotal}` : '';
+              descricao = `${descricao}${formaTxt ? ' — ' + formaTxt : ''}${parcelaTxt}`;
+            }
             const valor = parseFloat(linha.querySelector('[data-f-valor]').value);
             const data = linha.querySelector('[data-f-data]').value;
             await saveOutraEntradaPJ(uidAtual(), { descricao, valor, data, categoria });
@@ -833,6 +944,19 @@
       const { id: novaDespesaId } = await saveDespesaPJ(uidAtual(), { nome, valor, tipo: 'unica', data, categoria, ativo: true });
       const mesAno = data.slice(0, 7);
       await confirmarPagamentoDespesaPJ(uidAtual(), novaDespesaId, mesAno, data);
+    }
+
+    // Aplicação (débito/saída → 'aporte') ou resgate (crédito/entrada →
+    // 'retirada') de investimento, achado 30/07/2026: em vez de virar despesa
+    // ou Outra Entrada genérica, grava direto como movimento da Reserva de
+    // Investimento — não distorce a DRE (que soma despesasPJ como despesa
+    // operacional) nem fica sem atualizar o saldo da reserva.
+    async function registrarAplicacaoOuResgate(linha, tipoMov) {
+      const reservaId = linha.querySelector('[data-f-reserva-id]')?.value;
+      if (!reservaId) throw new Error('Selecione a Reserva de Investimento.');
+      const valor = parseFloat(linha.querySelector('[data-f-invest-valor]').value);
+      const data = linha.querySelector('[data-f-invest-data]').value;
+      await registrarMovimentoReservaPJ(uidAtual(), reservaId, tipoMov, valor, data);
     }
   </script>
 

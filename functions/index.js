@@ -6146,7 +6146,13 @@ exports.getContasPagarPendentesPJ = onCall({}, async (request) => {
 // é fechada nessas duas + "outro" — NÃO existe categoria pra receita não
 // declarada: isso é sonegação fiscal (Lei 8.137/90), fora de questão como
 // funcionalidade suportada por este sistema.
-const CATEGORIA_OUTRA_ENTRADA = ['aporte_socio', 'reembolso', 'outro'];
+// "venda_sem_nota" (30/07/2026, achado de Flávia na importação de extrato):
+// venda ANTIGA, cuja nota fiscal já foi emitida fora deste sistema (a venda é
+// anterior ao uso do dashboard) — não é receita não declarada, é só recebimento
+// que nunca teve `notaEmitida` cadastrada aqui. Não entra na Receita Bruta da
+// DRE (que só soma `notasEmitidas`), entra certo no Fluxo de Caixa (mesmo
+// caminho de `outrasEntradasPJ` já usado pelas outras 3 categorias).
+const CATEGORIA_OUTRA_ENTRADA = ['aporte_socio', 'reembolso', 'outro', 'venda_sem_nota'];
 
 exports.getOutrasEntradasPJ = onCall({}, async (request) => {
   const { uid, mes, ano } = request.data;
@@ -6602,6 +6608,28 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
     pagamentosPorChave[`${d.ref.parent.parent.id}_${d.id}`] = d.data();
   });
 
+  // Movimentos de reservasPJ (aporte/retirada) — achado 30/07/2026: dinheiro
+  // que sai/entra de verdade na conta corrente pra aplicação/resgate de
+  // investimento (inclusive o vindo da importação de extrato com IA) não
+  // aparecia em lugar nenhum do Fluxo de Caixa, porque `reservasPJ/movimentos`
+  // nunca era lido aqui. `ajuste` fica de fora de propósito — é reconciliação
+  // de saldo (rendimento/IR), não dinheiro mudando de mão. Sem
+  // `collectionGroup` (mesma restrição de índice já mapeada na fatia de
+  // LGPD): busca as reservas do uid primeiro, depois a subcoleção de cada uma.
+  const reservasSnapFluxo = await db.collection('reservasPJ').where('uid', '==', uid).get();
+  const movimentosReservaSnaps = await Promise.all(
+    reservasSnapFluxo.docs.map(d => d.ref.collection('movimentos').get())
+  );
+  const movimentosReserva = [];
+  reservasSnapFluxo.docs.forEach((d, i) => {
+    const nomeReserva = d.data().nome;
+    movimentosReservaSnaps[i].docs.forEach(m => {
+      const mov = m.data();
+      if (mov.tipo !== 'aporte' && mov.tipo !== 'retirada') return;
+      movimentosReserva.push({ data: mov.data, tipo: mov.tipo, valor: mov.valor, nomeReserva });
+    });
+  });
+
   /**
    * Monta a lista de movimentos de um mês específico — extraído numa função
    * porque agora é chamado tanto pro mês pedido quanto pra cada mês
@@ -6630,6 +6658,15 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
         data: o.data, tipo: 'entrada',
         descricao: `${CATEGORIA_LABEL_ENTRADA[o.categoria] || 'Outra entrada'}: ${o.descricao}`,
         valor: o.valor, confirmado: true,
+      });
+    });
+
+    movimentosReserva.forEach(m => {
+      if (!m.data || !m.data.startsWith(prefixoX)) return;
+      movs.push({
+        data: m.data, tipo: m.tipo === 'aporte' ? 'saida' : 'entrada',
+        descricao: `${m.tipo === 'aporte' ? 'Aplicação em investimento' : 'Resgate de investimento'} — ${m.nomeReserva}`,
+        valor: m.valor, confirmado: true,
       });
     });
 
@@ -6932,7 +6969,7 @@ exports.registrarMovimentoReservaPJ = onCall({}, async (request) => {
   const { ref, reserva } = await _reservaDoUid(uid, reservaId);
   const saldoAtual = reserva.saldoAtual || 0;
   if (tipoMov === 'retirada' && valor > saldoAtual) {
-    throw new HttpsError('failed-precondition', `Saldo insuficiente: a reserva tem ${saldoAtual.toFixed(2)} e a retirada é de ${valor.toFixed(2)}.`);
+    throw new HttpsError('failed-precondition', `Saldo insuficiente: a reserva tem ${saldoAtual.toFixed(2)} e a retirada é de ${valor.toFixed(2)}. Se a reserva rendeu mais do que isso, use "Ajustar saldo" antes de registrar a retirada.`);
   }
   const novoSaldo = tipoMov === 'aporte' ? saldoAtual + valor : saldoAtual - valor;
 
@@ -6943,6 +6980,38 @@ exports.registrarMovimentoReservaPJ = onCall({}, async (request) => {
     });
   });
   return { ok: true, saldoAtual: novoSaldo };
+});
+
+/**
+ * Ajuste direto de saldo (30/07/2026, achado de Flávia): a reserva é um
+ * livro-caixa puro (aporte soma, retirada subtrai) — não modela rendimento
+ * nem IR retido na fonte. Em vez de o sistema tentar calcular isso, a
+ * usuária reconcilia manualmente vendo o saldo real no extrato da corretora
+ * (mesma filosofia dos tributos configuráveis: campo que ela mesma informa,
+ * não motor de cálculo automático). Grava a diferença como `movimento` tipo
+ * `ajuste` (não é dinheiro saindo/entrando na conta — por isso `ajuste`
+ * fica de fora do Fluxo de Caixa, diferente de `aporte`/`retirada`). Sem a
+ * validação de saldo mínimo da retirada normal: é correção, não saída real.
+ */
+exports.ajustarSaldoReservaPJ = onCall({}, async (request) => {
+  const { uid, reservaId, novoSaldo, data } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!reservaId) throw new HttpsError('invalid-argument', 'reservaId é obrigatório.');
+  if (typeof novoSaldo !== 'number' || novoSaldo < 0) throw new HttpsError('invalid-argument', 'novoSaldo deve ser um número não-negativo.');
+  if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new HttpsError('invalid-argument', 'data deve estar no formato YYYY-MM-DD.');
+
+  const { ref, reserva } = await _reservaDoUid(uid, reservaId);
+  const saldoAnterior = reserva.saldoAtual || 0;
+  const diferenca = Math.round((novoSaldo - saldoAnterior) * 100) / 100;
+
+  await db.runTransaction(async (tx) => {
+    tx.update(ref, { saldoAtual: novoSaldo });
+    tx.set(ref.collection('movimentos').doc(), {
+      uid, tipo: 'ajuste', valor: diferenca, saldoAnterior, saldoNovo: novoSaldo, data,
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+  return { ok: true, saldoAtual: novoSaldo, diferenca };
 });
 
 exports.excluirReservaPJ = onCall({}, async (request) => {
@@ -7116,12 +7185,29 @@ exports.excluirContaPJ = onCall({}, async (request) => {
  * aceitar coincidência falsa. Cada imposto/despesa/recebimento só pode ser
  * sugerido uma vez por importação (evita duas linhas parecidas "roubarem" o
  * mesmo candidato).
+ *
+ * (30/07/2026, achados de Flávia testando em produção) Ganhou também:
+ * - `pareceInvestimento`: heurística por palavra-chave no texto da linha
+ *   (aplicação, resgate, CDB, tesouro, LCI/LCA/RDB, fundo de investimento) —
+ *   sinaliza pro frontend oferecer a ação "Aplicação"/"Resgate" (grava direto
+ *   num `movimento` de `reservasPJ`, tipo `investimento`) em vez de despesa/
+ *   entrada comum. Puramente informativo: quem decide é a usuária na revisão.
+ * - `possivelDuplicata`: pra linha de despesa/receita SEM nenhum match acima
+ *   (ou seja, que viraria lançamento novo), checa se já existe algo muito
+ *   parecido (mesma data, valor dentro de R$1/1% — tolerância mais apertada
+ *   que o matching normal, porque aqui o objetivo é achar "a mesma transação
+ *   de novo", não "uma parecida") lançado nos últimos 60 dias, em
+ *   despesasPJ/outrasEntradasPJ. Não bloqueia — é aviso, decisão continua
+ *   sendo da usuária (achado: reimportar o mesmo extrato não tinha nenhuma
+ *   proteção contra duplicar).
  */
 async function _sugerirMatchesExtratoPJ(uid, itensBrutos) {
   const DIAS_TOLERANCIA = 10;
   const MS_DIA = 86_400_000;
   const dentroDaJanela = (dataA, dataB) => Math.abs((new Date(dataA) - new Date(dataB)) / MS_DIA) <= DIAS_TOLERANCIA;
   const dentroDoValor = (valorCadastrado, valorLinha) => Math.abs(valorCadastrado - valorLinha) <= Math.max(2, valorCadastrado * 0.05);
+
+  const REGEX_INVESTIMENTO = /aplica[cç][ãa]o|resgate|\bcdb\b|tesouro( direto)?|\blci\b|\blca\b|\brdb\b|fundo de investimento|renda fixa|\binvest/i;
 
   // ── Candidatos de imposto: previstos, ainda não pagos, com vencimento real
   // (referenciaTrimestral nunca tem ação de pagamento própria — é só a linha
@@ -7136,8 +7222,10 @@ async function _sugerirMatchesExtratoPJ(uid, itensBrutos) {
   // ── Candidatos de despesa: ocorrências ainda não confirmadas/canceladas ──
   const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
   const pagamentosSnap = await db.collectionGroup('pagamentos').where('uid', '==', uid).get();
-  const pagamentosPorChave = new Set();
-  pagamentosSnap.docs.forEach(d => pagamentosPorChave.add(`${d.ref.parent.parent.id}_${d.id}`));
+  // Map (não Set) pra guardar a data do pagamento também — usado no índice de
+  // duplicata abaixo, além do `.has()` já usado no matching de despesa.
+  const pagamentosPorChave = new Map();
+  pagamentosSnap.docs.forEach(d => pagamentosPorChave.set(`${d.ref.parent.parent.id}_${d.id}`, d.data()));
 
   const candidatosDespesa = [];
   despesasSnap.docs.forEach(dSnap => {
@@ -7173,11 +7261,57 @@ async function _sugerirMatchesExtratoPJ(uid, itensBrutos) {
     });
   });
 
+  // ── Índice de "lançamentos recentes" pra checagem de duplicata (30/07/2026) ──
+  // Junta: despesas 'unica' já criadas, ocorrências de despesa fixa/parcelada
+  // já com pagamento confirmado (join despesasSnap × pagamentosSnap), e
+  // outrasEntradasPJ — os 3 tipos de registro que uma reimportação do mesmo
+  // extrato recriaria como "novo" se não fosse checado aqui.
+  const JANELA_DUPLICATA_DIAS = 60;
+  const hojeMs = Date.now();
+  const dentroDaJanelaDuplicata = (dataStr) => {
+    if (!dataStr) return false;
+    return (hojeMs - new Date(dataStr).getTime()) / MS_DIA <= JANELA_DUPLICATA_DIAS;
+  };
+  const despesasPorId = new Map();
+  despesasSnap.docs.forEach(d => despesasPorId.set(d.id, d.data()));
+
+  const lancamentosRecentes = [];
+  despesasSnap.docs.forEach(d => {
+    const desp = d.data();
+    if (desp.tipo === 'unica' && desp.data && dentroDaJanelaDuplicata(desp.data)) {
+      lancamentosRecentes.push({ nome: desp.nome, valor: desp.valor, data: desp.data });
+    }
+  });
+  pagamentosSnap.docs.forEach(d => {
+    const pag = d.data();
+    if (pag.cancelado || !pag.dataPagamento) return;
+    const despesaId = d.ref.parent.parent.id;
+    const desp = despesasPorId.get(despesaId);
+    if (!desp || desp.tipo === 'unica') return; // 'unica' já coberto acima pela própria data
+    if (!dentroDaJanelaDuplicata(pag.dataPagamento)) return;
+    lancamentosRecentes.push({ nome: desp.nome, valor: desp.valor, data: pag.dataPagamento });
+  });
+  const outrasSnap = await db.collection('outrasEntradasPJ').where('uid', '==', uid).get();
+  outrasSnap.docs.forEach(d => {
+    const o = d.data();
+    if (o.data && dentroDaJanelaDuplicata(o.data)) {
+      lancamentosRecentes.push({ nome: o.descricao, valor: o.valor, data: o.data });
+    }
+  });
+
+  const dentroDoValorDuplicata = (a, b) => Math.abs(a - b) <= Math.max(1, a * 0.01);
+  function _checarDuplicata(item) {
+    const achado = lancamentosRecentes.find(l => l.data === item.data && dentroDoValorDuplicata(l.valor, item.valor));
+    return achado ? { nome: achado.nome, valor: achado.valor, data: achado.data } : null;
+  }
+
   const impostoUsado = new Set();
   const despesaUsada = new Set();
   const recebimentoUsado = new Set();
 
   return itensBrutos.map(item => {
+    const pareceInvestimento = REGEX_INVESTIMENTO.test(item.descricao || '');
+
     if (item.tipo === 'despesa') {
       // Imposto primeiro — é o match mais específico (coleção própria, sem
       // ambiguidade com despesa comum) e evita a duplicidade dupla descrita
@@ -7192,7 +7326,7 @@ async function _sugerirMatchesExtratoPJ(uid, itensBrutos) {
       }
       if (melhorImp) {
         impostoUsado.add(melhorImp.id);
-        return { ...item, matchImposto: { id: melhorImp.id, tributoNome: melhorImp.tributoNome, vencimento: melhorImp.vencimento }, matchDespesa: null, matchRecebimento: null };
+        return { ...item, matchImposto: { id: melhorImp.id, tributoNome: melhorImp.tributoNome, vencimento: melhorImp.vencimento }, matchDespesa: null, matchRecebimento: null, pareceInvestimento, possivelDuplicata: null };
       }
 
       let melhor = null, melhorDiff = Infinity;
@@ -7206,9 +7340,9 @@ async function _sugerirMatchesExtratoPJ(uid, itensBrutos) {
       }
       if (melhor) {
         despesaUsada.add(`${melhor.despesaId}_${melhor.mesAno}`);
-        return { ...item, matchImposto: null, matchDespesa: { despesaId: melhor.despesaId, mesAno: melhor.mesAno, nome: melhor.nome, dataVenc: melhor.dataVenc }, matchRecebimento: null };
+        return { ...item, matchImposto: null, matchDespesa: { despesaId: melhor.despesaId, mesAno: melhor.mesAno, nome: melhor.nome, dataVenc: melhor.dataVenc }, matchRecebimento: null, pareceInvestimento, possivelDuplicata: null };
       }
-      return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: null };
+      return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: null, pareceInvestimento, possivelDuplicata: _checarDuplicata(item) };
     }
     if (item.tipo === 'receita') {
       let melhor = null, melhorDiff = Infinity;
@@ -7222,11 +7356,11 @@ async function _sugerirMatchesExtratoPJ(uid, itensBrutos) {
       }
       if (melhor) {
         recebimentoUsado.add(`${melhor.notaId}_${melhor.id}`);
-        return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: { notaId: melhor.notaId, id: melhor.id, valorPrevisto: melhor.valorLiquido, valorBruto: melhor.valorBruto, taxa: melhor.taxa } };
+        return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: { notaId: melhor.notaId, id: melhor.id, valorPrevisto: melhor.valorLiquido, valorBruto: melhor.valorBruto, taxa: melhor.taxa }, pareceInvestimento, possivelDuplicata: null };
       }
-      return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: null };
+      return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: null, pareceInvestimento, possivelDuplicata: _checarDuplicata(item) };
     }
-    return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: null };
+    return { ...item, matchImposto: null, matchDespesa: null, matchRecebimento: null, pareceInvestimento, possivelDuplicata: null };
   });
 }
 

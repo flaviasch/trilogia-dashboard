@@ -212,13 +212,36 @@
     </div>
   </div>
 
+  <!-- Modal: Ajustar saldo (rendimento/IR reconciliado com o extrato real) -->
+  <div class="modal-overlay hidden" id="modalAjusteSaldo">
+    <div class="modal-card">
+      <h3>Ajustar saldo</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin:-8px 0 14px">
+        Use isso pra reconciliar com o saldo real da corretora/banco (que já vem líquido de rendimento e IR) — não precisa calcular nada, só digitar o valor que você vê lá.
+      </p>
+      <input type="hidden" id="ajusteReservaId">
+      <div class="field-group">
+        <label for="ajusteSaldoAtual">Saldo real hoje (R$)</label>
+        <input type="number" id="ajusteSaldoAtual" min="0" step="0.01" placeholder="0">
+      </div>
+      <div class="field-group">
+        <label for="ajusteData">Data</label>
+        <input type="date" id="ajusteData">
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarAjuste">Cancelar</button>
+        <button class="btn-save" id="btnSalvarAjuste">Ajustar</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import {
       getContaPJ, getIndicadoresReservasPJ, salvarReservaMinimaCaixaPJ,
-      criarReservaPJ, getReservasPJ, registrarMovimentoReservaPJ, excluirReservaPJ,
+      criarReservaPJ, getReservasPJ, registrarMovimentoReservaPJ, ajustarSaldoReservaPJ, excluirReservaPJ,
       msgErro, setViewAsUid, uidAtual,
-    } from './js/api.js?v=52';
+    } from './js/api.js?v=53';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { toast, setLoading } from './js/ui.js';
 
@@ -415,12 +438,14 @@
           <div class="reserva-acoes">
             <button class="btn-acao-secundario" data-aportar="${r.id}">+ Aportar</button>
             <button class="btn-acao-fraco" data-retirar="${r.id}">Retirar</button>
+            <button class="btn-acao-fraco" data-ajustar="${r.id}" data-saldo-atual="${r.saldoAtual}">Ajustar saldo</button>
             <button class="btn-acao-fraco" data-encerrar="${r.id}">Encerrar</button>
           </div>
         </div>`).join('');
 
       lista.querySelectorAll('[data-aportar]').forEach(b => b.addEventListener('click', () => abrirModalMovimento(b.dataset.aportar, 'aporte')));
       lista.querySelectorAll('[data-retirar]').forEach(b => b.addEventListener('click', () => abrirModalMovimento(b.dataset.retirar, 'retirada')));
+      lista.querySelectorAll('[data-ajustar]').forEach(b => b.addEventListener('click', () => abrirModalAjuste(b.dataset.ajustar, b.dataset.saldoAtual)));
       lista.querySelectorAll('[data-encerrar]').forEach(b => b.addEventListener('click', async () => {
         if (!confirm('Encerrar esta reserva? Ela sai da lista de reservas ativas.')) return;
         try {
@@ -478,6 +503,36 @@
         toast(msgErro(err), 'error');
       } finally {
         setLoading(btn, false, 'Registrar');
+      }
+    });
+
+    // ── Modal: Ajustar saldo (rendimento/IR reconciliado com o extrato real) ──
+    const modalAjusteSaldo = document.getElementById('modalAjusteSaldo');
+    function abrirModalAjuste(reservaId, saldoAtual) {
+      document.getElementById('ajusteReservaId').value = reservaId;
+      document.getElementById('ajusteSaldoAtual').value = Number(saldoAtual || 0).toFixed(2);
+      document.getElementById('ajusteData').value = new Date().toISOString().slice(0, 10);
+      modalAjusteSaldo.classList.remove('hidden');
+    }
+    document.getElementById('btnCancelarAjuste').addEventListener('click', () => modalAjusteSaldo.classList.add('hidden'));
+    document.getElementById('btnSalvarAjuste').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarAjuste');
+      const reservaId = document.getElementById('ajusteReservaId').value;
+      const novoSaldo = parseFloat(document.getElementById('ajusteSaldoAtual').value);
+      const data = document.getElementById('ajusteData').value;
+      if (!(novoSaldo >= 0)) { toast('Informe um valor válido.', 'warning'); return; }
+      if (!data) { toast('Informe a data.', 'warning'); return; }
+      setLoading(btn, true, 'Ajustando…');
+      try {
+        const { diferenca } = await ajustarSaldoReservaPJ(uidAtual(), reservaId, novoSaldo, data);
+        modalAjusteSaldo.classList.add('hidden');
+        const sinal = diferenca > 0 ? '+' : '';
+        toast(`Saldo ajustado (${sinal}${brl(diferenca)}).`);
+        await renderReservas();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false, 'Ajustar');
       }
     });
   </script>

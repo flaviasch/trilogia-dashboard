@@ -773,6 +773,9 @@ export async function getReservasPJ(uid) {
 export async function registrarMovimentoReservaPJ(uid, reservaId, tipoMov, valor, data) {
   return callPJ('registrarMovimentoReservaPJ')({ uid, reservaId, tipoMov, valor, data });
 }
+export async function ajustarSaldoReservaPJ(uid, reservaId, novoSaldo, data) {
+  return callPJ('ajustarSaldoReservaPJ')({ uid, reservaId, novoSaldo, data });
+}
 export async function excluirReservaPJ(uid, reservaId) {
   return callPJ('excluirReservaPJ')({ uid, reservaId });
 }
