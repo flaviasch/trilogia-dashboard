@@ -6392,9 +6392,38 @@ exports.salvarOnboardingPJ = onCall({}, async (request) => {
     nomeEmpresa: nomeEmpresa.trim().slice(0, 150),
     cnpj:        cnpj ? String(cnpj).replace(/\D/g, '') : null,
     regime,
-    ...(jaExiste ? {} : { ativo: true, criadoEm: admin.firestore.FieldValue.serverTimestamp() }),
+    ...(jaExiste ? {} : {
+      ativo: true,
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      // Consentimento LGPD registrado no mesmo momento da criação — o
+      // formulário de onboarding-pj.html exige o checkbox de ciência antes de
+      // habilitar o botão "Continuar", então concluir o onboarding já
+      // significa aceite (29/07/2026, ver .build-scope.md). Contas já
+      // existentes (onboarding feito antes desta fatia) recebem o consentimento
+      // separadamente via aceitarLGPDPJ, no primeiro login após o deploy.
+      lgpdAceitePJ: true,
+      lgpdAceiteDataPJ: admin.firestore.FieldValue.serverTimestamp(),
+    }),
     atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
+  return { ok: true };
+});
+
+/**
+ * Registra o consentimento LGPD de uma conta PJ que já existia antes desta
+ * fatia (29/07/2026) — só é chamada quando `contasPJ` já existe (login-pj.html
+ * mostra o modal de consentimento só nesse caso; onboarding novo já grava o
+ * aceite dentro de salvarOnboardingPJ, sem precisar desta function).
+ */
+exports.aceitarLGPDPJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const ref  = db.collection('contasPJ').doc(uid);
+  if (!(await ref.get()).exists) throw new HttpsError('not-found', 'Conta PJ não encontrada.');
+  await ref.update({
+    lgpdAceitePJ: true,
+    lgpdAceiteDataPJ: admin.firestore.FieldValue.serverTimestamp(),
+  });
   return { ok: true };
 });
 
@@ -6922,6 +6951,145 @@ exports.excluirReservaPJ = onCall({}, async (request) => {
   if (!reservaId) throw new HttpsError('invalid-argument', 'reservaId é obrigatório.');
   const { ref } = await _reservaDoUid(uid, reservaId);
   await ref.update({ ativa: false });
+  return { ok: true };
+});
+
+// ─── LGPD — PJ (29/07/2026, Fase Venda) ───────────────────────────────────────
+// Mesmo princípio do lado PF (aceitarLGPD/exportarMeusDados/deletarMentorada):
+// consentimento, portabilidade e exclusão. Uma conta PJ avulsa pode não ter
+// doc em `mentoradas` — nenhuma function abaixo depende dessa coleção.
+
+/**
+ * Portabilidade de dados (LGPD Art. 18, inciso V) — versão PJ. Agrega todas
+ * as coleções/subcoleções da empresa num JSON só. Rate limit igual ao PF
+ * (3/hora) — dado de negócio, mas ainda é dado pessoal da dona da empresa.
+ */
+exports.exportarMeusDadosPJ = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'exportarMeusDadosPJ', 3, 3_600_000); // 3/hora
+
+  const contaSnap = await db.collection('contasPJ').doc(uid).get();
+  if (!contaSnap.exists) throw new HttpsError('not-found', 'Conta PJ não encontrada.');
+  const conta = contaSnap.data();
+
+  const [tributosSnap, notasSnap, impostosSnap, despesasSnap, outrasSnap, reservasSnap] = await Promise.all([
+    db.collection('tributosConfig').where('uid', '==', uid).get(),
+    db.collection('notasEmitidas').where('uid', '==', uid).get(),
+    db.collection('impostosPrevistos').where('uid', '==', uid).get(),
+    db.collection('despesasPJ').where('uid', '==', uid).get(),
+    db.collection('outrasEntradasPJ').where('uid', '==', uid).get(),
+    db.collection('reservasPJ').where('uid', '==', uid).get(), // inclui inativas — dado dela também
+  ]);
+
+  const notasEmitidas = await Promise.all(notasSnap.docs.map(async (d) => {
+    const recSnap = await d.ref.collection('recebimentos').get();
+    return { id: d.id, ...d.data(), recebimentos: recSnap.docs.map(r => ({ id: r.id, ...r.data() })) };
+  }));
+
+  const despesasPJ = await Promise.all(despesasSnap.docs.map(async (d) => {
+    const pagSnap = await d.ref.collection('pagamentos').get();
+    return { id: d.id, ...d.data(), pagamentos: pagSnap.docs.map(p => ({ id: p.id, ...p.data() })) };
+  }));
+
+  const reservasPJ = await Promise.all(reservasSnap.docs.map(async (d) => {
+    const movSnap = await d.ref.collection('movimentos').get();
+    return { id: d.id, ...d.data(), movimentos: movSnap.docs.map(m => ({ id: m.id, ...m.data() })) };
+  }));
+
+  return {
+    conta:             { id: uid, ...conta },
+    tributosConfig:    tributosSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+    notasEmitidas,
+    impostosPrevistos: impostosSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+    despesasPJ,
+    outrasEntradasPJ:  outrasSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+    reservasPJ,
+    exportadoEm: new Date().toISOString(),
+  };
+});
+
+/** Apaga em lotes de até 450 (limite do Firestore é 500 por batch). */
+async function _deleteDocsBatched(refs) {
+  for (let i = 0; i < refs.length; i += 450) {
+    const chunk = refs.slice(i, i + 450);
+    const batch = db.batch();
+    chunk.forEach(ref => batch.delete(ref));
+    await batch.commit();
+  }
+}
+
+/**
+ * Exclusão de conta PJ (LGPD — direito de apagamento). Só admin, mesmo
+ * padrão de deletarMentorada (PF). NÃO apaga o Firebase Auth — é
+ * compartilhado com o lado PF, e a mesma pessoa pode ter outro produto ativo
+ * na mesma conta; quem decide desativar o login por completo é o fluxo de
+ * exclusão do PF, não este.
+ */
+exports.excluirContaPJ = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { uid } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+
+  const contaRef  = db.collection('contasPJ').doc(uid);
+  const contaSnap = await contaRef.get();
+  const contaData = contaSnap.exists ? contaSnap.data() : {};
+
+  let email = null;
+  try { email = (await admin.auth().getUser(uid)).email || null; } catch (_) { /* segue sem e-mail no log */ }
+
+  // notasEmitidas + recebimentos (subcoleção não é apagada junto do pai)
+  const notasSnap = await db.collection('notasEmitidas').where('uid', '==', uid).get();
+  for (const doc of notasSnap.docs) {
+    const recSnap = await doc.ref.collection('recebimentos').get();
+    await _deleteDocsBatched(recSnap.docs.map(d => d.ref));
+  }
+  await _deleteDocsBatched(notasSnap.docs.map(d => d.ref));
+
+  // despesasPJ + pagamentos (achado no mapeamento: deleteDespesaPJ normal
+  // NÃO limpa essa subcoleção — aqui precisa ser feito manualmente)
+  const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).get();
+  for (const doc of despesasSnap.docs) {
+    const pagSnap = await doc.ref.collection('pagamentos').get();
+    await _deleteDocsBatched(pagSnap.docs.map(d => d.ref));
+  }
+  await _deleteDocsBatched(despesasSnap.docs.map(d => d.ref));
+
+  // reservasPJ (TODAS, inclusive as soft-deleted com ativa:false) + movimentos
+  const reservasSnap = await db.collection('reservasPJ').where('uid', '==', uid).get();
+  for (const doc of reservasSnap.docs) {
+    const movSnap = await doc.ref.collection('movimentos').get();
+    await _deleteDocsBatched(movSnap.docs.map(d => d.ref));
+  }
+  await _deleteDocsBatched(reservasSnap.docs.map(d => d.ref));
+
+  // Coleções raiz simples, sem subcoleção
+  for (const nomeColecao of ['tributosConfig', 'impostosPrevistos', 'outrasEntradasPJ']) {
+    const snap = await db.collection(nomeColecao).where('uid', '==', uid).get();
+    await _deleteDocsBatched(snap.docs.map(d => d.ref));
+  }
+
+  // Audit log LGPD — mesmo TTL de 5 anos usado em mentoradas_deletadas/_lgpd_log
+  const expireAt = new Date();
+  expireAt.setFullYear(expireAt.getFullYear() + 5);
+  try {
+    await db.collection('contasPJ_deletadas').doc(uid).set({
+      nomeEmpresa: contaData.nomeEmpresa || null,
+      cnpj:        contaData.cnpj        || null,
+      regime:      contaData.regime      || null,
+      email,
+      deletadoEm:  admin.firestore.FieldValue.serverTimestamp(),
+      deletadoPor: request.auth?.uid     || 'admin',
+      expireAt,
+    });
+  } catch (err) {
+    console.warn(`[excluirContaPJ] Falha ao criar audit log para ${uid}:`, err.message);
+  }
+
+  // Documento principal por último
+  if (contaSnap.exists) await contaRef.delete();
+
   return { ok: true };
 });
 

@@ -75,6 +75,10 @@
     }
     .btn-salvar:hover { background: var(--gold-light); }
     .btn-salvar:disabled { opacity: 0.6; cursor: not-allowed; }
+    .lgpd-group { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0 4px; }
+    .lgpd-group input[type="checkbox"] { width: auto; margin-top: 2px; flex-shrink: 0; accent-color: var(--gold); }
+    .lgpd-group label { font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.5; font-weight: 400; cursor: pointer; }
+    .lgpd-group a { color: var(--gold); }
     .error-msg {
       background: rgba(248,113,113,0.1);
       border: 1px solid rgba(248,113,113,0.3);
@@ -116,7 +120,12 @@
       <p class="regime-ajuda" id="regimeAjuda"></p>
     </div>
 
-    <button class="btn-salvar" id="btnSalvar">Continuar</button>
+    <div class="lgpd-group">
+      <input type="checkbox" id="chkLGPD" />
+      <label for="chkLGPD">Li e estou ciente de como os dados da minha empresa são tratados — ver <a href="privacidade.html" target="_blank">política de privacidade</a>.</label>
+    </div>
+
+    <button class="btn-salvar" id="btnSalvar" disabled>Continuar</button>
   </div>
 
   <script type="module">
@@ -143,12 +152,15 @@
 
     const btnSalvar = document.getElementById('btnSalvar');
     const errorMsg  = document.getElementById('errorMsg');
+    const chkLGPD   = document.getElementById('chkLGPD');
     function showError(msg) { errorMsg.textContent = msg; errorMsg.classList.add('visible'); }
     function hideError() { errorMsg.classList.remove('visible'); }
+    chkLGPD.addEventListener('change', () => { btnSalvar.disabled = !chkLGPD.checked; });
 
     btnSalvar.addEventListener('click', async () => {
       hideError();
       if (!currentUser) return;
+      if (!chkLGPD.checked) { showError('Marque a ciência sobre o tratamento de dados para continuar.'); return; }
 
       const nomeEmpresa = document.getElementById('nomeEmpresa').value.trim();
       const cnpj        = document.getElementById('cnpj').value.trim();

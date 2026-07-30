@@ -174,6 +174,20 @@
       <p class="faq-a">Aportar soma ao saldo da reserva; Retirar subtrai (não deixa o saldo ficar negativo — se você tentar retirar mais do que tem guardado, o sistema bloqueia e avisa). Encerrar tira a reserva da lista de ativas, mas não apaga o histórico dela.</p>
     </div>
 
+    <div class="suporte-card" id="cardLGPD">
+      <div class="suporte-titulo">Seus dados (LGPD)</div>
+      <p style="font-size:13px;color:rgba(255,255,255,0.55);margin:8px 0 16px;line-height:1.6;">
+        Pela LGPD você tem direito a receber uma cópia de todos os dados da sua empresa
+        armazenados no Dashboard PJ — notas, recebimentos, impostos, contas a pagar e reservas.
+        Pra pedir a exclusão da conta, fale com a Flávia (WhatsApp ou e-mail abaixo).
+      </p>
+      <button id="btnExportarDadosPJ" style="
+        background:transparent;border:1px solid var(--border);border-radius:8px;
+        padding:10px 20px;font-size:13px;font-weight:500;color:var(--text-secondary,rgba(255,255,255,0.75));
+        cursor:pointer;font-family:'Inter',sans-serif;">⬇ Exportar meus dados (JSON)</button>
+      <span id="exportStatusPJ" style="font-size:12px;color:var(--text-muted);margin-left:12px;"></span>
+    </div>
+
     <div class="suporte-card">
       <div class="suporte-titulo">Não achou sua dúvida?</div>
       <a href="https://wa.me/5511995658658" target="_blank" class="suporte-link">
@@ -187,7 +201,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, setViewAsUid, uidAtual } from './js/api.js?v=52';
+    import { getContaPJ, setViewAsUid, uidAtual, exportarMeusDadosPJ } from './js/api.js?v=53';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     // ─── ViewAs (admin visualizando dashboard PJ da mentorada) ────────────────
@@ -232,6 +246,39 @@
         document.getElementById('empresaNome').textContent = conta ? conta.nomeEmpresa : '—';
       } catch (err) {
         console.error('[ajuda-pj] Falha ao carregar conta:', err.message);
+      }
+    });
+
+    // ─── Exportar dados (LGPD portabilidade) ────────────────────────────────
+    document.getElementById('btnExportarDadosPJ')?.addEventListener('click', async () => {
+      const btn    = document.getElementById('btnExportarDadosPJ');
+      const status = document.getElementById('exportStatusPJ');
+      btn.disabled = true;
+      btn.textContent = '⏳ Preparando...';
+      status.textContent = '';
+      try {
+        const dados = await exportarMeusDadosPJ(uidAtual());
+        const json  = JSON.stringify(dados, null, 2);
+        const blob  = new Blob([json], { type: 'application/json' });
+        const url   = URL.createObjectURL(blob);
+        const a     = document.createElement('a');
+        const nome  = (dados.conta?.nomeEmpresa || 'meus-dados-pj').replace(/\s+/g, '-').toLowerCase();
+        a.href      = url;
+        a.download  = `trilogia-pj-${nome}-${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        btn.textContent  = '✓ Download iniciado';
+        status.textContent = 'Arquivo JSON com todos os dados da empresa.';
+        status.style.color = '#4ade80';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = '⬇ Exportar meus dados (JSON)';
+        }, 3000);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = '⬇ Exportar meus dados (JSON)';
+        status.textContent = 'Erro ao exportar. Tente novamente.';
+        status.style.color = '#f87171';
       }
     });
   </script>

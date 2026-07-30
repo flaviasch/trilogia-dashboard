@@ -152,6 +152,17 @@
       transition: background 0.2s, border-color 0.2s;
     }
     .btn-ir-pf:hover { background: rgba(207,174,101,0.08); border-color: var(--gold); }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 32px; max-width: 440px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 18px; margin-bottom: 14px; }
+    .modal-card p { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.7; margin-bottom: 14px; }
+    .modal-card a { color: var(--gold); }
+    .modal-lgpd-check { display: flex; align-items: flex-start; gap: 10px; margin: 18px 0; }
+    .modal-lgpd-check input { width: auto; margin-top: 2px; flex-shrink: 0; accent-color: var(--gold); }
+    .modal-lgpd-check label { font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.5; cursor: pointer; }
+    .btn-lgpd-confirmar { width: 100%; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 13px; font-weight: 700; font-size: 14px; cursor: pointer; }
+    .btn-lgpd-confirmar:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -185,9 +196,21 @@
     <a href="login.html" class="btn-ir-pf">👤 Entrar no Dashboard pessoal</a>
   </div>
 
+  <div class="modal-overlay hidden" id="modalLGPDPJ">
+    <div class="modal-card">
+      <h3>Antes de continuar</h3>
+      <p>Os dados da sua empresa (notas, recebimentos, impostos, despesas e reservas) ficam armazenados com segurança e são usados só pra fazer o Dashboard PJ funcionar. Você pode exportar tudo ou pedir a exclusão a qualquer momento — veja como na <a href="privacidade.html" target="_blank">política de privacidade</a>.</p>
+      <div class="modal-lgpd-check">
+        <input type="checkbox" id="chkLGPDPJModal" />
+        <label for="chkLGPDPJModal">Li e estou ciente de como os dados da minha empresa são tratados.</label>
+      </div>
+      <button class="btn-lgpd-confirmar" id="btnConfirmarLGPDPJ" disabled>Confirmar ciência</button>
+    </div>
+  </div>
+
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ } from './js/api.js?v=52';
+    import { getContaPJ, aceitarLGPDPJ } from './js/api.js?v=53';
     import {
       signInWithEmailAndPassword,
       signOut,
@@ -211,11 +234,42 @@
           showError('Seu acesso ao Dashboard PJ está suspenso. Entre em contato com a Flávia.');
           return;
         }
+        // Conta existente sem consentimento LGPD registrado (onboarding feito
+        // antes desta fatia, 29/07/2026) — mostra o modal antes de liberar o
+        // acesso. Onboarding novo já grava o aceite junto com o cadastro,
+        // então nunca cai aqui.
+        if (conta && conta.lgpdAceitePJ !== true) {
+          jaRedirecionando = false;
+          abrirModalLGPDPJ(user.uid);
+          return;
+        }
         window.location.href = conta ? 'notas-pj.html' : 'onboarding-pj.html';
       } catch (err) {
         jaRedirecionando = false;
         showError('Não foi possível verificar sua conta. Tente novamente.');
       }
+    }
+
+    function abrirModalLGPDPJ(uid) {
+      const modal = document.getElementById('modalLGPDPJ');
+      const chk   = document.getElementById('chkLGPDPJModal');
+      const btn   = document.getElementById('btnConfirmarLGPDPJ');
+      chk.checked = false;
+      btn.disabled = true;
+      modal.classList.remove('hidden');
+      chk.onchange = () => { btn.disabled = !chk.checked; };
+      btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = 'Confirmando…';
+        try {
+          await aceitarLGPDPJ(uid);
+          window.location.href = 'notas-pj.html';
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = 'Confirmar ciência';
+          showError('Não foi possível confirmar. Tente novamente.');
+        }
+      };
     }
 
     onAuthStateChanged(auth, (user) => {

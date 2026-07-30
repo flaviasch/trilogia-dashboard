@@ -681,6 +681,18 @@ export async function getContasPJTodas() {
   return adminCall('getContasPJTodas')({});
 }
 
+// ─── LGPD — PJ (29/07/2026, Fase Venda) ───────────────────────────────────────
+export async function aceitarLGPDPJ(uid) {
+  return callPJ('aceitarLGPDPJ')({ uid });
+}
+export async function exportarMeusDadosPJ(uid) {
+  return callPJ('exportarMeusDadosPJ')({ uid });
+}
+// Admin-only — exclusão de conta PJ (não apaga o Firebase Auth, ver functions/index.js).
+export async function excluirContaPJ(uid) {
+  return adminCall('excluirContaPJ')({ uid });
+}
+
 // ─── Dashboard PJ (fatia 2: Contas a Receber, Despesas, Fluxo de Caixa) ───────
 
 export async function getRecebimentosNota(uid, notaId) {

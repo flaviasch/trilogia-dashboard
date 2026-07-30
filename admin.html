@@ -2058,8 +2058,8 @@
              getTributosConfig, saveTributoConfig, deleteTributoConfig,
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
-             getContaPJ, definirAcessoPJ, getContasPJTodas,
-             msgErro } from './js/api.js?v=47';
+             getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ,
+             msgErro } from './js/api.js?v=48';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -3132,11 +3132,30 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
           <td class="td-fin" style="text-align:center">${c.ativo === false ? '<span class="badge-vencido">Inativa</span>' : '<span class="badge-pago">Ativa</span>'}</td>
           <td class="td-fin" style="text-align:center;white-space:nowrap">
             <button class="btn-acao" style="padding:5px 12px;font-size:12px" data-ver-pj="${c.uid}">Ver dashboard PJ</button>
+            <button class="btn-acao danger" style="padding:5px 12px;font-size:12px;margin-left:6px" data-excluir-pj="${c.uid}" data-nome-pj="${_escPJ(c.nomeEmpresa) || c.uid}">Excluir conta</button>
           </td>
         </tr>`).join('');
 
       tbody.querySelectorAll('[data-ver-pj]').forEach(b => b.addEventListener('click', () => {
         window.location.href = `notas-pj.html?viewAs=${b.dataset.verPj}`;
+      }));
+
+      tbody.querySelectorAll('[data-excluir-pj]').forEach(b => b.addEventListener('click', async () => {
+        const uid  = b.dataset.excluirPj;
+        const nome = b.dataset.nomePj;
+        if (!confirm(`Apagar permanentemente a conta PJ de "${nome}"?\n\nIsso remove notas, recebimentos, impostos, contas a pagar e reservas da empresa. Esta ação não pode ser desfeita.`)) return;
+        if (!confirm(`Confirmar exclusão de "${nome}"?\n\nO login (Firebase Auth) NÃO é apagado — se essa pessoa também tiver o Dashboard PF, o acesso pessoal continua.`)) return;
+
+        b.disabled = true;
+        b.textContent = 'Apagando…';
+        try {
+          await excluirContaPJ(uid);
+          await renderPJTodas();
+        } catch (err) {
+          alert(`Erro ao apagar: ${msgErro(err)}`);
+          b.disabled = false;
+          b.textContent = 'Excluir conta';
+        }
       }));
     }
 
