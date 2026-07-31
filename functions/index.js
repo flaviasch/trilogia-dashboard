@@ -1115,12 +1115,24 @@ function _mesPagamento(fatura) {
 // Mesma lógica do sugerirFatura() do cliente (orcamento.html) — calcula a chave
 // de fatura (mês de pagamento) que uma compra feita em dataCompra geraria, dado
 // o dia de corte e de vencimento do cartão.
+// achado 31/07/2026, Flávia: cartão que fecha dia 30 (Bradesco) aparecia com
+// a fatura DUAS chaves à frente do esperado (ex: outubro em vez de setembro,
+// vindo de compra no dia 31/07). Causa: d.setMonth() chamado duas vezes
+// seguidas preserva o DIA original — ao empurrar de agosto (dia 31, mês
+// válido) pra setembro, "31 de setembro" não existe, e o Date do JS estoura
+// sozinho pro dia 1º de outubro, sem avisar. Só acontece com cartões de
+// duplo deslocamento (diaVencimento <= diaCorte) em datas de fim de mês
+// (29/30/31). Reescrito com aritmética pura de mês/ano, sem depender de
+// Date.setMonth() preservando o dia.
 function _sugerirFatura(dataCompra, diaCorte, diaVencimento) {
-  const dia = parseInt(dataCompra.split('-')[2], 10);
-  const d   = new Date(dataCompra + 'T12:00:00');
-  if (dia > diaCorte) d.setMonth(d.getMonth() + 1);
-  if (!diaVencimento || diaVencimento <= diaCorte) d.setMonth(d.getMonth() + 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const [anoStr, mesStr, diaStr] = dataCompra.split('-');
+  let ano = parseInt(anoStr, 10);
+  let mes = parseInt(mesStr, 10); // 1-12
+  const dia = parseInt(diaStr, 10);
+  const avancarMes = () => { mes += 1; if (mes > 12) { mes = 1; ano += 1; } };
+  if (dia > diaCorte) avancarMes();
+  if (!diaVencimento || diaVencimento <= diaCorte) avancarMes();
+  return `${ano}-${String(mes).padStart(2, '0')}`;
 }
 
 exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
