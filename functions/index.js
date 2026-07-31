@@ -365,8 +365,16 @@ function calcularScoreMes(orcItens, reservas, cats) {
   return Math.round(ptsSobra * 0.30 + ptsAporte * 0.35 + ptsOrcamento * 0.25 + ptsRegularidade * 0.10);
 }
 
+// achado 30/07/2026, Flávia: fatura que só fecha dia 30 aparecia com o mês
+// seguinte já "aberto" um dia antes da hora. Causa: toISOString() é sempre
+// UTC, e o Cloud Functions roda em UTC — entre 21h e 23h59 no horário de
+// Brasília (UTC-3), o servidor já "vê" o dia seguinte, adiantando em até 3h
+// qualquer cálculo de fechamento de fatura/virada de mês. Usa o fuso de
+// Brasília explicitamente, não o horário do servidor.
+const _FUSO_BR = 'America/Sao_Paulo';
+const _fmtDataBR = new Intl.DateTimeFormat('en-CA', { timeZone: _FUSO_BR, year: 'numeric', month: '2-digit', day: '2-digit' });
 function hoje() {
-  return new Date().toISOString().split('T')[0];
+  return _fmtDataBR.format(new Date()); // en-CA formata como YYYY-MM-DD
 }
 
 /**

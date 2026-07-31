@@ -359,7 +359,12 @@ export function calcularAgregadosOrcamento({
   });
   const totalFixasVirtuaisReceita = fixasVirtuaisReceita.reduce((s, v) => s + v.valor, 0);
 
-  const receitasPendentes = data.receitas.filter(r => isPendenteEfetivo(r, agora));
+  // Mesma exclusão que despesasPendentes já tinha (linha acima): receita
+  // vinculada a cartão/fatura (ex: estorno de compra, "Ajuste de fatura"
+  // crédito) é resolvida na aba Faturas, não deveria contar como pendência
+  // genérica no resumo/home — assimetria achada em 30/07/2026, Flávia:
+  // "o valor do crédito entrou como receita pendente, não deveria".
+  const receitasPendentes = data.receitas.filter(r => isPendenteEfetivo(r, agora) && !(r.cartao && r.fatura));
   const totalReceitaPendente = receitasPendentes.reduce((s, r) => s + r.valor, 0);
 
   // Em mês futuro, "pendente por data" não diz nada (tudo é futuro) — conta
