@@ -1995,6 +1995,59 @@ exports.getRecorrentes = onCall(async (request) => {
     });
 });
 
+// ─── Despesas/receitas fixas "puladas" (30/07/2026) ────────────────────────
+// Antes ficava só em localStorage do navegador (js/orcamento-calc.js) — uma
+// mentorada que usa PC e celular pulava uma ocorrência num aparelho e ela
+// continuava aparecendo como pendente pro sempre no outro, porque o "pulei
+// isso" nunca saía daquele navegador específico (achado de Flávia,
+// 30/07/2026: "no app ainda aparecem despesas e receitas pendentes que não
+// deveriam"). Guardado em `mentoradas/{uid}.fixasPuladas` (array de chaves
+// "recorrenteId_YYYY-MM-DD", mesmo formato de chaveFixaPulada).
+
+const _LIMITE_MESES_ANTIGOS_FIXA_PULADA = 2;
+function _fixasPuladasSemAntigas(chaves) {
+  const hoje = new Date();
+  const limiteAntigo = new Date(hoje.getFullYear(), hoje.getMonth() - _LIMITE_MESES_ANTIGOS_FIXA_PULADA, 1);
+  return chaves.filter(c => {
+    const m = String(c).match(/_(\d{4})-(\d{2})-\d{2}$/);
+    if (!m) return true;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
+    return d >= limiteAntigo;
+  });
+}
+
+exports.getFixasPuladas = onCall(async (request) => {
+  requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const snap = await db.collection('mentoradas').doc(uid).get();
+  return { fixasPuladas: snap.exists ? (snap.data().fixasPuladas || []) : [] };
+});
+
+/**
+ * Adiciona uma ou mais chaves à lista de puladas (dedup + poda de meses
+ * antigos). Serve tanto pro uso normal (pular 1 ocorrência) quanto pra
+ * migrar de uma vez o que já existia em localStorage num aparelho.
+ */
+exports.adicionarFixasPuladas = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, chaves } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!Array.isArray(chaves) || !chaves.length || !chaves.every(c => typeof c === 'string'))
+    throw new HttpsError('invalid-argument', 'chaves deve ser um array de strings não vazio.');
+
+  const ref = db.collection('mentoradas').doc(uid);
+  let resultado;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const atuais = snap.exists ? (snap.data().fixasPuladas || []) : [];
+    const combinadas = [...new Set([...atuais, ...chaves])];
+    resultado = _fixasPuladasSemAntigas(combinadas);
+    tx.set(ref, { fixasPuladas: resultado }, { merge: true });
+  });
+  return { fixasPuladas: resultado };
+});
+
 /**
  * Cria ou atualiza uma recorrente (despesa ou receita fixa).
  * Espera: { uid, recorrente: { id?, tipo?, categoria, descricao, valor, dia, ativo } }

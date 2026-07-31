@@ -2560,12 +2560,12 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida } from './js/api.js?v=47';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor } from './js/api.js?v=54';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
       isPendenteEfetivo, normCat, diasSemanaNoMes, diasEsperadosRecorrente, diasFaltantesRecorrente,
-      getFixasPuladas, chaveFixaPulada, addFixaPulada,
+      getFixasPuladas, chaveFixaPulada,
       calcularAgregadosOrcamento, calcularAjuste, calcularNaoPlanejado, pertenceAConta, CONTA_PRINCIPAL_ID, CATEGORIA_AJUSTE,
     } from './js/orcamento-calc.js';
 
@@ -4023,7 +4023,7 @@
       // em 07/07/2026: a versão antiga excluía TODA despesa de cartão, não só
       // a fatura em aberto, subestimando o gasto real do mês).
       const { receitaComprometida: totalReceita, despesaComprometida: totalDespesa } =
-        calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, contaId: _contaAtivaId });
+        calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, fixasPuladas: _fixasPuladasServidor, contaId: _contaAtivaId });
       const sobra        = totalReceita - totalDespesa;
       const totalAporte  = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
       const totalPlan    = reservasAtivas.reduce((s, r) => s + r.aporte, 0);
@@ -4103,7 +4103,7 @@
           return gasto > c.limite;
         }).length;
         const { receitaComprometida: totalReceita, despesaComprometida: totalDespesa } =
-          calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, contaId: _contaAtivaId });
+          calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, fixasPuladas: _fixasPuladasServidor, contaId: _contaAtivaId });
         const sobraPct = totalReceita > 0 ? ((totalReceita - totalDespesa) / totalReceita * 100).toFixed(0) : 0;
 
         if (componentes.regularidade === 0) {
@@ -4177,7 +4177,7 @@
       // eliminar a duplicação que causou vários bugs de inconsistência entre
       // telas em 06-07/07/2026) — ver js/orcamento-calc.js.
       const agregados = calcularAgregadosOrcamento({
-        data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, agora: _agora, contaId: _contaAtivaId,
+        data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, fixasPuladas: _fixasPuladasServidor, agora: _agora, contaId: _contaAtivaId,
       });
       const {
         saldoConta, totalReceita, ehFuturo: _ehFuturo,
@@ -5440,7 +5440,7 @@
       // identificados" (categoria de ajuste), enquanto a aba Detalhe não
       // mostrava de onde vinha (achado em 06/07/2026, Flávia: "esses
       // lançamentos de planejamento podem estar em detalhes também").
-      const _puladasDetalhe = getFixasPuladas();
+      const _puladasDetalhe = _fixasPuladasServidor;
       (_recorrentes || []).filter(r => r.ativo && !r.cartao).forEach(r => {
         diasFaltantesRecorrente(r, data.despesas, data.periodo.mes, data.periodo.ano).forEach(dia => {
           if (_puladasDetalhe.includes(chaveFixaPulada(r.id, data.periodo.ano, data.periodo.mes, dia))) return;
@@ -6240,7 +6240,7 @@
                 // (achado em 07/07/2026: a versão antiga somava despesa sem
                 // excluir a fatura em ABERTO, inflando o total do mês corrente).
                 const { receitaComprometida, despesaComprometida, totalAp } =
-                  calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, contaId: _contaAtivaId });
+                  calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, fixasPuladas: _fixasPuladasServidor, contaId: _contaAtivaId });
                 // Despesa real por categoria (exclui fatura em aberto, mesmo critério acima)
                 const porCategoria = data.despesas
                   .filter(d => !d._faturaAberta && pertenceAConta(d, _contaAtivaId))
@@ -7200,7 +7200,7 @@
           const baseAnterior = contaAlvo in saldosPrev ? saldosPrev[contaAlvo]
             : (contaAlvo === CONTA_PRINCIPAL_ID ? (dataPrev.saldoConta || 0) : 0);
           saldoFinalPrev = calcularAgregadosOrcamento({
-            data: { ...dataPrev, saldoConta: baseAnterior }, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, contaId: contaAlvo,
+            data: { ...dataPrev, saldoConta: baseAnterior }, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, fixasPuladas: _fixasPuladasServidor, contaId: contaAlvo,
           }).saldoFinal;
         }
       } catch (_) { saldoFinalPrev = 0; }
@@ -9550,6 +9550,10 @@
     // ─── DESPESAS FIXAS (Recorrentes) ────────────────────────────────────────
 
     let _recorrentes = [];
+    // Puladas sincronizadas no servidor (achado 30/07/2026) — substitui o
+    // antigo getFixasPuladas() local (localStorage), que não sincronizava
+    // entre aparelhos. Ver carregarRecorrentes() e pularFixaMes() abaixo.
+    let _fixasPuladasServidor = [];
 
     // Corrige lançamentos já gerados cujo cartão/débito ficou desatualizado em
     // relação ao template da recorrente — ex: itens lançados quando a
@@ -9681,11 +9685,21 @@
     }
 
 
-    function pularFixaMes(recorrenteId, dia) {
+    async function pularFixaMes(recorrenteId, dia) {
       const { mes, ano } = currentData.periodo;
-      addFixaPulada(chaveFixaPulada(recorrenteId, ano, mes, dia));
+      const chave = chaveFixaPulada(recorrenteId, ano, mes, dia);
+      // Atualiza local na hora (feedback imediato) — o servidor confirma
+      // logo em seguida; se falhar, a ocorrência volta a aparecer no próximo
+      // carregarRecorrentes() e a usuária pode tentar de novo.
+      if (!_fixasPuladasServidor.includes(chave)) _fixasPuladasServidor = [..._fixasPuladasServidor, chave];
       render(currentData);
       toast('Despesa fixa ignorada este mês.', 'success');
+      try {
+        const { fixasPuladas } = await adicionarFixasPuladasServidor([chave]);
+        _fixasPuladasServidor = fixasPuladas;
+      } catch (e) {
+        console.warn('[pularFixaMes]', e.message);
+      }
     }
 
     // Lança uma única ocorrência de uma recorrente em CONTA (débito) — uma
@@ -9797,8 +9811,34 @@
     }
 
     async function carregarRecorrentes() {
-      try { _recorrentes = await getRecorrentes(); }
-      catch (e) { console.warn('[recorrentes]', e.message); _recorrentes = []; }
+      try {
+        const [recs, puladasResp] = await Promise.all([
+          getRecorrentes(),
+          getFixasPuladasServidor(),
+        ]);
+        _recorrentes = recs;
+        _fixasPuladasServidor = puladasResp?.fixasPuladas || [];
+        await _migrarFixasPuladasLocalStorage();
+      } catch (e) { console.warn('[recorrentes]', e.message); _recorrentes = []; }
+    }
+
+    // Migração única (achado 30/07/2026): quem já tinha "pulado" despesas
+    // fixas antes desta correção só tinha isso salvo no localStorage deste
+    // navegador específico. Empurra pro servidor uma vez só, senão essas
+    // escolhas antigas se perderiam (as ocorrências puladas voltariam a
+    // aparecer como pendentes até serem puladas de novo manualmente).
+    async function _migrarFixasPuladasLocalStorage() {
+      if (localStorage.getItem('_fixasPuladasMigrado') === '1') return;
+      const locais = getFixasPuladas();
+      try {
+        if (locais.length) {
+          const { fixasPuladas } = await adicionarFixasPuladasServidor(locais);
+          _fixasPuladasServidor = fixasPuladas;
+        }
+        localStorage.setItem('_fixasPuladasMigrado', '1');
+      } catch (e) {
+        console.warn('[migrarFixasPuladas]', e.message); // tenta de novo no próximo load
+      }
     }
 
     // nomeSemana/infoFreq/infoPrazo são usados tanto pela lista de despesas

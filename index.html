@@ -907,7 +907,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro } from './js/api.js?v=47';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor } from './js/api.js?v=54';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
     import { calcularAgregadosOrcamento } from './js/orcamento-calc.js';
@@ -1236,7 +1236,8 @@
         getRecorrentes(),
         getCartoes(),
         getFaturaEstados(),
-      ]).then(([orcData, patData, recorrentes, cartoes, faturaEstados]) => {
+        getFixasPuladasServidor().catch(() => ({ fixasPuladas: [] })),
+      ]).then(([orcData, patData, recorrentes, cartoes, faturaEstados, puladasResp]) => {
         // Mesmo cálculo do Resumo em orcamento.html (js/orcamento-calc.js) —
         // Despesa/Receita da home batem 100% com Detalhe/Realizado do
         // Planejamento (achado em 06/07/2026, Flávia: "tem que bater com
@@ -1251,7 +1252,7 @@
           aportes: orcDataArr.filter(i => i.tipo === 'aporte'),
         };
         const { receitaComprometida: receita, despesaComprometida: despesa, totalAp: aporte } = calcularAgregadosOrcamento({
-          data: dataOrc, cartoes: cartoes || [], faturaEstados: faturaEstados || {}, recorrentes: recorrentes || [],
+          data: dataOrc, cartoes: cartoes || [], faturaEstados: faturaEstados || {}, recorrentes: recorrentes || [], fixasPuladas: puladasResp?.fixasPuladas || [],
         });
         const sobra   = receita - despesa;
         const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;

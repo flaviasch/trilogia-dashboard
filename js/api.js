@@ -1433,6 +1433,15 @@ export async function getRecorrentes() {
   return call('getRecorrentes')({ uid: uidAtual() });
 }
 
+// Puladas de despesa/receita fixa, sincronizadas no servidor (achado
+// 30/07/2026: antes só em localStorage, não sincronizava entre PC/celular).
+export async function getFixasPuladasServidor() {
+  return call('getFixasPuladas')({ uid: uidAtual() });
+}
+export async function adicionarFixasPuladasServidor(chaves) {
+  return call('adicionarFixasPuladas')({ uid: uidAtual(), chaves });
+}
+
 export async function saveRecorrente(recorrente) {
   return call('saveRecorrente')({ uid: uidAtual(), recorrente });
 }
