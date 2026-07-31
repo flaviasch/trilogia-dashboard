@@ -1127,10 +1127,22 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const prevAno = mes === 1 ? ano - 1 : ano;
   const prevKey = `${prevAno}-${String(prevMes).padStart(2, '0')}`;
 
+  // Mês seguinte — achado 30/07/2026, Flávia: o "Calculado" de uma mesma
+  // fatura mudava de valor dependendo de qual mês estava em tela (ex: R$5.933
+  // vendo de julho, R$6.416 vendo de agosto). Causa: um item de cartão pode
+  // acabar salvo no mês que estava em tela no momento do lançamento, não no
+  // mês da própria fatura — então um item datado de julho, lançado enquanto
+  // a usuária já via agosto, ficava só no documento de agosto. Vendo de
+  // julho, esse item nunca era buscado. Buscar também o mês seguinte fecha
+  // essa lacuna pro caso mais comum (1 mês de diferença).
+  const nextMes = mes === 12 ? 1 : mes + 1;
+  const nextAno = mes === 12 ? ano + 1 : ano;
+  const nextKey = `${nextAno}-${String(nextMes).padStart(2, '0')}`;
+
   const col = db.collection('mentoradas').doc(uid).collection('orcamento');
   const cartoesCol = db.collection('mentoradas').doc(uid).collection('cartoes');
-  const [docSnap, prevSnap, cartoesSnap] = await Promise.all([
-    col.doc(mesKey).get(), col.doc(prevKey).get(), cartoesCol.get(),
+  const [docSnap, prevSnap, nextSnap, cartoesSnap] = await Promise.all([
+    col.doc(mesKey).get(), col.doc(prevKey).get(), col.doc(nextKey).get(), cartoesCol.get(),
   ]);
 
   const cartaoMap = {};
@@ -1191,7 +1203,19 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
       ...(_ehCicloAberto(item) ? { _faturaAberta: true } : {}),
     }));
 
-  return [...itensMes, ...itensPrev, ...itensFaturaAberta];
+  // Itens do mês seguinte — só fatura NATIVA daquele mês (fatura === nextKey,
+  // não qualquer mês de pagamento) e que já fechou de verdade (exclui o ciclo
+  // ainda em aberto: esse aparece completo quando o próprio mês seguinte é
+  // visto diretamente, não precisa ser emprestado incompleto pra trás).
+  const itensNext = normalizar(nextSnap.exists ? nextSnap.data().itens : [])
+    .filter(item => item.cartao && item.fatura === nextKey && !_ehCicloAberto(item))
+    .map(item => ({
+      ...item,
+      _sourceMes: nextMes,
+      _sourceAno: nextAno,
+    }));
+
+  return [...itensMes, ...itensPrev, ...itensNext, ...itensFaturaAberta];
 });
 
 /**
