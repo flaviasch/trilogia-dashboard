@@ -3459,12 +3459,16 @@
         // saldosConta/{mesKey} (ver saveSaldoConta/resolverSaldoConta). Meses
         // salvos antes dessa mudança ainda têm o sentinela legado no array;
         // a leitura (buscarPeriodo/carga inicial) continua tratando isso.
-        ...currentData.receitas.map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: !!r.cartao, fatura: r.fatura || '', origem: r.origem || 'manual', ...(r.cartaoId ? { cartaoId: r.cartaoId } : {}), ...(r.contaId ? { contaId: r.contaId } : {}), ...(r.pendente ? { pendente: true } : {}), ...(r.confirmado ? { confirmado: true } : {}) })),
         // Itens "emprestados" de outro mês (_sourceMes) NUNCA são reenviados daqui —
-        // reenviá-los alimentava um merge no backend que estava duplicando essas
-        // despesas a cada salvamento (achado em 04/07/2026). Esses itens só devem
-        // ser tocados pelos fluxos dedicados que já sabem gravar no mês certo
-        // (ex: confirmar pagamento de fatura, ajustar fatura).
+        // reenviá-los alimentava um merge no backend que estava duplicando esses
+        // itens a cada salvamento (achado em 04/07/2026, na época só despesa;
+        // correção 30/07/2026: a MESMA proteção faltava nas receitas — "Ajuste de
+        // fatura (crédito/estorno)" é tipo receita e também pode ser emprestado
+        // de outro mês; sem o filtro, era regravado/"ressuscitado" a cada
+        // salvamento, mesmo depois de excluído). Esses itens só devem ser
+        // tocados pelos fluxos dedicados que já sabem gravar no mês certo (ex:
+        // confirmar pagamento de fatura, ajustar fatura).
+        ...currentData.receitas.filter(r => r._sourceMes == null).map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: !!r.cartao, fatura: r.fatura || '', origem: r.origem || 'manual', ...(r.cartaoId ? { cartaoId: r.cartaoId } : {}), ...(r.contaId ? { contaId: r.contaId } : {}), ...(r.pendente ? { pendente: true } : {}), ...(r.confirmado ? { confirmado: true } : {}) })),
         ...currentData.despesas.filter(d => d._sourceMes == null).map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.contaId ? { contaId: d.contaId } : {}), ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.pendente ? { pendente: true } : {}), ...(d.confirmado ? { confirmado: true } : {}) })),
         ...(currentData.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor, ...(a.contaId ? { contaId: a.contaId } : {}) })),
         // Transferência entre contas (achado 27/07/2026): cada perna já vem com
@@ -3879,7 +3883,7 @@
         currentData = {
           periodo:    { mes, ano },
           saldoConta: _saldoItem ? _saldoItem.valor : 0,
-          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, tipo: 'receita', valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i.contaId ? { contaId: i.contaId } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}) })),
+          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, tipo: 'receita', valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i.contaId ? { contaId: i.contaId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
           despesas:   itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.contaId ? { contaId: i.contaId } : {}), ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
           aportes:    itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
@@ -7122,7 +7126,7 @@
         const data = {
           periodo:    { mes, ano },
           saldoConta: _saldoItemB ? _saldoItemB.valor : 0,
-          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, tipo: 'receita', valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i.contaId ? { contaId: i.contaId } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}) })),
+          receitas:   itens.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__').map(i => ({ categoria: i.categoria, tipo: 'receita', valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i.contaId ? { contaId: i.contaId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
           despesas:   itens.filter(i => i.tipo === 'despesa').map(i => ({ categoria: i.categoria, valor: i.valor, data: i.data || '', descricao: i.descricao || '', cartao: !!i.cartao, fatura: i.fatura || '', origem: i.origem || 'manual', ...(i.contaId ? { contaId: i.contaId } : {}), ...(i.recorrenteId ? { recorrenteId: i.recorrenteId } : {}), ...(i.cartaoId ? { cartaoId: i.cartaoId } : {}), ...(i._sourceMes != null ? { _sourceMes: i._sourceMes, _sourceAno: i._sourceAno } : {}), ...(i.pendente ? { pendente: true } : {}), ...(i.confirmado ? { confirmado: true } : {}), ...(i._faturaAberta ? { _faturaAberta: true } : {}) })),
           aportes:    itens.filter(i => i.tipo === 'aporte').map((a, idx) => ({
             id: 'a' + idx + '_' + mes + ano,
