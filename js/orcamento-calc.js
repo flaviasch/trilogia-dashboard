@@ -299,7 +299,8 @@ export function calcularAgregadosOrcamento({
     if (key in gruposFechadaCaixa) return;
     if (fe.ajusteTotal == null) return;
     if (contaId != null && (fe.contaId || CONTA_PRINCIPAL_ID) !== contaId) return;
-    const cartaoId = key.split('_')[0];
+    const [cartaoId, faturaKey] = key.split('_');
+    if (!_faturaJaAbriu(cartaoId, faturaKey)) return;
     if (cartoes.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixa[key] = 0;
   });
   let totalFaturas    = 0; // fatura fechada ainda não confirmada como paga ("a vencer")

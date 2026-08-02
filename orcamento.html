@@ -5050,7 +5050,10 @@
       Object.entries(_faturaEstados).forEach(([key, fe]) => {
         if (key in gruposFechada) return;
         if (fe?.ajusteTotal == null) return;
-        const cartaoId = key.split('_')[0];
+        const [cartaoId, faturaKey] = key.split('_');
+        const aberta = _openKey[cartaoId];
+        const jaFechou = faturaKey !== aberta && (!aberta || _periodoNum(faturaKey) <= _periodoNum(aberta));
+        if (!jaFechou) return;
         if (cartoesAtivos.some(c => c.id === cartaoId)) gruposFechada[key] = [];
       });
       const cartaoIdsDeFechada = new Set(Object.keys(gruposFechada).map(k => k.split('_')[0]));
