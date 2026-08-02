@@ -5032,28 +5032,38 @@
           gruposFechada[key].push(r);
         }
       });
-      // Fatura com ajuste manual confirmado (ajusteTotal) não pode sumir da lista
-      // só porque nenhum lançamento individual ficou com essa fatura — o ajuste
-      // é o valor real da conta física, independente de existir item detalhado.
-      // NUNCA pular por já estar paga_total (achado 09/07/2026, mesmo fix em
-      // orcamento-calc.js): confirmar pagamento de fatura ajuste-only fazia
-      // ela sumir da aba Faturas inteira, e o valor parava de sensibilizar o
-      // saldo — o backfill existe justamente pra ela continuar existindo
-      // (com o badge "✓ Paga") depois de confirmada.
-      //
-      // Só entra aqui quem tem ajusteTotal de verdade — sem isso, QUALQUER
-      // fatura já resolvida de QUALQUER mês passado (ex: junho, julho) virava
-      // um card fantasma de R$0 em todo mês visualizado dali pra frente,
-      // porque _faturaEstados é global (todas as faturas de todos os tempos),
-      // não filtrado por período (achado 23/07/2026, Flávia: "aparecem
-      // faturas de junho e julho zeradas, não precisam estar ali").
+      // ── Só a fatura mais recente já fechada, por cartão ─────────────────────
+      // achado 02/08/2026, Flávia: em Fechadas deve sempre aparecer 1 fatura
+      // por cartão — a mais recente já encerrada — até a seguinte fechar e
+      // substituí-la. Faturas mais antigas (já superadas por uma mais nova),
+      // mesmo com ajusteTotal salvo, não devem continuar aparecendo — senão
+      // uma fatura já quitada há meses (ex: julho) ficava duplicada ao lado
+      // da mais nova (ex: agosto) pra sempre.
+      const _fechadaAlvoPorCartao = {}; // cartaoId → "YYYY-MM", 1 ciclo antes da aberta
+      cartoesAtivos.forEach(c => {
+        const aberta = _openKey[c.id];
+        if (!aberta) return;
+        let [aAno, aMes] = aberta.split('-').map(Number);
+        aMes -= 1;
+        if (aMes < 1) { aMes = 12; aAno -= 1; }
+        _fechadaAlvoPorCartao[c.id] = `${aAno}-${String(aMes).padStart(2, '0')}`;
+      });
+      Object.keys(gruposFechada).forEach(key => {
+        const [cartaoId, faturaKey] = key.split('_');
+        if (_fechadaAlvoPorCartao[cartaoId] && faturaKey !== _fechadaAlvoPorCartao[cartaoId]) {
+          delete gruposFechada[key];
+        }
+      });
+      // Backfill: garante que a fatura-alvo apareça mesmo sem nenhum item na
+      // janela de visão atual (ex: fatura paga há 2 meses — os itens reais só
+      // existem no documento do próprio mês dela, fora do alcance de
+      // getOrcamento pro mês em tela) — usa _faturaEstados (global, não
+      // depende do mês visualizado) só pra saber que ela existe; o valor
+      // exibido cai no fallback de totalCalc (ver cardsFechadas).
       Object.entries(_faturaEstados).forEach(([key, fe]) => {
         if (key in gruposFechada) return;
-        if (fe?.ajusteTotal == null) return;
         const [cartaoId, faturaKey] = key.split('_');
-        const aberta = _openKey[cartaoId];
-        const jaFechou = faturaKey !== aberta && (!aberta || _periodoNum(faturaKey) <= _periodoNum(aberta));
-        if (!jaFechou) return;
+        if (_fechadaAlvoPorCartao[cartaoId] !== faturaKey) return;
         if (cartoesAtivos.some(c => c.id === cartaoId)) gruposFechada[key] = [];
       });
       const cartaoIdsDeFechada = new Set(Object.keys(gruposFechada).map(k => k.split('_')[0]));
@@ -5263,7 +5273,14 @@
         const fatEstado    = _faturaEstados[estadoKey] || {};
         const [fAno, fMes] = fechadaKey ? fechadaKey.split('-').map(Number) : [0, 0];
         const mesNome      = fAno ? `${MESES[fMes - 1]} ${fAno}` : '—';
-        const totalCalc    = fechadaItens.reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
+        const totalCalcItens = fechadaItens.reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
+        // Sem itens na janela de visão atual (fatura de um mês fora do
+        // alcance do getOrcamento do mês em tela) mas com pagamento salvo —
+        // usa valorPago+rollover como aproximação do total, em vez de exibir
+        // R$0 (achado 02/08/2026).
+        const totalCalc    = (fechadaItens.length || fatEstado.ajusteTotal != null)
+          ? totalCalcItens
+          : (fatEstado.valorPago || 0) + (fatEstado.rollover || 0);
         const totalDisplay = fatEstado.ajusteTotal ?? totalCalc;
         const vctoStr      = _vctoLabel(cartaoObj?.diaVencimento, cartaoObj?.diaCorte, fMes, fAno);
 
