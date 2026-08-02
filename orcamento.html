@@ -8488,45 +8488,27 @@
 
       setLoading(btn, true);
       try {
-        // "Não, é diferente": lança o ajuste como despesa real da própria
-        // fatura antes de confirmar como paga — mesma lógica de "Ajustar
-        // fatura", só que integrada aqui pra não precisar de dois passos
-        // separados (achado 15/07/2026, Flávia: melhorar esse fluxo pra
-        // clientes de entrada manual).
-        if (diferente && Math.abs(diferencaAjuste) >= 0.01) {
-          const hj = new Date();
-          const dataAjuste = `${hj.getFullYear()}-${String(hj.getMonth() + 1).padStart(2, '0')}-${String(hj.getDate()).padStart(2, '0')}`;
-          // Mesmo mecanismo de _afSalvar: ajuste "a mais" vira despesa, "a
-          // menos" (crédito/estorno) vira receita vinculada — nunca despesa
-          // negativa (backend rejeita) nem despesa positiva com texto de
-          // crédito (somaria ao total em vez de descontar).
-          if (diferencaAjuste > 0) {
-            currentData.despesas.push({
-              categoria: 'Ajuste de fatura', tipo: 'despesa', valor: diferencaAjuste, data: dataAjuste,
-              descricao: 'Ajuste de fatura (cobrança a mais)',
-              cartao: true, fatura: faturaKey, cartaoId, origem: 'ajuste',
-            });
-          } else {
-            currentData.receitas.push({
-              categoria: 'Ajuste de fatura', tipo: 'receita', valor: Math.abs(diferencaAjuste), data: dataAjuste,
-              descricao: 'Ajuste de fatura (crédito/estorno)',
-              cartao: true, fatura: faturaKey, cartaoId, origem: 'ajuste',
-            });
-          }
-          await salvarEAtualizar();
-        }
+        // "Não, é diferente": achado 31/07/2026, Flávia: "ajustes em fatura
+        // não devem gerar contrapartida em lugar nenhum" — a versão anterior
+        // (desde 15/07/2026) lançava a diferença como despesa/receita real,
+        // o que criava um item "Ajuste de fatura" solto, contava em outros
+        // totais e vazava entre meses. Agora só grava o valor real em
+        // ajusteTotal (mesmo campo que já existia pro fluxo de "Ajustar
+        // fatura" antigo) — puramente informativo, sem nenhum lançamento.
         await saveFaturaEstado(cartaoId, faturaKey, {
           estado: parcial ? 'paga_parcial' : 'paga_total',
           valorPago, rollover,
           nomeCartao: _cpNomeCartao,
           nextMesKey,
           ...(contaId ? { contaId } : {}),
+          ...(diferente ? { ajusteTotal: valorPago } : {}),
         });
         _faturaEstados[_cpEstadoKey] = {
           ...(_faturaEstados[_cpEstadoKey] || {}),
           estado: parcial ? 'paga_parcial' : 'paga_total',
           valorPago, rollover,
           ...(contaId ? { contaId } : {}),
+          ...(diferente ? { ajusteTotal: valorPago } : {}),
         };
         if (parcial && rollover > 0) _invalPeriodo(nextMes, nextAno);
         fecharModalConfirmarPagamento();
@@ -8535,7 +8517,7 @@
         if (parcial && rollover > 0)
           toast(`Pagamento parcial confirmado. Saldo de ${brl(rollover)} lançado em ${MESES[nextMes - 1]}.`, 'success');
         else if (diferente && Math.abs(diferencaAjuste) >= 0.01)
-          toast(`Ajuste de ${brl(Math.abs(diferencaAjuste))} lançado e pagamento confirmado.`, 'success');
+          toast(`Pagamento confirmado com valor ajustado (diferença de ${brl(Math.abs(diferencaAjuste))}).`, 'success');
         else
           toast('Pagamento confirmado.', 'success');
       } catch (e) {
@@ -8544,10 +8526,13 @@
     });
 
     // ── Modal ajustar fatura ──────────────────────────────────────────────────
-    // Ajustar não sobrescreve um total "fantasma": lança um item real de
-    // "Ajuste de fatura" na própria fatura, com a diferença (a débito ou a
-    // crédito) entre o que foi calculado e o valor real informado. Assim o
-    // ajuste fica visível, editável e excluível como qualquer outro lançamento.
+    // achado 31/07/2026, Flávia: "ajustes em fatura não devem gerar
+    // contrapartida em lugar nenhum" — a versão anterior (desde 15/07/2026)
+    // lançava a diferença como despesa/receita real "Ajuste de fatura", que
+    // criava um item solto, contava em outros totais e vazava entre meses
+    // (achado repetido duas vezes na mesma sessão). Agora só grava o valor
+    // real em ajusteTotal (campo já suportado por saveFaturaEstado) — puro
+    // override de exibição, sem nenhum lançamento associado.
     let _afEstadoKey       = null;
     let _afTotalCalculado  = 0;
 
@@ -8583,28 +8568,8 @@
 
       setLoading(btn, true);
       try {
-        const hj = new Date();
-        const dataAjuste = `${hj.getFullYear()}-${String(hj.getMonth() + 1).padStart(2, '0')}-${String(hj.getDate()).padStart(2, '0')}`;
-        // valor sempre positivo — o backend rejeita valor negativo. Um ajuste
-        // "a menos" (crédito/estorno) não pode virar despesa negativa (quebrava
-        // o salvamento antes) nem despesa positiva com texto de crédito (isso
-        // SOMARIA ao total em vez de descontar) — precisa ser uma receita
-        // vinculada à fatura, mesmo mecanismo já usado pro estorno de compra
-        // (achado 15/07/2026, Flávia: melhorar o fluxo de ajuste).
-        if (diferenca > 0) {
-          currentData.despesas.push({
-            categoria: 'Ajuste de fatura', tipo: 'despesa', valor: diferenca, data: dataAjuste,
-            descricao: 'Ajuste de fatura (cobrança a mais)',
-            cartao: true, fatura: faturaKey, cartaoId, origem: 'ajuste',
-          });
-        } else {
-          currentData.receitas.push({
-            categoria: 'Ajuste de fatura', tipo: 'receita', valor: Math.abs(diferenca), data: dataAjuste,
-            descricao: 'Ajuste de fatura (crédito/estorno)',
-            cartao: true, fatura: faturaKey, cartaoId, origem: 'ajuste',
-          });
-        }
-        await salvarEAtualizar();
+        await saveFaturaEstado(cartaoId, faturaKey, { ajusteTotal: valorReal });
+        _faturaEstados[_afEstadoKey] = { ..._faturaEstados[_afEstadoKey], ajusteTotal: valorReal };
         fecharModalAjustarFatura();
         renderFaturas(currentData);
         render(currentData); // atualiza Despesa Total/Sobra/Saldo Final no Resumo
