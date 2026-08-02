@@ -258,7 +258,10 @@
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.75);
       display: flex; align-items: center; justify-content: center;
-      z-index: 200; padding: 24px; overflow-y: auto;
+      /* achado 31/07/2026, Flávia: com z-index 200, os botões flutuantes
+         (fabSpeedDial/suporte-btn, z-index 900/950) ficavam por cima do
+         modal e continuavam clicáveis, bloqueando botões do modal. */
+      z-index: 1000; padding: 24px; overflow-y: auto;
     }
     .modal-overlay.hidden { display: none; }
     .modal-card {
