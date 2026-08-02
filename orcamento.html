@@ -5155,7 +5155,13 @@
         const ultimoDia  = cAno ? new Date(cAno, cMes, 0).getDate() : 31;
         const diaFecha   = Math.min(diaCorte, ultimoDia);
         const mesNome    = aAno ? `${MESES[aMes - 1]} ${aAno}` : '—';
-        const totalAberta= abertaItens.reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
+        const totalCalculadoAberta = abertaItens.reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
+        // achado 31/07/2026, Flávia: ajustar uma fatura ABERTA salvava
+        // (ajusteTotal ia pro faturaEstados certinho) mas o card continuava
+        // mostrando o valor calculado puro — só a Fechada lia ajusteTotal
+        // (ver totalDisplay abaixo). Mesmo mecanismo, agora nas duas.
+        const abertaEstadoKey = abertaKey ? `${cartaoId}_${abertaKey}` : '';
+        const totalAberta = _faturaEstados[abertaEstadoKey]?.ajusteTotal ?? totalCalculadoAberta;
 
         const fechaStr = (() => {
           if (!diaCorte || !cAno) return '';
@@ -5203,7 +5209,7 @@
               <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:6px 14px 0;width:calc(100% - 28px);">+ Adicionar a esta fatura</button>
               ${abertaKey ? `<button class="btn-add-item" data-antecipar-fat="${cartaoId}_${abertaKey}" data-acumulado="${totalAberta}" data-nome="${nomeCartao}" data-mes="${mesNome}"
                 style="margin:6px 14px 0;width:calc(100% - 28px);background:rgba(52,211,153,0.08);color:#34d399;border-color:rgba(52,211,153,0.25);">💳 Pagar adiantado</button>` : ''}
-              ${totalAberta > 0 && abertaKey ? `<button class="btn-add-item" data-ajustar-fat="${cartaoId}_${abertaKey}" data-total-calculado="${totalAberta}" data-nome="${nomeCartao}" data-mes="${mesNome}"
+              ${totalAberta > 0 && abertaKey ? `<button class="btn-add-item" data-ajustar-fat="${cartaoId}_${abertaKey}" data-total-calculado="${totalCalculadoAberta}" data-nome="${nomeCartao}" data-mes="${mesNome}"
                 style="margin:6px 14px 0;width:calc(100% - 28px);background:transparent;color:var(--text-muted);border-color:var(--border);">✎ Ajustar fatura</button>` : ''}
             </div>
           </div>`;
