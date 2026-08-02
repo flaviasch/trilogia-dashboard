@@ -796,6 +796,9 @@ export async function saveOutraEntradaPJ(uid, dados) {
 export async function deleteOutraEntradaPJ(uid, id) {
   return callPJ('deleteOutraEntradaPJ')({ uid, id });
 }
+export async function criarVendaAntigaParceladaPJ(uid, dados) {
+  return callPJ('criarVendaAntigaParceladaPJ')({ uid, ...dados });
+}
 
 // ─── CRM Pipeline ────────────────────────────────────────────────────────────
 

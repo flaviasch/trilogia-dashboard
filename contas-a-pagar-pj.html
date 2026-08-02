@@ -282,7 +282,7 @@
       getContasPagarPendentesPJ, confirmarPagamentoDespesaPJ, cancelarOcorrenciaDespesaPJ,
       getDespesasPJ, saveDespesaPJ, deleteDespesaPJ,
       getImpostosPrevistos, marcarImpostoPago, deleteImpostoPrevisto,
-      categorizarExtratoPJIA, confirmarRecebimento, saveOutraEntradaPJ,
+      categorizarExtratoPJIA, confirmarRecebimento, saveOutraEntradaPJ, criarVendaAntigaParceladaPJ,
       getReservasPJ, registrarMovimentoReservaPJ,
       msgErro, setViewAsUid, uidAtual,
     } from './js/api.js?v=52';
@@ -616,17 +616,20 @@
     let _reservasInvestimento = [];
 
     // Seletor de reserva reaproveitado nas duas ações (aplicação/resgate) —
-    // se não houver reserva do tipo 'investimento', desabilita com aviso; se
-    // houver 1 só, usa direto sem select; se houver mais de 1, mostra select.
+    // se não houver reserva do tipo 'investimento', desabilita com aviso.
+    // achado 31/07/2026 (Flávia: "fez o aporte em reserva aleatória, usuário
+    // deve poder escolher") — SEMPRE mostra o select, mesmo havendo só 1
+    // reserva: antes, com 1 só, aplicava direto sem perguntar (parecia
+    // "escolha errada" quando na verdade não tinha escolha nenhuma
+    // acontecendo); e com 2+, o <select> sem nenhuma opção marcada como
+    // "selected" ficava na primeira em ordem alfabética por padrão — fácil
+    // de não notar que precisava trocar.
     function _htmlSeletorReservaInvestimento(idx) {
       if (!_reservasInvestimento.length) {
         return `<p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">Você ainda não tem uma Reserva de Investimento cadastrada. <a href="reservas-pj.html" target="_blank">Crie uma em Reservas</a> antes de importar isso.</p>`;
       }
-      if (_reservasInvestimento.length === 1) {
-        return `<input type="hidden" data-f-reserva-id value="${_reservasInvestimento[0].id}">`;
-      }
       return `
-        <div class="field-group"><label>Qual reserva?</label>
+        <div class="field-group"><label>Qual reserva? ⚠️ confira antes de salvar</label>
           <select data-f-reserva-id>
             ${_reservasInvestimento.map(r => `<option value="${r.id}">${escapeHtml(r.nome)}</option>`).join('')}
           </select>
@@ -921,17 +924,31 @@
           } else if (acao === 'outra-entrada') {
             const categoria = linha.querySelector('[data-f-categoria-entrada]').value;
             let descricao = linha.querySelector('[data-f-descricao]').value.trim() || item.descricao;
-            if (categoria === 'venda_sem_nota') {
-              const forma = linha.querySelector('[data-f-forma-pag]')?.value;
-              const pAtual = linha.querySelector('[data-f-parcela-atual]')?.value;
-              const pTotal = linha.querySelector('[data-f-parcela-total]')?.value;
-              const formaTxt = FORMA_PAG_LABEL[forma] || '';
-              const parcelaTxt = (pAtual && pTotal) ? ` — parcela ${pAtual}/${pTotal}` : '';
-              descricao = `${descricao}${formaTxt ? ' — ' + formaTxt : ''}${parcelaTxt}`;
-            }
             const valor = parseFloat(linha.querySelector('[data-f-valor]').value);
             const data = linha.querySelector('[data-f-data]').value;
-            await saveOutraEntradaPJ(uidAtual(), { descricao, valor, data, categoria });
+            let pAtual = null, pTotal = null, formaVendaSemNota = null;
+            if (categoria === 'venda_sem_nota') {
+              formaVendaSemNota = linha.querySelector('[data-f-forma-pag]')?.value;
+              pAtual = parseInt(linha.querySelector('[data-f-parcela-atual]')?.value, 10);
+              pTotal = parseInt(linha.querySelector('[data-f-parcela-total]')?.value, 10);
+            }
+            // Parcela futura pendente (total > atual): gera as parcelas
+            // restantes em Contas a Receber, em vez de uma Outra Entrada
+            // solta (achado 31/07/2026 — antes o número de parcela era só
+            // texto na descrição, não virava pendência nenhuma).
+            if (categoria === 'venda_sem_nota' && pAtual > 0 && pTotal > pAtual) {
+              await criarVendaAntigaParceladaPJ(uidAtual(), {
+                descricao, valorParcela: valor, dataParcelaAtual: data,
+                formaPagamento: formaVendaSemNota, parcelaAtual: pAtual, parcelaTotal: pTotal,
+              });
+            } else {
+              if (categoria === 'venda_sem_nota') {
+                const formaTxt = FORMA_PAG_LABEL[formaVendaSemNota] || '';
+                const parcelaTxt = (pAtual && pTotal) ? ` — parcela ${pAtual}/${pTotal}` : '';
+                descricao = `${descricao}${formaTxt ? ' — ' + formaTxt : ''}${parcelaTxt}`;
+              }
+              await saveOutraEntradaPJ(uidAtual(), { descricao, valor, data, categoria });
+            }
           }
           sucesso++;
         } catch (err) {

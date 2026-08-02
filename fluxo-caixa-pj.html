@@ -177,6 +177,7 @@
           <option value="aporte_socio">Aporte de sócio</option>
           <option value="reembolso">Reembolso</option>
           <option value="outro">Outro</option>
+          <option value="venda_sem_nota">Recebimento de venda (nota fora do sistema)</option>
         </select>
       </div>
       <div class="field-group">
@@ -344,7 +345,7 @@
 
     // ── Outras entradas (aporte de sócio / reembolso) — movido de Notas pra
     // cá em 27/07/2026: é lançamento de caixa, não de nota fiscal. ──
-    const CATEGORIA_LABEL = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outro' };
+    const CATEGORIA_LABEL = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outro', venda_sem_nota: 'Recebimento de venda (nota fora do sistema)' };
     let _outrasCache = [];
     async function renderOutrasEntradas() {
       try { _outrasCache = await getOutrasEntradasPJ(uidAtual(), mesAtual, anoAtual); }

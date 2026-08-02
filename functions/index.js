@@ -5442,7 +5442,11 @@ async function _regerarImpostosPrevistos(uid, mes, ano) {
   // não substituir).
   const notasSnap  = await db.collection('notasEmitidas')
     .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
-  const totalNotas = notasSnap.docs.reduce((s, d) => s + (d.data().valor || 0), 0);
+  // Notas 'legado' (venda antiga sem nota, recriada só pra pendurar parcelas
+  // futuras em Contas a Receber — achado 31/07/2026) nunca entram em
+  // faturamento pra imposto: a venda já aconteceu e já foi tributada no
+  // passado, contar de novo geraria imposto fantasma sobre dinheiro antigo.
+  const totalNotas = notasSnap.docs.filter(d => !d.data().legado).reduce((s, d) => s + (d.data().valor || 0), 0);
 
   const existentesSnap = await db.collection('impostosPrevistos')
     .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
@@ -5500,8 +5504,11 @@ async function _regerarProvisaoTrimestral(uid, trimestrais, trimestre, ano) {
   // não exige índice composto novo) e filtra "mes" em memória, pra não
   // precisar de mais um índice composto.
   const notasSnap = await db.collection('notasEmitidas').where('uid', '==', uid).where('ano', '==', ano).get();
+  // Mesma exclusão de notas 'legado' do cálculo mensal (ver comentário lá) —
+  // venda antiga não pode gerar provisão trimestral nova.
   const totalNotasTrimestre = notasSnap.docs.reduce((s, d) => {
     const data = d.data();
+    if (data.legado) return s;
     return meses.includes(data.mes) ? s + (data.valor || 0) : s;
   }, 0);
 
@@ -5758,6 +5765,71 @@ exports.saveNotaEmitida = onCall({}, async (request) => {
   }
   await _regerarImpostosPrevistos(uid, mes, ano);
   return { id: notaId, ok: true };
+});
+
+/**
+ * Recebimento de venda ANTIGA parcelada, sem nota cadastrada no sistema
+ * (achado 30-31/07/2026, Flávia: importou um recebimento de cliente de uma
+ * venda parcelada anterior ao uso do dashboard, indicou "parcela 2 de 6", e
+ * as parcelas 3-6 não viravam pendência nenhuma em Contas a Receber). Em vez
+ * de inventar uma estrutura nova, reaproveita nota+recebimentos: cria uma
+ * nota com `legado:true` (nunca conta em faturamento pra imposto nem em
+ * Receita Bruta da DRE — ver filtros em _regerarImpostosPrevistos,
+ * _regerarProvisaoTrimestral e _calcularDRESimplificado) só pra pendurar as
+ * parcelas restantes, usando toda a infraestrutura de Contas a Receber que
+ * já existe (aparece pendente, confirma, mostra no Fluxo de Caixa). Só gera
+ * recebimento da parcela atual em diante — parcelas 1..(parcelaAtual-1) já
+ * aconteceram no passado e não têm o que fazer com elas.
+ *
+ * `dataEmissao` da nota é calculada de trás pra frente a partir da parcela
+ * atual, com a MESMA fórmula de prazo por forma de pagamento que
+ * _gerarRecebimentosIniciais usa pra frente — por isso não precisa excluir
+ * essa nota do cálculo de PMR (_calcularPMR): o "dias até receber" da
+ * parcela atual confirmada sai estatisticamente idêntico ao de uma venda
+ * real com a mesma forma de pagamento, não distorce a média.
+ */
+exports.criarVendaAntigaParceladaPJ = onCall({}, async (request) => {
+  const { uid, descricao, valorParcela, dataParcelaAtual, formaPagamento, parcelaAtual, parcelaTotal } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!descricao || typeof descricao !== 'string' || !descricao.trim())
+    throw new HttpsError('invalid-argument', 'descricao é obrigatória.');
+  if (typeof valorParcela !== 'number' || valorParcela <= 0)
+    throw new HttpsError('invalid-argument', 'valorParcela deve ser maior que zero.');
+  if (!dataParcelaAtual || !/^\d{4}-\d{2}-\d{2}$/.test(dataParcelaAtual))
+    throw new HttpsError('invalid-argument', 'dataParcelaAtual deve estar no formato YYYY-MM-DD.');
+  if (!Number.isInteger(parcelaAtual) || !Number.isInteger(parcelaTotal) || parcelaAtual < 1 || parcelaTotal < parcelaAtual)
+    throw new HttpsError('invalid-argument', 'parcelaAtual/parcelaTotal inválidos.');
+  const forma = FORMAS_PAGAMENTO.includes(formaPagamento) ? formaPagamento : 'outro';
+
+  const prazoBase = SUGESTAO_PRAZO_DIAS[forma] ?? 0;
+  const diasAteParcelaAtual = prazoBase + 30 * (parcelaAtual - 1);
+  const dataEmissao = _somarDiasISO(dataParcelaAtual, -diasAteParcelaAtual);
+  const [ano, mes] = dataEmissao.split('-').map(Number);
+  const valorTotal = Math.round(valorParcela * parcelaTotal * 100) / 100;
+
+  const notaRef = db.collection('notasEmitidas').doc();
+  await notaRef.set({
+    uid, valor: valorTotal, mes, ano, dataEmissao,
+    legado: true, legadoDescricao: descricao.trim().slice(0, 200),
+    criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const batch = db.batch();
+  const nAGerar = parcelaTotal - parcelaAtual + 1;
+  for (let i = 0; i < nAGerar; i++) {
+    const numeroParcela = parcelaAtual + i;
+    const dataPrevista = i === 0 ? dataParcelaAtual : _somarDiasISO(dataParcelaAtual, 30 * i);
+    batch.set(notaRef.collection('recebimentos').doc(), {
+      uid, formaPagamento: forma,
+      valorBruto: valorParcela, taxa: 0, valorLiquido: valorParcela,
+      dataPrevista, dataRecebimento: i === 0 ? dataParcelaAtual : null,
+      dataEmissaoNota: dataEmissao,
+      parcelaAtual: numeroParcela, parcelaTotal,
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+  await batch.commit();
+  return { notaId: notaRef.id, ok: true };
 });
 
 exports.deleteNotaEmitida = onCall({}, async (request) => {
@@ -6689,7 +6761,7 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
   // Outras entradas (aporte de sócio, reembolso, outro) — busca tudo (não só
   // o mês pedido) porque agora também é usado pra rolar o saldo de meses
   // anteriores pra frente (ver _movimentosDoMes/diffMeses abaixo).
-  const CATEGORIA_LABEL_ENTRADA = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outra entrada' };
+  const CATEGORIA_LABEL_ENTRADA = { aporte_socio: 'Aporte de sócio', reembolso: 'Reembolso', outro: 'Outra entrada', venda_sem_nota: 'Recebimento de venda (nota fora do sistema)' };
   const outrasSnap = await db.collection('outrasEntradasPJ').where('uid', '==', uid).get();
   const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
   // Saídas: impostos previstos (exclui linhas só-informativas do trimestral —
@@ -6854,7 +6926,11 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
 async function _calcularDRESimplificado(uid, mes, ano) {
   const notasSnap = await db.collection('notasEmitidas')
     .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
-  const receitaBruta = notasSnap.docs.reduce((s, d) => s + (d.data().valor || 0), 0);
+  // Notas 'legado' (venda antiga sem nota, reconstruída só pra Contas a
+  // Receber — achado 31/07/2026) não contam como Receita Bruta do mês: a
+  // venda já aconteceu no passado, contar de novo infla o Lucro Líquido do
+  // mês errado.
+  const receitaBruta = notasSnap.docs.filter(d => !d.data().legado).reduce((s, d) => s + (d.data().valor || 0), 0);
 
   const impSnap = await db.collection('impostosPrevistos')
     .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
