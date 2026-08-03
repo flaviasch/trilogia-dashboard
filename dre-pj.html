@@ -119,6 +119,7 @@
     import { auth } from './js/firebase-config.js';
     import { getContaPJ, getDRESimplificadoPJ, getPontoEquilibrioPJ, salvarRetiradaMinimaPJ, msgErro, setViewAsUid, uidAtual } from './js/api.js?v=52';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { cacheGet, cacheSet } from './js/page-cache.js';
 
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
       'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -162,17 +163,27 @@
     onAuthStateChanged(auth, async (user) => {
       if (!user) { window.location.href = 'login-pj.html'; return; }
       currentUser = user;
-      try {
-        const conta = await getContaPJ(uidAtual());
-        if (!VIEW_AS_UID) {
-          if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
-          if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+
+      const _contaCacheKey = `conta_${uidAtual()}`;
+      const _contaCached = cacheGet(_contaCacheKey);
+      if (_contaCached) document.getElementById('empresaNome').textContent = _contaCached.nomeEmpresa;
+
+      const contaPromise = (async () => {
+        try {
+          const conta = await getContaPJ(uidAtual());
+          if (conta) cacheSet(_contaCacheKey, conta);
+          if (!VIEW_AS_UID) {
+            if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+            if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+          }
+          document.getElementById('empresaNome').textContent = conta ? conta.nomeEmpresa : '—';
+        } catch (err) {
+          console.error('[dre-pj] Falha ao carregar conta:', err.message);
         }
-        document.getElementById('empresaNome').textContent = conta ? conta.nomeEmpresa : '—';
-      } catch (err) {
-        console.error('[dre-pj] Falha ao carregar conta:', err.message);
-      }
+      })();
+
       renderTudo();
+      await contaPromise;
     });
 
     async function renderTudo() {

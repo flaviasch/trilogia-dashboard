@@ -432,6 +432,7 @@
     import { auth } from './js/firebase-config.js';
     import { getPerfil, savePerfil, getReservas, exportarMeusDados, setViewAsUid, registrarEvento, msgErro, getNivelAcesso } from './js/api.js?v=47';
     import { toast, setLoading } from './js/ui.js';
+    import { cacheGet, cacheSet } from './js/page-cache.js';
     import { isAdmin } from './js/admin-guard.js';
     import { ALOCACAO_PERFIL, mesesAte } from './js/investidor-calc.js';
     import {
@@ -555,8 +556,19 @@
     async function init(user) {
       if (!VIEW_AS_UID && await isAdmin() && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
 
+      // Cache local: mostra o último perfil salvo na hora enquanto busca o fresco
+      const _cacheKey = `perfil_${user.uid}`;
+      const _cached = !VIEW_AS_UID ? cacheGet(_cacheKey) : null;
+      if (_cached) {
+        perfilAtual = _cached;
+        renderPerfilAtual();
+        document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+      }
+
       try {
         perfilAtual = await getPerfil();
+        if (!VIEW_AS_UID) cacheSet(_cacheKey, perfilAtual);
       } catch (err) {
         console.error('Erro ao carregar perfil:', err);
       }

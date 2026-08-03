@@ -855,6 +855,7 @@
       }
     }
     import { toast, setLoading, confirmDelete } from './js/ui.js';
+    import { cacheGet, cacheSet } from './js/page-cache.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
       onAuthStateChanged,
@@ -1017,6 +1018,22 @@
       if (!VIEW_AS_UID && _admin && localStorage.getItem('modoAcesso') !== 'usuario') { window.location.href = 'admin.html'; return; }
       if (_admin) document.getElementById('linkAdmin').style.display = 'inline';
 
+      // Cache local: mostra o último dado salvo na hora enquanto busca o fresco
+      // (não usa em modo viewAs pra não misturar cache do admin com dado da mentorada)
+      const _cacheKey = `patrimonio_${user.uid}`;
+      const _cached = !VIEW_AS_UID ? cacheGet(_cacheKey) : null;
+      if (_cached) {
+        ativos = _cached.ativos || [];
+        dividas = _cached.dividas || [];
+        corretoraPosicoes = _cached.corretoraPosicoes || [];
+        historico = _cached.historico || [];
+        render(ativos, dividas);
+        renderCorretoraPosicoes();
+        renderLastImport();
+        document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+      }
+
       try {
         const [patrimonioData, hist] = await Promise.allSettled([
           getPatrimonio(),
@@ -1028,8 +1045,9 @@
           corretoraPosicoes = patrimonioData.value.corretoraPosicoes || [];
         }
         if (hist.status === 'fulfilled') historico = hist.value || [];
+        if (!VIEW_AS_UID) cacheSet(_cacheKey, { ativos, dividas, corretoraPosicoes, historico });
       } catch (err) {
-        toast(msgErro(err), 'error');
+        if (!_cached) toast(msgErro(err), 'error'); // erro de rede com cache visível fica silencioso
       }
       render(ativos, dividas);
       renderCorretoraPosicoes();

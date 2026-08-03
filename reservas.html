@@ -776,6 +776,7 @@
     import { auth } from './js/firebase-config.js';
     import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid, registrarEvento, msgErro, getNivelAcesso } from './js/api.js?v=47';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
+    import { cacheGet, cacheSet } from './js/page-cache.js';
     import { isAdmin } from './js/admin-guard.js';
     import { ALOCACAO_PERFIL, ALOCACAO_CURTO_PRAZO, ALOCACAO_MEDIO_PRAZO, mesesAte, mesesEntre } from './js/investidor-calc.js';
     import {
@@ -987,6 +988,19 @@
       }
       if (_admin) document.getElementById('linkAdmin').style.display = 'inline';
 
+      // Cache local: mostra o último dado salvo na hora enquanto busca o fresco
+      // (não usa em modo viewAs pra não misturar cache do admin com dado da mentorada)
+      const _cacheKey = `reservas_${user.uid}`;
+      const _cached = !VIEW_AS_UID ? cacheGet(_cacheKey) : null;
+      if (_cached) {
+        reservas = _cached.reservas || [];
+        perfilInvestidor = _cached.perfilInvestidor || null;
+        patrimonioAtual = _cached.patrimonioAtual || [];
+        try { renderAll(); atualizarLegenda(); } catch (_) {}
+        document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+      }
+
       try {
         // Carrega reservas, perfil e patrimônio em paralelo
         const [resResult, perfilResult, patResult] = await Promise.allSettled([
@@ -1010,6 +1024,8 @@
         else
           console.warn('[reservas] getPatrimonio falhou:', patResult.reason);
 
+        if (!VIEW_AS_UID) cacheSet(_cacheKey, { reservas, perfilInvestidor, patrimonioAtual });
+
         try {
           renderAll();
           atualizarLegenda();
@@ -1017,7 +1033,7 @@
           console.error('[reservas] Erro no render:', renderErr);
         }
       } catch (err) {
-        toast(msgErro(err), 'error');
+        if (!_cached) toast(msgErro(err), 'error'); // erro de rede com cache visível fica silencioso
       } finally {
         // Sempre oculta o spinner — mesmo se algo acima falhar
         document.getElementById('loadingOverlay').style.display = 'none';

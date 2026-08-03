@@ -6537,7 +6537,7 @@ exports.notifImpostosDia = onSchedule(
  * Devolve o doc de onboarding da conta PJ do uid, ou null se ainda não
  * completou (usado por login-pj.html pra decidir onboarding-pj x impostos-pj).
  */
-exports.getContaPJ = onCall({}, async (request) => {
+exports.getContaPJ = onCall({ minInstances: 1 }, async (request) => {
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
   const snap = await db.collection('contasPJ').doc(uid).get();
