@@ -295,12 +295,19 @@ export function calcularAgregadosOrcamento({
   // fatura já resolvida de outro mês virava um card fantasma de R$0 em todo
   // mês visualizado dali pra frente (achado 23/07/2026, mesmo fix na aba
   // Faturas do frontend).
+  //
+  // E só entra se a fatura for NATIVA do mês sendo calculado agora — usar
+  // "_faturaJaAbriu" aqui (só olha se o ciclo já começou em relação a hoje)
+  // reinseria pra sempre, em TODO mês seguinte, o ajuste de uma fatura já
+  // resolvida em outro mês (achado 03/08/2026, Flávia: ajuste de fatura
+  // pago em julho inflando "Lançamentos não identificados"/Despesas totais
+  // de agosto em diante).
   Object.entries(faturaEstados).forEach(([key, fe]) => {
     if (key in gruposFechadaCaixa) return;
     if (fe.ajusteTotal == null) return;
     if (contaId != null && (fe.contaId || CONTA_PRINCIPAL_ID) !== contaId) return;
     const [cartaoId, faturaKey] = key.split('_');
-    if (!_faturaJaAbriu(cartaoId, faturaKey)) return;
+    if (_periodoNumCalc(faturaKey) !== periodoTotal) return;
     if (cartoes.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixa[key] = 0;
   });
   let totalFaturas    = 0; // fatura fechada ainda não confirmada como paga ("a vencer")

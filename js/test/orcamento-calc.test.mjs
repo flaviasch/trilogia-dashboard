@@ -504,16 +504,34 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.ok('c1_2026-07' in r.gruposFechadaCaixa);
   });
 
-  await t.test('achado 23/07/2026: backfill de faturaEstados só entra com ajusteTotal — sem isso, fatura de outro mês some (não vira card fantasma de R$0)', () => {
-    const data = periodo([]); // mês sem nenhum item de cartão
+  await t.test('achado 23/07/2026: backfill de faturaEstados só entra com ajusteTotal — sem isso, fatura do próprio mês some (não vira card fantasma de R$0)', () => {
+    const data = periodo([]); // mês sem nenhum item de cartão, período 2026-07 (default do helper)
     const cartoes = [{ id: 'c1', ativo: true }];
     const faturaEstados = {
-      'c1_2026-06': { estado: 'paga_total', valorPago: 100 }, // sem ajusteTotal — já resolvida em outro mês
-      'c1_2026-05': { estado: 'paga_total', valorPago: 50, ajusteTotal: 50 }, // com ajusteTotal — deve continuar aparecendo
+      'c1_2026-07': { estado: 'paga_total', valorPago: 100 }, // sem ajusteTotal, é do próprio mês calculado
     };
     const r = calcularAgregadosOrcamento({ data, cartoes, faturaEstados, agora: HOJE });
-    assert.ok(!('c1_2026-06' in r.gruposFechadaCaixa), 'sem ajusteTotal, não deve ser reinserida em mês onde não tem lançamento nenhum');
-    assert.ok('c1_2026-05' in r.gruposFechadaCaixa, 'com ajusteTotal, continua aparecendo (comportamento original de 09/07/2026)');
+    assert.ok(!('c1_2026-07' in r.gruposFechadaCaixa), 'sem ajusteTotal, não deve ser reinserida mesmo sendo do próprio mês, se não tem lançamento nenhum');
+  });
+
+  await t.test('achado 03/08/2026: ajusteTotal só entra no mês nativo da fatura — não vaza pros meses seguintes', () => {
+    // Antes, o backfill só checava "_faturaJaAbriu" (ciclo já começou em
+    // relação a hoje), o que é sempre verdadeiro pra qualquer mês passado —
+    // um ajuste resolvido em julho continuava reaparecendo em agosto,
+    // setembro etc. pra sempre, inflando "Lançamentos não identificados" e
+    // Despesas totais desses meses.
+    const dataJulho  = periodo([], [], { periodo: { mes: 7, ano: 2026 } });
+    const dataAgosto = periodo([], [], { periodo: { mes: 8, ano: 2026 } });
+    const cartoes = [{ id: 'c1', ativo: true }];
+    const faturaEstados = {
+      'c1_2026-07': { estado: 'paga_total', valorPago: 9892, ajusteTotal: 9892 }, // resolvida em julho
+    };
+    const julho  = calcularAgregadosOrcamento({ data: dataJulho, cartoes, faturaEstados, agora: HOJE });
+    const agosto = calcularAgregadosOrcamento({ data: dataAgosto, cartoes, faturaEstados, agora: HOJE });
+    assert.ok('c1_2026-07' in julho.gruposFechadaCaixa, 'no mês da própria fatura, continua aparecendo (comportamento de 09/07/2026)');
+    assert.equal(julho.totalCartaoPago, 9892);
+    assert.ok(!('c1_2026-07' in agosto.gruposFechadaCaixa), 'mês seguinte não deve herdar o ajuste de julho');
+    assert.equal(agosto.totalCartaoPago, 0, 'agosto não pode ficar inflado pelo ajuste de julho já resolvido');
   });
 });
 
