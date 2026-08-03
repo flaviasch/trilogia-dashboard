@@ -3202,7 +3202,21 @@
           // Nunca reenvia itens "emprestados" de outro mês (_sourceMes) — eles não
           // pertencem a este mês, e reenviá-los alimenta o merge no backend que
           // causava duplicação (achado em 04/07/2026).
-          const itensFatura = (await getOrcamento(fatMes, fatAno)).filter(i => i._sourceMes == null);
+          let itensFatura = (await getOrcamento(fatMes, fatAno)).filter(i => i._sourceMes == null);
+          // Editando um item cujo mês da fatura é DIFERENTE do mês em tela: o
+          // splice acima (linha ~3199) só removeu da tela/mês atual, não do mês
+          // real onde a fatura mora — sem isso, a busca acima ainda trazia a
+          // versão antiga do lançamento, e o push abaixo duplicava (achado
+          // 03/08/2026, Flávia: "Sem Parar" com valor reajustado criando uma
+          // segunda cópia com o valor antigo, em vez de substituir).
+          if (itemOriginal) {
+            const mesmoLancamento = i => (itemOriginal.recorrenteId || i.recorrenteId)
+              ? i.recorrenteId === itemOriginal.recorrenteId && i.data === itemOriginal.data
+              : i.categoria === itemOriginal.categoria && i.valor === itemOriginal.valor && i.data === itemOriginal.data
+                && (i.fatura || '') === (itemOriginal.fatura || '') && (i.cartaoId || '') === (itemOriginal.cartaoId || '')
+                && (i.descricao || '') === (itemOriginal.descricao || '');
+            itensFatura = itensFatura.filter(i => !mesmoLancamento(i));
+          }
           itensFatura.push(novoItem);
           await saveOrcamento(fatMes, fatAno, itensFatura);
           _invalPeriodo(fatMes, fatAno);
