@@ -973,6 +973,14 @@
         <div id="detNotionTimeline" style="display:none"></div>
       </div>
 
+      <!-- ISF -->
+      <div id="detISF" style="margin-bottom:32px">
+        <h2 class="detalhe-section-title" style="margin-bottom:14px">ISF — Índice de Saúde Financeira</h2>
+        <div id="detISFConteudo" style="background:var(--navy);border:1px solid var(--border);border-radius:12px;padding:18px 20px;font-size:13px;color:var(--text-muted)">
+          Carregando…
+        </div>
+      </div>
+
       <!-- Notas da mentora -->
       <h2 class="detalhe-section-title">Notas da mentora</h2>
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Visível apenas para você.</p>
@@ -2048,7 +2056,7 @@
     import { auth } from './js/firebase-config.js';
     import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada,
              createContrato, getContratos, pagarParcela, editarPagamento, estornarPagamento, cancelarCobranca, cancelarContrato, editarContrato, getCobrancas,
-             criarPlanilha, getNotionCRM, getMinhaJornada,
+             criarPlanilha, getNotionCRM, getMinhaJornada, getMateriaisJornadaAdmin, salvarMaterialJornadaAdmin,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
              syncDiagnostico, bootstrapNotionPageIds, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, anunciarNovidadesJun2026Completo, anunciarJornadaDashboard, anunciarNovidadesJul2026, anunciarBalancoJul2026, anunciarMultiplasContasJul2026, anunciarRaioXJul2026, anunciarPatrimonioIAJul2026, comunicadoTecnico, migrarOrcamento, getAnalytics,
@@ -2059,7 +2067,7 @@
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
              getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ,
-             msgErro } from './js/api.js?v=48';
+             msgErro } from './js/api.js?v=50';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -3374,6 +3382,125 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       }
     }
 
+    // ─── ISF — Índice de Saúde Financeira (jornada.html, ferramentaId 'isf') ───
+    const _ISF_FAIXAS_ADMIN = [
+      { min: 0, max: 36, nome: 'Ruim' }, { min: 37, max: 49, nome: 'Muito Baixa' },
+      { min: 50, max: 56, nome: 'Baixa' }, { min: 57, max: 60, nome: 'OK' },
+      { min: 61, max: 68, nome: 'Boa' }, { min: 69, max: 82, nome: 'Muito Boa' },
+      { min: 83, max: 100, nome: 'Ótima' },
+    ];
+    function _isfFaixaNome(score) {
+      return (_ISF_FAIXAS_ADMIN.find(f => score >= f.min && score <= f.max) || _ISF_FAIXAS_ADMIN[0]).nome;
+    }
+    function _isfCor(score) {
+      if (score < 37) return '#f87171';
+      if (score < 57) return '#f59e0b';
+      if (score < 69) return '#4ade80';
+      return '#CFAE65';
+    }
+    function _isfCard(label, r) {
+      return `
+        <div style="flex:1;text-align:center;padding:14px;border:1px solid var(--border);border-radius:10px">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${label}</div>
+          <div style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:${_isfCor(r.score)}">${r.score}</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${_isfFaixaNome(r.score)}</div>
+        </div>`;
+    }
+    // Formulário de lançamento manual — para mentoradas que já fizeram o ISF oficial
+    // (indice.febraban.org.br) antes de essa ferramenta existir no Dashboard. Só entra
+    // como score, sem detalhamento por dimensão (o site oficial não devolve isso).
+    function _isfFormManual(uid, momento, labelBotao) {
+      const idScore = `isfManualScore-${momento}`;
+      const idData  = `isfManualData-${momento}`;
+      return `
+        <div style="border:1px dashed var(--border);border-radius:10px;padding:14px;margin-top:${momento === 'inicial' ? '0' : '14px'}">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+            Já fez o ISF oficial (indice.febraban.org.br) antes de ter essa ferramenta? Lance a nota aqui.
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="number" id="${idScore}" min="0" max="100" placeholder="Nota (0-100)"
+              style="width:110px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--white);font-family:'Inter',sans-serif" />
+            <input type="date" id="${idData}"
+              style="background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--white);font-family:'Inter',sans-serif" />
+            <button id="isfBtnManual-${momento}" style="background:var(--gold);color:var(--navy);font-weight:600;font-size:12px;border:none;border-radius:6px;padding:9px 14px;cursor:pointer;font-family:'Inter',sans-serif">${labelBotao}</button>
+          </div>
+          <div id="isfManualMsg-${momento}" style="font-size:12px;margin-top:6px"></div>
+        </div>`;
+    }
+
+    function _bindIsfFormManual(uid, momento, dadosAtuais) {
+      const btn = document.getElementById(`isfBtnManual-${momento}`);
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const scoreEl = document.getElementById(`isfManualScore-${momento}`);
+        const dataEl  = document.getElementById(`isfManualData-${momento}`);
+        const msgEl   = document.getElementById(`isfManualMsg-${momento}`);
+        const score = Number(scoreEl.value);
+        if (!scoreEl.value || isNaN(score) || score < 0 || score > 100) {
+          msgEl.textContent = 'Informe uma nota entre 0 e 100.';
+          msgEl.style.color = 'var(--negative)';
+          return;
+        }
+        const dados = { ...dadosAtuais };
+        dados[momento] = {
+          score: Math.round(score),
+          dimensoes: null, // não vem do site oficial — só o total
+          origem: 'febraban_manual',
+          respondidoEm: dataEl.value ? new Date(dataEl.value).toISOString() : new Date().toISOString(),
+        };
+        const status = dados.inicial && dados.final ? 'concluido' : 'em_andamento';
+        btn.disabled = true;
+        msgEl.textContent = 'Salvando…';
+        msgEl.style.color = 'var(--text-muted)';
+        try {
+          await salvarMaterialJornadaAdmin(uid, 'isf', dados, status);
+          await carregarISF(uid);
+        } catch (err) {
+          msgEl.textContent = `Erro ao salvar: ${err.message || err}`;
+          msgEl.style.color = 'var(--negative)';
+          btn.disabled = false;
+        }
+      });
+    }
+
+    async function carregarISF(uid) {
+      const el = document.getElementById('detISFConteudo');
+      if (!el) return;
+      el.innerHTML = 'Carregando…';
+      try {
+        const { materiais } = await getMateriaisJornadaAdmin(uid);
+        const isf = materiais?.isf?.respostas || {};
+
+        if (!isf.inicial) {
+          el.innerHTML = `<div style="margin-bottom:10px">A mentorada ainda não respondeu o ISF inicial pelo Dashboard.</div>
+            ${_isfFormManual(uid, 'inicial', 'Registrar ISF inicial')}`;
+          _bindIsfFormManual(uid, 'inicial', isf);
+          return;
+        }
+        const origemInicial = isf.inicial.origem === 'febraban_manual'
+          ? '<div style="font-size:11px;color:var(--text-muted);margin-top:6px">Lançado manualmente (ISF oficial Febraban)</div>' : '';
+
+        if (!isf.final) {
+          el.innerHTML = `<div style="display:flex;gap:16px">${_isfCard('ISF inicial', isf.inicial)}</div>
+            ${origemInicial}
+            <div style="font-size:12px;color:var(--text-muted);margin:10px 0">Aguardando o ISF final (encontro 7).</div>
+            ${_isfFormManual(uid, 'final', 'Registrar ISF final')}`;
+          _bindIsfFormManual(uid, 'final', isf);
+          return;
+        }
+        const delta = isf.final.score - isf.inicial.score;
+        const corDelta = delta > 0 ? '#4ade80' : delta < 0 ? '#f87171' : 'var(--text-muted)';
+        const origemFinal = isf.final.origem === 'febraban_manual'
+          ? '<div style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:8px">Uma ou ambas as notas foram lançadas manualmente (ISF oficial Febraban) — sem detalhamento por dimensão.</div>' : '';
+        el.innerHTML = `
+          <div style="display:flex;gap:16px;margin-bottom:12px">${_isfCard('ISF inicial', isf.inicial)}${_isfCard('ISF final', isf.final)}</div>
+          ${origemInicial || origemFinal}
+          <div style="text-align:center;font-size:13px;color:${corDelta};font-weight:600;margin-top:6px">Evolução: ${delta >= 0 ? '+' : ''}${delta} pontos</div>`;
+      } catch (err) {
+        el.innerHTML = `<span style="color:var(--negative)">Erro ao carregar ISF: ${err.message || err}</span>`;
+      }
+    }
+
     // ─── Detalhe mentorada ───────────────────
     function abrirDetalhe(id) {
       const m = mentoradas.find(x => (x.uid ?? x.id) === id);
@@ -3479,6 +3606,7 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       // Pré-preenche campo manual com pageId já cacheado (se houver)
       carregarNotionCRM(uid);
       document.getElementById('btnAtualizarNotion').onclick = () => carregarNotionCRM(uid);
+      carregarISF(uid);
 
       // Carrega contratos em background (também ajusta btnFecharMentoria / btnMarcarEncerrada)
       carregarContratos(uid);

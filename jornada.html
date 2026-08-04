@@ -300,6 +300,8 @@
       cursor: pointer; font-family: 'Inter', sans-serif; transition: all .15s;
     }
     .fj-quiz-opcao.selecionada { border-color: var(--gold); background: var(--gold-dim); color: var(--gold); }
+    .fj-quiz-opcoes.opcoes-4 { flex-wrap: wrap; }
+    .fj-quiz-opcoes.opcoes-4 .fj-quiz-opcao { flex: 1 1 calc(50% - 4px); padding: 8px 4px; font-size: 12px; }
     .fj-quiz-progresso { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
     .fj-quiz-interpretacao-titulo { font-size: 13px; color: var(--text-secondary); margin-bottom: 2px; }
 
@@ -594,6 +596,20 @@
     </div>
   </div>
 
+  <!-- Modal: Índice de Saúde Financeira (ISF) -->
+  <div class="fj-modal-backdrop" id="modalISF">
+    <div class="fj-modal fj-modal-largo">
+      <div class="fj-modal-titulo">Índice de Saúde Financeira (ISF)</div>
+      <div class="fj-modal-desc" id="isfDesc">Perguntas sobre segurança, liberdade, habilidade e comportamento financeiro (metodologia I-SFB, Febraban). Responda com sinceridade — não existe resposta certa, só o seu ponto de partida.</div>
+
+      <div id="isfConteudo"></div>
+
+      <div class="fj-modal-acoes">
+        <button class="fj-btn fj-btn-secundario" id="isfBtnFechar">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Plano Financeiro Comportamental -->
   <div class="fj-modal-backdrop" id="modalPlanoComportamental">
     <div class="fj-modal fj-modal-largo">
@@ -835,7 +851,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getMinhaJornada, marcarLicaoCasa, getNivelAcesso, getMateriaisJornada, salvarMaterialJornada, getDashboardHome, registrarDecisaoFinanceira, getDecisoesFinanceiras } from './js/api.js?v=47';
+    import { getMinhaJornada, marcarLicaoCasa, getNivelAcesso, getMateriaisJornada, salvarMaterialJornada, getDashboardHome, registrarDecisaoFinanceira, getDecisoesFinanceiras } from './js/api.js?v=50';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -1016,6 +1032,11 @@
         link: 'liberdade.html',
       },
       {
+        id: 'isf',
+        titulo: 'Índice de Saúde Financeira (ISF)',
+        desc: 'Meça sua saúde financeira no início e no fim da mentoria e veja sua evolução.',
+      },
+      {
         id: 'decisao-financeira',
         titulo: 'Antes de Decidir: P.A.R.I.S. + Anti-Impulso',
         desc: 'Pausa de 2 passos antes de uma compra importante — use quantas vezes quiser.',
@@ -1085,6 +1106,7 @@
       initModalReservaIdeal(materiaisSalvos['calculadora-reserva']);
       initModalPrecoReal(materiaisSalvos['preco-real-decisao']);
       initModalQuizVieses(materiaisSalvos['quiz-vieses']);
+      initModalISF(materiaisSalvos['isf']);
       initModalPlanoComportamental(materiaisSalvos['plano-comportamental']);
       initModalDiarioHistorias(materiaisSalvos['diario-historias']);
       initModalMapaAmbiente(materiaisSalvos['mapa-ambiente']);
@@ -1107,6 +1129,7 @@
       if (id === 'desafio-7-dias')        document.getElementById('modalDesafio7Dias').classList.add('aberto');
       if (id === 'decisao-financeira')    { document.getElementById('modalDecisaoFinanceira').classList.add('aberto'); carregarHistoricoDecisoes(); }
       if (id === 'dicas-anti-impulso')    document.getElementById('modalDicasAntiImpulso').classList.add('aberto');
+      if (id === 'isf')                   document.getElementById('modalISF').classList.add('aberto');
     }
 
     // Atualiza o badge de status no card da grade sem precisar recarregar a página.
@@ -1372,6 +1395,269 @@
       avaliarResultado();
 
       document.getElementById('qvBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
+    }
+
+    // ── Índice de Saúde Financeira (ISF) ──
+    // Modelado no I-SFB da Febraban (indice.febraban.org.br), não na versão simplificada
+    // de 8 perguntas da landing pública (essa existe pra não perder lead — aqui, dentro
+    // da mentoria, não há esse limite). Estrutura real: 5 dimensões (Segurança, Liberdade,
+    // Habilidade e Comportamento Financeiro pontuadas 0-100; Base Financeira é contexto,
+    // não pontua). A Febraban usa 18 perguntas (15 obrigatórias + 3 opcionais) mas não
+    // publica a lista completa — as frases abaixo marcadas [Febraban] são as que a
+    // Apresentacao_Site.pdf oficial mostra como exemplo por dimensão; as demais completam
+    // cada dimensão a 3 itens no mesmo estilo/escala. Faixas de pontuação são as do
+    // material oficial de lançamento (2021); média Brasil = 53, conferida no resultado
+    // ao vivo do site indice.febraban.org.br — mesma referência já usada na landing.
+    const ISF_ESCALAS = {
+      concordancia: ['Nada', 'Pouco', 'Mais ou menos', 'Muito', 'Totalmente'],
+      frequencia:   ['Nunca', 'Raramente', 'Às vezes', 'Frequentemente', 'Sempre'],
+    };
+    const ISF_PERGUNTAS = [
+      // Segurança Financeira
+      { id: 1, texto: 'Eu daria conta de uma despesa inesperada grande.', dimensao: 'seguranca', escala: 'concordancia', invertida: false },
+      { id: 2, texto: 'Eu estou apertada financeiramente.', dimensao: 'seguranca', escala: 'concordancia', invertida: true },
+      { id: 3, texto: 'Preocupações com as despesas e compromissos financeiros são motivo de estresse na minha casa.', dimensao: 'seguranca', escala: 'concordancia', invertida: true },
+      // Liberdade Financeira
+      { id: 4, texto: 'Estou garantindo meu futuro financeiro.', dimensao: 'liberdade', escala: 'concordancia', invertida: false },
+      { id: 5, texto: 'O jeito que eu cuido do meu dinheiro me permite aproveitar a vida.', dimensao: 'liberdade', escala: 'concordancia', invertida: false },
+      { id: 6, texto: 'Por causa dos compromissos financeiros assumidos, o padrão de vida da minha casa foi bastante reduzido.', dimensao: 'liberdade', escala: 'concordancia', invertida: true },
+      // Habilidade Financeira
+      { id: 7, texto: 'Eu sei me informar para tomar decisões financeiras.', dimensao: 'habilidade', escala: 'concordancia', invertida: false },
+      { id: 8, texto: 'Eu sou capaz de reconhecer um bom investimento.', dimensao: 'habilidade', escala: 'concordancia', invertida: false },
+      { id: 9, texto: 'Eu consigo perceber quando preciso buscar orientação sobre como lidar com o meu dinheiro.', dimensao: 'habilidade', escala: 'frequencia', invertida: false },
+      // Comportamento Financeiro
+      { id: 10, texto: 'Eu sei como me controlar para não gastar muito.', dimensao: 'comportamento', escala: 'concordancia', invertida: false },
+      { id: 11, texto: 'Eu penso bastante antes de gastar dinheiro.', dimensao: 'comportamento', escala: 'frequencia', invertida: false },
+      { id: 12, texto: 'Eu consigo guardar dinheiro todo mês, mesmo que pouco.', dimensao: 'comportamento', escala: 'frequencia', invertida: false },
+    ];
+    // Base Financeira — contexto (renda, orçamento), não entra na pontuação 0-100.
+    const ISF_BASE_PERGUNTAS = [
+      { id: 'renda', texto: 'Qual é, aproximadamente, a renda total por mês incluindo todos os membros da sua casa?',
+        opcoes: ['Até R$5 mil', 'R$5 mil a R$10 mil', 'R$10 mil a R$20 mil', 'Acima de R$20 mil'] },
+      { id: 'gastosXrenda', texto: 'Nos últimos 12 meses, os gastos da sua casa foram, em comparação com a renda:',
+        opcoes: ['Muito maiores do que a renda', 'Maiores do que a renda', 'Mais ou menos iguais à renda', 'Menores do que a renda', 'Muito menores do que a renda'] },
+    ];
+    const ISF_DIMENSOES_LABEL = { seguranca: 'Segurança', liberdade: 'Liberdade', habilidade: 'Habilidade', comportamento: 'Comportamento' };
+    // Faixas oficiais do I-SFB (Apresentacao_Site.pdf, 2021) — média Brasil = 53
+    // (valor atual, conferido no resultado ao vivo do site).
+    const ISF_FAIXAS = [
+      { min: 0,  max: 36,  nome: 'Ruim',        texto: 'Círculo de fragilidade, estresse e desorganização financeira.' },
+      { min: 37, max: 49,  nome: 'Muito Baixa',  texto: 'Risco de atingir uma situação crítica.' },
+      { min: 50, max: 56,  nome: 'Baixa',        texto: 'Primeiros sinais de desequilíbrio e risco de entrar em alto estresse financeiro.' },
+      { min: 57, max: 60,  nome: 'OK',           texto: 'Equilíbrio financeiro no limite — com pouco espaço para erro.' },
+      { min: 61, max: 68,  nome: 'Boa',          texto: 'Básico bem feito.' },
+      { min: 69, max: 82,  nome: 'Muito Boa',    texto: 'Domínio do dia a dia, mas ainda falta dar o salto do patrimônio.' },
+      { min: 83, max: 100, nome: 'Ótima',        texto: 'Vida financeira sem estresse. Finanças proporcionam segurança e liberdade.' },
+    ];
+
+    function calcularScoreISF(respostas) {
+      const dimensoesItens = { seguranca: [], liberdade: [], habilidade: [], comportamento: [] };
+      ISF_PERGUNTAS.forEach(p => {
+        const bruto = respostas[p.id] ?? 0;
+        const valor = p.invertida ? 4 - bruto : bruto;
+        dimensoesItens[p.dimensao].push(valor);
+      });
+      const dimensoes = {};
+      Object.keys(dimensoesItens).forEach(dim => {
+        const itens = dimensoesItens[dim];
+        const media = itens.reduce((a, b) => a + b, 0) / itens.length; // 0-4
+        dimensoes[dim] = Math.round((media / 4) * 100);
+      });
+      const score = Math.round(
+        Object.values(dimensoes).reduce((a, b) => a + b, 0) / Object.keys(dimensoes).length
+      );
+      return { score, dimensoes };
+    }
+
+    function faixaISF(score) {
+      return ISF_FAIXAS.find(f => score >= f.min && score <= f.max) || ISF_FAIXAS[0];
+    }
+    function textoFaixaISF(score) {
+      const f = faixaISF(score);
+      return `${f.nome} — ${f.texto} (média Brasil no I-SFB: 53)`;
+    }
+    function corFaixaISF(score) {
+      if (score < 37) return '#f87171';
+      if (score < 57) return '#f59e0b';
+      if (score < 69) return '#4ade80';
+      return '#CFAE65';
+    }
+
+    function gerarLeituraEvolucaoISF(inicial, final) {
+      const delta = final.score - inicial.score;
+      const fraseAbertura = delta > 0
+        ? `Evolução de ${delta} pontos entre o início e o fim da mentoria — de "${faixaISF(inicial.score).nome}" para "${faixaISF(final.score).nome}".`
+        : delta === 0
+          ? 'O score total se manteve estável entre o início e o fim da mentoria.'
+          : `O score total variou ${delta} pontos entre o início e o fim da mentoria.`;
+
+      // Se um dos dois momentos não tem detalhamento por dimensão (ex: nota lançada
+      // manualmente a partir do ISF oficial da Febraban), a leitura fica só no total.
+      if (!inicial.dimensoes || !final.dimensoes) return fraseAbertura;
+
+      const deltasDim = Object.keys(inicial.dimensoes).map(dim => ({
+        dim, delta: final.dimensoes[dim] - inicial.dimensoes[dim],
+      }));
+      const maiorEvolucao = deltasDim.reduce((a, b) => (b.delta > a.delta ? b : a));
+      const pontoAtencao  = deltasDim.reduce((a, b) => (b.delta < a.delta ? b : a));
+
+      const fraseMaior = maiorEvolucao.delta > 0
+        ? ` A maior evolução foi em ${ISF_DIMENSOES_LABEL[maiorEvolucao.dim]} (+${maiorEvolucao.delta}).`
+        : '';
+      const fraseAtencao = pontoAtencao.delta <= 0
+        ? ` ${ISF_DIMENSOES_LABEL[pontoAtencao.dim]} segue como ponto de atenção (${pontoAtencao.delta >= 0 ? '+' : ''}${pontoAtencao.delta}).`
+        : '';
+      return fraseAbertura + fraseMaior + fraseAtencao;
+    }
+
+    function initModalISF(salvo) {
+      const modal    = document.getElementById('modalISF');
+      const conteudo = document.getElementById('isfConteudo');
+      const desc     = document.getElementById('isfDesc');
+      const dados    = salvo?.respostas || {};
+
+      document.getElementById('isfBtnFechar').addEventListener('click', () => modal.classList.remove('aberto'));
+
+      function renderBase(momento, respostasDimensoes) {
+        desc.textContent = 'Só mais 2 perguntas de contexto (não entram na pontuação).';
+        const baseRespostas = {};
+        conteudo.innerHTML = `
+          <div id="isfBasePerguntas"></div>
+          <button class="fj-btn fj-btn-primario" id="isfBtnConcluirBase" style="width:100%;margin-top:8px" disabled>Ver meu resultado</button>`;
+
+        document.getElementById('isfBasePerguntas').innerHTML = ISF_BASE_PERGUNTAS.map(p => `
+          <div class="fj-quiz-pergunta">
+            <div class="fj-quiz-texto">${p.texto}</div>
+            <div class="fj-quiz-opcoes" style="flex-wrap:wrap">
+              ${p.opcoes.map(op => `<button type="button" class="fj-quiz-opcao" style="flex:1 1 auto" data-pergunta="${p.id}" data-valor="${op.replace(/"/g, '&quot;')}">${op}</button>`).join('')}
+            </div>
+          </div>`).join('');
+
+        const btnConcluir = document.getElementById('isfBtnConcluirBase');
+        conteudo.querySelectorAll('.fj-quiz-opcao').forEach(btn => {
+          btn.addEventListener('click', () => {
+            baseRespostas[btn.dataset.pergunta] = btn.dataset.valor;
+            conteudo.querySelectorAll(`[data-pergunta="${btn.dataset.pergunta}"]`).forEach(b => {
+              b.classList.toggle('selecionada', b.dataset.valor === baseRespostas[btn.dataset.pergunta]);
+            });
+            btnConcluir.disabled = Object.keys(baseRespostas).length < ISF_BASE_PERGUNTAS.length;
+          });
+        });
+
+        btnConcluir.addEventListener('click', () => {
+          const { score, dimensoes } = respostasDimensoes;
+          dados[momento] = {
+            respostas: respostasDimensoes.respostas, base: baseRespostas,
+            score, dimensoes, respondidoEm: new Date().toISOString(),
+          };
+          const status = dados.inicial && dados.final ? 'concluido' : 'em_andamento';
+          salvarMaterialJornada('isf', dados, status)
+            .then(() => {
+              atualizarStatusCard('isf', status);
+              if (dados.inicial && dados.final) renderComparativo();
+              else renderResultado(momento);
+            })
+            .catch(err => console.warn('Erro ao salvar ISF:', err.message));
+        });
+      }
+
+      function renderResultado(momento) {
+        const r = dados[momento];
+        desc.textContent = 'Resultado registrado.';
+        conteudo.innerHTML = `
+          <div style="text-align:center;padding:14px;border:1px solid var(--border);border-radius:10px">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Seu ISF</div>
+            <div style="font-family:'Playfair Display',serif;font-size:32px;font-weight:700;color:${corFaixaISF(r.score)}">${r.score}/100</div>
+            <div style="font-size:13px;color:var(--text-secondary);margin-top:6px">${textoFaixaISF(r.score)}</div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:14px;text-align:center">Você vai responder de novo no encontro 7 para medir sua evolução.</div>`;
+      }
+
+      function renderQuiz(momento) {
+        desc.textContent = momento === 'inicial'
+          ? `${ISF_PERGUNTAS.length} perguntas sobre segurança, liberdade, habilidade e comportamento financeiro (metodologia I-SFB, Febraban). Responda com sinceridade — é o seu ponto de partida na mentoria.`
+          : `As mesmas ${ISF_PERGUNTAS.length} perguntas de novo — agora para medir sua evolução desde o início da mentoria.`;
+
+        const respostas = {};
+        conteudo.innerHTML = `
+          <div class="fj-quiz-progresso" id="isfProgresso">0 de ${ISF_PERGUNTAS.length} respondidas</div>
+          <div id="isfPerguntas"></div>`;
+
+        document.getElementById('isfPerguntas').innerHTML = ISF_PERGUNTAS.map(p => `
+          <div class="fj-quiz-pergunta">
+            <div class="fj-quiz-texto">${p.texto}</div>
+            <div class="fj-quiz-opcoes opcoes-4" style="flex-wrap:wrap">
+              ${ISF_ESCALAS[p.escala].map((op, i) => `<button type="button" class="fj-quiz-opcao" style="flex:1 1 calc(33% - 6px)" data-pergunta="${p.id}" data-valor="${i}">${op}</button>`).join('')}
+            </div>
+          </div>`).join('');
+
+        function atualizar() {
+          ISF_PERGUNTAS.forEach(p => {
+            conteudo.querySelectorAll(`[data-pergunta="${p.id}"]`).forEach(btn => {
+              btn.classList.toggle('selecionada', Number(btn.dataset.valor) === respostas[p.id]);
+            });
+          });
+          const respondidas = Object.keys(respostas).length;
+          document.getElementById('isfProgresso').textContent = `${respondidas} de ${ISF_PERGUNTAS.length} respondidas`;
+          if (respondidas === ISF_PERGUNTAS.length) {
+            const calc = calcularScoreISF(respostas);
+            renderBase(momento, { respostas: { ...respostas }, score: calc.score, dimensoes: calc.dimensoes });
+          }
+        }
+
+        conteudo.querySelectorAll('.fj-quiz-opcao').forEach(btn => {
+          btn.addEventListener('click', () => {
+            respostas[Number(btn.dataset.pergunta)] = Number(btn.dataset.valor);
+            atualizar();
+          });
+        });
+      }
+
+      function renderComparativo() {
+        desc.textContent = 'Comparativo entre o início e o fim da mentoria.';
+        const { inicial, final } = dados;
+        const leitura = gerarLeituraEvolucaoISF(inicial, final);
+        const temDimensoes = inicial.dimensoes && final.dimensoes;
+        const linhasDim = temDimensoes ? Object.keys(ISF_DIMENSOES_LABEL).map(dim => {
+          const delta = final.dimensoes[dim] - inicial.dimensoes[dim];
+          const cor = delta > 0 ? '#4ade80' : delta < 0 ? '#f87171' : 'var(--text-muted)';
+          return `<div class="fj-resultado-linha"><span>${ISF_DIMENSOES_LABEL[dim]}</span><strong style="color:${cor}">${inicial.dimensoes[dim]} → ${final.dimensoes[dim]} (${delta >= 0 ? '+' : ''}${delta})</strong></div>`;
+        }).join('') : '';
+        const notaOrigem = (inicial.origem === 'febraban_manual' || final.origem === 'febraban_manual')
+          ? '<div style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:8px">Uma das notas veio do ISF oficial da Febraban, lançada pela Flávia — por isso não há detalhamento por dimensão.</div>' : '';
+
+        conteudo.innerHTML = `
+          <div style="display:flex;gap:16px;margin-bottom:16px">
+            <div style="flex:1;text-align:center;padding:14px;border:1px solid var(--border);border-radius:10px">
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">ISF inicial</div>
+              <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:${corFaixaISF(inicial.score)}">${inicial.score}</div>
+            </div>
+            <div style="flex:1;text-align:center;padding:14px;border:1px solid var(--border);border-radius:10px">
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">ISF final</div>
+              <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:${corFaixaISF(final.score)}">${final.score}</div>
+            </div>
+          </div>
+          ${temDimensoes ? `<div class="fj-resultado mostrar">${linhasDim}</div>` : ''}
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-top:12px">${leitura}</div>
+          ${notaOrigem}`;
+      }
+
+      function renderAguardandoFinal() {
+        desc.textContent = 'Você já respondeu o ISF inicial. O ISF final é respondido no encontro 7, para medir sua evolução.';
+        const { inicial } = dados;
+        conteudo.innerHTML = `
+          <div style="text-align:center;padding:14px;border:1px solid var(--border);border-radius:10px;margin-bottom:16px">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">ISF inicial</div>
+            <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:${corFaixaISF(inicial.score)}">${inicial.score}</div>
+            <div style="font-size:13px;color:var(--text-secondary);margin-top:6px">${textoFaixaISF(inicial.score)}</div>
+          </div>
+          <button class="fj-btn fj-btn-primario" id="isfBtnResponderFinal" style="width:100%">Responder ISF final</button>`;
+        document.getElementById('isfBtnResponderFinal').addEventListener('click', () => renderQuiz('final'));
+      }
+
+      if (dados.inicial && dados.final)      renderComparativo();
+      else if (dados.inicial)                renderAguardandoFinal();
+      else                                    renderQuiz('inicial');
     }
 
     // ── Plano Financeiro Comportamental ──

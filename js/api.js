@@ -548,6 +548,11 @@ export async function getMateriaisJornadaAdmin(uid) {
   return adminCall('getMateriaisJornada')({ uid });
 }
 
+/** Admin: salva/edita o progresso de uma ferramenta de outra mentorada (ex: ISF inicial lançado manualmente na ficha). */
+export async function salvarMaterialJornadaAdmin(uid, ferramentaId, respostas, status) {
+  return adminCall('salvarMaterialJornada')({ uid, ferramentaId, respostas, status });
+}
+
 /** Salva (upsert) o progresso de uma ferramenta da Jornada. */
 export async function salvarMaterialJornada(ferramentaId, respostas, status) {
   return call('salvarMaterialJornada')({ uid: uidAtual(), ferramentaId, respostas, status });
