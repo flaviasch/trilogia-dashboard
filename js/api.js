@@ -543,6 +543,11 @@ export async function getMateriaisJornada() {
   return call('getMateriaisJornada')({ uid: uidAtual() });
 }
 
+/** Admin: retorna o status/respostas salvas de todas as ferramentas de outra mentorada (ex: ISF na ficha). */
+export async function getMateriaisJornadaAdmin(uid) {
+  return adminCall('getMateriaisJornada')({ uid });
+}
+
 /** Salva (upsert) o progresso de uma ferramenta da Jornada. */
 export async function salvarMaterialJornada(ferramentaId, respostas, status) {
   return call('salvarMaterialJornada')({ uid: uidAtual(), ferramentaId, respostas, status });
@@ -668,6 +673,9 @@ export async function getContaPJ(uid) {
 }
 export async function salvarOnboardingPJ(uid, dados) {
   return callPJ('salvarOnboardingPJ')({ uid, ...dados });
+}
+export async function getOnboardingStatusPJ(uid) {
+  return callPJ('getOnboardingStatusPJ')({ uid });
 }
 
 // Admin-only — chamado de admin.html, por isso usa adminCall (não callPJ):

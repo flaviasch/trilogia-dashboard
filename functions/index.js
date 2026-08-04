@@ -732,7 +732,7 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
 const _FERRAMENTAS_JORNADA_VALIDAS = new Set([
   'diario-historias', 'quiz-vieses', 'mapa-ambiente', 'conexao-familia',
   'calculadora-reserva', 'plano-comportamental', 'desafio-7-dias',
-  'preco-real-decisao', 'mapa-liberdade',
+  'preco-real-decisao', 'mapa-liberdade', 'isf',
 ]);
 
 exports.getMateriaisJornada = onCall(async (request) => {
@@ -6542,6 +6542,48 @@ exports.getContaPJ = onCall({ minInstances: 1 }, async (request) => {
   requireSelfOrAdmin(request, uid);
   const snap = await db.collection('contasPJ').doc(uid).get();
   return snap.exists ? { id: snap.id, ...snap.data() } : null;
+});
+
+/**
+ * Status de onboarding FUNCIONAL do Dashboard PJ (não confundir com o
+ * onboarding de cadastro em onboarding-pj.html, que só grava nome/CNPJ/
+ * regime). Usado por notas-pj.html pra montar o checklist de primeiros
+ * passos (achado 03/08/2026, Flávia: nada ensina a usuária a ordem de uso
+ * — tributos configurados antes de Impostos Previstos calcular certo,
+ * despesas fixas antes do DRE fechar certo, reserva criada antes de dar
+ * pra registrar aporte). Todas as checagens são de existência (limit 1,
+ * baratas) e rodam em paralelo — não vira mais uma sequência de round
+ * trips na página que acabamos de otimizar.
+ */
+exports.getOnboardingStatusPJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const [tribSnap, despSnap, resSnap, notaSnap] = await Promise.all([
+    db.collection('tributosConfig').where('uid', '==', uid).limit(1).get(),
+    db.collection('despesasPJ').where('uid', '==', uid).limit(1).get(),
+    db.collection('reservasPJ').where('uid', '==', uid).get(),
+    db.collection('notasEmitidas').where('uid', '==', uid).limit(1).get(),
+  ]);
+
+  // Aporte fica em subcoleção por reserva (sem índice de collection group,
+  // mesma limitação já documentada em getFluxoCaixaPJ) — só checa se
+  // existir ao menos 1 reserva, pra não gastar leitura à toa.
+  let temAporte = false;
+  if (!resSnap.empty) {
+    const movSnaps = await Promise.all(
+      resSnap.docs.map(d => d.ref.collection('movimentos').where('tipo', '==', 'aporte').limit(1).get())
+    );
+    temAporte = movSnaps.some(s => !s.empty);
+  }
+
+  return {
+    temTributos: !tribSnap.empty,
+    temDespesas: !despSnap.empty,
+    temReserva: !resSnap.empty,
+    temNota: !notaSnap.empty,
+    temAporte,
+  };
 });
 
 /**
