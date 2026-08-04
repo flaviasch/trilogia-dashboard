@@ -51,6 +51,24 @@
     .card-lista { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 4px 20px; }
     .vazio { padding: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
     .badge-pago { background: rgba(74,222,128,.15); color: var(--positive); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .hidden { display: none !important; }
+
+    /* ─── Checklist de primeiros passos (achado 03/08/2026) ────────────── */
+    .step-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .step-card.done { opacity: .55; }
+    .step-top { display: flex; align-items: center; gap: 12px; }
+    .step-num { width: 26px; height: 26px; border-radius: 50%; background: rgba(207,174,101,.15); color: var(--gold); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+    .step-card.done .step-num { background: rgba(74,222,128,.15); color: var(--positive); }
+    .step-titulo { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .step-desc { font-size: 12px; color: var(--text-muted); max-width: 460px; }
+    .step-cta { font-size: 12px; color: var(--gold); text-decoration: none; font-weight: 600; white-space: nowrap; }
+    .step-cta.feito { color: var(--positive); }
+    .welcome-pj { margin-bottom: 32px; }
+    .progress-card { background: var(--card-bg); border: 1px solid rgba(207,174,101,.25); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .progress-label { font-size: 13px; white-space: nowrap; }
+    .progress-bar-bg { flex: 1; min-width: 100px; height: 6px; background: rgba(255,255,255,.08); border-radius: 4px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: var(--gold); border-radius: 4px; transition: width .3s; }
+    .link-porque { font-size: 12px; color: var(--gold); white-space: nowrap; text-decoration: none; }
 
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
     .modal-overlay.hidden { display: none; }
@@ -97,26 +115,55 @@
   </div>
 
   <main>
-    <h1>Notas emitidas</h1>
-    <p class="subtitulo">Lance suas notas aqui — elas alimentam automaticamente os Impostos previstos e o Fluxo de Caixa.</p>
-
-    <div class="mes-nav">
-      <button class="btn-mes" id="mesAnterior">‹</button>
-      <span class="mes-label" id="mesLabel">—</span>
-      <button class="btn-mes" id="mesProximo">›</button>
-      <button class="btn-acao" id="btnNovaNota" style="margin-left:auto">+ Nova nota</button>
+    <!-- Checklist de primeiros passos: aparece cheio quando nada foi feito
+         ainda, vira card compacto enquanto o setup não está completo, e some
+         de vez quando os 4 passos de configuração (tag "setup") terminam. -->
+    <div class="welcome-pj hidden" id="welcomePJ">
+      <h1>Bem-vinda ao Dashboard PJ</h1>
+      <p class="subtitulo">5 passos pra começar — leva poucos minutos e deixa tudo calculando certo desde o primeiro mês.</p>
+      <div id="welcomeStepsPJ"></div>
     </div>
 
-    <div class="kpis">
-      <div class="kpi-card">
-        <div class="kpi-label">Total faturado no mês</div>
-        <div class="kpi-value" id="totalNotas">—</div>
-        <div class="kpi-sub" id="totalNotasSub">—</div>
+    <div class="progress-card hidden" id="progressCardPJ">
+      <span class="progress-label" id="progressLabelPJ">—</span>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressBarPJ" style="width:0%"></div></div>
+      <a href="" class="link-porque" id="btnOnboardingInfoPJ">por que essa ordem? ℹ️</a>
+    </div>
+
+    <div id="conteudoNotasPJ">
+      <h1>Notas emitidas</h1>
+      <p class="subtitulo">Lance suas notas aqui — elas alimentam automaticamente os Impostos previstos e o Fluxo de Caixa.</p>
+
+      <div class="mes-nav">
+        <button class="btn-mes" id="mesAnterior">‹</button>
+        <span class="mes-label" id="mesLabel">—</span>
+        <button class="btn-mes" id="mesProximo">›</button>
+        <button class="btn-acao" id="btnNovaNota" style="margin-left:auto">+ Nova nota</button>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi-card">
+          <div class="kpi-label">Total faturado no mês</div>
+          <div class="kpi-value" id="totalNotas">—</div>
+          <div class="kpi-sub" id="totalNotasSub">—</div>
+        </div>
+      </div>
+
+      <div class="card-lista" id="listaNotas"></div>
+    </div>
+  </main>
+
+  <!-- Modal: por que essa ordem? -->
+  <div class="modal-overlay hidden" id="modalOnboardingInfoPJ">
+    <div class="modal-card">
+      <h3>Por que essa ordem?</h3>
+      <p class="subtitulo" style="margin-bottom:14px">Cada passo destrava um cálculo certo no passo seguinte — pular a ordem não trava nada, mas os números saem incompletos até você completar.</p>
+      <div id="onboardingInfoStepsPJ"></div>
+      <div class="modal-acoes">
+        <button class="btn-save" id="btnFecharOnboardingInfoPJ" style="width:100%">Entendi</button>
       </div>
     </div>
-
-    <div class="card-lista" id="listaNotas"></div>
-  </main>
+  </div>
 
   <!-- Modal: Nota emitida -->
   <div class="modal-overlay hidden" id="modalNota">
@@ -294,11 +341,11 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import {
-      getContaPJ,
+      getContaPJ, getOnboardingStatusPJ,
       getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
       getRecebimentosNota, salvarRecebimento, gerarParcelasRecebimento, confirmarRecebimento, estornarRecebimento, deleteRecebimento,
       msgErro, setViewAsUid, uidAtual,
-    } from './js/api.js?v=52';
+    } from './js/api.js?v=55';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { cacheGet, cacheSet } from './js/page-cache.js';
 
@@ -383,8 +430,98 @@
         }
       })();
 
+      // Checklist de primeiros passos — cache de exibição só (TTL curto, o
+      // status muda conforme ela configura as coisas na própria visita).
+      const _onboardingCacheKey = `onboardingPJ_${uidAtual()}`;
+      const _onboardingCached = !VIEW_AS_UID ? cacheGet(_onboardingCacheKey) : null;
+      if (_onboardingCached) renderOnboardingChecklistPJ(_onboardingCached);
+
+      const onboardingPromise = (async () => {
+        try {
+          const status = await getOnboardingStatusPJ(uidAtual());
+          if (!VIEW_AS_UID) cacheSet(_onboardingCacheKey, status, 10 * 60 * 1000);
+          renderOnboardingChecklistPJ(status);
+        } catch (err) {
+          console.error('[notas-pj] Falha ao carregar status de onboarding:', err.message);
+        }
+      })();
+
       renderNotas();
-      await contaPromise;
+      await Promise.all([contaPromise, onboardingPromise]);
+    });
+
+    // ─── Checklist de primeiros passos (achado 03/08/2026) ────────────────────
+    let _ultimosStepsPJ = [];
+
+    function renderOnboardingChecklistPJ(status) {
+      const steps = [
+        { num: 1, titulo: 'Configurar tributos', href: 'impostos-pj.html', done: !!status.temTributos,
+          desc: 'Cadastre os tributos que sua empresa paga. Sem isso, Impostos Previstos não calcula nada.', tag: 'setup' },
+        { num: 2, titulo: 'Cadastrar despesas fixas', href: 'contas-a-pagar-pj.html', done: !!status.temDespesas,
+          desc: 'Aluguel, assinaturas, o que se repete todo mês. O DRE só fecha certo com isso cadastrado.', tag: 'setup' },
+        { num: 3, titulo: 'Criar uma reserva', href: 'reservas-pj.html', done: !!status.temReserva,
+          desc: 'Reserva de sazonalidade, de investimento ou outra. É nela que os aportes ficam guardados.', tag: 'setup' },
+        { num: 4, titulo: 'Emitir uma nota ou lançar um recebimento', href: 'notas-pj.html', done: !!status.temNota,
+          desc: 'É o que alimenta Impostos Previstos, DRE e Fluxo de Caixa com dado real.', tag: 'setup' },
+        { num: 5, titulo: 'Registrar um aporte em reserva', href: 'reservas-pj.html', done: !!status.temAporte,
+          desc: 'O momento em que o lucro da empresa começa a virar reserva de verdade.', tag: 'acao' },
+      ];
+      _ultimosStepsPJ = steps;
+
+      const totalDone  = steps.filter(s => s.done).length;
+      const setupSteps = steps.filter(s => s.tag === 'setup');
+      const setupDone  = setupSteps.filter(s => s.done).length;
+
+      if (totalDone === 0) {
+        document.getElementById('welcomeStepsPJ').innerHTML = steps.map(s => `
+          <div class="step-card${s.done ? ' done' : ''}">
+            <div class="step-top">
+              <div class="step-num">${s.done ? '✓' : s.num}</div>
+              <div>
+                <div class="step-titulo">${s.titulo}</div>
+                <div class="step-desc">${s.desc}</div>
+              </div>
+            </div>
+            ${s.done ? `<span class="step-cta feito">✓ Concluído</span>` : `<a href="${s.href}" class="step-cta">Configurar →</a>`}
+          </div>`).join('');
+        document.getElementById('welcomePJ').classList.remove('hidden');
+        document.getElementById('conteudoNotasPJ').classList.add('hidden');
+        document.getElementById('progressCardPJ').classList.add('hidden');
+        return;
+      }
+
+      document.getElementById('welcomePJ').classList.add('hidden');
+      document.getElementById('conteudoNotasPJ').classList.remove('hidden');
+
+      // "Registrar aporte" é recorrente — não deve reabrir o card de setup,
+      // que é só pra os 4 passos de configuração única (mesma regra do PF).
+      if (setupDone < setupSteps.length) {
+        document.getElementById('progressLabelPJ').textContent = `${setupDone} de ${setupSteps.length} passos de configuração concluídos`;
+        document.getElementById('progressBarPJ').style.width = `${Math.round((setupDone / setupSteps.length) * 100)}%`;
+        document.getElementById('progressCardPJ').classList.remove('hidden');
+      } else {
+        document.getElementById('progressCardPJ').classList.add('hidden');
+      }
+    }
+
+    // Modal "por que essa ordem?" — acessível a qualquer momento enquanto o
+    // setup não estiver completo (mesmo padrão do PF).
+    function abrirOnboardingInfoPJ() {
+      document.getElementById('onboardingInfoStepsPJ').innerHTML = _ultimosStepsPJ.map(s => `
+        <div class="step-card${s.done ? ' done' : ''}" style="padding:14px 16px">
+          <div class="step-top">
+            <div class="step-num">${s.done ? '✓' : s.num}</div>
+            <div>
+              <div class="step-titulo">${s.titulo}</div>
+              <div class="step-desc">${s.desc}</div>
+            </div>
+          </div>
+        </div>`).join('');
+      document.getElementById('modalOnboardingInfoPJ').classList.remove('hidden');
+    }
+    document.getElementById('btnOnboardingInfoPJ').addEventListener('click', (e) => { e.preventDefault(); abrirOnboardingInfoPJ(); });
+    document.getElementById('btnFecharOnboardingInfoPJ').addEventListener('click', () => {
+      document.getElementById('modalOnboardingInfoPJ').classList.add('hidden');
     });
 
     async function renderNotas() {
