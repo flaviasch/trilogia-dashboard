@@ -2698,6 +2698,19 @@
       });
       chev.textContent = vaiAbrir ? '⌄' : '›';
     }
+    // Depois de criar/editar um limite, os grupos renderizam todos fechados de
+    // novo — sem isso, a categoria que a pessoa acabou de salvar fica escondida
+    // dentro de um grupo colapsado e parece que sumiu (achado 04/08/2026,
+    // categoria "Despesas Bancárias" some visualmente dentro de "Categorias
+    // soltas"). Abre o grupo certo e rola até ele pra confirmar visualmente.
+    function expandirGrupoNaLista(nomeCat) {
+      const mae = categoriaParaMae(nomeCat);
+      const idGrupo = mae ? _slugMae(mae) : 'soltas';
+      const chev = document.getElementById('chev-' + idGrupo);
+      if (!chev) return;
+      if (chev.textContent.trim() === '›') togglePlanMae(idGrupo);
+      chev.closest('tr')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 
     // ─── Navegação por abas ───────────────────────────────────────────────────
     function ativarTab(id) {
@@ -6811,7 +6824,7 @@
         categoriasMes = await getCategoriasMes(mes, ano);
         // Re-renderiza as abas que dependem de limites
         render(currentData);
-        if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
+        if (_tabAtiva === 'planejamento') { renderPlanejamento(currentData, categoriasMes); expandirGrupoNaLista(nomeFinal); }
         if (_tabAtiva === 'detalhe')      renderDespesasGrupos(currentData, currentData.despesas.filter(d=>!(d.cartao&&d.fatura)).reduce((s,d)=>s+d.valor,0));
         if (!renomeando) {
           toast(limite > 0 ? `Limite de ${brl(limite)}/mês definido.` : 'Limite removido.', 'success');
