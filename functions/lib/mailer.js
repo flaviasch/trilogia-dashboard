@@ -1134,6 +1134,62 @@ function emailNovidadesJun2026Completo(nome) {
   `);
 }
 
+function emailNovidadesJul2026Completo(nome) {
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  const secao = (titulo) =>
+    `<tr><td style="padding:18px 0 6px;">
+      <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Julho foi grande — veja tudo que melhoramos pra você</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Julho trouxe seis grandes mudanças no seu Dashboard. Veja o que ficou mais fácil, mais preciso e mais completo:
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('💳 Cartão, faturas e Minha Jornada')}
+      ${item('📆','Despesa cai no mês do pagamento','Compra no cartão aparece no mês em que a fatura vence, não no mês do lançamento.')}
+      ${item('✂️','Fatura paga parcial','O saldo pendente vira fatura do próximo mês automaticamente.')}
+      ${item('📚','Materiais de cada encontro','Links e gravações da sua Jornada aparecem direto na aba Minha Jornada.')}
+
+      ${secao('📊 Detalhe e Planejamento mais precisos')}
+      ${item('🧾','Todas as despesas num só lugar','Já lançadas, pendentes, faturas a vencer e despesas fixas ainda não lançadas — tudo na aba Detalhe.')}
+      ${item('✅','Total bate com o Planejamento','O total da aba Detalhe agora é igual ao Realizado do Planejamento e ao card de Despesa da tela inicial.')}
+      ${item('🔮','Saldo Projetado mais preciso','Agora também desconta as despesas fixas ainda não lançadas.')}
+
+      ${secao('⚡ Importação por IA')}
+      ${item('📥','Importe extrato e fatura direto no Orçamento','Chega de planilha separada — a IA classifica cada lançamento automaticamente e aprende com suas correções.')}
+      ${item('🏦','Importe seu Patrimônio com IA','Declaração de IR, posição da corretora (com suporte a mais de uma) e dívidas — cole o texto ou envie o PDF/foto.')}
+
+      ${secao('🏦 Múltiplas contas correntes')}
+      ${item('💼','Escolha a conta em cada lançamento','Ao registrar despesa/receita ou confirmar pagamento de fatura, escolha em qual conta isso aconteceu.')}
+      ${item('📈','Saldo por conta','Cada conta tem seu próprio saldo, com carryover automático de mês pra mês.')}
+
+      ${secao('🏢 Chegou o Dashboard PJ')}
+      ${item('🏢','Finanças da sua empresa, com o mesmo cuidado','Impostos previstos, notas emitidas, contas a pagar/receber, reservas e DRE simplificado — mesmo login do Dashboard pessoal. Responda este e-mail se quiser ativar.')}
+
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Explorar as novidades →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 module.exports = {
   sendEmail,
   emailRenovacaoPerfil,
@@ -1146,6 +1202,7 @@ module.exports = {
   emailNovidadesJun2026v3,
   emailNovidadesJun2026Completo,
   emailNovidadesJul2026,
+  emailNovidadesJul2026Completo,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
   emailRaioXJul2026,

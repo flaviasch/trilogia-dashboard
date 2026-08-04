@@ -52,6 +52,7 @@ const {
   emailNovidadesJun2026v3,
   emailNovidadesJun2026Completo,
   emailNovidadesJul2026,
+  emailNovidadesJul2026Completo,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
   emailRaioXJul2026,
@@ -8051,6 +8052,31 @@ exports.anunciarNovidadesJun2026Completo = onCall({ secrets: SECRETS_EMAIL }, as
   }
   await db.collection('config').doc('comunicados').set(
     { novidadesJun2026Completo: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+exports.anunciarNovidadesJul2026Completo = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Tudo que melhoramos em Julho para você — Trilogia Dashboard',
+        html:    emailNovidadesJul2026Completo(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarNovidadesJul2026Completo] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { novidadesJul2026Completo: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };

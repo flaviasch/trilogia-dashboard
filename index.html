@@ -1749,6 +1749,23 @@
         });
       }
 
+      // ⓪-i Tudo que melhoramos em Julho — resumo do mês (achado 04/08/2026)
+      if (!localStorage.getItem('notif_completo_jul2026')) {
+        notifs.unshift({ id: 'completo-jul2026', type: 'novidades', key: 'notif_completo_jul2026', icon: '🎊', _expansivel: true,
+          titulo: 'Julho foi grande — veja tudo que melhoramos pra você',
+          desc: 'Cartão e faturas mais precisos, importação por IA no Orçamento e no Patrimônio, múltiplas contas correntes e o lançamento do Dashboard PJ para sua empresa.',
+          cta: { label: 'Ver orçamento', href: 'orcamento.html' },
+          itens: [
+            { emoji: '💳', titulo: 'Cartão, faturas e Minha Jornada', desc: 'Despesa cai no mês do pagamento; fatura paga parcial já joga o saldo pro mês seguinte; materiais de cada encontro na aba Minha Jornada.' },
+            { emoji: '📊', titulo: 'Detalhe e Planejamento mais precisos', desc: 'Aba Detalhe mostra tudo (inclusive fixas a lançar) e bate com Planejamento/home; Saldo Projetado mais preciso.' },
+            { emoji: '⚡', titulo: 'Importar extrato com IA no Orçamento', desc: 'Chega de planilha separada — a IA classifica cada lançamento e aprende com suas correções.' },
+            { emoji: '🏦', titulo: 'Importar Patrimônio com IA', desc: 'Declaração de IR, corretora (mais de uma posição) e dívidas, colando o texto ou enviando PDF/foto.' },
+            { emoji: '🏦', titulo: 'Múltiplas contas correntes', desc: 'Escolha a conta ao lançar despesa/receita ou pagar fatura, com saldo por conta.' },
+            { emoji: '🏢', titulo: 'Chegou o Dashboard PJ', desc: 'Acompanhe as finanças da sua empresa com o mesmo cuidado do pessoal: impostos previstos, notas emitidas, contas a pagar/receber, reservas e DRE simplificado. Mesmo login do Dashboard pessoal — fale com a Flávia pra ativar.' },
+          ],
+        });
+      }
+
       // ① Perfil de investidor — ausente ou > 180 dias sem atualizar
       const perfilKey = `notif_perfil_${mesKey}`;
       if (!localStorage.getItem(perfilKey)) {

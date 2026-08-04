@@ -1252,6 +1252,11 @@ export async function anunciarNovidadesJul2026() {
   return call('anunciarNovidadesJul2026')({});
 }
 
+/** Dispara e-mail completo de Julho/2026 — todas as melhorias do mês. Admin only. */
+export async function anunciarNovidadesJul2026Completo() {
+  return call('anunciarNovidadesJul2026Completo')({});
+}
+
 /** Dispara e-mail de balanço Jul/2026 — Detalhe, Planejamento e despesas fixas. Admin only. */
 export async function anunciarBalancoJul2026() {
   return call('anunciarBalancoJul2026')({});
