@@ -10029,11 +10029,16 @@
     async function abrirModalFixas() {
       await carregarRecorrentes();
       renderListaFixas();
-      // Popula categorias no select
+      // Popula categorias no select — junta a lista padrão, as categorias que
+      // já têm lançamento real no mês E as categorias criadas no Planejamento
+      // (que podem só ter limite definido, sem nenhum lançamento ainda — achado
+      // 04/08/2026, Flávia: categoria "Despesas Bancárias" recém-criada com
+      // limite não aparecia aqui pra categorizar uma despesa fixa).
       const sel = document.getElementById('fixaCategoria');
       const cats = [...new Set((currentData?.despesas || []).map(d => d.categoria))].sort();
+      const catsPlanejamento = (categoriasMes || []).map(c => c.nome);
       const padrao = ['Moradia','Alimentação','Transporte','Saúde','Educação','Lazer','Assinaturas','Pessoal','Outros'];
-      const todas = [...new Set([...padrao, ...cats])].sort();
+      const todas = [...new Set([...padrao, ...cats, ...catsPlanejamento])].sort();
       sel.innerHTML = todas.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
       document.getElementById('formFixa').classList.add('hidden');
       document.getElementById('modalFixas').classList.remove('hidden');
