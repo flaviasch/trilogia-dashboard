@@ -2080,6 +2080,11 @@
       );
     } else {
       window.Sentry?.onLoad?.(function(){ Sentry.setUser({ id: user.uid, email: user.email, username: 'admin' }); });
+      // Estar em admin.html significa que você não está "vendo como" ninguém —
+      // limpa aqui pra não ficar preso numa mentorada antiga se a última visita
+      // a uma página PF/PJ foi via viewAs e você voltou sem clicar em Sair lá
+      // (achado 04/08/2026, Flávia: barra de viewAs presa numa conta de teste).
+      localStorage.removeItem('viewAsUid');
       init(user);
     }
 
