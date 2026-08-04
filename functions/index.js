@@ -1330,10 +1330,17 @@ async function _gravarOrcamento({ uid, mes, ano, itens, permitirReducao }) {
     antigasSnap.forEach(d => d.ref.delete().catch(() => {}));
 
     if (!permitirReducao) {
+      // Perder o ÚNICO item de um tipo (1 → 0) é uma exclusão manual normal,
+      // não um apagão em massa — só conta como "tipo perdido" quando havia
+      // 2+ itens desse tipo antes. Mesma lógica pro encolhimento pela metade:
+      // com poucos itens no total, apagar 1 já cruza 50% sem ser suspeito.
+      // Sem isso, excluir o único lançamento do mês (ex: única despesa real
+      // num mês com o resto ainda em despesas fixas "a lançar") ficava
+      // bloqueado pra sempre (achado 04/08/2026, Flávia: R$118 da Isabella).
       const tiposPerdidos = ['receita', 'despesa', 'aporte', 'transferencia'].filter(tipo =>
-        itensAntes.some(i => i.tipo === tipo) && !itensMesAtual.some(i => i.tipo === tipo)
+        itensAntes.filter(i => i.tipo === tipo).length >= 2 && !itensMesAtual.some(i => i.tipo === tipo)
       );
-      const encolheuMuito = itensMesAtual.length < itensAntes.length * 0.5;
+      const encolheuMuito = itensAntes.length >= 4 && itensMesAtual.length < itensAntes.length * 0.5;
       if (tiposPerdidos.length > 0 || encolheuMuito) {
         throw new HttpsError('failed-precondition',
           `Salvamento bloqueado por segurança: iria de ${itensAntes.length} para ${itensMesAtual.length} itens` +
