@@ -3398,6 +3398,21 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       if (score < 69) return '#4ade80';
       return '#CFAE65';
     }
+    // 'inicial'/'final' são rótulos de CRONOLOGIA (respondidoEm mais antigo/mais recente),
+    // não "o que foi salvo primeiro" — importa quando uma nota é lançada manualmente com
+    // data retroativa depois de já existir uma resposta mais recente pelo Dashboard.
+    function normalizarCronologiaISF(dados) {
+      if (dados.inicial && dados.final) {
+        const tIni = new Date(dados.inicial.respondidoEm).getTime();
+        const tFin = new Date(dados.final.respondidoEm).getTime();
+        if (tIni > tFin) {
+          const tmp = dados.inicial;
+          dados.inicial = dados.final;
+          dados.final = tmp;
+        }
+      }
+      return dados;
+    }
     function _isfCard(label, r) {
       return `
         <div style="flex:1;text-align:center;padding:14px;border:1px solid var(--border);border-radius:10px">
@@ -3441,13 +3456,21 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
           msgEl.style.color = 'var(--negative)';
           return;
         }
+        if (!dataEl.value) {
+          msgEl.textContent = 'Informe a data em que o ISF foi respondido — é ela que decide se essa nota é a inicial ou a final.';
+          msgEl.style.color = 'var(--negative)';
+          return;
+        }
         const dados = { ...dadosAtuais };
+        const iniAntes = dados.inicial;
+        const finAntes = dados.final;
         dados[momento] = {
           score: Math.round(score),
           dimensoes: null, // não vem do site oficial — só o total
           origem: 'febraban_manual',
           respondidoEm: dataEl.value ? new Date(dataEl.value).toISOString() : new Date().toISOString(),
         };
+        normalizarCronologiaISF(dados);
         const status = dados.inicial && dados.final ? 'concluido' : 'em_andamento';
         btn.disabled = true;
         msgEl.textContent = 'Salvando…';
@@ -3456,6 +3479,8 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
           await salvarMaterialJornadaAdmin(uid, 'isf', dados, status);
           await carregarISF(uid);
         } catch (err) {
+          if (iniAntes === undefined) delete dados.inicial; else dados.inicial = iniAntes;
+          if (finAntes === undefined) delete dados.final;   else dados.final = finAntes;
           msgEl.textContent = `Erro ao salvar: ${err.message || err}`;
           msgEl.style.color = 'var(--negative)';
           btn.disabled = false;

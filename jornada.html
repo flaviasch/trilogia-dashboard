@@ -1450,6 +1450,24 @@
       { min: 83, max: 100, nome: 'Ótima',        texto: 'Vida financeira sem estresse. Finanças proporcionam segurança e liberdade.' },
     ];
 
+    // 'inicial'/'final' são rótulos de CRONOLOGIA (mais antigo/mais recente por
+    // respondidoEm), não de "qual foi salvo primeiro no sistema". Isso importa porque o
+    // ISF final pode ser respondido pelo Dashboard antes de um ISF inicial mais antigo
+    // ser lançado manualmente por Flávia (ex: mentorada já tinha feito o ISF oficial da
+    // Febraban antes de essa ferramenta existir). Reordena sempre que os dois existem.
+    function normalizarCronologiaISF(dados) {
+      if (dados.inicial && dados.final) {
+        const tIni = new Date(dados.inicial.respondidoEm).getTime();
+        const tFin = new Date(dados.final.respondidoEm).getTime();
+        if (tIni > tFin) {
+          const tmp = dados.inicial;
+          dados.inicial = dados.final;
+          dados.final = tmp;
+        }
+      }
+      return dados;
+    }
+
     function calcularScoreISF(respostas) {
       const dimensoesItens = { seguranca: [], liberdade: [], habilidade: [], comportamento: [] };
       ISF_PERGUNTAS.forEach(p => {
@@ -1545,19 +1563,43 @@
         });
 
         btnConcluir.addEventListener('click', () => {
+          const textoOriginal = btnConcluir.textContent;
+          btnConcluir.disabled = true;
+          btnConcluir.textContent = 'Calculando…';
+          let msgEl = document.getElementById('isfBaseMsg');
+          if (!msgEl) {
+            msgEl = document.createElement('div');
+            msgEl.id = 'isfBaseMsg';
+            msgEl.style.cssText = 'font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px';
+            btnConcluir.insertAdjacentElement('afterend', msgEl);
+          }
+          msgEl.textContent = '';
+
+          const iniAntes = dados.inicial;
+          const finAntes = dados.final;
+
           const { score, dimensoes } = respostasDimensoes;
           dados[momento] = {
             respostas: respostasDimensoes.respostas, base: baseRespostas,
             score, dimensoes, respondidoEm: new Date().toISOString(),
           };
+          normalizarCronologiaISF(dados);
           const status = dados.inicial && dados.final ? 'concluido' : 'em_andamento';
           salvarMaterialJornada('isf', dados, status)
             .then(() => {
               atualizarStatusCard('isf', status);
               if (dados.inicial && dados.final) renderComparativo();
-              else renderResultado(momento);
+              else renderResultado(dados.inicial ? 'inicial' : 'final');
             })
-            .catch(err => console.warn('Erro ao salvar ISF:', err.message));
+            .catch(err => {
+              console.warn('Erro ao salvar ISF:', err.message);
+              if (iniAntes === undefined) delete dados.inicial; else dados.inicial = iniAntes;
+              if (finAntes === undefined) delete dados.final;   else dados.final = finAntes;
+              btnConcluir.disabled = false;
+              btnConcluir.textContent = textoOriginal;
+              msgEl.textContent = 'Não deu pra salvar — verifique sua conexão e tente de novo.';
+              msgEl.style.color = 'var(--negative)';
+            });
         });
       }
 
