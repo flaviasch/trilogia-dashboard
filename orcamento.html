@@ -952,6 +952,8 @@
     .plan-row td { padding: 13px 16px; font-size: 14px; vertical-align: middle; border-top: 1px solid var(--border); }
     .plan-row td:not(:first-child) { text-align: right; }
     .plan-row:hover td { background: rgba(255,255,255,.02); }
+    .plan-mae-row td { background: rgba(255,255,255,.02); }
+    .plan-mae-row:hover td { background: rgba(255,255,255,.045); }
     .plan-cat { font-weight: 500; }
     .plan-plan-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
     .plan-valor-plan { font-weight: 600; color: var(--gold); }
@@ -2643,6 +2645,59 @@
 
     const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+    // ─── Matriz de categorias-mãe (Planejamento) ──────────────────────────────
+    // Mesma taxonomia de 12 grupos + Outros já usada na importação por IA
+    // (_CATEGORIAS_CODIGO em js/api.js e functions/index.js) — repetida aqui
+    // (4ª cópia, ciente da duplicação já existente nas outras duas) porque essa
+    // tela não importa api.js pra esse fim e é a mais frágil do dashboard pra
+    // arriscar mexer em import. Usada só pra AGRUPAR categorias já lançadas na
+    // exibição do Planejamento — nunca renomeia nem filtra o que a mentorada
+    // já cadastrou (achado 04/08/2026: nomes repetidos entre grupos na lista
+    // original, ex. "Manutenção" em Moradia e Transporte — em caso de nome
+    // ambíguo, o primeiro grupo na ordem abaixo vence).
+    const CATEGORIAS_MAE = {
+      'Moradia': ['Aluguel','Financiamento Imóvel','IPTU','Condomínio','Manutenção','Energia','Água','Gás','Suprimentos','Outros Moradia'],
+      'Alimentação': ['Supermercado','Restaurante','Café','Barzinho'],
+      'Comunicação': ['Celular','Internet','Streaming','Telefonia Fixa','TV a Cabo','Outros Comunicação'],
+      'Saúde': ['Academia','Assistência Médica','Cabelo e Unha','Cosméticos','Dentista','Exames médicos','Farmácia','Médicos particular','Suplementos','Outros Saúde'],
+      'Vestuário': ['Roupas','Acessórios','Outros Vestuário'],
+      'Pet': ['Veterinário','Remédios','Alimentação','Outros Pet'],
+      'Transporte': ['Aplicativos','Combustível','Estacionamento','Financiamento','IPVA','Licenciamento','Manutenção','Passagens','Seguro','Táxi','Transporte Público','Outros Transporte'],
+      'Educação': ['Mensalidades','Idiomas','Despesas Gerais','Cursos','Livros e Revistas','FIES','Outros Educação'],
+      'Lazer': ['Cinema','Esportes','Shows','Viagens','Outros Lazer'],
+      'Artigos Residenciais': ['Cama, Mesa e Banho','Consertos','Eletrodomésticos','Móveis','TV, Som e Informática','Utensílios e decoração','Outros Artigos'],
+      'Financeiro': ['Juros Cartão de Crédito','Empréstimos','Outros Financeiro'],
+      'Projetos de Vida': ['Reserva Financeira','Aposentadoria','Casa Própria','Outros Projetos'],
+      'Outros': ['Presentes','Doações','Cigarro','Outros'],
+    };
+    // Nome exato de uma categoria-mãe (normalizado) → ela mesma. Verificado
+    // ANTES da lista de subcategorias, de propósito: uma despesa lançada
+    // literalmente como "Alimentação" tem que cair no grupo Alimentação, não
+    // na subcategoria homônima de Pet (comida de animal, código 36).
+    const _MAE_NORM = {};
+    Object.keys(CATEGORIAS_MAE).forEach(mae => { _MAE_NORM[normCat(mae)] = mae; });
+    const _SUBCAT_MAE = {};
+    Object.entries(CATEGORIAS_MAE).forEach(([mae, subs]) => {
+      subs.forEach(s => { const k = normCat(s); if (!(k in _SUBCAT_MAE)) _SUBCAT_MAE[k] = mae; });
+    });
+    function categoriaParaMae(nomeCategoria) {
+      const n = normCat(nomeCategoria);
+      return _MAE_NORM[n] || _SUBCAT_MAE[n] || null;
+    }
+    function _slugMae(nome) {
+      return 'mae-' + normCat(nome).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+    // Expande/recolhe um grupo de categoria-mãe na aba Planejamento.
+    function togglePlanMae(idGrupo) {
+      const chev = document.getElementById('chev-' + idGrupo);
+      if (!chev) return;
+      const vaiAbrir = chev.textContent.trim() === '›';
+      document.querySelectorAll(`tr[data-mae-de="${idGrupo}"]`).forEach(tr => {
+        tr.style.display = vaiAbrir ? '' : 'none';
+      });
+      chev.textContent = vaiAbrir ? '⌄' : '›';
+    }
 
     // ─── Navegação por abas ───────────────────────────────────────────────────
     function ativarTab(id) {
@@ -5858,8 +5913,10 @@
       // agora por soma direta das linhas em vez de uma fórmula paralela.
       const totalReal = Object.values(gruposPorNorm).reduce((s, g) => s + g.total, 0);
 
-      // Linhas da tabela
-      const linhas = todasCats.map(cat => {
+      // Linhas da tabela — cada categoria vira uma linha (igual antes) mas
+      // agora carrega o grupo (categoria-mãe) a que pertence, pra montar o
+      // menu expansivo abaixo. Nenhum dos cálculos de limite/real/pct muda.
+      const linhasInfo = todasCats.map(cat => {
         const plan  = cats.find(c => normCat(c.nome) === normCat(cat));
         const limite = plan?.limite || 0;
         const real   = porCat[cat] || 0;
@@ -5884,14 +5941,64 @@
              </div>`
           : `<div class="plan-bar-wrap"><span style="color:var(--text-muted);font-size:12px">—</span></div>`;
         const pctLabel = limite > 0 ? `<span style="font-size:10px;color:${cor};font-weight:700;display:block;line-height:1.2">${pct.toFixed(0)}%</span>` : '';
-        return `<tr class="plan-row">
-          <td class="plan-cat" style="padding-left:20px">${escapeHtml(cat)}</td>
+        const mae = categoriaParaMae(cat);
+        const idGrupo = mae ? _slugMae(mae) : 'soltas';
+        const html = `<tr class="plan-row" data-mae-de="${idGrupo}" style="display:none">
+          <td class="plan-cat" style="padding-left:36px">${escapeHtml(cat)}</td>
           <td>${planCell}</td>
           <td><span style="${realCor};font-weight:600">${brl(real)}</span></td>
           <td style="min-width:140px">${barCell}</td>
           <td style="padding-right:20px;text-align:center"><span class="plan-status">${emoji}</span>${pctLabel}</td>
         </tr>`;
-      }).join('');
+        return { cat, mae, idGrupo, limite, real, html };
+      });
+
+      // Agrupa por categoria-mãe, na ordem fixa da matriz; o que não bate com
+      // nenhuma das 12 (ou 90 subcategorias conhecidas) cai em "Categorias
+      // soltas" — sem perder limite nem dado nenhum, só sem grupo.
+      const _porGrupo = {}; // idGrupo -> linhasInfo[]
+      linhasInfo.forEach(li => { (_porGrupo[li.idGrupo] ||= []).push(li); });
+
+      function _linhaCabecalhoGrupo(nomeGrupo, idGrupo, itens) {
+        const somaLimite = itens.reduce((s, li) => s + li.limite, 0);
+        const somaReal   = itens.reduce((s, li) => s + li.real, 0);
+        const pctGrupo   = somaLimite > 0 ? Math.min(somaReal / somaLimite * 100, 200) : 0;
+        const corGrupo   = pctGrupo > 100 ? 'var(--negative)' : pctGrupo > 80 ? '#f59e0b' : 'var(--positive)';
+        const piorEmoji  = itens.some(li => li.limite > 0 && li.real / li.limite * 100 > 100) ? '🔴'
+          : itens.some(li => li.limite > 0 && li.real / li.limite * 100 > 80) ? '🟡'
+          : somaLimite > 0 ? '🟢' : '⚪';
+        const barCellGrupo = somaLimite > 0
+          ? `<div class="plan-bar-wrap">
+               <div class="plan-bar-track"><div class="plan-bar-fill" style="width:${Math.min(pctGrupo,100).toFixed(1)}%;background:${corGrupo}"></div></div>
+               <span class="plan-pct-text" style="color:${corGrupo}">${pctGrupo.toFixed(0)}%</span>
+             </div>`
+          : `<div class="plan-bar-wrap"><span style="color:var(--text-muted);font-size:12px">—</span></div>`;
+        return `<tr class="plan-row plan-mae-row" onclick="togglePlanMae('${idGrupo}')" style="cursor:pointer">
+          <td class="plan-cat" style="padding-left:20px;font-weight:600">
+            <span class="plan-mae-chev" id="chev-${idGrupo}" style="display:inline-block;width:12px">›</span>
+            ${escapeHtml(nomeGrupo)}
+            <span style="font-weight:400;color:var(--text-muted);font-size:12px">(${itens.length})</span>
+          </td>
+          <td>${somaLimite > 0 ? `<span style="color:var(--text-muted)">${brl(somaLimite)}</span>` : `<span style="color:var(--text-muted);font-size:12px">—</span>`}</td>
+          <td><span style="font-weight:600">${brl(somaReal)}</span></td>
+          <td style="min-width:140px">${barCellGrupo}</td>
+          <td style="padding-right:20px;text-align:center"><span class="plan-status">${piorEmoji}</span></td>
+        </tr>`;
+      }
+
+      const linhas = [
+        ...Object.keys(CATEGORIAS_MAE)
+          .map(mae => _slugMae(mae))
+          .filter(idGrupo => _porGrupo[idGrupo]?.length)
+          .map(idGrupo => {
+            const mae = Object.keys(CATEGORIAS_MAE).find(m => _slugMae(m) === idGrupo);
+            const itens = _porGrupo[idGrupo];
+            return _linhaCabecalhoGrupo(mae, idGrupo, itens) + itens.map(li => li.html).join('');
+          }),
+        _porGrupo['soltas']?.length
+          ? _linhaCabecalhoGrupo('Categorias soltas', 'soltas', _porGrupo['soltas']) + _porGrupo['soltas'].map(li => li.html).join('')
+          : '',
+      ].join('');
 
       // Linha "Não planejado" — só a sobra do planejado sem categoria (achado
       // 13/07/2026: voltou a ser uma linha só; despesas reais sem limite têm
