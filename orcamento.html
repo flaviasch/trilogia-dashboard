@@ -5893,11 +5893,34 @@
       const _abertaSomadoPlanejamento = _ehFuturoAtual ? 0
         : data.despesas.filter(d => contaComoComprometido(d) && d._faturaAberta).reduce((s, d) => s + d.valor, 0);
 
+      // Despesas fixas em CONTA (débito) ainda não confirmadas neste mês —
+      // fixa em cartão já vira lançamento real automaticamente
+      // (autoLancarFixasCartao), mas a de conta fica pendente até a usuária
+      // confirmar manualmente. Sem essa projeção, ela só aparecia agregada e
+      // sem categoria dentro de "Lançamentos não identificados" (ou nem isso,
+      // se a diferença não identificada não fosse relevante o bastante) —
+      // dando a impressão de que "algumas fixas de cartão já aparecem
+      // somadas e outras não" (achado 05/08/2026, Flávia: "a lógica tem que
+      // ser única, vão ser consideradas todas as despesas previstas,
+      // efetivadas ou não, em qualquer forma de pagamento"). Mesmo cálculo
+      // que já existe em renderDespesasGrupos (aba Detalhe).
+      let _totalVirtualSomadoPlanejamento = 0;
+      (_recorrentes || []).filter(r => r.ativo && !r.cartao && (r.tipo || 'despesa') === 'despesa').forEach(r => {
+        diasFaltantesRecorrente(r, data.despesas, mes, ano).forEach(dia => {
+          if (_fixasPuladasServidor.includes(chaveFixaPulada(r.id, ano, mes, dia))) return;
+          const norm = normCat(r.categoria);
+          if (!gruposPorNorm[norm]) gruposPorNorm[norm] = { total: 0, labels: {} };
+          gruposPorNorm[norm].total += r.valor;
+          gruposPorNorm[norm].labels[r.categoria] = (gruposPorNorm[norm].labels[r.categoria] || 0) + 1;
+          _totalVirtualSomadoPlanejamento += r.valor;
+        });
+      });
+
       // O realizado tem que bater com a reconciliação de caixa (caixa +
       // pendentes + faturas + compras em aberto, calculada no Resumo). Se não
       // bater, em vez de sumir a diferença, ela vira uma categoria própria —
       // assim o total do Planejamento sempre coincide com o fluxo de caixa.
-      const { temAjuste, valorAjuste: _valorAjustePlanejamento } = calcularAjuste(_diffNaoIdentificadoMes, _abertaSomadoPlanejamento);
+      const { temAjuste, valorAjuste: _valorAjustePlanejamento } = calcularAjuste(_diffNaoIdentificadoMes, _abertaSomadoPlanejamento + _totalVirtualSomadoPlanejamento);
       if (temAjuste) {
         gruposPorNorm[normCat(CATEGORIA_AJUSTE)] = { total: _valorAjustePlanejamento, labels: { [CATEGORIA_AJUSTE]: 1 } };
       }
