@@ -8467,6 +8467,12 @@
       return despesas;
     };
 
+    // Debug: componentes do ajuste "Lançamentos não identificados" do mês em
+    // tela — o "Ver detalhes" da UI (_debugAjusteHTML) não abre em toda
+    // largura de tela, então esse comando dá o mesmo dado direto no console
+    // (achado 05/08/2026).
+    window._debugAjuste = () => { console.table([_debugAjusteComponentes]); return _debugAjusteComponentes; };
+
     // Limpeza agressiva por assinatura completa do item (cobre duplicatas
     // manuais, que não têm recorrenteId). dryRun=true por padrão — só mostra
     // o que seria removido. Chame de novo com false pra aplicar.
