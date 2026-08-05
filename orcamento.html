@@ -2708,13 +2708,22 @@
     // dentro de um grupo colapsado e parece que sumiu (achado 04/08/2026,
     // categoria "Despesas Bancárias" some visualmente dentro de "Categorias
     // soltas"). Abre o grupo certo e rola até ele pra confirmar visualmente.
-    function expandirGrupoNaLista(nomeCat) {
-      const mae = categoriaParaMaeResolvida(nomeCat);
+    // Recebe catsArray (categoriasMes) pra resolver pelo vínculo EXPLÍCITO
+    // (cat.mae), não só pela heurística de nome — sem isso, uma categoria
+    // vinculada manualmente a um grupo que não bate com nenhuma subcategoria
+    // conhecida abria o grupo errado (achado 05/08/2026).
+    function expandirGrupoNaLista(nomeCat, catsArray) {
+      const mae = categoriaParaMaeResolvida(nomeCat, catsArray);
       const idGrupo = mae ? _slugMae(mae) : 'soltas';
       const chev = document.getElementById('chev-' + idGrupo);
-      if (!chev) return;
-      if (chev.textContent.trim() === '›') togglePlanMae(idGrupo);
-      chev.closest('tr')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (chev) {
+        if (chev.textContent.trim() === '›') togglePlanMae(idGrupo);
+        chev.closest('tr')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      // Categoria solta: não tem cabeçalho colapsável pra abrir (fica sempre
+      // visível — achado 05/08/2026), então rola direto até a própria linha.
+      document.querySelector(`tr[data-cat-row="${CSS.escape(nomeCat)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     // ─── Navegação por abas ───────────────────────────────────────────────────
@@ -5942,15 +5951,23 @@
         const cor    = pct > 100 ? 'var(--negative)' : pct > 80 ? '#f59e0b' : 'var(--positive)';
         const emoji  = pct > 100 ? '🔴' : pct > 80 ? '🟡' : limite > 0 ? '🟢' : '⚪';
         const realCor = pct > 100 ? 'color:var(--negative)' : pct > 80 ? 'color:#f59e0b' : pct > 0 ? 'color:var(--positive)' : '';
+        const mae = categoriaParaMaeResolvida(cat, cats);
+        const idGrupo = mae ? _slugMae(mae) : 'soltas';
+        // ✎ também é onde se vincula a categoria a um grupo (categoria-mãe) —
+        // deixa isso explícito no tooltip, senão a única forma de descobrir
+        // como agrupar uma categoria já cadastrada é abrindo o modal por
+        // acaso (achado 05/08/2026, dúvida da Flávia sobre como vincular
+        // categoria já existente a uma categoria-mãe).
+        const tituloEditar = mae ? 'Editar limite / trocar grupo' : 'Editar limite / agrupar em uma categoria-mãe';
         const planCell = limite > 0
           ? `<div class="plan-plan-wrap">
                <span class="plan-valor-plan" data-cat-plan="${escapeHtml(cat)}">${brl(limite)}</span>
-               <button class="btn-edit-plan" onclick="editarLimitePlan('${escapeHtml(cat)}')" title="Editar limite">✎</button>
+               <button class="btn-edit-plan" onclick="editarLimitePlan('${escapeHtml(cat)}')" title="${tituloEditar}">✎</button>
                <button class="btn-edit-plan" style="width:auto;padding:0 4px" onclick="renomearCategoriaPlan('${escapeHtml(cat)}')" title="Renomear categoria">Aa</button>
              </div>`
           : `<div class="plan-plan-wrap">
                <span style="color:var(--text-muted);font-size:12px;font-style:italic">não definido</span>
-               <button class="btn-edit-plan" style="opacity:1" onclick="editarLimitePlan('${escapeHtml(cat)}')" title="Definir">+</button>
+               <button class="btn-edit-plan" style="opacity:1" onclick="editarLimitePlan('${escapeHtml(cat)}')" title="${tituloEditar}">+</button>
              </div>`;
         const barCell = limite > 0
           ? `<div class="plan-bar-wrap">
@@ -5959,10 +5976,15 @@
              </div>`
           : `<div class="plan-bar-wrap"><span style="color:var(--text-muted);font-size:12px">—</span></div>`;
         const pctLabel = limite > 0 ? `<span style="font-size:10px;color:${cor};font-weight:700;display:block;line-height:1.2">${pct.toFixed(0)}%</span>` : '';
-        const mae = categoriaParaMaeResolvida(cat, cats);
-        const idGrupo = mae ? _slugMae(mae) : 'soltas';
-        const html = `<tr class="plan-row" data-mae-de="${idGrupo}" style="display:none">
-          <td class="plan-cat" style="padding-left:36px">${escapeHtml(cat)}</td>
+        // Linhas dentro de um grupo (mãe) começam ocultas — só aparecem ao
+        // abrir o grupo. Categoria solta não tem "pai" pra abrir/fechar, então
+        // fica sempre visível — escondê-la atrás de mais um clique enterrava
+        // categoria de verdade (achado 05/08/2026, Flávia: "categorias soltas
+        // não ficou bom, melhor deixar aparecer todas elas").
+        const dentroDeGrupo = idGrupo !== 'soltas';
+        const paddingCat = dentroDeGrupo ? 36 : 20;
+        const html = `<tr class="plan-row" data-mae-de="${idGrupo}" data-cat-row="${escapeHtml(cat)}" style="${dentroDeGrupo ? 'display:none' : ''}">
+          <td class="plan-cat" style="padding-left:${paddingCat}px">${escapeHtml(cat)}</td>
           <td>${planCell}</td>
           <td><span style="${realCor};font-weight:600">${brl(real)}</span></td>
           <td style="min-width:140px">${barCell}</td>
@@ -6004,6 +6026,20 @@
         </tr>`;
       }
 
+      // Categoria solta não ganha cabeçalho de grupo — somar o limite de
+      // categorias sem relação nenhuma entre si (ex.: "assinatura de app" +
+      // "presente") não informa nada, diferente da soma de subcategorias
+      // reais de um grupo. Fica só uma legenda avisando como agrupar, com as
+      // linhas já visíveis logo abaixo (achado 05/08/2026).
+      const soltas = _porGrupo['soltas'] || [];
+      const linhaLegendaSoltas = soltas.length
+        ? `<tr class="plan-row" style="cursor:default">
+             <td colspan="5" style="padding:10px 16px 6px;color:var(--text-muted);font-size:11px;font-style:italic;border-top:1px solid var(--border)">
+               Categorias sem grupo — toque em ✎ em qualquer uma abaixo pra agrupar numa categoria-mãe
+             </td>
+           </tr>`
+        : '';
+
       const linhas = [
         ...Object.keys(CATEGORIAS_MAE)
           .map(mae => _slugMae(mae))
@@ -6013,9 +6049,7 @@
             const itens = _porGrupo[idGrupo];
             return _linhaCabecalhoGrupo(mae, idGrupo, itens) + itens.map(li => li.html).join('');
           }),
-        _porGrupo['soltas']?.length
-          ? _linhaCabecalhoGrupo('Categorias soltas', 'soltas', _porGrupo['soltas']) + _porGrupo['soltas'].map(li => li.html).join('')
-          : '',
+        linhaLegendaSoltas + soltas.map(li => li.html).join(''),
       ].join('');
 
       // Linha "Não planejado" — só a sobra do planejado sem categoria (achado
@@ -6853,7 +6887,7 @@
         categoriasMes = await getCategoriasMes(mes, ano);
         // Re-renderiza as abas que dependem de limites
         render(currentData);
-        if (_tabAtiva === 'planejamento') { renderPlanejamento(currentData, categoriasMes); expandirGrupoNaLista(nomeFinal); }
+        if (_tabAtiva === 'planejamento') { renderPlanejamento(currentData, categoriasMes); expandirGrupoNaLista(nomeFinal, categoriasMes); }
         if (_tabAtiva === 'detalhe')      renderDespesasGrupos(currentData, currentData.despesas.filter(d=>!(d.cartao&&d.fatura)).reduce((s,d)=>s+d.valor,0));
         if (!renomeando) {
           if (limite > 0) toast(`Limite de ${brl(limite)}/mês definido.`, 'success');
