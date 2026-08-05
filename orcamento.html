@@ -2481,7 +2481,9 @@
       <div class="field-group">
         <label for="mLimiteMae">Categoria-mãe</label>
         <select id="mLimiteMae"></select>
-        <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:4px;">Agrupa essa categoria no menu do Planejamento. Deixe em branco se preferir manter solta.</span>
+        <input type="text" id="mLimiteMaeNova" placeholder="Nome da nova categoria-mãe" autocomplete="off"
+          style="display:none;width:100%;box-sizing:border-box;padding:8px 10px;margin-top:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+        <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:4px;">Agrupa essa categoria no menu do Planejamento. Escolha uma existente, crie uma nova categoria-mãe, ou deixe em branco pra manter solta.</span>
       </div>
       <div class="field-group">
         <label for="mLimiteValor">Limite mensal (R$) — deixe 0 para remover</label>
@@ -5862,8 +5864,12 @@
         gruposPorNorm[normCat(CATEGORIA_AJUSTE)] = { total: _valorAjustePlanejamento, labels: { [CATEGORIA_AJUSTE]: 1 } };
       }
 
-      // Inclui categorias com limite definido que ainda não têm despesa neste mês
-      cats.filter(c => c.limite > 0).forEach(c => {
+      // Inclui categorias com limite definido OU só vinculadas a uma
+      // categoria-mãe (sem limite) que ainda não têm despesa neste mês —
+      // sem o "|| c.mae", uma categoria recém-agrupada mas com limite=0
+      // desaparecia da lista inteira, dando a impressão de que o vínculo
+      // "salvou mas não ajustou nada" (achado 05/08/2026, Flávia).
+      cats.filter(c => c.limite > 0 || c.mae).forEach(c => {
         const norm = normCat(c.nome);
         if (!gruposPorNorm[norm]) gruposPorNorm[norm] = { total: 0, labels: {} };
         gruposPorNorm[norm].labels[c.nome] = (gruposPorNorm[norm].labels[c.nome] || 0) + 1;
@@ -6018,6 +6024,7 @@
             <span class="plan-mae-chev" id="chev-${idGrupo}" style="display:inline-block;width:12px">›</span>
             ${escapeHtml(nomeGrupo)}
             <span style="font-weight:400;color:var(--text-muted);font-size:12px">(${itens.length})</span>
+            <button class="btn-edit-plan" style="width:auto;padding:0 6px;margin-left:6px" onclick="event.stopPropagation(); novaSubcategoria('${escapeHtml(nomeGrupo)}')" title="Adicionar subcategoria em ${escapeHtml(nomeGrupo)}">+ subcategoria</button>
           </td>
           <td>${somaLimite > 0 ? `<span style="color:var(--text-muted)">${brl(somaLimite)}</span>` : `<span style="color:var(--text-muted);font-size:12px">—</span>`}</td>
           <td><span style="font-weight:600">${brl(somaReal)}</span></td>
@@ -6040,15 +6047,30 @@
            </tr>`
         : '';
 
+      // Categoria-mãe não precisa ser uma das 13 fixas — a mentorada pode
+      // criar a própria (achado 05/08/2026: "+ Nova categoria-mãe…" no
+      // modal). Qualquer idGrupo que não seja uma das 13 nem "soltas" é um
+      // grupo customizado — sem isso a categoria-mãe nova salvava, mas não
+      // tinha cabeçalho nenhum pra aparecer (mesmo bug do achado anterior,
+      // agora pro grupo, não só pra categoria solta).
+      const idGruposFixos = Object.keys(CATEGORIAS_MAE).map(m => _slugMae(m));
+      const idGruposCustom = Object.keys(_porGrupo)
+        .filter(id => id !== 'soltas' && !idGruposFixos.includes(id))
+        .sort((a, b) => (_porGrupo[a][0].mae || '').localeCompare(_porGrupo[b][0].mae || '', 'pt-BR'));
+
       const linhas = [
-        ...Object.keys(CATEGORIAS_MAE)
-          .map(mae => _slugMae(mae))
+        ...idGruposFixos
           .filter(idGrupo => _porGrupo[idGrupo]?.length)
           .map(idGrupo => {
             const mae = Object.keys(CATEGORIAS_MAE).find(m => _slugMae(m) === idGrupo);
             const itens = _porGrupo[idGrupo];
             return _linhaCabecalhoGrupo(mae, idGrupo, itens) + itens.map(li => li.html).join('');
           }),
+        ...idGruposCustom.map(idGrupo => {
+          const itens = _porGrupo[idGrupo];
+          const mae = itens[0].mae;
+          return _linhaCabecalhoGrupo(mae, idGrupo, itens) + itens.map(li => li.html).join('');
+        }),
         linhaLegendaSoltas + soltas.map(li => li.html).join(''),
       ].join('');
 
@@ -6209,7 +6231,7 @@
           </table>
         </div>
         ${_debugAjusteHTML()}
-        <button class="btn-add-item" style="margin-top:10px;margin-bottom:4px" onclick="editarLimitePlan('')">+ Definir limite para nova categoria</button>
+        <button class="btn-add-item" style="margin-top:10px;margin-bottom:4px" onclick="editarLimitePlan('')">+ Nova categoria ou subcategoria</button>
         ${cartoesHTML}
         <div class="notif-info-box" style="margin-top:16px;">
           <div class="notif-info-box-icon">🔔</div>
@@ -6238,6 +6260,14 @@
       // Mesmo modal, mas só o nome fica editável — sem risco de mudar o
       // limite sem querer ao renomear (achado 23/07/2026).
       abrirModalLimite(cat, 'nome');
+    }
+
+    // Atalho do "+" no cabeçalho de um grupo já exibido — abre o modal de
+    // categoria nova com a categoria-mãe pré-selecionada, pra cadastrar uma
+    // subcategoria dessa categoria-mãe direto (achado 05/08/2026, Flávia:
+    // "quero que a usuária possa criar novas categorias e subcategorias").
+    function novaSubcategoria(mae) {
+      abrirModalLimite('', 'nova', mae);
     }
 
     async function copiarMesAnterior() {
@@ -6773,6 +6803,26 @@
 
     bindMoneyInput(document.getElementById('mLimiteValor'));
 
+    // Escolher "+ Nova categoria-mãe…" revela o campo de texto livre — mesmo
+    // padrão já usado nos selects de categoria de pagamento/incerta (achado
+    // 05/08/2026: Flávia queria criar categoria-mãe nova, não só subcategoria
+    // dentro das 13 fixas).
+    document.getElementById('mLimiteMae').addEventListener('change', () => {
+      const elNova = document.getElementById('mLimiteMaeNova');
+      const ehNova = document.getElementById('mLimiteMae').value === '__nova__';
+      elNova.style.display = ehNova ? '' : 'none';
+      if (ehNova) elNova.focus();
+    });
+
+    // Categorias-mãe fora das 13 fixas, já usadas em algum mês — pra
+    // reaparecerem no select em vez de precisar redigitar toda vez que a
+    // pessoa quiser usar a mesma categoria-mãe customizada de novo.
+    function _listarCategoriasMaeCustom(catsArray) {
+      const custom = new Set();
+      (catsArray || []).forEach(c => { if (c.mae && !CATEGORIAS_MAE[c.mae]) custom.add(c.mae); });
+      return [...custom].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }
+
     // Lista de nomes de categoria já usados neste mês (limites + lançamentos),
     // pra popular o datalist do campo Categoria — evita erro de digitação ao
     // renomear/mesclar (achado 23/07/2026: "Ajuste" digitado à mão não bateu
@@ -6787,7 +6837,11 @@
       return [...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     }
 
-    function abrirModalLimite(cat, modo = 'limite') {
+    // maeForcada: usado pelo "+" de dentro de um grupo já aberto — abre o
+    // modal de categoria nova com a categoria-mãe já pré-selecionada, pra
+    // cadastrar uma subcategoria sem precisar procurar o grupo certo de novo
+    // no select (achado 05/08/2026).
+    function abrirModalLimite(cat, modo = 'limite', maeForcada = null) {
       editandoLimiteCat = cat || null;
       _modalLimiteModo = cat ? modo : 'nova';
       const catObj      = categoriasMes.find(c => normCat(c.nome) === normCat(cat));
@@ -6801,11 +6855,21 @@
       // tem, tenta inferir pelo nome (mesma lógica do agrupamento da tabela)
       // só como sugestão inicial — a mentorada pode trocar ou deixar em branco.
       const elMae = document.getElementById('mLimiteMae');
-      const maeAtual = catObj?.mae ?? (cat ? categoriaParaMae(cat) : null) ?? '';
+      const maeAtual = maeForcada || catObj?.mae || (cat ? categoriaParaMae(cat) : null) || '';
       maeOriginalEdicao = catObj?.mae ?? null;
+      const maesCustom = _listarCategoriasMaeCustom(categoriasMes);
       elMae.innerHTML = `<option value="">— sem grupo (categoria solta) —</option>` +
-        Object.keys(CATEGORIAS_MAE).map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+        Object.keys(CATEGORIAS_MAE).map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('') +
+        (maesCustom.length
+          ? `<optgroup label="Criadas por você">${maesCustom.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('')}</optgroup>`
+          : '') +
+        `<option value="__nova__">+ Nova categoria-mãe…</option>`;
       elMae.value = maeAtual;
+      // Reseta o campo de texto livre — sem isso, um nome digitado numa
+      // edição anterior (cancelada ou não) reaparecia pré-preenchido.
+      const elMaeNova = document.getElementById('mLimiteMaeNova');
+      elMaeNova.value = '';
+      elMaeNova.style.display = 'none';
 
       const elNome  = document.getElementById('mLimiteNome');
       const elValor = document.getElementById('mLimiteValor');
@@ -6816,7 +6880,11 @@
       elNome.style.opacity  = nomeTravado  ? '.55' : '';
       elValor.style.opacity = valorTravado ? '.55' : '';
 
-      const subtitulos = { limite: 'Editar limite', nome: 'Renomear categoria', nova: 'Nova categoria' };
+      const subtitulos = {
+        limite: 'Editar limite',
+        nome: 'Renomear categoria',
+        nova: maeForcada ? `Nova subcategoria de ${maeForcada}` : 'Nova categoria',
+      };
       document.getElementById('modalLimiteSub').textContent = subtitulos[_modalLimiteModo];
       document.getElementById('mLimiteNome').value = cat || '';
       document.getElementById('mLimiteNomeHint').style.display = (cat && !nomeTravado) ? '' : 'none';
@@ -6839,9 +6907,18 @@
       const btn    = document.getElementById('btnSalvarLimite');
       const limite = readMoney(document.getElementById('mLimiteValor'));
       const nomeCat = document.getElementById('mLimiteNome')?.value.trim();
-      const mae     = document.getElementById('mLimiteMae')?.value || null;
+      let mae       = document.getElementById('mLimiteMae')?.value || null;
 
       if (!nomeCat) { toast('Preencha o nome da categoria.', 'warning'); return; }
+
+      // "__nova__" é só o sentinel do select — o nome de verdade da
+      // categoria-mãe nova vem do campo de texto que apareceu ao lado
+      // (achado 05/08/2026: antes só dava pra vincular às 13 categorias-mãe
+      // fixas, não criar uma nova).
+      if (mae === '__nova__') {
+        mae = document.getElementById('mLimiteMaeNova')?.value.trim() || null;
+        if (!mae) { toast('Digite o nome da nova categoria-mãe.', 'warning'); return; }
+      }
 
       const { mes, ano } = currentData.periodo;
       const nomeAnterior = editandoLimiteCat;
@@ -8281,6 +8358,7 @@
     window.editarLimitePlan = editarLimitePlan;
     window.renomearCategoriaPlan = renomearCategoriaPlan;
     window.togglePlanMae    = togglePlanMae;
+    window.novaSubcategoria = novaSubcategoria;
 
     // Debug temporário — checar duplicação nova no Bradesco
     window._debugRaw = async (mes, ano) => {
