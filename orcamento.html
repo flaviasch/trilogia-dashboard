@@ -5600,8 +5600,18 @@
       // identificados" (categoria de ajuste), enquanto a aba Detalhe não
       // mostrava de onde vinha (achado em 06/07/2026, Flávia: "esses
       // lançamentos de planejamento podem estar em detalhes também").
+      // Só despesa fixa entra aqui — sem esse filtro, receita fixa (tipo:
+      // 'receita', ex.: salário recorrente) ainda não lançada no mês também
+      // caía neste laço e entrava na lista de despesas com sinal positivo,
+      // inflando o total. O ajuste "Lançamentos não identificados" então
+      // forçava o total de volta ao valor certo, aparecendo como um item
+      // gigante "compensando" o próprio erro (achado 05/08/2026, Flávia:
+      // "as receitas estão entrando ali no mesmo sinal que despesas"). Mesmo
+      // filtro que já existia em js/orcamento-calc.js (achado 22/07/2026)
+      // pro cálculo equivalente do Saldo Projetado — só não tinha sido
+      // replicado aqui.
       const _puladasDetalhe = _fixasPuladasServidor;
-      (_recorrentes || []).filter(r => r.ativo && !r.cartao).forEach(r => {
+      (_recorrentes || []).filter(r => r.ativo && !r.cartao && (r.tipo || 'despesa') === 'despesa').forEach(r => {
         diasFaltantesRecorrente(r, data.despesas, data.periodo.mes, data.periodo.ano).forEach(dia => {
           if (_puladasDetalhe.includes(chaveFixaPulada(r.id, data.periodo.ano, data.periodo.mes, dia))) return;
           const norm = normCat(r.categoria);
@@ -8424,6 +8434,16 @@
       return itens.filter(i => i.tipo === 'despesa' && i.cartao);
     };
 
+    // Debug: TODAS as despesas reais do mês (não só cartão) — pra comparar
+    // com o Realizado exibido no Planejamento (achado 05/08/2026).
+    window._debugTodasDespesas = async (mes, ano) => {
+      const itens = await getOrcamento(mes, ano);
+      const despesas = itens.filter(i => i.tipo === 'despesa');
+      console.log('total de itens:', despesas.length, '· soma bruta:', despesas.reduce((s, i) => s + i.valor, 0));
+      console.table(despesas.map(i => ({ desc: i.descricao, cat: i.categoria, valor: i.valor, data: i.data, cartao: !!i.cartao, fatura: i.fatura || '', faturaAberta: !!i._faturaAberta, pendente: !!i.pendente })));
+      return despesas;
+    };
+
     // Limpeza agressiva por assinatura completa do item (cobre duplicatas
     // manuais, que não têm recorrenteId). dryRun=true por padrão — só mostra
     // o que seria removido. Chame de novo com false pra aplicar.
@@ -10685,13 +10705,33 @@
         // Salva o mês atual
         await salvarEAtualizar();
 
-        // "Todos incluindo passados": atualiza todos os meses via Cloud Function
+        // "Todos incluindo passados": atualiza TODOS os meses via Cloud
+        // Function, sem corte de data.
         if (escopo === 'todos' && _editRecId) {
           if (btnClicado) setLoading(btnClicado, true, 'Atualizando todos os meses…');
           const { mesesAlterados } = await atualizarRecorrenteEmTodos(_editRecId, novoValor, novaDesc);
           _periodoCache.clear(); // invalida cache local — dados podem ter mudado
           document.getElementById('modalEditRecorrente').classList.add('hidden'); _unlockBody();
           mostrarToast(`Atualizado em ${mesesAlterados} mês${mesesAlterados !== 1 ? 'es' : ''}.`);
+          return;
+        }
+
+        // "Este e os próximos": atualizar só o template (acima) resolve meses
+        // futuros AINDA virtuais (nunca materializados), mas um mês futuro
+        // que já tem um lançamento real gerado (ex.: fixa pré-lançada com
+        // antecedência) fica com o valor antigo se não varrer os documentos
+        // também — mesma Cloud Function de "todos", só que com corte a
+        // partir do mês em tela pra nunca tocar em meses passados (achado
+        // 05/08/2026, Flávia: "em agosto está ok, mas em setembro ainda
+        // aparece valor antes do ajuste").
+        if (escopo === 'proximos' && _editRecId) {
+          if (btnClicado) setLoading(btnClicado, true, 'Atualizando próximos meses…');
+          const { mes: mesAtualEd, ano: anoAtualEd } = currentData.periodo;
+          const apartirDe = `${anoAtualEd}-${String(mesAtualEd).padStart(2, '0')}`;
+          const { mesesAlterados } = await atualizarRecorrenteEmTodos(_editRecId, novoValor, novaDesc, apartirDe);
+          _periodoCache.clear();
+          document.getElementById('modalEditRecorrente').classList.add('hidden'); _unlockBody();
+          mostrarToast(`Alterado neste e nos próximos meses (${mesesAlterados} já lançado${mesesAlterados !== 1 ? 's' : ''} atualizado${mesesAlterados !== 1 ? 's' : ''}).`);
           return;
         }
 

@@ -2191,15 +2191,31 @@ exports.deleteRecorrente = onCall(async (request) => {
  * que já tenham esse item lançado. Usa batch write para eficiência.
  * Espera: { uid, recorrenteId, valor, descricao }
  */
+/**
+ * `apartirDe` (opcional, "YYYY-MM"): se enviado, só atualiza documentos de
+ * mês >= apartirDe — usado pelo escopo "este e os próximos meses" da edição
+ * de fixa. Sem esse parâmetro (undefined/null), atualiza TODOS os meses,
+ * inclusive passados — usado pelo escopo "todos incluindo passados".
+ *
+ * Antes desse parâmetro, "este e os próximos meses" só atualizava o molde
+ * da recorrente (afetando só meses futuros ainda NÃO materializados) e o mês
+ * em tela — um mês futuro que já tinha um lançamento real gerado (ex.: fixa
+ * pré-lançada com antecedência) ficava com o valor antigo pra sempre, porque
+ * só o escopo "todos" varria os documentos existentes (achado 05/08/2026,
+ * Flávia: "fiz ajuste de valor, em agosto está ok, mas em setembro ainda
+ * aparece valor antes do ajuste").
+ */
 exports.atualizarRecorrenteEmTodos = onCall(async (request) => {
   requireAuth(request);
-  const { uid, recorrenteId, valor, descricao } = request.data;
+  const { uid, recorrenteId, valor, descricao, apartirDe } = request.data;
   requireSelfOrAdmin(request, uid);
 
   if (!recorrenteId || typeof recorrenteId !== 'string')
     throw new HttpsError('invalid-argument', 'recorrenteId inválido.');
   if (typeof valor !== 'number' || valor < 0 || valor > 10_000_000)
     throw new HttpsError('invalid-argument', 'valor inválido.');
+  if (apartirDe != null && !/^\d{4}-\d{2}$/.test(apartirDe))
+    throw new HttpsError('invalid-argument', 'apartirDe deve estar no formato YYYY-MM.');
 
   const col  = db.collection('mentoradas').doc(uid).collection('orcamento');
   const snap = await col.get();
@@ -2208,6 +2224,9 @@ exports.atualizarRecorrenteEmTodos = onCall(async (request) => {
   let mesesAlterados = 0;
 
   snap.forEach(doc => {
+    // doc.id é o mesKey ("YYYY-MM") — comparação de string funciona porque
+    // o formato é sempre zero-padded (achado acima).
+    if (apartirDe && doc.id < apartirDe) return;
     const itens = doc.data().itens || [];
     let changed = false;
     const novosItens = itens.map(item => {

@@ -204,8 +204,13 @@ export async function saveOrcamento(mes, ano, itens, permitirReducao) {
   return call('saveOrcamento')({ uid: uidAtual(), mes, ano, itens, ...(permitirReducao ? { permitirReducao: true } : {}) });
 }
 
-export async function atualizarRecorrenteEmTodos(recorrenteId, valor, descricao) {
-  return call('atualizarRecorrenteEmTodos')({ uid: uidAtual(), recorrenteId, valor, descricao });
+/**
+ * @param {string|null} apartirDe - "YYYY-MM" opcional. Se enviado, só
+ * atualiza meses >= apartirDe (escopo "este e os próximos"); sem ele,
+ * atualiza todos os meses, inclusive passados (escopo "todos").
+ */
+export async function atualizarRecorrenteEmTodos(recorrenteId, valor, descricao, apartirDe = null) {
+  return call('atualizarRecorrenteEmTodos')({ uid: uidAtual(), recorrenteId, valor, descricao, apartirDe });
 }
 
 // ─── Fatura estados ───────────────────────────────────────────────────────────

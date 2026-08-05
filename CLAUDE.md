@@ -1,6 +1,7 @@
 # Dashboard Trilogia Financeira — Documentação completa
 
 > Para detalhes de UI das páginas do frontend (patrimônio, reservas, perfil, orçamento) leia também `CONTEXTO.md`.
+> Para tudo relacionado ao Clube Trilogia (drops, calendário, encontros, guias) leia `../clube-trilogia/MEMORIA-CLUBE.md`.
 
 ---
 
