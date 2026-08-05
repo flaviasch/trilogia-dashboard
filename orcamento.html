@@ -5631,8 +5631,11 @@
       // senão o valor entraria contado duas vezes — achado em 06/07/2026,
       // Flávia: "a soma de detalhes deveria ser a mesma do realizado no
       // planejamento... pode criar um lançamento pra ajustar e deixar igual".
+      // Em mês futuro, _diffNaoIdentificadoMes vem fixo em 0 — calibrar
+      // contra _totalVirtualSomado nesse caso criaria um ajuste fantasma
+      // (mesmo achado 05/08/2026 do Planejamento, ver renderPlanejamento).
       const _totalVirtualSomado = Object.values(gruposNorm).reduce((s, g) => s + g.totalVirtual, 0);
-      const { temAjuste: _temAjusteDetalhe, valorAjuste: _ajusteDetalhe } = calcularAjuste(_diffNaoIdentificadoMes, _totalVirtualSomado);
+      const { temAjuste: _temAjusteDetalhe, valorAjuste: _ajusteDetalhe } = calcularAjuste(_diffNaoIdentificadoMes, _ehFuturoAtual ? 0 : _totalVirtualSomado);
       if (_temAjusteDetalhe) {
         const normAjuste = normCat(CATEGORIA_AJUSTE);
         gruposNorm[normAjuste] = {
@@ -5920,7 +5923,16 @@
       // pendentes + faturas + compras em aberto, calculada no Resumo). Se não
       // bater, em vez de sumir a diferença, ela vira uma categoria própria —
       // assim o total do Planejamento sempre coincide com o fluxo de caixa.
-      const { temAjuste, valorAjuste: _valorAjustePlanejamento } = calcularAjuste(_diffNaoIdentificadoMes, _abertaSomadoPlanejamento + _totalVirtualSomadoPlanejamento);
+      // Em mês futuro, _diffNaoIdentificadoMes já vem fixo em 0 (calcularAgregadosOrcamento
+      // não reconcilia projeção contra caixa — "tudo é projeção"), então
+      // calcularAjuste(0, jaExplicadoPor) sempre devolveria -jaExplicadoPor:
+      // um "Lançamentos não identificados" fantasma do tamanho exato das
+      // fixas virtuais que acabaram de entrar certinho lá em cima, por
+      // categoria (achado 05/08/2026, Flávia: mês futuro de setembro
+      // mostrando -R$2.134 assim que as fixas em conta passaram a contar).
+      // Só calibra contra fixas virtuais em mês atual/passado, onde
+      // _diffNaoIdentificadoMes é um valor real a reconciliar.
+      const { temAjuste, valorAjuste: _valorAjustePlanejamento } = calcularAjuste(_diffNaoIdentificadoMes, _abertaSomadoPlanejamento + (_ehFuturoAtual ? 0 : _totalVirtualSomadoPlanejamento));
       if (temAjuste) {
         gruposPorNorm[normCat(CATEGORIA_AJUSTE)] = { total: _valorAjustePlanejamento, labels: { [CATEGORIA_AJUSTE]: 1 } };
       }
