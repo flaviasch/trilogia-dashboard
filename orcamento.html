@@ -9225,7 +9225,14 @@
         // cache invalidado por _invalPeriodo não bastava — currentData em si
         // precisava ser trocado. Resultado: a soma da fatura "não mudava"
         // depois de adicionar parcelas.
+        // ATUALIZAÇÃO 05/08/2026 (2ª parte do mesmo achado): o fix acima não
+        // bastou sozinho — _invalPeriodo(fatMes/instMes, ...) só limpa o
+        // cache do mês DA FATURA, nunca o do mês em tela (mesVis/anoVis).
+        // Quando são meses diferentes, buscarPeriodo(mesVis, anoVis) caía no
+        // cache local ainda válido do mês em tela e devolvia o dado velho
+        // sem nunca ir à rede. Precisa invalidar os dois.
         const { mes: mesVis, ano: anoVis } = currentData.periodo;
+        _invalPeriodo(mesVis, anoVis);
         currentData = await buscarPeriodo(mesVis, anoVis);
         render(currentData);
       } catch (err) {
