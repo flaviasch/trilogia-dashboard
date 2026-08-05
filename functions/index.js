@@ -2394,21 +2394,29 @@ exports.saveCategoriasMes = onCall(async (request) => {
 });
 
 /**
- * Atualiza (ou remove, se limite <= 0) o limite de UMA categoria no
- * planejamento do mês, via transaction. Ao contrário de saveCategoriasMes
- * (que sobrescreve a lista inteira com o que o cliente tinha em memória),
- * esta função lê e funde no servidor — evita que uma aba/dispositivo com
- * dados desatualizados apague edições feitas em outro lugar.
- * Espera: { uid, mes, ano, nome, limite }
+ * Atualiza (ou remove, se limite <= 0 e sem categoria-mãe vinculada) o
+ * limite/vínculo de UMA categoria no planejamento do mês, via transaction.
+ * Ao contrário de saveCategoriasMes (que sobrescreve a lista inteira com o
+ * que o cliente tinha em memória), esta função lê e funde no servidor —
+ * evita que uma aba/dispositivo com dados desatualizados apague edições
+ * feitas em outro lugar.
+ * `mae` (opcional): vincula explicitamente a categoria a uma das 12
+ * categorias-mãe (achado 05/08/2026 — antes o agrupamento do Planejamento
+ * era só por nome batendo com a lista de subcategorias conhecidas; sem
+ * vínculo explícito, categoria nova com nome não reconhecido sempre caía em
+ * "Categorias soltas" sem jeito de corrigir). null/'' = sem vínculo.
+ * Espera: { uid, mes, ano, nome, limite, mae? }
  */
 exports.upsertCategoriaLimite = onCall(async (request) => {
   requireAuth(request);
-  const { uid, mes, ano, nome, limite } = request.data;
+  const { uid, mes, ano, nome, limite, mae } = request.data;
   requireSelfOrAdmin(request, uid);
   await checkRateLimit(uid, 'upsertCategoriaLimite', 20, 60_000); // 20/min
 
   if (typeof nome !== 'string' || !nome || nome.length > 200) throw new HttpsError('invalid-argument', 'Nome de categoria inválido.');
   if (typeof limite !== 'number' || limite < 0) throw new HttpsError('invalid-argument', 'Limite inválido.');
+  if (mae != null && (typeof mae !== 'string' || mae.length > 60)) throw new HttpsError('invalid-argument', 'Categoria-mãe inválida.');
+  const maeLimpa = mae ? mae.trim() : null;
 
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
   const ref = db.collection('mentoradas').doc(uid).collection('planejamento').doc(mesKey);
@@ -2421,10 +2429,10 @@ exports.upsertCategoriaLimite = onCall(async (request) => {
     // com limites diferentes e nenhum deles bata com o total exibido.
     const idx = atuais.findIndex(c => _normCat(c.nome) === _normCat(nome));
     let novas;
-    if (limite > 0) {
+    if (limite > 0 || maeLimpa) {
       novas = idx === -1
-        ? [...atuais, { nome, limite }]
-        : atuais.map((c, i) => i === idx ? { ...c, nome, limite } : c);
+        ? [...atuais, { nome, limite, mae: maeLimpa }]
+        : atuais.map((c, i) => i === idx ? { ...c, nome, limite, mae: maeLimpa } : c);
     } else {
       novas = atuais.filter(c => _normCat(c.nome) !== _normCat(nome));
     }

@@ -2479,6 +2479,11 @@
         <span id="mLimiteNomeHint" style="display:none;font-size:11px;color:var(--text-muted);margin-top:4px;">Mudar o nome renomeia a categoria neste mês. Se já existir outra com esse nome, os limites são somados automaticamente — escolha na lista pra evitar erro de digitação.</span>
       </div>
       <div class="field-group">
+        <label for="mLimiteMae">Categoria-mãe</label>
+        <select id="mLimiteMae"></select>
+        <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:4px;">Agrupa essa categoria no menu do Planejamento. Deixe em branco se preferir manter solta.</span>
+      </div>
+      <div class="field-group">
         <label for="mLimiteValor">Limite mensal (R$) — deixe 0 para remover</label>
         <input type="text" inputmode="numeric" id="mLimiteValor" placeholder="ex: 1.000" />
       </div>
@@ -2704,7 +2709,7 @@
     // categoria "Despesas Bancárias" some visualmente dentro de "Categorias
     // soltas"). Abre o grupo certo e rola até ele pra confirmar visualmente.
     function expandirGrupoNaLista(nomeCat) {
-      const mae = categoriaParaMae(nomeCat);
+      const mae = categoriaParaMaeResolvida(nomeCat);
       const idGrupo = mae ? _slugMae(mae) : 'soltas';
       const chev = document.getElementById('chev-' + idGrupo);
       if (!chev) return;
@@ -5954,7 +5959,7 @@
              </div>`
           : `<div class="plan-bar-wrap"><span style="color:var(--text-muted);font-size:12px">—</span></div>`;
         const pctLabel = limite > 0 ? `<span style="font-size:10px;color:${cor};font-weight:700;display:block;line-height:1.2">${pct.toFixed(0)}%</span>` : '';
-        const mae = categoriaParaMae(cat);
+        const mae = categoriaParaMaeResolvida(cat, cats);
         const idGrupo = mae ? _slugMae(mae) : 'soltas';
         const html = `<tr class="plan-row" data-mae-de="${idGrupo}" style="display:none">
           <td class="plan-cat" style="padding-left:36px">${escapeHtml(cat)}</td>
@@ -6715,6 +6720,15 @@
     const modalLimite = document.getElementById('modalLimite');
     let editandoLimiteCat = null;
     let limiteOriginalEdicao = 0;
+    let maeOriginalEdicao = null;
+
+    // Categoria-mãe de fato usada pra agrupar: prioriza o vínculo explícito
+    // salvo em categoriasMes (campo mae); sem isso, cai pra inferência por
+    // nome batendo com a lista de subcategorias conhecidas (categoriaParaMae).
+    function categoriaParaMaeResolvida(cat, catsArray) {
+      const catObj = (catsArray || categoriasMes || []).find(c => normCat(c.nome) === normCat(cat));
+      return catObj?.mae || categoriaParaMae(cat);
+    }
     // 'limite' | 'nome' | 'nova' — controla qual campo fica travado. Achado
     // 23/07/2026 (Flávia): o modal único (nome + limite juntos) confundia —
     // difícil saber se um clique ia só ajustar o valor ou também renomear.
@@ -6749,6 +6763,16 @@
       document.getElementById('mLimiteNomeLista').innerHTML =
         _listarNomesCategorias(cat).map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
 
+      // Categoria-mãe: prioriza o vínculo já salvo explicitamente; se não
+      // tem, tenta inferir pelo nome (mesma lógica do agrupamento da tabela)
+      // só como sugestão inicial — a mentorada pode trocar ou deixar em branco.
+      const elMae = document.getElementById('mLimiteMae');
+      const maeAtual = catObj?.mae ?? (cat ? categoriaParaMae(cat) : null) ?? '';
+      maeOriginalEdicao = catObj?.mae ?? null;
+      elMae.innerHTML = `<option value="">— sem grupo (categoria solta) —</option>` +
+        Object.keys(CATEGORIAS_MAE).map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+      elMae.value = maeAtual;
+
       const elNome  = document.getElementById('mLimiteNome');
       const elValor = document.getElementById('mLimiteValor');
       const nomeTravado  = _modalLimiteModo === 'limite';
@@ -6781,12 +6805,17 @@
       const btn    = document.getElementById('btnSalvarLimite');
       const limite = readMoney(document.getElementById('mLimiteValor'));
       const nomeCat = document.getElementById('mLimiteNome')?.value.trim();
+      const mae     = document.getElementById('mLimiteMae')?.value || null;
 
       if (!nomeCat) { toast('Preencha o nome da categoria.', 'warning'); return; }
 
       const { mes, ano } = currentData.periodo;
       const nomeAnterior = editandoLimiteCat;
       const renomeando = nomeAnterior && normCat(nomeCat) !== normCat(nomeAnterior);
+      // A categoria-mãe não fica travada em nenhum modo do modal (diferente de
+      // nome/valor) — dá pra vincular/trocar o grupo tanto editando limite
+      // quanto renomeando, sem precisar de uma ação separada.
+      const mudouLimiteOuMae = limite !== limiteOriginalEdicao || mae !== maeOriginalEdicao;
 
       // Só fecha o modal depois do salvamento confirmado — fechar antes (como
       // era até 22/07/2026) escondia o botão junto com o setLoading logo
@@ -6804,15 +6833,15 @@
             const catFinal = (resultado.categorias || []).find(c => normCat(c.nome) === normCat(nomeFinal));
             toast(`"${nomeAnterior}" foi juntada com "${nomeFinal}" — limites somados (${brl(catFinal?.limite || 0)}/mês).`, 'success', 6000);
           }
-          // Se além de renomear o valor do limite também mudou nesta mesma
-          // edição, aplica por cima do resultado da mesclagem/renomeação.
-          if (limite !== limiteOriginalEdicao) {
-            await upsertCategoriaLimite(mes, ano, nomeFinal, limite);
+          // Se além de renomear o limite ou a categoria-mãe também mudaram
+          // nesta mesma edição, aplica por cima do resultado da mesclagem/renomeação.
+          if (mudouLimiteOuMae) {
+            await upsertCategoriaLimite(mes, ano, nomeFinal, limite, mae);
           }
         } else {
           // Merge feito no servidor (transaction) — evita que outra aba/dispositivo
           // com dados desatualizados na memória sobrescreva esta edição.
-          await upsertCategoriaLimite(mes, ano, nomeCat, limite);
+          await upsertCategoriaLimite(mes, ano, nomeCat, limite, mae);
         }
         modalLimite.classList.add('hidden'); _unlockBody();
         editandoLimiteCat = null;
@@ -6827,7 +6856,9 @@
         if (_tabAtiva === 'planejamento') { renderPlanejamento(currentData, categoriasMes); expandirGrupoNaLista(nomeFinal); }
         if (_tabAtiva === 'detalhe')      renderDespesasGrupos(currentData, currentData.despesas.filter(d=>!(d.cartao&&d.fatura)).reduce((s,d)=>s+d.valor,0));
         if (!renomeando) {
-          toast(limite > 0 ? `Limite de ${brl(limite)}/mês definido.` : 'Limite removido.', 'success');
+          if (limite > 0) toast(`Limite de ${brl(limite)}/mês definido.`, 'success');
+          else if (mae)   toast(`"${nomeFinal}" vinculada a ${mae}.`, 'success');
+          else            toast('Limite removido.', 'success');
         }
         if (limite > 0) registrarEvento('planejamento_configurado');
       } catch (err) {

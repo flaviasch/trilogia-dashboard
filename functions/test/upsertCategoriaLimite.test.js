@@ -14,7 +14,24 @@ test('upsertCategoriaLimite', async (t) => {
       auth: auth(uid),
     });
     assert.equal(res.categorias.length, 1);
-    assert.deepEqual(res.categorias[0], { nome: 'Saúde', limite: 4800 });
+    assert.deepEqual(res.categorias[0], { nome: 'Saúde', limite: 4800, mae: null });
+  });
+
+  await t.test('achado 05/08/2026: vincula categoria-mãe explícita e preserva mesmo com limite=0', async () => {
+    const uid = uidTeste();
+    const res = await fns.upsertCategoriaLimite.run({
+      data: { uid, mes: MES, ano: ANO, nome: 'Petiscaria', limite: 0, mae: 'Pet' },
+      auth: auth(uid),
+    });
+    assert.equal(res.categorias.length, 1, 'mesmo sem limite, o vínculo com a categoria-mãe mantém o registro');
+    assert.deepEqual(res.categorias[0], { nome: 'Petiscaria', limite: 0, mae: 'Pet' });
+  });
+
+  await t.test('limite=0 e sem mae remove a categoria (comportamento antigo preservado)', async () => {
+    const uid = uidTeste();
+    await fns.upsertCategoriaLimite.run({ data: { uid, mes: MES, ano: ANO, nome: 'Cinema', limite: 50, mae: 'Lazer' }, auth: auth(uid) });
+    const res = await fns.upsertCategoriaLimite.run({ data: { uid, mes: MES, ano: ANO, nome: 'Cinema', limite: 0 }, auth: auth(uid) });
+    assert.equal(res.categorias.length, 0, 'sem limite e sem mae enviada no request, o registro não tem mais razão de existir');
   });
 
   await t.test('achado 04/07/2026: grafia diferente atualiza a mesma entrada, não cria duplicata', async () => {

@@ -1343,8 +1343,8 @@ export async function saveCategoriasMes(mes, ano, categorias) {
  * @param {number} limite
  * @returns {Promise<Array<{nome, limite}>>} lista completa e atualizada
  */
-export async function upsertCategoriaLimite(mes, ano, nome, limite) {
-  const res = await call('upsertCategoriaLimite')({ uid: uidAtual(), mes, ano, nome, limite });
+export async function upsertCategoriaLimite(mes, ano, nome, limite, mae) {
+  const res = await call('upsertCategoriaLimite')({ uid: uidAtual(), mes, ano, nome, limite, mae: mae || null });
   return res?.categorias || [];
 }
 
