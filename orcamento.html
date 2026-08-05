@@ -2573,7 +2573,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor } from './js/api.js?v=57';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor } from './js/api.js?v=58';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -4021,7 +4021,24 @@
       if (contasResult.status === 'fulfilled') _contas = contasResult.value || [];
       // Vínculo categoria → categoria-mãe: buscado UMA VEZ (não é por mês —
       // achado 05/08/2026, vale pra todos os meses sem precisar refazer).
-      if (maeGlobalResult.status === 'fulfilled') categoriasMaeGlobais = maeGlobalResult.value || [];
+      if (maeGlobalResult.status === 'fulfilled') {
+        categoriasMaeGlobais = maeGlobalResult.value?.vinculos || [];
+        // Migração única: promove pro vínculo global qualquer categoria-mãe
+        // que só existia dentro de um mês específico, de antes desse vínculo
+        // global existir — sem isso, quem já tinha configurado em meses
+        // anteriores continuaria precisando refazer (achado 05/08/2026,
+        // Flávia: "isso vale pras categorias mães que foram criadas em meses
+        // anteriores"). Roda em segundo plano — não trava o carregamento da
+        // tela por uma migração que só acontece uma vez na vida da conta; se
+        // falhar, tenta de novo no próximo carregamento (sem toast de erro,
+        // não é uma ação que a pessoa disparou).
+        if (!maeGlobalResult.value?.migrado) {
+          migrarCategoriasMaeLegado().then(({ vinculos, adicionados }) => {
+            categoriasMaeGlobais = vinculos;
+            if (adicionados > 0 && _tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
+          }).catch(() => {});
+        }
+      }
 
       // Carrega recorrentes em paralelo (sem bloquear o render). Fixas no
       // cartão são lançadas automaticamente em cada fatura; fixas em conta
@@ -6997,7 +7014,7 @@
         // (mesma fonte que um reload usaria), evitando a tela ficar com um
         // limite "não definido" que já está salvo (achado em 04/07/2026).
         categoriasMes = await getCategoriasMes(mes, ano);
-        if (mudouMae) categoriasMaeGlobais = await getCategoriasMaeGlobais();
+        if (mudouMae) categoriasMaeGlobais = (await getCategoriasMaeGlobais()).vinculos;
         // Re-renderiza as abas que dependem de limites
         render(currentData);
         if (_tabAtiva === 'planejamento') { renderPlanejamento(currentData, categoriasMes); expandirGrupoNaLista(nomeFinal, categoriasMes); }

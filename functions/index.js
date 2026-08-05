@@ -2549,7 +2549,9 @@ exports.upsertCategoriaMaeGlobal = onCall(async (request) => {
 
 /**
  * Retorna todos os vínculos globais categoria → categoria-mãe da mentorada
- * (independentes de mês — ver upsertCategoriaMaeGlobal).
+ * (independentes de mês — ver upsertCategoriaMaeGlobal). `migrado` indica se
+ * já rodou migrarCategoriasMaeLegado nesta conta — o cliente usa isso pra
+ * saber se precisa disparar a migração (achado 05/08/2026).
  * Espera: { uid }
  */
 exports.getCategoriasMaeGlobais = onCall(async (request) => {
@@ -2558,7 +2560,67 @@ exports.getCategoriasMaeGlobais = onCall(async (request) => {
   requireSelfOrAdmin(request, uid);
 
   const snap = await db.collection('mentoradas').doc(uid).collection('config').doc('categoriasMae').get();
-  return { vinculos: snap.exists ? (snap.data().vinculos || []) : [] };
+  const data = snap.exists ? snap.data() : {};
+  return { vinculos: data.vinculos || [], migrado: !!data.migrado };
+});
+
+/**
+ * Migração ÚNICA (idempotente): antes do vínculo global existir, o campo
+ * `mae` era salvo dentro de cada mês (upsertCategoriaLimite). Sem essa
+ * migração, quem já linkou categorias em meses anteriores continuaria tendo
+ * que refazer o vínculo pra cada mês novo — exatamente o problema que o
+ * vínculo global resolve (achado 05/08/2026, Flávia: "isso vale pras
+ * categorias mães que foram criadas em meses anteriores").
+ *
+ * Varre TODOS os documentos de mentoradas/{uid}/planejamento, junta o `mae`
+ * mais recente salvo por categoria (mês mais recente vence em empate), e
+ * promove pro vínculo global — sem sobrescrever vínculos globais já
+ * definidos manualmente (essa migração só PREENCHE lacunas). Marca
+ * `migrado: true` mesmo se não achar nada, pra nunca rodar de novo.
+ * Espera: { uid }
+ */
+exports.migrarCategoriasMaeLegado = onCall(async (request) => {
+  requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'migrarCategoriasMaeLegado', 5, 60_000); // 5/min — roda raramente, só até migrar
+
+  const configRef = db.collection('mentoradas').doc(uid).collection('config').doc('categoriasMae');
+  const planejamentosSnap = await db.collection('mentoradas').doc(uid).collection('planejamento').get();
+
+  // ID do doc é o mesKey ("2026-07"), então ordem alfabética = ordem
+  // cronológica — o mês mais recente processado por último vence em empate.
+  const legadoPorNorm = {}; // normNome -> { nome, mae }
+  planejamentosSnap.docs
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .forEach((doc) => {
+      const categorias = doc.data().categorias || [];
+      categorias.forEach((c) => {
+        if (c.mae) legadoPorNorm[_normCat(c.nome)] = { nome: c.nome, mae: c.mae };
+      });
+    });
+
+  const resultado = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(configRef);
+    const atuais = snap.exists ? (snap.data().vinculos || []) : [];
+    const atuaisNorm = new Set(atuais.map((c) => _normCat(c.nome)));
+    const novos = [...atuais];
+    let adicionados = 0;
+    Object.values(legadoPorNorm).forEach(({ nome, mae }) => {
+      if (!atuaisNorm.has(_normCat(nome))) {
+        novos.push({ nome, mae });
+        adicionados++;
+      }
+    });
+    tx.set(configRef, {
+      vinculos: novos,
+      migrado: true,
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { vinculos: novos, adicionados };
+  });
+
+  return { ok: true, ...resultado };
 });
 
 /**

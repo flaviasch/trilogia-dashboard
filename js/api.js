@@ -1369,12 +1369,28 @@ export async function upsertCategoriaMaeGlobal(nome, mae) {
 }
 
 /**
- * Retorna todos os vínculos globais categoria → categoria-mãe da mentorada.
- * @returns {Promise<Array<{nome, mae}>>}
+ * Retorna todos os vínculos globais categoria → categoria-mãe da mentorada,
+ * e se a migração de vínculos antigos (salvos por mês) já rodou pra essa
+ * conta (`migrado`) — achado 05/08/2026.
+ * @returns {Promise<{vinculos: Array<{nome, mae}>, migrado: boolean}>}
  */
 export async function getCategoriasMaeGlobais() {
   const res = await call('getCategoriasMaeGlobais')({ uid: uidAtual() });
-  return res?.vinculos || [];
+  return { vinculos: res?.vinculos || [], migrado: !!res?.migrado };
+}
+
+/**
+ * Migração única: promove pro vínculo global qualquer `mae` que só existia
+ * dentro de um mês específico (de antes do vínculo global existir) — sem
+ * isso, quem já tinha configurado categoria-mãe em meses anteriores
+ * continuaria precisando refazer o vínculo em cada mês novo (achado
+ * 05/08/2026, Flávia: "isso vale pras categorias mães que foram criadas em
+ * meses anteriores"). Idempotente — seguro chamar mais de uma vez.
+ * @returns {Promise<{vinculos: Array<{nome, mae}>, adicionados: number}>}
+ */
+export async function migrarCategoriasMaeLegado() {
+  const res = await call('migrarCategoriasMaeLegado')({ uid: uidAtual() });
+  return { vinculos: res?.vinculos || [], adicionados: res?.adicionados || 0 };
 }
 
 /**
