@@ -2573,7 +2573,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor } from './js/api.js?v=56';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor } from './js/api.js?v=57';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -2851,6 +2851,9 @@
     let reservas = [];
     let perfilInvestidor = null;
     let categoriasMes = []; // [{ nome, limite }] — planejamento do mês atual
+    // Vínculo categoria → categoria-mãe: GLOBAL, não muda por mês (achado
+    // 05/08/2026) — carregado uma vez em init(), não em buscarPeriodo().
+    let categoriasMaeGlobais = []; // [{ nome, mae }]
     let planejamentoMeta = { renda: null, percentual: null }; // renda + % planejado do mês atual
     // Saldo Final do mês em tela — capturado a cada render() pra servir de
     // carryover automático pro saldo inicial do mês seguinte, sem precisar
@@ -3969,7 +3972,7 @@
       const mes = agora.getMonth() + 1;
       const ano = agora.getFullYear();
 
-      const [orcResult, resResult, perfilResult, catResult, fatEstResult, planMetaResult, contasResult] = await Promise.allSettled([
+      const [orcResult, resResult, perfilResult, catResult, fatEstResult, planMetaResult, contasResult, maeGlobalResult] = await Promise.allSettled([
         getOrcamento(mes, ano),
         getReservas(),
         getPerfil(),
@@ -3977,6 +3980,7 @@
         getFaturaEstados(),
         getPlanejamentoMeta(mes, ano),
         getContas(),
+        getCategoriasMaeGlobais(),
       ]);
 
       if (orcResult.status === 'fulfilled') {
@@ -4015,6 +4019,9 @@
       if (fatEstResult.status === 'fulfilled') _faturaEstados = fatEstResult.value || {};
       if (planMetaResult.status === 'fulfilled') planejamentoMeta = planMetaResult.value || { renda: null, percentual: null };
       if (contasResult.status === 'fulfilled') _contas = contasResult.value || [];
+      // Vínculo categoria → categoria-mãe: buscado UMA VEZ (não é por mês —
+      // achado 05/08/2026, vale pra todos os meses sem precisar refazer).
+      if (maeGlobalResult.status === 'fulfilled') categoriasMaeGlobais = maeGlobalResult.value || [];
 
       // Carrega recorrentes em paralelo (sem bloquear o render). Fixas no
       // cartão são lançadas automaticamente em cada fatura; fixas em conta
@@ -6786,10 +6793,17 @@
     let limiteOriginalEdicao = 0;
     let maeOriginalEdicao = null;
 
-    // Categoria-mãe de fato usada pra agrupar: prioriza o vínculo explícito
-    // salvo em categoriasMes (campo mae); sem isso, cai pra inferência por
-    // nome batendo com a lista de subcategorias conhecidas (categoriaParaMae).
+    // Categoria-mãe de fato usada pra agrupar. Ordem de prioridade:
+    // 1) vínculo GLOBAL (categoriasMaeGlobais — vale pra todos os meses, não
+    //    precisa ser refeito; achado 05/08/2026);
+    // 2) campo `mae` salvo dentro do mês (categoriasMes) — legado de antes do
+    //    vínculo global existir, mantido só pra não perder configuração já
+    //    feita nos meses testados durante essa migração;
+    // 3) inferência por nome batendo com a lista de subcategorias conhecidas
+    //    (categoriaParaMae).
     function categoriaParaMaeResolvida(cat, catsArray) {
+      const global = categoriasMaeGlobais.find(c => normCat(c.nome) === normCat(cat));
+      if (global) return global.mae;
       const catObj = (catsArray || categoriasMes || []).find(c => normCat(c.nome) === normCat(cat));
       return catObj?.mae || categoriaParaMae(cat);
     }
@@ -6814,11 +6828,14 @@
       if (ehNova) elNova.focus();
     });
 
-    // Categorias-mãe fora das 13 fixas, já usadas em algum mês — pra
-    // reaparecerem no select em vez de precisar redigitar toda vez que a
-    // pessoa quiser usar a mesma categoria-mãe customizada de novo.
+    // Categorias-mãe fora das 13 fixas, já criadas globalmente (ou usadas em
+    // algum mês, legado) — pra reaparecerem no select em vez de precisar
+    // redigitar toda vez que a pessoa quiser usar a mesma categoria-mãe
+    // customizada de novo. Junta as duas fontes (global é a atual; por mês é
+    // legado de antes do vínculo global existir).
     function _listarCategoriasMaeCustom(catsArray) {
       const custom = new Set();
+      categoriasMaeGlobais.forEach(c => { if (c.mae && !CATEGORIAS_MAE[c.mae]) custom.add(c.mae); });
       (catsArray || []).forEach(c => { if (c.mae && !CATEGORIAS_MAE[c.mae]) custom.add(c.mae); });
       return [...custom].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     }
@@ -6851,12 +6868,16 @@
       document.getElementById('mLimiteNomeLista').innerHTML =
         _listarNomesCategorias(cat).map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
 
-      // Categoria-mãe: prioriza o vínculo já salvo explicitamente; se não
-      // tem, tenta inferir pelo nome (mesma lógica do agrupamento da tabela)
-      // só como sugestão inicial — a mentorada pode trocar ou deixar em branco.
+      // Categoria-mãe: prioriza o vínculo GLOBAL já salvo (vale pra todo mês);
+      // sem isso, tenta o campo legado por mês, depois inferir pelo nome
+      // (mesma lógica do agrupamento da tabela) só como sugestão inicial — a
+      // mentorada pode trocar ou deixar em branco.
       const elMae = document.getElementById('mLimiteMae');
-      const maeAtual = maeForcada || catObj?.mae || (cat ? categoriaParaMae(cat) : null) || '';
-      maeOriginalEdicao = catObj?.mae ?? null;
+      const globalAtual = cat ? categoriasMaeGlobais.find(c => normCat(c.nome) === normCat(cat)) : null;
+      const maeAtual = maeForcada || globalAtual?.mae || catObj?.mae || (cat ? categoriaParaMae(cat) : null) || '';
+      // Comparado no save contra o valor GLOBAL — é ele que vamos gravar
+      // agora (upsertCategoriaMaeGlobal), não mais o campo mae por mês.
+      maeOriginalEdicao = globalAtual?.mae ?? null;
       const maesCustom = _listarCategoriasMaeCustom(categoriasMes);
       elMae.innerHTML = `<option value="">— sem grupo (categoria solta) —</option>` +
         Object.keys(CATEGORIAS_MAE).map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('') +
@@ -6925,8 +6946,16 @@
       const renomeando = nomeAnterior && normCat(nomeCat) !== normCat(nomeAnterior);
       // A categoria-mãe não fica travada em nenhum modo do modal (diferente de
       // nome/valor) — dá pra vincular/trocar o grupo tanto editando limite
-      // quanto renomeando, sem precisar de uma ação separada.
-      const mudouLimiteOuMae = limite !== limiteOriginalEdicao || mae !== maeOriginalEdicao;
+      // quanto renomeando, sem precisar de uma ação separada. Limite e mãe
+      // agora são gravados em lugares diferentes (achado 05/08/2026: mãe
+      // virou global, não por mês — ver upsertCategoriaMaeGlobal), então
+      // cada um dispara sua própria chamada, só quando realmente mudou.
+      const mudouLimite = limite !== limiteOriginalEdicao;
+      // Renomear precisa regravar o vínculo global sob o nome novo mesmo
+      // quando a categoria-mãe em si não mudou — sem isso, o vínculo fica
+      // órfão preso no nome antigo e a categoria renomeada perde o
+      // agrupamento na próxima vez que a tela renderiza (achado 05/08/2026).
+      const mudouMae = mae !== maeOriginalEdicao || (renomeando && !!maeOriginalEdicao);
 
       // Só fecha o modal depois do salvamento confirmado — fechar antes (como
       // era até 22/07/2026) escondia o botão junto com o setLoading logo
@@ -6944,15 +6973,21 @@
             const catFinal = (resultado.categorias || []).find(c => normCat(c.nome) === normCat(nomeFinal));
             toast(`"${nomeAnterior}" foi juntada com "${nomeFinal}" — limites somados (${brl(catFinal?.limite || 0)}/mês).`, 'success', 6000);
           }
-          // Se além de renomear o limite ou a categoria-mãe também mudaram
-          // nesta mesma edição, aplica por cima do resultado da mesclagem/renomeação.
-          if (mudouLimiteOuMae) {
-            await upsertCategoriaLimite(mes, ano, nomeFinal, limite, mae);
+          // Se além de renomear o limite também mudou nesta mesma edição,
+          // aplica por cima do resultado da mesclagem/renomeação.
+          if (mudouLimite) {
+            await upsertCategoriaLimite(mes, ano, nomeFinal, limite);
           }
         } else {
           // Merge feito no servidor (transaction) — evita que outra aba/dispositivo
           // com dados desatualizados na memória sobrescreva esta edição.
-          await upsertCategoriaLimite(mes, ano, nomeCat, limite, mae);
+          await upsertCategoriaLimite(mes, ano, nomeCat, limite);
+        }
+        // Vínculo com categoria-mãe é GLOBAL — grava separado do limite do
+        // mês, sob o nome final (já renomeado, se for o caso), pra valer em
+        // todos os meses sem precisar refazer (achado 05/08/2026).
+        if (mudouMae) {
+          await upsertCategoriaMaeGlobal(nomeFinal, mae);
         }
         modalLimite.classList.add('hidden'); _unlockBody();
         editandoLimiteCat = null;
@@ -6962,14 +6997,16 @@
         // (mesma fonte que um reload usaria), evitando a tela ficar com um
         // limite "não definido" que já está salvo (achado em 04/07/2026).
         categoriasMes = await getCategoriasMes(mes, ano);
+        if (mudouMae) categoriasMaeGlobais = await getCategoriasMaeGlobais();
         // Re-renderiza as abas que dependem de limites
         render(currentData);
         if (_tabAtiva === 'planejamento') { renderPlanejamento(currentData, categoriasMes); expandirGrupoNaLista(nomeFinal, categoriasMes); }
         if (_tabAtiva === 'detalhe')      renderDespesasGrupos(currentData, currentData.despesas.filter(d=>!(d.cartao&&d.fatura)).reduce((s,d)=>s+d.valor,0));
         if (!renomeando) {
-          if (limite > 0) toast(`Limite de ${brl(limite)}/mês definido.`, 'success');
-          else if (mae)   toast(`"${nomeFinal}" vinculada a ${mae}.`, 'success');
-          else            toast('Limite removido.', 'success');
+          const msgs = [];
+          if (mudouLimite) msgs.push(limite > 0 ? `limite de ${brl(limite)}/mês definido` : 'limite removido');
+          if (mudouMae)    msgs.push(mae ? `vinculada a ${mae}` : 'desvinculada da categoria-mãe');
+          toast(msgs.length ? `"${nomeFinal}" ${msgs.join(' · ')}.` : 'Nada mudou.', 'success');
         }
         if (limite > 0) registrarEvento('planejamento_configurado');
       } catch (err) {

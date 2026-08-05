@@ -1357,6 +1357,27 @@ export async function renomearCategoriaLimite(mes, ano, nomeAntigo, nomeNovo) {
 }
 
 /**
+ * Vincula (ou remove, se mae for null) uma categoria a uma categoria-mãe
+ * GLOBALMENTE — não pertence a nenhum mês, ao contrário do campo `mae` de
+ * upsertCategoriaLimite. Uma vez definido, vale pra todos os meses sem
+ * precisar refazer (achado 05/08/2026).
+ * @returns {Promise<Array<{nome, mae}>>} lista completa e atualizada
+ */
+export async function upsertCategoriaMaeGlobal(nome, mae) {
+  const res = await call('upsertCategoriaMaeGlobal')({ uid: uidAtual(), nome, mae: mae || null });
+  return res?.vinculos || [];
+}
+
+/**
+ * Retorna todos os vínculos globais categoria → categoria-mãe da mentorada.
+ * @returns {Promise<Array<{nome, mae}>>}
+ */
+export async function getCategoriasMaeGlobais() {
+  const res = await call('getCategoriasMaeGlobais')({ uid: uidAtual() });
+  return res?.vinculos || [];
+}
+
+/**
  * Retorna a renda planejada e o percentual planejado do mês (parte do mesmo
  * documento de planejamento, não sobrepõe getCategoriasMes).
  * @param {number} mes

@@ -2505,6 +2505,63 @@ exports.renomearCategoriaLimite = onCall(async (request) => {
 });
 
 /**
+ * Vincula (ou desvincula, se mae for null/'') uma categoria a uma
+ * categoria-mãe GLOBALMENTE — ao contrário do campo `mae` dentro de
+ * upsertCategoriaLimite (que vive só dentro do documento do mês), esse
+ * vínculo não pertence a nenhum mês específico. Uma vez definido, vale pra
+ * todos os meses, passados e futuros, sem precisar refazer (achado
+ * 05/08/2026, Flávia: "esses ajustes feitos em um mês não precisassem ser
+ * refeitos no mês seguinte" — só o agrupamento; o limite em si continua por
+ * mês, via "copiar mês anterior", porque valor de orçamento legitimamente
+ * varia mês a mês).
+ * Espera: { uid, nome, mae }
+ */
+exports.upsertCategoriaMaeGlobal = onCall(async (request) => {
+  requireAuth(request);
+  const { uid, nome, mae } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'upsertCategoriaMaeGlobal', 20, 60_000); // 20/min
+
+  if (typeof nome !== 'string' || !nome || nome.length > 200) throw new HttpsError('invalid-argument', 'Nome de categoria inválido.');
+  if (mae != null && (typeof mae !== 'string' || mae.length > 60)) throw new HttpsError('invalid-argument', 'Categoria-mãe inválida.');
+  const maeLimpa = mae ? mae.trim() : null;
+
+  const ref = db.collection('mentoradas').doc(uid).collection('config').doc('categoriasMae');
+
+  const vinculos = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const atuais = snap.exists ? (snap.data().vinculos || []) : [];
+    const idx = atuais.findIndex(c => _normCat(c.nome) === _normCat(nome));
+    let novos;
+    if (maeLimpa) {
+      novos = idx === -1
+        ? [...atuais, { nome, mae: maeLimpa }]
+        : atuais.map((c, i) => i === idx ? { nome, mae: maeLimpa } : c);
+    } else {
+      novos = atuais.filter(c => _normCat(c.nome) !== _normCat(nome));
+    }
+    tx.set(ref, { vinculos: novos, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    return novos;
+  });
+
+  return { ok: true, vinculos };
+});
+
+/**
+ * Retorna todos os vínculos globais categoria → categoria-mãe da mentorada
+ * (independentes de mês — ver upsertCategoriaMaeGlobal).
+ * Espera: { uid }
+ */
+exports.getCategoriasMaeGlobais = onCall(async (request) => {
+  requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const snap = await db.collection('mentoradas').doc(uid).collection('config').doc('categoriasMae').get();
+  return { vinculos: snap.exists ? (snap.data().vinculos || []) : [] };
+});
+
+/**
  * Atualiza renda planejada + percentual planejado do mês, sem tocar em
  * `categorias` — mesmo padrão de merge via transaction do upsertCategoriaLimite,
  * pra não sobrescrever categorias salvas em outra aba/dispositivo.
