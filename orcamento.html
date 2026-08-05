@@ -9215,14 +9215,19 @@
           registrarEvento('despesa_cartao_lancada');
           mostrarToast(`💳 Salvo na fatura de ${MESES[fatMes-1]} ✓`, 'success');
         }
+        // Sempre busca currentData de novo, mesmo que a fatura tenha caído
+        // num mês diferente do que está em tela — achado 05/08/2026: quando
+        // a fatura ia pra outro mês (comum, já que o corte do cartão joga a
+        // compra pra fatura seguinte), o código só re-renderizava o
+        // currentData ANTIGO. E dentro de renderFaturas, se a fatura aberta
+        // do cartão coincidir com o mês em tela, o código reaproveita esse
+        // mesmo objeto direto (sem passar pelo cache/rede), então mesmo o
+        // cache invalidado por _invalPeriodo não bastava — currentData em si
+        // precisava ser trocado. Resultado: a soma da fatura "não mudava"
+        // depois de adicionar parcelas.
         const { mes: mesVis, ano: anoVis } = currentData.periodo;
-        if (fatMes === mesVis && fatAno === anoVis) {
-          currentData = await buscarPeriodo(fatMes, fatAno);
-          render(currentData);
-        } else {
-          // Fatura em mês diferente do visualizado: atualiza só a aba de faturas
-          renderFaturas(currentData);
-        }
+        currentData = await buscarPeriodo(mesVis, anoVis);
+        render(currentData);
       } catch (err) {
         mostrarToast(msgErro(err), 'error');
       } finally {
