@@ -1872,7 +1872,13 @@ exports.saveFaturaEstado = onCall({ secrets: [] }, async (request) => {
   const col    = db.collection('mentoradas').doc(uid).collection('faturaEstados');
   const update = { cartaoId, faturaKey, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() };
 
-  if (ajusteTotal  != null) update.ajusteTotal  = ajusteTotal;
+  // null EXPLÍCITO (distinto de "campo não enviado", undefined) é o sinal
+  // pra apagar o ajuste e voltar a usar o total calculado pelos lançamentos
+  // — sem isso não existia jeito de remover um ajuste antigo, só de
+  // sobrescrever com outro valor (achado 05/08/2026: ajuste travado
+  // continuava mascarando a soma real mesmo depois de novos lançamentos).
+  if (ajusteTotal === null) update.ajusteTotal = admin.firestore.FieldValue.delete();
+  else if (ajusteTotal != null) update.ajusteTotal = ajusteTotal;
   if (estado       != null) update.estado        = estado;
   if (valorPago    != null) update.valorPago      = valorPago;
   if (rollover     != null) update.rollover       = rollover;
