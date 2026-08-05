@@ -640,6 +640,9 @@
     <!-- Evolução 12 meses -->
     <div id="evolucaoBox"></div>
 
+    <!-- Imobilizado x Financeiro -->
+    <div id="composicaoBox"></div>
+
     <!-- Ativos por classe -->
     <div class="section">
       <div class="section-header">
@@ -991,6 +994,68 @@
       };
     }
 
+    // ─── Imobilizado x Financeiro ────────────
+    // Mesma taxonomia de CLASSES, mas agrupada em 2 blocos: o que é liquidez
+    // e renda (investimentos) e o que é bem físico (imóvel, veículo, bens
+    // móveis) — não vende rápido nem gera renda passiva por si só.
+    const CLASSES_IMOBILIZADO = new Set(['imov', 'auto', 'bens']);
+    const CLASSES_FINANCEIRO  = new Set(['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'alt']);
+
+    function classeBaseId(classeId) {
+      const direto = CLASSES.find(c => c.id === classeId);
+      if (direto) return direto.id;
+      return PATRIMONIO_COR[classeId.toLowerCase()] || null;
+    }
+
+    function renderComposicaoPatrimonio(ativosList, totalAtivos) {
+      const box = document.getElementById('composicaoBox');
+      if (!box) return;
+      if (!totalAtivos) { box.innerHTML = ''; return; }
+
+      let financeiro = 0, imobilizado = 0, outros = 0;
+      ativosList.forEach(a => {
+        const base = classeBaseId(a.classe);
+        if (CLASSES_IMOBILIZADO.has(base))      imobilizado += a.valor;
+        else if (CLASSES_FINANCEIRO.has(base))  financeiro  += a.valor;
+        else                                     outros      += a.valor;
+      });
+
+      const segs = [
+        financeiro  > 0 ? { cor: 'var(--gold)',   label: 'Patrimônio Financeiro',  desc: 'Investimentos: renda fixa, renda variável, multimercado, internacional, alternativos', valor: financeiro }  : null,
+        imobilizado > 0 ? { cor: 'var(--c-imov)', label: 'Patrimônio Imobilizado', desc: 'Imóveis, veículos e bens móveis — sem liquidez imediata nem renda passiva própria', valor: imobilizado } : null,
+        outros      > 0 ? { cor: '#94a3b8',       label: 'Outros',                 desc: 'Ativos sem classe reconhecida', valor: outros } : null,
+      ].filter(Boolean);
+
+      const barHTML = segs.map(s =>
+        `<div class="balanco-segment" style="width:${((s.valor / totalAtivos) * 100).toFixed(1)}%; background:${s.cor};" title="${s.label}"></div>`
+      ).join('');
+
+      const itensHTML = segs.map(s => `
+        <div class="balanco-item" style="align-items:flex-start;">
+          <div class="balanco-item-left">
+            <div class="balanco-dot" style="background:${s.cor};margin-top:4px;"></div>
+            <div>
+              <div class="balanco-label" style="white-space:normal;">${s.label}</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;line-height:1.4;">${s.desc}</div>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div class="balanco-valor">${brl(s.valor)}</div>
+            <div class="balanco-pct">${pct(s.valor, totalAtivos)}</div>
+          </div>
+        </div>`).join('');
+
+      box.innerHTML = `
+        <div class="balanco-card">
+          <div class="balanco-header">
+            <h2>Imobilizado x Financeiro</h2>
+            <span>Do total de ativos</span>
+          </div>
+          <div class="balanco-bar">${barHTML}</div>
+          <div class="balanco-itens">${itensHTML}</div>
+        </div>`;
+    }
+
     // ─── Mock data (substituir por Google Sheets) ─
     const MOCK = {
       ativos: [
@@ -1190,6 +1255,9 @@
       // Evolução 12 meses
       renderEvolucao(historico);
 
+      // Imobilizado x Financeiro
+      renderComposicaoPatrimonio(ativos, totalAtivos);
+
       // Dívidas
       renderDividas(divs, totalDividas);
     }
@@ -1337,8 +1405,20 @@
         return;
       }
 
-      const maxPL   = Math.max(...ultimos.map(p => Math.abs(p.pl))) || 1;
       const maxBarH = 120; // px
+
+      // Escala relativa (não começa em zero): quando o PL varia pouco mês a
+      // mês (ex.: 1,688M → 1,702M → 1,704M), escalar de 0 até o valor máximo
+      // deixa todas as barras quase do mesmo tamanho — a variação real fica
+      // escondida. Aqui a base do gráfico é um pouco abaixo do menor valor do
+      // período, então a diferença entre os meses fica visualmente clara.
+      const valores = ultimos.map(p => p.pl);
+      const maxPL   = Math.max(...valores);
+      const minPL   = Math.min(...valores);
+      const range   = maxPL - minPL;
+      const folga   = range > 1 ? range * 0.25 : (Math.abs(minPL) * 0.02 || 1);
+      const baseline = minPL - folga;
+      const escala   = (maxPL - baseline) || 1;
 
       const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
       const fmtMes = data => {
@@ -1350,7 +1430,7 @@
         : v >= 1e3 ? `${(v/1e3).toFixed(1).replace('.',',')}k` : brl(v);
 
       const cols = ultimos.map(p => {
-        const h     = Math.max(3, (Math.abs(p.pl) / maxPL) * maxBarH);
+        const h     = Math.max(3, ((p.pl - baseline) / escala) * maxBarH);
         const pos   = p.pl >= 0;
         const cor   = pos
           ? 'linear-gradient(to top,rgba(74,222,128,0.85),rgba(74,222,128,0.4))'
