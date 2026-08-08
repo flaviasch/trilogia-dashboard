@@ -238,7 +238,14 @@ export function calcularAgregadosOrcamento({
   // Receita "comprometida" — toda receita prevista no mês, pendente ou não
   // (mesmo critério de despesaComprometida). Usada por Score/Planejamento/
   // home, que olham o mês inteiro, não só o que já caiu na conta.
-  const receitaComprometida = data.receitas.reduce((s, r) => s + r.valor, 0);
+  // Precisa somar totalFixasVirtuaisReceita (calculado mais abaixo) igual
+  // despesaComprometida já soma totalFixasVirtuais — sem isso, receita fixa
+  // (salário etc.) ainda não confirmada manualmente no mês ficava de fora
+  // da home/Score, mesmo já contando pro lado da despesa (achado 05/08/2026,
+  // Flávia: "essa tela de início está errada, despesas está certo, mas
+  // receitas não"). Reatribuída logo abaixo, depois que
+  // totalFixasVirtuaisReceita existe.
+  let receitaComprometida = data.receitas.reduce((s, r) => s + r.valor, 0);
 
   // Fatura fechada só sensibiliza o caixa (despesaCaixa/Sobra/Saldo Final) quando
   // confirmada como paga — total ou, no parcial, só a parte paga (o restante
@@ -366,6 +373,7 @@ export function calcularAgregadosOrcamento({
     });
   });
   const totalFixasVirtuaisReceita = fixasVirtuaisReceita.reduce((s, v) => s + v.valor, 0);
+  receitaComprometida += totalFixasVirtuaisReceita;
 
   // Mesma exclusão que despesasPendentes já tinha (linha acima): receita
   // vinculada a cartão/fatura (ex: estorno de compra, "Ajuste de fatura"

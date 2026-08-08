@@ -1104,6 +1104,14 @@ function _normCat(s) {
   return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 }
 
+// Mesmo texto de js/orcamento-calc.js (CATEGORIA_AJUSTE) — duplicado aqui
+// porque as Cloud Functions não importam módulos do frontend. É a linha
+// sintética "Lançamentos não identificados", recalculada a cada render;
+// nunca deveria ganhar limite/categoria-mãe persistidos como se fosse uma
+// categoria de verdade (achado 05/08/2026, Flávia: um limite+vínculo real
+// foi salvo pra ela sem querer, e o valor salvo ficou "grudado" ali).
+const _CATEGORIA_AJUSTE_NORM = _normCat('Lançamentos não identificados — verificar');
+
 // Retorna o mês de pagamento de um item de fatura no formato YYYY-MM.
 // Convenção: fatura = mês do débito na conta, então o mês de pagamento = a própria fatura.
 function _mesPagamento(fatura) {
@@ -2442,6 +2450,12 @@ exports.upsertCategoriaLimite = onCall(async (request) => {
   if (typeof limite !== 'number' || limite < 0) throw new HttpsError('invalid-argument', 'Limite inválido.');
   if (mae != null && (typeof mae !== 'string' || mae.length > 60)) throw new HttpsError('invalid-argument', 'Categoria-mãe inválida.');
   const maeLimpa = mae ? mae.trim() : null;
+  // Bloqueia CRIAR/MANTER limite ou vínculo pra linha sintética do ajuste,
+  // mas deixa passar limite=0+mae=null — é o formato que REMOVE a entrada,
+  // usado pra limpar um registro salvo por engano antes dessa trava existir
+  // (achado 05/08/2026, Flávia).
+  if (_normCat(nome) === _CATEGORIA_AJUSTE_NORM && (limite > 0 || maeLimpa))
+    throw new HttpsError('invalid-argument', 'Essa categoria é calculada automaticamente e não pode receber limite.');
 
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
   const ref = db.collection('mentoradas').doc(uid).collection('planejamento').doc(mesKey);
@@ -2550,6 +2564,11 @@ exports.upsertCategoriaMaeGlobal = onCall(async (request) => {
   if (typeof nome !== 'string' || !nome || nome.length > 200) throw new HttpsError('invalid-argument', 'Nome de categoria inválido.');
   if (mae != null && (typeof mae !== 'string' || mae.length > 60)) throw new HttpsError('invalid-argument', 'Categoria-mãe inválida.');
   const maeLimpa = mae ? mae.trim() : null;
+  // Mesma trava de upsertCategoriaLimite: bloqueia CRIAR o vínculo pra linha
+  // sintética do ajuste, mas deixa passar mae=null (remove uma entrada
+  // salva por engano antes dessa trava existir).
+  if (_normCat(nome) === _CATEGORIA_AJUSTE_NORM && maeLimpa)
+    throw new HttpsError('invalid-argument', 'Essa categoria é calculada automaticamente e não pode ser vinculada a uma mãe.');
 
   const ref = db.collection('mentoradas').doc(uid).collection('config').doc('categoriasMae');
 

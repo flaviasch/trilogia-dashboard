@@ -6207,7 +6207,19 @@
         // acaso (achado 05/08/2026, dúvida da Flávia sobre como vincular
         // categoria já existente a uma categoria-mãe).
         const tituloEditar = mae ? 'Editar limite / trocar grupo' : 'Editar limite / agrupar em uma categoria-mãe';
-        const planCell = limite > 0
+        // "Lançamentos não identificados — verificar" é uma linha SINTÉTICA,
+        // recalculada a cada render pra fechar a diferença entre o
+        // comprometido e a reconciliação de caixa — nunca deveria ser
+        // editável (limite/categoria-mãe/renomear), porque não é uma
+        // categoria de verdade. Sem essa trava, dava pra salvar um limite e
+        // um vínculo de mãe pra ela como se fosse categoria normal, e o
+        // valor salvo (que nunca reflete o cálculo real) ficava "grudado"
+        // ali pra sempre (achado 05/08/2026, Flávia: "o problema é ela
+        // existir, já que não existia antes").
+        const ehAjuste = normCat(cat) === normCat(CATEGORIA_AJUSTE);
+        const planCell = ehAjuste
+          ? `<div class="plan-plan-wrap"><span style="color:var(--text-muted);font-size:12px;font-style:italic" title="Calculado automaticamente, não é editável">calculado</span></div>`
+          : limite > 0
           ? `<div class="plan-plan-wrap">
                <span class="plan-valor-plan" data-cat-plan="${escapeHtml(cat)}">${brl(limite)}</span>
                <button class="btn-edit-plan" onclick="editarLimitePlan('${escapeHtml(cat)}')" title="${tituloEditar}">✎</button>
@@ -7094,6 +7106,14 @@
     // cadastrar uma subcategoria sem precisar procurar o grupo certo de novo
     // no select (achado 05/08/2026).
     function abrirModalLimite(cat, modo = 'limite', maeForcada = null) {
+      // Trava de segurança (além de já não mostrar mais o botão ✎/Aa nessa
+      // linha): "Lançamentos não identificados — verificar" é sintética,
+      // recalculada a cada render — nunca deveria ganhar limite/categoria-mãe
+      // salvos de verdade (achado 05/08/2026, Flávia).
+      if (cat && normCat(cat) === normCat(CATEGORIA_AJUSTE)) {
+        toast('Essa categoria é calculada automaticamente e não pode ser editada.', 'warning');
+        return;
+      }
       editandoLimiteCat = cat || null;
       _modalLimiteModo = cat ? modo : 'nova';
       const catObj      = categoriasMes.find(c => normCat(c.nome) === normCat(cat));
