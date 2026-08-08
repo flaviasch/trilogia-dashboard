@@ -611,6 +611,30 @@
     }
     .field-group input::placeholder { color: rgba(255,255,255,0.25); }
     .field-group select option { background: var(--navy); }
+    /* Dropdown de categoria agrupada por mãe (campo Categoria do lançamento
+       avulso) — achado 05/08/2026, Flávia: a usuária tem que ver as
+       subcategorias já cadastradas organizadas por categoria-mãe, e as mães
+       ainda sem nenhuma subcategoria, em vez de uma lista solta alfabética. */
+    #fgCategoria { position: relative; }
+    .cat-dropdown {
+      position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+      background: var(--navy-mid); border: 1px solid var(--border-gold);
+      border-radius: 8px; max-height: 260px; overflow-y: auto; z-index: 20;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .cat-dropdown.hidden { display: none; }
+    .cat-dropdown-grupo { padding: 4px 0; border-bottom: 1px solid var(--border); }
+    .cat-dropdown-grupo:last-child { border-bottom: none; }
+    .cat-dropdown-mae {
+      padding: 7px 14px 3px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--gold); opacity: 0.9;
+    }
+    .cat-dropdown-item {
+      padding: 8px 14px 8px 22px; font-size: 13.5px; color: var(--white); cursor: pointer;
+    }
+    .cat-dropdown-item:hover { background: rgba(255,255,255,0.06); }
+    .cat-dropdown-item.nova { color: var(--text-muted); font-style: italic; }
+    .cat-dropdown-vazio { padding: 12px 14px; font-size: 13px; color: var(--text-muted); text-align: center; }
     .modal-actions { display: flex; gap: 12px; margin-top: 24px; }
     .btn-cancel {
       flex: 1; background: transparent;
@@ -2256,6 +2280,7 @@
         <label for="mCategoria">Categoria</label>
         <input type="text" id="mCategoria" placeholder="ex: Salário, Moradia, Alimentação…" list="categoriasSugeridas" autocomplete="off" />
         <datalist id="categoriasSugeridas"></datalist>
+        <div class="cat-dropdown hidden" id="mCategoriaDropdown"></div>
       </div>
       <div class="field-group" id="fgTipo">
         <label for="mTipo">Tipo</label>
@@ -3004,6 +3029,100 @@
       dl.innerHTML = todas.map(c => `<option value="${escapeHtml(c)}">`).join('');
     }
 
+    // ─── Categoria agrupada por mãe (campo Categoria do lançamento avulso) ────
+    // Achado 05/08/2026, Flávia: "o certo é poder escolher subcategoria e o
+    // sistema já classifica correto" — o campo de categoria era só texto
+    // livre com sugestões soltas em ordem alfabética, sem mostrar a que mãe
+    // cada subcategoria pertencia nem quais mães já existiam sem nenhuma
+    // subcategoria ainda. Só se aplica a despesa — receita não tem o
+    // conceito de categoria-mãe.
+
+    // Mãe escolhida via "+ nova subcategoria em X", até a usuária digitar o
+    // nome e salvar (ou trocar de escolha) — usado pra registrar o vínculo
+    // global assim que o lançamento for salvo, sem precisar configurar de
+    // novo depois no Planejamento.
+    let _categoriaMaeAlvo = null;
+
+    // Agrupa: as 13 mães fixas (com sugestões conhecidas de CATEGORIAS_MAE),
+    // as mães custom já criadas (mesmo sem nenhuma subcategoria ainda — pra
+    // aparecerem na lista e dar pra criar a primeira), os vínculos globais
+    // explícitos, e qualquer categoria já usada este mês que resolva pra
+    // alguma mãe. O que não resolver pra nenhuma mãe cai num grupo "solto"
+    // no fim, igual ao conceito já usado no Planejamento.
+    function _construirGruposCategoria() {
+      const porMae = {};
+      Object.keys(CATEGORIAS_MAE).forEach(m => { porMae[m] = new Set(CATEGORIAS_MAE[m]); });
+      _listarCategoriasMaeCustom(categoriasMes).forEach(m => { if (!porMae[m]) porMae[m] = new Set(); });
+      categoriasMaeGlobais.forEach(v => {
+        if (!v.mae) return;
+        if (!porMae[v.mae]) porMae[v.mae] = new Set();
+        porMae[v.mae].add(v.nome);
+      });
+      const usadas = new Set([
+        ...(currentData?.despesas || []).map(d => d.categoria),
+        ..._recorrentes.filter(r => (r.tipo || 'despesa') === 'despesa').map(r => r.categoria),
+      ]);
+      const soltas = new Set();
+      usadas.forEach(cat => {
+        const mae = categoriaParaMaeResolvida(cat, categoriasMes);
+        if (mae) { if (!porMae[mae]) porMae[mae] = new Set(); porMae[mae].add(cat); }
+        else soltas.add(cat);
+      });
+      const grupos = Object.keys(porMae).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+        .map(mae => ({ mae, subs: [...porMae[mae]].sort((a, b) => a.localeCompare(b, 'pt-BR')) }));
+      if (soltas.size) grupos.push({ mae: null, subs: [...soltas].sort((a, b) => a.localeCompare(b, 'pt-BR')) });
+      return grupos;
+    }
+
+    function _renderCategoriaDropdown(filtro = '') {
+      const el = document.getElementById('mCategoriaDropdown');
+      if (!el) return;
+      const tipo = document.getElementById('mTipo')?.value;
+      if (tipo !== 'despesa') { el.classList.add('hidden'); el.innerHTML = ''; return; }
+      const termo = normCat(filtro);
+      const grupos = _construirGruposCategoria();
+      const blocos = grupos.map(g => {
+        const nomeMae = g.mae || 'Sem categoria-mãe';
+        const subsFiltradas = termo ? g.subs.filter(s => normCat(s).includes(termo)) : g.subs;
+        const maeCasa = termo && normCat(nomeMae).includes(termo);
+        if (termo && !subsFiltradas.length && !maeCasa) return '';
+        const itens = (maeCasa ? g.subs : subsFiltradas).map(s =>
+          `<div class="cat-dropdown-item" data-cat="${escapeHtml(s)}">${escapeHtml(s)}</div>`).join('');
+        const itemNova = g.mae
+          ? `<div class="cat-dropdown-item nova" data-nova-mae="${escapeHtml(g.mae)}">+ nova subcategoria em ${escapeHtml(g.mae)}</div>`
+          : '';
+        return `<div class="cat-dropdown-grupo">
+          <div class="cat-dropdown-mae">${escapeHtml(nomeMae)}</div>
+          ${itens}
+          ${itemNova}
+        </div>`;
+      }).filter(Boolean).join('');
+      el.innerHTML = blocos || `<div class="cat-dropdown-vazio">Nenhuma categoria encontrada — digite pra criar uma nova.</div>`;
+      el.classList.remove('hidden');
+      el.querySelectorAll('[data-cat]').forEach(it => it.addEventListener('mousedown', e => {
+        e.preventDefault();
+        document.getElementById('mCategoria').value = it.dataset.cat;
+        _categoriaMaeAlvo = null;
+        el.classList.add('hidden');
+      }));
+      el.querySelectorAll('[data-nova-mae]').forEach(it => it.addEventListener('mousedown', e => {
+        e.preventDefault();
+        _categoriaMaeAlvo = it.dataset.novaMae;
+        const inp = document.getElementById('mCategoria');
+        inp.value = '';
+        inp.focus();
+        _renderCategoriaDropdown('');
+      }));
+    }
+
+    document.getElementById('mCategoria')?.addEventListener('focus', () => _renderCategoriaDropdown(document.getElementById('mCategoria').value));
+    document.getElementById('mCategoria')?.addEventListener('input', () => _renderCategoriaDropdown(document.getElementById('mCategoria').value));
+    document.getElementById('mCategoria')?.addEventListener('blur', () => {
+      // Delay pra dar tempo do mousedown da opção clicada disparar antes do
+      // dropdown sumir (blur dispara antes de click em elemento não-focável).
+      setTimeout(() => document.getElementById('mCategoriaDropdown')?.classList.add('hidden'), 150);
+    });
+
     // Conta: seletor no modal de lançamento manual — só visível pra quem tem
     // mais de uma conta e não se aplica a despesa de cartão (a conta debitada
     // é escolhida na hora de confirmar o pagamento da fatura, não do lançamento).
@@ -3026,6 +3145,8 @@
     function abrirModal(tipo, idx = null, catLocked = null) {
       _catLocked  = catLocked || null;
       editandoIdx = idx !== null ? { tipo, idx } : null;
+      _categoriaMaeAlvo = null;
+      document.getElementById('mCategoriaDropdown')?.classList.add('hidden');
 
       document.getElementById('modalItemTitle').textContent = idx !== null ? 'Editar lançamento' : 'Novo lançamento';
       document.getElementById('modalItemSub').textContent   = _catLocked ? `Categoria: ${_catLocked}` : '';
@@ -3109,6 +3230,16 @@
 
     function atualizarModalParaTipo(tipo) {
       const isReceita = tipo === 'receita';
+      // Dropdown agrupado por categoria-mãe só existe pra despesa (é o único
+      // tipo com o conceito de mãe/subcategoria) — receita mantém o datalist
+      // nativo simples de sempre. Alterna o atributo `list` pra não mostrar
+      // as duas sugestões (nativa + custom) empilhadas ao mesmo tempo.
+      const mCatEl = document.getElementById('mCategoria');
+      if (mCatEl) {
+        if (isReceita) mCatEl.setAttribute('list', 'categoriasSugeridas');
+        else mCatEl.removeAttribute('list');
+      }
+      document.getElementById('mCategoriaDropdown')?.classList.add('hidden');
       // Cartão: nunca mostrar para receita; para despesa, mantém o estado atual
       if (isReceita) {
         document.getElementById('mCartao').checked = false;
@@ -3141,6 +3272,7 @@
 
     // Toggle tipo → atualiza visibilidade de cartão e toggles
     document.getElementById('mTipo').addEventListener('change', function() {
+      _categoriaMaeAlvo = null;
       atualizarModalParaTipo(this.value);
     });
 
@@ -3241,6 +3373,18 @@
       if (!data) { toast('Preencha a data do lançamento.', 'warning'); return; }
       if (cartao && !fatura) { toast('Selecione o mês da fatura.', 'warning'); return; }
       if (!valor || valor <= 0) { toast('Preencha um valor válido.', 'warning'); return; }
+
+      // Subcategoria nova criada via "+ nova subcategoria em X" no dropdown
+      // de categoria — registra o vínculo global assim que salva, pra já
+      // nascer classificada certa no Planejamento sem precisar configurar de
+      // novo depois (achado 05/08/2026, Flávia).
+      if (_categoriaMaeAlvo && tipo === 'despesa' && normCat(categoria) !== normCat(_categoriaMaeAlvo)) {
+        try {
+          await upsertCategoriaMaeGlobal(categoria, _categoriaMaeAlvo);
+          categoriasMaeGlobais = (await getCategoriasMaeGlobais()).vinculos;
+        } catch (_) { /* não bloqueia o salvamento do lançamento por causa disso */ }
+      }
+      _categoriaMaeAlvo = null;
 
       // Item original (se estamos editando, não criando) — usado para preservar
       // origem/recorrência/status de confirmação abaixo (achado 27/07/2026:
