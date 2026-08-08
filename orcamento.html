@@ -1710,10 +1710,10 @@
         <input type="text" id="cdDescricao" placeholder="ex: Supermercado, Netflix, Farmácia…" />
       </div>
 
-      <div class="field-group">
+      <div class="field-group" id="fgCdCategoria" style="position:relative">
         <label for="cdCategoria">Categoria</label>
-        <input type="text" id="cdCategoria" placeholder="ex: Alimentação, Saúde…" list="cdCategoriasSugeridas" autocomplete="off" />
-        <datalist id="cdCategoriasSugeridas"></datalist>
+        <input type="text" id="cdCategoria" placeholder="ex: Alimentação, Saúde…" autocomplete="off" />
+        <div class="cat-dropdown hidden" id="cdCategoriaDropdown"></div>
       </div>
 
       <!-- Fatura em destaque -->
@@ -3074,21 +3074,41 @@
       return grupos;
     }
 
-    function _renderCategoriaDropdown(filtro = '') {
-      const el = document.getElementById('mCategoriaDropdown');
+    // Receita não tem conceito de categoria-mãe (isso é só do orçamento de
+    // despesa), mas achado 05/08/2026 — Flávia: "receita tb" — pediu a mesma
+    // experiência de lista organizada em vez do datalist solto de antes. Um
+    // grupo só, sem "+ nova subcategoria" (não tem mãe pra anexar), com as
+    // categorias já usadas + as sugestões padrão de sempre.
+    function _construirGruposCategoriaReceita() {
+      const padrao = ['Salário','Freelance','Renda extra','Aluguel recebido','Dividendos','Outros'];
+      const usadas = new Set([
+        ...(currentData?.receitas || []).map(r => r.categoria),
+        ..._recorrentes.filter(r => r.tipo === 'receita').map(r => r.categoria),
+      ]);
+      const todas = [...new Set([...padrao, ...usadas])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      return [{ mae: null, subs: todas }];
+    }
+
+    // inputId/dropdownId parametrizados pra reaproveitar o mesmo dropdown no
+    // campo Categoria do lançamento avulso (mCategoria) e no modal de
+    // despesa no cartão (cdCategoria) — os dois nunca ficam abertos ao mesmo
+    // tempo, então dá pra compartilhar _categoriaMaeAlvo entre eles. tipoForcado
+    // pula a leitura de #mTipo pra quem não tem esse seletor (cartão é sempre
+    // despesa).
+    function _renderCategoriaDropdown(filtro = '', inputId = 'mCategoria', dropdownId = 'mCategoriaDropdown', tipoForcado = null) {
+      const el = document.getElementById(dropdownId);
       if (!el) return;
-      const tipo = document.getElementById('mTipo')?.value;
-      if (tipo !== 'despesa') { el.classList.add('hidden'); el.innerHTML = ''; return; }
+      const tipo = tipoForcado || document.getElementById('mTipo')?.value;
       const termo = normCat(filtro);
-      const grupos = _construirGruposCategoria();
+      const grupos = tipo === 'receita' ? _construirGruposCategoriaReceita() : _construirGruposCategoria();
       const blocos = grupos.map(g => {
-        const nomeMae = g.mae || 'Sem categoria-mãe';
+        const nomeMae = g.mae || (tipo === 'receita' ? 'Categorias' : 'Sem categoria-mãe');
         const subsFiltradas = termo ? g.subs.filter(s => normCat(s).includes(termo)) : g.subs;
         const maeCasa = termo && normCat(nomeMae).includes(termo);
         if (termo && !subsFiltradas.length && !maeCasa) return '';
         const itens = (maeCasa ? g.subs : subsFiltradas).map(s =>
           `<div class="cat-dropdown-item" data-cat="${escapeHtml(s)}">${escapeHtml(s)}</div>`).join('');
-        const itemNova = g.mae
+        const itemNova = (g.mae && tipo === 'despesa')
           ? `<div class="cat-dropdown-item nova" data-nova-mae="${escapeHtml(g.mae)}">+ nova subcategoria em ${escapeHtml(g.mae)}</div>`
           : '';
         return `<div class="cat-dropdown-grupo">
@@ -3101,17 +3121,17 @@
       el.classList.remove('hidden');
       el.querySelectorAll('[data-cat]').forEach(it => it.addEventListener('mousedown', e => {
         e.preventDefault();
-        document.getElementById('mCategoria').value = it.dataset.cat;
+        document.getElementById(inputId).value = it.dataset.cat;
         _categoriaMaeAlvo = null;
         el.classList.add('hidden');
       }));
       el.querySelectorAll('[data-nova-mae]').forEach(it => it.addEventListener('mousedown', e => {
         e.preventDefault();
         _categoriaMaeAlvo = it.dataset.novaMae;
-        const inp = document.getElementById('mCategoria');
+        const inp = document.getElementById(inputId);
         inp.value = '';
         inp.focus();
-        _renderCategoriaDropdown('');
+        _renderCategoriaDropdown('', inputId, dropdownId, tipoForcado);
       }));
     }
 
@@ -3121,6 +3141,15 @@
       // Delay pra dar tempo do mousedown da opção clicada disparar antes do
       // dropdown sumir (blur dispara antes de click em elemento não-focável).
       setTimeout(() => document.getElementById('mCategoriaDropdown')?.classList.add('hidden'), 150);
+    });
+
+    // Mesmo dropdown agrupado, agora no modal de despesa no cartão — sempre
+    // despesa, não tem seletor de tipo (achado 05/08/2026, Flávia: "tem que
+    // fazer o mesmo no modal de cartão").
+    document.getElementById('cdCategoria')?.addEventListener('focus', () => _renderCategoriaDropdown(document.getElementById('cdCategoria').value, 'cdCategoria', 'cdCategoriaDropdown', 'despesa'));
+    document.getElementById('cdCategoria')?.addEventListener('input', () => _renderCategoriaDropdown(document.getElementById('cdCategoria').value, 'cdCategoria', 'cdCategoriaDropdown', 'despesa'));
+    document.getElementById('cdCategoria')?.addEventListener('blur', () => {
+      setTimeout(() => document.getElementById('cdCategoriaDropdown')?.classList.add('hidden'), 150);
     });
 
     // Conta: seletor no modal de lançamento manual — só visível pra quem tem
@@ -3230,15 +3259,11 @@
 
     function atualizarModalParaTipo(tipo) {
       const isReceita = tipo === 'receita';
-      // Dropdown agrupado por categoria-mãe só existe pra despesa (é o único
-      // tipo com o conceito de mãe/subcategoria) — receita mantém o datalist
-      // nativo simples de sempre. Alterna o atributo `list` pra não mostrar
-      // as duas sugestões (nativa + custom) empilhadas ao mesmo tempo.
-      const mCatEl = document.getElementById('mCategoria');
-      if (mCatEl) {
-        if (isReceita) mCatEl.setAttribute('list', 'categoriasSugeridas');
-        else mCatEl.removeAttribute('list');
-      }
+      // O dropdown custom cobre despesa (agrupado por mãe) e receita (lista
+      // única, achado 05/08/2026 "receita tb") — nunca precisa mais do
+      // datalist nativo, então tira o atributo `list` pra não empilhar as
+      // duas sugestões juntas.
+      document.getElementById('mCategoria')?.removeAttribute('list');
       document.getElementById('mCategoriaDropdown')?.classList.add('hidden');
       // Cartão: nunca mostrar para receita; para despesa, mantém o estado atual
       if (isReceita) {
@@ -9323,6 +9348,8 @@
         abrirModalCartoes();
         return;
       }
+      _categoriaMaeAlvo = null;
+      document.getElementById('cdCategoriaDropdown')?.classList.add('hidden');
       const sel = document.getElementById('cdCartao');
       sel.innerHTML = ativos.map(c =>
         `<option value="${c.id}" ${c.id === cartaoIdPre ? 'selected' : ''}>${escapeHtml(c.nome)} (corte dia ${c.diaCorte})</option>`
@@ -9410,6 +9437,16 @@
       if (!fatura)              return mostrarToast('Defina o mês da fatura.', 'warning');
       if (parcelado && (!nParcelas || nParcelas < 2 || nParcelas > 60))
         return mostrarToast('Número de parcelas deve ser entre 2 e 60.', 'warning');
+
+      // Mesma persistência do lançamento avulso (ver btnSalvarItem) — subcategoria
+      // nova criada via "+ nova subcategoria em X" já nasce vinculada globalmente.
+      if (_categoriaMaeAlvo && normCat(categoria) !== normCat(_categoriaMaeAlvo)) {
+        try {
+          await upsertCategoriaMaeGlobal(categoria, _categoriaMaeAlvo);
+          categoriasMaeGlobais = (await getCategoriasMaeGlobais()).vinculos;
+        } catch (_) { /* não bloqueia o salvamento por causa disso */ }
+      }
+      _categoriaMaeAlvo = null;
 
       const [fatAno, fatMes] = fatura.split('-').map(Number);
       const btn = document.getElementById('btnSalvarCartaoDespesa');
