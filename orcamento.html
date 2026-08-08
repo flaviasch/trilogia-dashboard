@@ -8674,6 +8674,21 @@
     // (achado 05/08/2026).
     window._debugAjuste = () => { console.table([_debugAjusteComponentes]); return _debugAjusteComponentes; };
 
+    // Limpeza pontual: remove um limite e/ou vínculo de categoria-mãe salvos
+    // por engano pra "Lançamentos não identificados — verificar" ANTES da
+    // trava que passou a bloquear isso existir (achado 05/08/2026). Chama pro
+    // mês/ano onde o limite indevido apareceu — o vínculo global é o mesmo
+    // em qualquer mês, então remover uma vez já basta pra ele.
+    window._limparAjusteFantasma = async (mes, ano) => {
+      const nome = 'Lançamentos não identificados — verificar';
+      const r1 = await upsertCategoriaLimite(mes, ano, nome, 0);
+      const r2 = await upsertCategoriaMaeGlobal(nome, null);
+      categoriasMaeGlobais = (await getCategoriasMaeGlobais()).vinculos;
+      console.log('limite removido de', mes, ano, '— categorias restantes:', r1);
+      console.log('vínculo global removido — vínculos restantes:', r2);
+      return { r1, r2 };
+    };
+
     // Limpeza agressiva por assinatura completa do item (cobre duplicatas
     // manuais, que não têm recorrenteId). dryRun=true por padrão — só mostra
     // o que seria removido. Chame de novo com false pra aplicar.
