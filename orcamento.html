@@ -10403,10 +10403,19 @@
 
       // Receita fixa: sem suporte a cartão/fatura (nunca teve esse campo no
       // cadastro), então é sempre o caminho simples — cria a ocorrência
-      // pendente direto no mês corrente. Adicionado em 23/07/2026 pra dar à
+      // direto no mês corrente. Adicionado em 23/07/2026 pra dar à
       // receita fixa a mesma projeção automática em meses futuros que a
       // despesa fixa já tinha (antes só existia o botão manual "Lançar agora"
       // do modal, sem aparecer sozinha ao navegar pra frente).
+      //
+      // Nasce CONFIRMADA, não pendente: o botão ✓ já se chama "Lançar essa
+      // receita/despesa fixa" — clicar nele já É o ato de confirmar, a
+      // usuária está afirmando que aconteceu. Antes, nascia pendente e
+      // trocava pro layout de 3 botões (confirmar/editar/excluir), exigindo
+      // confirmar de novo — dois cliques pra uma ação só (achado 05/08/2026,
+      // Flávia: "quando clico em confirmar, ele confirma lançamento, mas o
+      // que ele faz é mudar pro layout com 3 botões e daí tenho que
+      // confirmar de novo, não faz sentido").
       if (r.tipo === 'receita') {
         currentData.receitas.push({
           categoria:    r.categoria,
@@ -10416,7 +10425,7 @@
           data:         dataStr,
           origem:       'recorrente',
           recorrenteId: r.id,
-          pendente:     true,
+          confirmado:   true,
           ...(r.contaId ? { contaId: r.contaId } : {}),
         });
         await salvarEAtualizar();
@@ -10435,6 +10444,8 @@
       const faturaCalc = (r.cartao && cartaoObj?.diaCorte)
         ? sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1)
         : faturaAtual;
+      // Mesmo raciocínio da receita fixa acima: nasce CONFIRMADA, não
+      // pendente — clicar em "Lançar" já é a confirmação (achado 05/08/2026).
       const item = {
         categoria:    r.categoria,
         tipo:         'despesa',
@@ -10446,7 +10457,7 @@
         cartaoId:     r.cartaoId || '',
         origem:       'recorrente',
         recorrenteId: r.id,
-        pendente:     true,
+        confirmado:   true,
         ...(r.contaId ? { contaId: r.contaId } : {}),
       };
 
