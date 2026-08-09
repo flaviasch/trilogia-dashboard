@@ -220,11 +220,29 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.equal(r.despesaComprometida, 250);
   });
 
-  await t.test('item de fatura ABERTA nunca conta em nenhum dos dois totais', () => {
+  await t.test('item de fatura ABERTA nunca conta em despesaCaixa/despesaComprometida no mês da COMPRA', () => {
     const data = periodo([{ categoria: 'Transporte', valor: 999, data: '2026-07-05', cartao: true, cartaoId: 'c1', fatura: '2026-08', _faturaAberta: true }]);
     const r = calcularAgregadosOrcamento({ data, agora: HOJE });
     assert.equal(r.despesaCaixa, 0);
     assert.equal(r.despesaComprometida, 0);
+  });
+
+  await t.test('item de fatura ABERTA conta em totalComprometidoMes no mês em que vai DEBITAR, mesmo antes do ciclo fechar (achado 09/08/2026)', () => {
+    // Vendo agosto (mês em que a fatura vai debitar) enquanto o ciclo ainda
+    // está em curso — Flávia: "elas tb não aparecem em setembro, e DEVEM
+    // APARECER". totalComprometidoMes é o que Planejamento/Detalhe usam pra
+    // decidir se o item aparece na categoria daquele mês.
+    const dataAgosto = periodo(
+      [{ categoria: 'Transporte', valor: 999, data: '2026-07-05', cartao: true, cartaoId: 'c1', fatura: '2026-08', _faturaAberta: true }],
+      [], { periodo: { mes: 8, ano: 2026 } }
+    );
+    const rAgosto = calcularAgregadosOrcamento({ data: dataAgosto, agora: HOJE });
+    assert.equal(rAgosto.totalComprometidoMes, 999);
+
+    // Vendo julho (mês da compra, não o de pagamento) — continua de fora.
+    const dataJulho = periodo([{ categoria: 'Transporte', valor: 999, data: '2026-07-05', cartao: true, cartaoId: 'c1', fatura: '2026-08', _faturaAberta: true }]);
+    const rJulho = calcularAgregadosOrcamento({ data: dataJulho, agora: HOJE });
+    assert.equal(rJulho.totalComprometidoMes, 0);
   });
 
   await t.test('fatura fechada e paga entra em despesaCaixa (via totalCartaoCaixa) e em despesaComprometida', () => {

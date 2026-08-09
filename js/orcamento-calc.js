@@ -391,11 +391,15 @@ export function calcularAgregadosOrcamento({
 
   // Critério "comprometido" — despesas já efetivadas + pendentes + faturas
   // fechadas (pagas ou a vencer) + fixas ainda não lançadas. Compras na
-  // fatura ABERTA (ciclo em curso) ficam de fora — só contam quando a
-  // fatura fechar. Esse é o total usado por Detalhe, Planejamento e home —
-  // "quanto esse mês vai custar no total", diferente de despesaCaixa
-  // ("quanto já saiu da conta").
-  const totalComprometidoMes = data.despesas.filter(d => !d._faturaAberta).reduce((s, d) => s + d.valor, 0);
+  // fatura ABERTA (ciclo em curso) ficam de fora do mês da COMPRA, mas
+  // contam no mês em que a fatura vai debitar (d.fatura), mesmo antes do
+  // ciclo fechar (achado 09/08/2026, Flávia: "elas tb não aparecem em
+  // setembro, e DEVEM APARECER" — excluir de todo mês, e não só do mês da
+  // compra, quebrava o total que Detalhe/Planejamento/home usam). Esse é o
+  // total usado por Detalhe, Planejamento e home — "quanto esse mês vai
+  // custar no total", diferente de despesaCaixa ("quanto já saiu da conta").
+  const _mesKeyAtualComprometido = `${ano}-${String(mes).padStart(2, '0')}`;
+  const totalComprometidoMes = data.despesas.filter(d => !d._faturaAberta || d.fatura === _mesKeyAtualComprometido).reduce((s, d) => s + d.valor, 0);
   const despesaComprometida = despesaCaixa + totalPendente + totalFaturas + totalFixasVirtuais;
   // Diferença entre o comprometido (soma direta de tudo lançado) e a
   // reconciliação de caixa (despesaCaixa + pendentes + faturas + fixas

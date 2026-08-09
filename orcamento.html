@@ -5748,12 +5748,17 @@
     function renderDespesasGrupos(data, totalDespesa) {
       const despList = document.getElementById('detalheContent');
       const termoBusca = (document.getElementById('buscaDetalhe')?.value || '').toLowerCase().trim();
+      // Mesmo critério do Planejamento (achado 09/08/2026): fatura aberta some
+      // do mês da COMPRA, mas aparece no mês em que vai debitar (d.fatura),
+      // mesmo antes do ciclo fechar — "só na aba Faturas" valia só pro mês
+      // errado, não pro mês de pagamento.
+      const _mesKeyAtualDet = `${data.periodo.ano}-${String(data.periodo.mes).padStart(2, '0')}`;
 
       // Agrupa por categoria NORMALIZADA — "Alimentação"/"alimentação" contam
       // juntas; usa a grafia mais frequente do grupo como rótulo de exibição.
       const gruposNorm = {}; // normKey -> { items, total, totalCaixa, totalPendente, totalVirtual, labels: {label:count} }
       data.despesas.forEach((d, idx) => {
-        if (d._faturaAberta) return; // itens da fatura aberta só aparecem na aba Faturas
+        if (d._faturaAberta && d.fatura !== _mesKeyAtualDet) return; // fatura aberta de OUTRO mês só aparece na aba Faturas
         const norm = normCat(d.categoria);
         if (!gruposNorm[norm]) gruposNorm[norm] = { items: [], total: 0, totalCaixa: 0, totalPendente: 0, totalVirtual: 0, labels: {} };
         const g = gruposNorm[norm];
@@ -6033,12 +6038,15 @@
       // Planejamento acompanha gasto comprometido por categoria: efetivado +
       // pendente + fatura fechada aguardando pagamento. Compra na fatura
       // ABERTA (ciclo em curso, ainda não fechou) NÃO conta no mês da
-      // compra — só entra no mês em que a fatura fecha de verdade, igual a
-      // aba Detalhe já faz (achado 05/08/2026, Flávia: "fatura aberta não é
-      // para entrar no mês que vejo, só no outro, isso não deve acontecer
-      // assim" — reverte o critério de 13/07/2026, que tinha decidido o
-      // contrário).
-      const contaComoComprometido = (d) => !d._faturaAberta;
+      // compra — só entra no mês em que a fatura DE FATO vai debitar
+      // (d.fatura), mesmo que o ciclo ainda não tenha fechado (achado
+      // 05/08/2026, Flávia: "fatura aberta não é para entrar no mês que
+      // vejo, só no outro" — "o outro" é o mês de pagamento, não "nenhum
+      // mês". A primeira correção (só `!d._faturaAberta`) excluía o item de
+      // TODO mês, inclusive do mês de pagamento — achado 09/08/2026, Flávia:
+      // "elas tb não aparecem em setembro, e DEVEM APARECER").
+      const _mesKeyAtualPlan = `${ano}-${String(mes).padStart(2, '0')}`;
+      const contaComoComprometido = (d) => !d._faturaAberta || d.fatura === _mesKeyAtualPlan;
 
       // Agrega despesas por categoria NORMALIZADA — "Alimentação"/"alimentação"
       // contam juntas; o rótulo exibido é a grafia mais usada no grupo. TODA
@@ -6559,14 +6567,16 @@
       const el = document.getElementById('graficosContent');
       if (!el) return;
 
-      // Agrega por categoria para a pizza — exclui a fatura em ABERTO (mesmo
-      // critério do Detalhe/Planejamento; achado em 07/07/2026: a versão
-      // antiga somava tudo sem exclusão nenhuma, inflando a pizza com compras
-      // do ciclo ainda em curso). totalDespesa deriva da própria soma das
-      // fatias, pra sempre bater 100% com o gráfico.
+      // Agrega por categoria para a pizza — exclui a fatura em ABERTO de OUTRO
+      // mês (mesmo critério do Detalhe/Planejamento; achado em 07/07/2026: a
+      // versão antiga somava tudo sem exclusão nenhuma, inflando a pizza com
+      // compras do ciclo ainda em curso; achado 09/08/2026: mas o mês em que
+      // a fatura vai debitar precisa contar). totalDespesa deriva da própria
+      // soma das fatias, pra sempre bater 100% com o gráfico.
+      const _mesKeyAtualGraf = `${data.periodo.ano}-${String(data.periodo.mes).padStart(2, '0')}`;
       const porCat = {};
       data.despesas.forEach(d => {
-        if (d._faturaAberta) return;
+        if (d._faturaAberta && d.fatura !== _mesKeyAtualGraf) return;
         porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
       });
       const cats    = Object.keys(porCat).sort((a, b) => porCat[b] - porCat[a]);
@@ -6652,12 +6662,14 @@
           )
         );
 
-        // Agrega por categoria para cada mês — exclui fatura em ABERTO, mesmo
-        // critério do Detalhe/Planejamento (achado em 07/07/2026).
+        // Agrega por categoria para cada mês — exclui fatura em ABERTO de
+        // OUTRO mês, mesmo critério do Detalhe/Planejamento (achado em
+        // 07/07/2026, refinado 09/08/2026: mês de pagamento conta).
         const dadosPorMes = resultados.map(data => {
           const r = {};
+          const _mesKeyAtualTend = `${data.periodo.ano}-${String(data.periodo.mes).padStart(2, '0')}`;
           data.despesas.forEach(d => {
-            if (d._faturaAberta) return;
+            if (d._faturaAberta && d.fatura !== _mesKeyAtualTend) return;
             r[d.categoria] = (r[d.categoria] || 0) + d.valor;
           });
           return r;
@@ -6723,9 +6735,12 @@
                 // excluir a fatura em ABERTO, inflando o total do mês corrente).
                 const { receitaComprometida, despesaComprometida, totalAp } =
                   calcularAgregadosOrcamento({ data, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, fixasPuladas: _fixasPuladasServidor, contaId: _contaAtivaId });
-                // Despesa real por categoria (exclui fatura em aberto, mesmo critério acima)
+                // Despesa real por categoria (exclui fatura em aberto de OUTRO
+                // mês, mesmo critério do Detalhe/Planejamento — achado 09/08/2026:
+                // mês de pagamento da fatura conta).
+                const _mesKeyAtualAnual = `${a}-${String(m).padStart(2, '0')}`;
                 const porCategoria = data.despesas
-                  .filter(d => !d._faturaAberta && pertenceAConta(d, _contaAtivaId))
+                  .filter(d => (!d._faturaAberta || d.fatura === _mesKeyAtualAnual) && pertenceAConta(d, _contaAtivaId))
                   .reduce((acc, d) => { acc[d.categoria] = (acc[d.categoria] || 0) + d.valor; return acc; }, {});
                 return {
                   mes: m, ano: a,
@@ -6733,7 +6748,7 @@
                   despesa:   despesaComprometida,
                   aporte:    totalAp,
                   temDados:  data.receitas.length > 0 || data.despesas.length > 0 || data.aportes.length > 0,
-                  porCartao: data.despesas.filter(d => d.cartao && d.cartaoId && !d._faturaAberta && pertenceAConta(d, _contaAtivaId))
+                  porCartao: data.despesas.filter(d => d.cartao && d.cartaoId && (!d._faturaAberta || d.fatura === _mesKeyAtualAnual) && pertenceAConta(d, _contaAtivaId))
                     .reduce((acc, d) => { acc[d.cartaoId] = (acc[d.cartaoId] || 0) + d.valor; return acc; }, {}),
                   porCategoria,
                 };
