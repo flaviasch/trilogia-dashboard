@@ -6031,13 +6031,14 @@
       const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
 
       // Planejamento acompanha gasto comprometido por categoria: efetivado +
-      // pendente + fatura fechada aguardando pagamento + compras já
-      // IMPORTADAS na fatura ABERTA (ciclo em curso, ainda não fechou) — a
-      // usuária já tem o dado real ao importar, então conta pro orçamento por
-      // categoria mesmo antes do banco fechar o ciclo (achado 13/07/2026,
-      // revisão do critério de 04/07/2026 — que só valia pra reconciliação
-      // de caixa em render(), não devia ter sido copiado pro Planejamento).
-      const contaComoComprometido = () => true;
+      // pendente + fatura fechada aguardando pagamento. Compra na fatura
+      // ABERTA (ciclo em curso, ainda não fechou) NÃO conta no mês da
+      // compra — só entra no mês em que a fatura fecha de verdade, igual a
+      // aba Detalhe já faz (achado 05/08/2026, Flávia: "fatura aberta não é
+      // para entrar no mês que vejo, só no outro, isso não deve acontecer
+      // assim" — reverte o critério de 13/07/2026, que tinha decidido o
+      // contrário).
+      const contaComoComprometido = (d) => !d._faturaAberta;
 
       // Agrega despesas por categoria NORMALIZADA — "Alimentação"/"alimentação"
       // contam juntas; o rótulo exibido é a grafia mais usada no grupo. TODA
@@ -6053,18 +6054,6 @@
         gruposPorNorm[norm].total += d.valor;
         gruposPorNorm[norm].labels[d.categoria] = (gruposPorNorm[norm].labels[d.categoria] || 0) + 1;
       });
-      // Compras já importadas na fatura ABERTA entram na categoria real acima
-      // (contaComoComprometido não filtra isso, de propósito — achado
-      // 13/07/2026), mas _diffNaoIdentificadoMes é calibrado contra
-      // totalComprometidoMes, que SEMPRE exclui fatura aberta (orcamento-calc.js)
-      // — sem subtrair esse valor do ajuste, "Lançamentos não identificados"
-      // absorve a fatura aberta errado e a soma das categorias passa a ficar
-      // maior que o total (achado 27/07/2026, Flávia: "a soma das categorias
-      // não bate com a soma"). Mesmo padrão que a aba Detalhe já usa pras
-      // fixas virtuais (_totalVirtualSomado).
-      const _abertaSomadoPlanejamento = _ehFuturoAtual ? 0
-        : data.despesas.filter(d => contaComoComprometido(d) && d._faturaAberta).reduce((s, d) => s + d.valor, 0);
-
       // Despesas fixas em CONTA (débito) ainda não confirmadas neste mês —
       // fixa em cartão já vira lançamento real automaticamente
       // (autoLancarFixasCartao), mas a de conta fica pendente até a usuária
@@ -6089,9 +6078,12 @@
       });
 
       // O realizado tem que bater com a reconciliação de caixa (caixa +
-      // pendentes + faturas + compras em aberto, calculada no Resumo). Se não
-      // bater, em vez de sumir a diferença, ela vira uma categoria própria —
-      // assim o total do Planejamento sempre coincide com o fluxo de caixa.
+      // pendentes + faturas fechadas), igual a aba Detalhe — agora que a
+      // fatura aberta não entra mais nas categorias acima, não precisa mais
+      // calibrar o ajuste contra ela (removido o achado 27/07/2026, que só
+      // existia por causa do critério de 13/07 revertido). Se não bater, em
+      // vez de sumir a diferença, ela vira uma categoria própria — assim o
+      // total do Planejamento sempre coincide com o fluxo de caixa.
       // Em mês futuro, _diffNaoIdentificadoMes já vem fixo em 0 (calcularAgregadosOrcamento
       // não reconcilia projeção contra caixa — "tudo é projeção"), então
       // calcularAjuste(0, jaExplicadoPor) sempre devolveria -jaExplicadoPor:
@@ -6101,7 +6093,7 @@
       // mostrando -R$2.134 assim que as fixas em conta passaram a contar).
       // Só calibra contra fixas virtuais em mês atual/passado, onde
       // _diffNaoIdentificadoMes é um valor real a reconciliar.
-      const { temAjuste, valorAjuste: _valorAjustePlanejamento } = calcularAjuste(_diffNaoIdentificadoMes, _abertaSomadoPlanejamento + (_ehFuturoAtual ? 0 : _totalVirtualSomadoPlanejamento));
+      const { temAjuste, valorAjuste: _valorAjustePlanejamento } = calcularAjuste(_diffNaoIdentificadoMes, _ehFuturoAtual ? 0 : _totalVirtualSomadoPlanejamento);
       if (temAjuste) {
         gruposPorNorm[normCat(CATEGORIA_AJUSTE)] = { total: _valorAjustePlanejamento, labels: { [CATEGORIA_AJUSTE]: 1 } };
       }
@@ -6181,11 +6173,10 @@
       // Total = soma do que está listado na tela (mesmo princípio da aba
       // Detalhe, totalListadoDetalhe) — garante por construção que "soma das
       // categorias" e "total" nunca divergem, ponto que a versão anterior
-      // (recalculada à parte, filtrando fatura aberta) quebrava sempre que
-      // havia compra na fatura aberta este mês (achado 27/07/2026). O ajuste
-      // já vem líquido de _abertaSomadoPlanejamento acima, então esse total
-      // continua batendo com despesaComprometida (Resumo/Detalhe), só que
-      // agora por soma direta das linhas em vez de uma fórmula paralela.
+      // (recalculada à parte) quebrava sempre que havia compra na fatura
+      // aberta este mês (achado 27/07/2026). Desde que fatura aberta parou
+      // de entrar nas categorias (achado 05/08/2026), esse total bate com
+      // despesaComprometida por soma direta das linhas, sem calibração extra.
       const totalReal = Object.values(gruposPorNorm).reduce((s, g) => s + g.total, 0);
 
       // Linhas da tabela — cada categoria vira uma linha (igual antes) mas
