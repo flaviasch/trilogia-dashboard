@@ -54,7 +54,13 @@ async function main() {
   console.log(`tributosConfig ativos: ${idsAtivos.size}`);
   console.log(`impostosPrevistos no total: ${impostosSnap.size}`);
 
-  const orfas = impostosSnap.docs.filter(d => !idsAtivos.has(d.data().tributoId));
+  // Linhas trimestrais consolidadas (DARF) guardam tributoId com sufixo
+  // "_tri" (ex: "abc123_tri") em vez do id puro do tributo — sem tirar esse
+  // sufixo antes de comparar, a linha aparecia como órfã mesmo com o
+  // tributo-base bem vivo em tributosConfig (achado 10/08/2026: DARF CSLL
+  // e DARF IRPJ trimestrais apagadas por engano, restauradas do backup).
+  const baseTributoId = (tid) => (tid || '').endsWith('_tri') ? tid.slice(0, -4) : tid;
+  const orfas = impostosSnap.docs.filter(d => !idsAtivos.has(baseTributoId(d.data().tributoId)));
   const orfasNaoPagas = orfas.filter(d => !d.data().pago);
   const orfasPagas    = orfas.filter(d => d.data().pago);
 
