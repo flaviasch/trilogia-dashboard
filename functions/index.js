@@ -5830,7 +5830,22 @@ exports.deleteTributoConfig = onCall({}, async (request) => {
   if (!snap.exists) throw new HttpsError('not-found', 'Tributo não encontrado.');
   if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
   await ref.delete();
-  return { ok: true };
+  // Limpa as linhas de "Provisão do mês" que esse tributo já tinha gerado —
+  // sem isso, elas ficam órfãs pra sempre (nada mais referencia tributoId
+  // depois que o config some, e _regerarImpostosPrevistos só olha tributos
+  // ATIVOS, nunca revisita/apaga linha de um tributo excluído). Só as ainda
+  // NÃO pagas — linha já paga é histórico real de pagamento, não deve sumir
+  // só porque o cadastro que a gerou foi removido depois (achado 09/08/2026,
+  // Flávia: excluiu tributo duplicado, deu F5, duplicidade continuou
+  // aparecendo).
+  const orfasSnap = await db.collection('impostosPrevistos')
+    .where('uid', '==', uid).where('tributoId', '==', id).where('pago', '==', false).get();
+  if (!orfasSnap.empty) {
+    const batch = db.batch();
+    orfasSnap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+  return { ok: true, linhasOrfasRemovidas: orfasSnap.size };
 });
 
 exports.getNotasEmitidas = onCall({}, async (request) => {
