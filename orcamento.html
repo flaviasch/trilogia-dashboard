@@ -1919,6 +1919,12 @@
           <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;pointer-events:none;">🔍</span>
           <button id="btnLimparBusca" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;line-height:1;padding:0;">×</button>
         </div>
+        <!-- Toggle categoria/data (achado 09/08/2026, Flávia: como ordenar
+             por data em vez de categoria) — estado em _detalheVisao. -->
+        <div id="detalheVisaoToggle" style="display:flex;background:var(--navy);border:1px solid var(--border);border-radius:8px;padding:2px;">
+          <button id="btnDetalheVisaoCategoria" data-visao="categoria" style="border:none;border-radius:6px;font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;">Categoria</button>
+          <button id="btnDetalheVisaoData" data-visao="data" style="border:none;border-radius:6px;font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;">Data</button>
+        </div>
         <button id="btnGerenciarFixas" style="background:none;border:none;color:var(--gold);font-size:12px;cursor:pointer;opacity:0.8;padding:4px 0;white-space:nowrap;">
           ⚙️ Gerenciar despesas fixas
         </button>
@@ -2886,6 +2892,11 @@
     // buscar o mês anterior de novo quando ele já está carregado na sessão.
     let _ultimoSaldoFinal = null;
     let _projecaoFiltro = null; // 'despesa' | 'receita' | 'fatura' | null (mostra tudo)
+    // Visão da aba Detalhe: agrupado por categoria (padrão) ou lista achatada
+    // ordenada por data — pedido de Flávia (09/08/2026): "como sugere fazer
+    // ordenar por data". Persistido em localStorage — é preferência de UI,
+    // não dado da mentorada, mesmo padrão de _fixasPuladas.
+    let _detalheVisao = localStorage.getItem('_detalheVisao') === 'data' ? 'data' : 'categoria';
     let _contas = []; // [{ id, nome, ativa, principal }] — sempre inclui a principal
     let _contaAtivaId = null; // null = consolidado (todas as contas); senão, id de uma conta específica
 
@@ -5767,6 +5778,102 @@
         </details>`;
     }
 
+    // ─── Linha de um lançamento na aba Detalhe ────────────────────────────────
+    // Extraído em 09/08/2026 pra ser reaproveitado tanto na visão por
+    // categoria (padrão) quanto na visão por data (achado 09/08/2026,
+    // Flávia: como ordenar por data) — mesma linha, mesmos botões de ação,
+    // só ganha uma tag de categoria quando `mostrarCategoria` é true (na
+    // visão por categoria isso já está óbvio pelo cabeçalho do grupo).
+    const _ICDET_EDITAR = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
+    const _ICDET_EXCLUIR = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
+    function _renderItemRowDetalhe(item, opts = {}) {
+      const mostrarCategoria = !!opts.mostrarCategoria;
+      if (item.ajuste) {
+        return `
+          <div class="item-row" style="opacity:0.6;border-left:2px dashed var(--negative);padding-left:6px;">
+            <div>
+              <div class="item-categoria">${escapeHtml(item.categoria)}</div>
+              <div class="item-fonte">Diferença entre o comprometido do mês e a reconciliação de caixa — confira faturas com ajuste manual e despesas fixas</div>
+            </div>
+            <div></div>
+            <div class="item-value despesa">${brl(item.valor)}</div>
+            <div class="item-actions"></div>
+          </div>`;
+      }
+      const primary = item.descricao
+        ? escapeHtml(item.descricao)
+        : escapeHtml(item.categoria);
+      const categoriaTag = mostrarCategoria
+        ? `<span style="font-size:10px;background:rgba(255,255,255,0.05);color:var(--text-secondary);border-radius:3px;padding:1px 5px;margin-right:4px">${escapeHtml(item.categoria)}</span>`
+        : '';
+      const faturaTag = (() => {
+        if (!item.cartao || !item.fatura) return '';
+        const nomeMesFat = MESES[parseInt(item.fatura.split('-')[1]) - 1];
+        const cartaoObj  = _cartoes.find(c => c.id === item.cartaoId);
+        const nomeCartao = cartaoObj ? escapeHtml(cartaoObj.nome) : '';
+        const vcto = (() => {
+          if (!cartaoObj?.diaVencimento || !item.fatura) return '';
+          const [fAno, fMes] = item.fatura.split('-').map(Number);
+          return ` · vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(fMes).padStart(2,'0')}/${fAno}`;
+        })();
+        return `<span style="font-size:10px;background:rgba(207,174,101,0.15);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px">💳 ${nomeCartao ? nomeCartao + ' · ' : ''}Fatura ${nomeMesFat}${vcto}</span>`;
+      })();
+      const recTag = item.recorrenteId
+        ? `<span style="font-size:10px;background:rgba(207,174,101,0.1);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px" title="Despesa fixa automática">🔄 Fixa</span>`
+        : '';
+      const parcelaTag = item.origem === 'parcelamento' && item.parcelaAtual && item.parcelasTotal
+        ? `<span class="badge-parcela" style="font-size:10px;background:rgba(99,179,237,0.15);color:#63b3ed;border-radius:3px;padding:1px 5px;margin-left:4px" title="Lançamento parcelado">💳 ${item.parcelaAtual}/${item.parcelasTotal}</span>`
+        : '';
+      const editAttr = item.virtual ? '' : (item.recorrenteId
+        ? `data-edit-rec="${item._idx}" data-rec-id="${item.recorrenteId}"`
+        : `data-edit-desp="${item._idx}"`);
+      const cancelarParcelaBtn = item.origem === 'parcelamento' && item.parcelamentoId
+        ? `<button class="btn-item" data-cancelar-parcela="${escapeHtml(item.parcelamentoId)}" title="Cancelar parcelas restantes" style="color:#f87171;">✕</button>`
+        : '';
+      // Despesa fixa no cartão nunca é "pendente" — o ciclo da fatura já
+      // decide quando ela conta (aberta/fechada/paga), então marcar como
+      // pendente por data é enganoso e o botão "confirmar" não faz sentido
+      // (não existe ação de confirmar um lançamento de cartão avulso).
+      const _pendenteRelevante = !item.virtual && !item.cartao && isPendenteEfetivo(item);
+      const pendenteTag = _pendenteRelevante
+        ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">⏳ pendente</span>`
+        : '';
+      // Fixa em conta ainda não lançada — não existe como lançamento de
+      // verdade ainda (ver materializarFixaPendente), por isso tem ações
+      // próprias (lançar/pular) em vez de editar/excluir.
+      const virtualTag = item.virtual
+        ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">🔜 a lançar</span>`
+        : '';
+      const pendenteRowStyle = (_pendenteRelevante || item.virtual) ? 'opacity:0.6;border-left:2px dashed var(--border);padding-left:6px;' : '';
+      const confirmarBtn = _pendenteRelevante
+        ? `<button class="btn-item" data-confirmar-pend="${item._idx}" title="Confirmar lançamento" style="color:var(--positive);font-size:11px;white-space:nowrap;">✓</button>`
+        : '';
+      const virtualActionsHTML = item.virtual
+        ? `<button class="btn-item" data-materializar-virtual="${item.recorrenteId}:${item.dia}" title="Lançar essa despesa fixa" style="color:var(--positive);font-size:11px;white-space:nowrap;">✓ Lançar</button>
+           <button class="btn-item" data-pular-virtual="${item.recorrenteId}:${item.dia}" title="Pular este mês (a recorrência continua ativa)" style="color:var(--text-muted);">⏭</button>`
+        : '';
+      const dataTagFinal = item.data
+        ? `<div class="item-fonte">${categoriaTag}${escapeHtml(formatData(item.data))}${faturaTag}${recTag}${parcelaTag}${pendenteTag}${virtualTag}</div>`
+        : (categoriaTag || faturaTag || recTag || parcelaTag || pendenteTag || virtualTag) ? `<div class="item-fonte">${categoriaTag}${faturaTag}${recTag}${parcelaTag}${pendenteTag}${virtualTag}</div>` : '';
+      return `
+        <div class="item-row" style="${pendenteRowStyle}">
+          <div>
+            <div class="item-categoria">${primary}</div>
+            ${dataTagFinal}
+          </div>
+          <div></div>
+          <div class="item-value despesa">${brl(item.valor)}</div>
+          <div class="item-actions">
+            ${item.virtual ? virtualActionsHTML : `
+            ${confirmarBtn}
+            ${item.origem !== 'parcelamento' ? `<button class="btn-item" ${editAttr} title="Editar">${_ICDET_EDITAR}</button>` : ''}
+            ${cancelarParcelaBtn}
+            <button class="btn-item del" data-del-desp="${item._idx}" title="Excluir">${_ICDET_EXCLUIR}</button>
+            `}
+          </div>
+        </div>`;
+    }
+
     // ─── Despesas agrupadas por categoria com limite ──────────────────────────
     function renderDespesasGrupos(data, totalDespesa) {
       const despList = document.getElementById('detalheContent');
@@ -5860,10 +5967,36 @@
       });
       ordem.sort((a, b) => grupos[b].total - grupos[a].total);
 
-      const IC_E = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a1.41 1.41 0 0 1 2 2L5 13l-3 1 1-3Z"/></svg>`;
-      const IC_D = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 13,4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M4 4l1 10h6l1-10"/></svg>`;
-
-      const gruposHTML = ordem.map(catNome => {
+      // Visão por data (achado 09/08/2026, Flávia): lista achatada de todos
+      // os itens (já filtrados por busca) ordenada por data decrescente,
+      // com a categoria como tag em cada linha em vez de cabeçalho de grupo.
+      // Sem barra de limite/delta por categoria aqui — isso é específico da
+      // visão agrupada.
+      let corpoHTML;
+      if (_detalheVisao === 'data') {
+        const todosItens = [];
+        ordem.forEach(catNome => {
+          const grupo = grupos[catNome];
+          const itemsFiltrados = termoBusca
+            ? grupo.items.filter(item => {
+                const texto = [item.categoria, item.descricao || ''].join(' ').toLowerCase();
+                return texto.includes(termoBusca);
+              })
+            : grupo.items;
+          todosItens.push(...itemsFiltrados);
+        });
+        // Sem data (só o pseudo-item de ajuste) vai pro final.
+        todosItens.sort((a, b) => {
+          if (!a.data && !b.data) return 0;
+          if (!a.data) return 1;
+          if (!b.data) return -1;
+          return b.data.localeCompare(a.data);
+        });
+        corpoHTML = todosItens.length > 0
+          ? `<div class="cat-group"><div class="items-list">${todosItens.map(item => _renderItemRowDetalhe(item, { mostrarCategoria: true })).join('')}</div></div>`
+          : '';
+      } else {
+        corpoHTML = ordem.map(catNome => {
         const grupo  = grupos[catNome];
 
         // Filtra itens pelo termo de busca (categoria ou descrição)
@@ -5892,89 +6025,7 @@
             </div>`;
         }
 
-        const itemsHTML = itemsFiltrados.map(item => {
-          if (item.ajuste) {
-            return `
-              <div class="item-row" style="opacity:0.6;border-left:2px dashed var(--negative);padding-left:6px;">
-                <div>
-                  <div class="item-categoria">${escapeHtml(item.categoria)}</div>
-                  <div class="item-fonte">Diferença entre o comprometido do mês e a reconciliação de caixa — confira faturas com ajuste manual e despesas fixas</div>
-                </div>
-                <div></div>
-                <div class="item-value despesa">${brl(item.valor)}</div>
-                <div class="item-actions"></div>
-              </div>`;
-          }
-          const primary = item.descricao
-            ? escapeHtml(item.descricao)
-            : escapeHtml(item.categoria);
-          const faturaTag = (() => {
-            if (!item.cartao || !item.fatura) return '';
-            const nomeMesFat = MESES[parseInt(item.fatura.split('-')[1]) - 1];
-            const cartaoObj  = _cartoes.find(c => c.id === item.cartaoId);
-            const nomeCartao = cartaoObj ? escapeHtml(cartaoObj.nome) : '';
-            const vcto = (() => {
-              if (!cartaoObj?.diaVencimento || !item.fatura) return '';
-              const [fAno, fMes] = item.fatura.split('-').map(Number);
-              return ` · vence ${String(cartaoObj.diaVencimento).padStart(2,'0')}/${String(fMes).padStart(2,'0')}/${fAno}`;
-            })();
-            return `<span style="font-size:10px;background:rgba(207,174,101,0.15);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px">💳 ${nomeCartao ? nomeCartao + ' · ' : ''}Fatura ${nomeMesFat}${vcto}</span>`;
-          })();
-          const recTag = item.recorrenteId
-            ? `<span style="font-size:10px;background:rgba(207,174,101,0.1);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px" title="Despesa fixa automática">🔄 Fixa</span>`
-            : '';
-          const parcelaTag = item.origem === 'parcelamento' && item.parcelaAtual && item.parcelasTotal
-            ? `<span class="badge-parcela" style="font-size:10px;background:rgba(99,179,237,0.15);color:#63b3ed;border-radius:3px;padding:1px 5px;margin-left:4px" title="Lançamento parcelado">💳 ${item.parcelaAtual}/${item.parcelasTotal}</span>`
-            : '';
-          const editAttr = item.virtual ? '' : (item.recorrenteId
-            ? `data-edit-rec="${item._idx}" data-rec-id="${item.recorrenteId}"`
-            : `data-edit-desp="${item._idx}"`);
-          const cancelarParcelaBtn = item.origem === 'parcelamento' && item.parcelamentoId
-            ? `<button class="btn-item" data-cancelar-parcela="${escapeHtml(item.parcelamentoId)}" title="Cancelar parcelas restantes" style="color:#f87171;">✕</button>`
-            : '';
-          // Despesa fixa no cartão nunca é "pendente" — o ciclo da fatura já
-          // decide quando ela conta (aberta/fechada/paga), então marcar como
-          // pendente por data é enganoso e o botão "confirmar" não faz sentido
-          // (não existe ação de confirmar um lançamento de cartão avulso).
-          const _pendenteRelevante = !item.virtual && !item.cartao && isPendenteEfetivo(item);
-          const pendenteTag = _pendenteRelevante
-            ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">⏳ pendente</span>`
-            : '';
-          // Fixa em conta ainda não lançada — não existe como lançamento de
-          // verdade ainda (ver materializarFixaPendente), por isso tem ações
-          // próprias (lançar/pular) em vez de editar/excluir.
-          const virtualTag = item.virtual
-            ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">🔜 a lançar</span>`
-            : '';
-          const pendenteRowStyle = (_pendenteRelevante || item.virtual) ? 'opacity:0.6;border-left:2px dashed var(--border);padding-left:6px;' : '';
-          const confirmarBtn = _pendenteRelevante
-            ? `<button class="btn-item" data-confirmar-pend="${item._idx}" title="Confirmar lançamento" style="color:var(--positive);font-size:11px;white-space:nowrap;">✓</button>`
-            : '';
-          const virtualActionsHTML = item.virtual
-            ? `<button class="btn-item" data-materializar-virtual="${item.recorrenteId}:${item.dia}" title="Lançar essa despesa fixa" style="color:var(--positive);font-size:11px;white-space:nowrap;">✓ Lançar</button>
-               <button class="btn-item" data-pular-virtual="${item.recorrenteId}:${item.dia}" title="Pular este mês (a recorrência continua ativa)" style="color:var(--text-muted);">⏭</button>`
-            : '';
-          const dataTagFinal = item.data
-            ? `<div class="item-fonte">${escapeHtml(formatData(item.data))}${faturaTag}${recTag}${parcelaTag}${pendenteTag}${virtualTag}</div>`
-            : (faturaTag || recTag || parcelaTag || pendenteTag || virtualTag) ? `<div class="item-fonte">${faturaTag}${recTag}${parcelaTag}${pendenteTag}${virtualTag}</div>` : '';
-          return `
-            <div class="item-row" style="${pendenteRowStyle}">
-              <div>
-                <div class="item-categoria">${primary}</div>
-                ${dataTagFinal}
-              </div>
-              <div></div>
-              <div class="item-value despesa">${brl(item.valor)}</div>
-              <div class="item-actions">
-                ${item.virtual ? virtualActionsHTML : `
-                ${confirmarBtn}
-                ${item.origem !== 'parcelamento' ? `<button class="btn-item" ${editAttr} title="Editar">${IC_E}</button>` : ''}
-                ${cancelarParcelaBtn}
-                <button class="btn-item del" data-del-desp="${item._idx}" title="Excluir">${IC_D}</button>
-                `}
-              </div>
-            </div>`;
-        }).join('');
+        const itemsHTML = itemsFiltrados.map(item => _renderItemRowDetalhe(item)).join('');
 
         const btnLimClass = limite > 0 ? 'btn-set-limite tem-limite' : 'btn-set-limite';
         const btnLimText  = limite > 0 ? `${brl(limite)}/mês` : '+ limite';
@@ -6013,9 +6064,10 @@
             <div class="items-list">${itemsHTML}</div>
             <button class="cat-add-btn" data-cat="${escapeHtml(catNome)}">+ Adicionar em ${escapeHtml(catNome)}</button>
           </div>`;
-      }).join('');
+        }).join('');
+      }
 
-      despList.innerHTML = gruposHTML + `
+      despList.innerHTML = corpoHTML + `
         <div class="total-row">
           <span class="total-label">Total despesas</span>
           <span class="total-value despesa">${brl(totalListadoDetalhe)}</span>
@@ -11237,6 +11289,29 @@
         renderDespesasGrupos(currentData, currentData.despesas.reduce((s, d) => s + d.valor, 0));
       }
     });
+
+    // ─── Toggle categoria/data na aba Detalhe ───────────────────────────────
+    function _atualizarBotoesVisaoDetalhe() {
+      ['Categoria', 'Data'].forEach(nome => {
+        const btn = document.getElementById(`btnDetalheVisao${nome}`);
+        if (!btn) return;
+        const ativo = btn.dataset.visao === _detalheVisao;
+        btn.style.background = ativo ? 'var(--gold)' : 'none';
+        btn.style.color = ativo ? 'var(--navy)' : 'var(--text-muted)';
+        btn.style.fontWeight = ativo ? '600' : '400';
+      });
+    }
+    document.querySelectorAll('#detalheVisaoToggle [data-visao]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        if (_detalheVisao === btn.dataset.visao) return;
+        _detalheVisao = btn.dataset.visao;
+        localStorage.setItem('_detalheVisao', _detalheVisao);
+        _atualizarBotoesVisaoDetalhe();
+        if (_tabAtiva === 'detalhe') {
+          renderDespesasGrupos(currentData, currentData.despesas.reduce((s, d) => s + d.valor, 0));
+        }
+      }));
+    _atualizarBotoesVisaoDetalhe();
 
     // Listeners dos modais de recorrentes
     document.getElementById('btnGerenciarFixas')?.addEventListener('click', abrirModalFixas);
