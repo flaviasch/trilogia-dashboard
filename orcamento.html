@@ -3666,8 +3666,23 @@
       const item  = lista[idx];
       if (!item) return;
       if (!(await confirmDelete(`Excluir "${item.categoria}"?`))) return;
+      // Item vinculado a uma recorrente ATIVA (não-cartão): excluir sozinho
+      // não basta — no próximo render, diasFaltantesRecorrente vê o dia sem
+      // ocorrência de novo e regenera o placeholder virtual (✓/⏭) pra esse
+      // mesmo dia, dando a impressão de que a exclusão "não pegou" (achado
+      // 09/08/2026, Flávia: "lancei uma despesa pendente e depois excluí,
+      // pq não vai existir, depois que excluí, ela voltou a ficar
+      // pendente"). Marca também como pulada este mês — mesmo efeito de
+      // clicar "⏭ Pular este mês" antes de lançar.
+      const _recorrenteAtivo = item.recorrenteId && !item.cartao
+        ? _recorrentes.find(r => r.id === item.recorrenteId && r.ativo)
+        : null;
+      const _diaItem = _recorrenteAtivo && item.data ? parseInt(item.data.split('-')[2], 10) : null;
       lista.splice(idx, 1);
       await salvarEAtualizar();
+      if (_recorrenteAtivo && _diaItem) {
+        await pularFixaMes(item.recorrenteId, _diaItem);
+      }
     }
 
     // Confirma um lançamento pendente (despesa ou receita): some da lista de
