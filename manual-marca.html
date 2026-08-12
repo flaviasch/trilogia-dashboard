@@ -205,6 +205,45 @@
   table.voice-compare td.yes { color: var(--positive); }
   table.voice-compare td.no { color: var(--negative); }
 
+  /* Arquétipos */
+  .archetypes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 28px; }
+  @media (max-width: 720px) { .archetypes { grid-template-columns: 1fr; } }
+  .archetype-card {
+    background: var(--navy);
+    border: 1px solid var(--border-gold);
+    border-radius: 12px;
+    padding: 22px;
+  }
+  .archetype-card .emoji { font-size: 24px; margin-bottom: 10px; }
+  .archetype-card h3 { margin-bottom: 2px; }
+  .archetype-card .pillar-tag {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gold);
+    font-weight: 600; margin-bottom: 12px; display: block;
+  }
+  .archetype-card .tone { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+  .archetype-card .quote {
+    font-size: 13px; color: var(--text-secondary); font-style: italic;
+    border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px;
+  }
+
+  .attr-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 24px; }
+  @media (max-width: 720px) { .attr-grid { grid-template-columns: 1fr; } }
+  .attr-card { background: var(--navy); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .attr-card .attr-title { font-weight: 700; font-size: 13px; color: var(--gold); margin-bottom: 6px; }
+  .attr-card p { font-size: 13px; color: var(--text-secondary); }
+
+  .redline { display: flex; gap: 14px; margin-top: 16px; align-items: flex-start; }
+  .redline .mark { color: var(--negative); font-weight: 700; flex-shrink: 0; }
+  .redline p { font-size: 14px; color: var(--text-secondary); }
+  .redline strong { color: var(--white); }
+
+  table.dictionary { width: 100%; border-collapse: collapse; margin-top: 24px; }
+  table.dictionary th, table.dictionary td { text-align: left; padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  table.dictionary th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
+  table.dictionary td.abolir { color: var(--negative); text-decoration: line-through; text-decoration-color: rgba(248,113,113,0.4); }
+  table.dictionary td.adotar { color: var(--positive); font-weight: 500; }
+  table.dictionary td.arquetipo { color: var(--gold); font-size: 12px; }
+
   /* UI components */
   .ui-demo { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 14px; }
   .btn-primary-demo {
@@ -262,17 +301,17 @@
         <div class="pillar">
           <div class="num">01</div>
           <h3>Domínio</h3>
-          <p>Assumir o controle: entender para onde o dinheiro vai e organizar a base.</p>
+          <p>Enxergar com clareza para onde o dinheiro vai e assumir o controle do que entra e sai.</p>
         </div>
         <div class="pillar">
           <div class="num">02</div>
           <h3>Crescimento</h3>
-          <p>Fazer o patrimônio evoluir com consistência, decisão e acompanhamento.</p>
+          <p>Construir uma estrutura onde o patrimônio cresce todo mês, independente do cansaço.</p>
         </div>
         <div class="pillar">
           <div class="num">03</div>
           <h3>Liberdade</h3>
-          <p>Investir com propósito, no perfil e no prazo certos, rumo à independência.</p>
+          <p>Dar destino real ao dinheiro, para que ele compre o que realmente importa na vida.</p>
         </div>
       </div>
 
@@ -280,6 +319,11 @@
         No produto, esses três pilares se traduzem em <strong>Orçamento</strong> (Domínio),
         <strong>Patrimônio</strong> (Crescimento) e <strong>Investimentos</strong> (Liberdade) — a mesma
         jornada, aplicada às três áreas do dashboard.
+      </p>
+      <p class="lead" style="margin-top:16px; font-size: 13px;">
+        <strong>Para quem a marca fala:</strong> mulheres de 30 a 45 anos, alta renda (médicas, executivas,
+        empresárias, profissionais liberais) — sustentam um padrão de vida elevado, mas vivem uma desconexão
+        silenciosa com o próprio dinheiro: não sabem para onde ele vai e sentem que não estão construindo nada.
       </p>
     </section>
 
@@ -461,25 +505,86 @@
     <section>
       <div class="eyebrow">Voz e tom</div>
       <h2>Como a marca fala</h2>
-      <p class="lead">Direta, acolhedora e sem jargão financeiro desnecessário. Fala com "você", explica o "porquê" antes do "como", e nunca soa como um app de banco.</p>
+      <p class="lead">A voz da Trilogia Financeira tem três registros — um para cada pilar. Nenhum fala sozinho o tempo todo: o texto sobe e desce de volume entre eles conforme o assunto.</p>
 
-      <div class="voice-row">
-        <div class="voice-tag">Direta</div>
-        <div class="voice-text">Frases curtas, foco na ação. Sem enrolação nem promessas vagas.</div>
-      </div>
-      <div class="voice-row">
-        <div class="voice-tag">Acolhedora</div>
-        <div class="voice-text">Trata dinheiro como assunto emocional, não só técnico — reconhece o esforço da mentorada.</div>
-      </div>
-      <div class="voice-row">
-        <div class="voice-tag">Sem jargão</div>
-        <div class="voice-text">Termos técnicos (CDI, RF, suitability) sempre explicados na primeira vez que aparecem.</div>
-      </div>
-      <div class="voice-row">
-        <div class="voice-tag">Prática</div>
-        <div class="voice-text">Cada tela diz o próximo passo — nunca deixa a mentorada sem saber o que fazer.</div>
+      <div class="archetypes">
+        <div class="archetype-card">
+          <div class="emoji">⚖️</div>
+          <span class="pillar-tag">Domínio</span>
+          <h3>Governante</h3>
+          <div class="tone">Tom: direta e organizada</div>
+          <p class="voice-text">Fala mais alto quando o assunto é organização, fluxo de caixa, governança.</p>
+          <div class="quote">"Com a Flávia, eu posso relaxar porque ela sabe o que está fazendo."</div>
+        </div>
+        <div class="archetype-card">
+          <div class="emoji">🦅</div>
+          <span class="pillar-tag">Crescimento</span>
+          <h3>Sábia</h3>
+          <div class="tone">Tom: analítica e segura</div>
+          <p class="voice-text">Fala mais alto quando o assunto é tese de investimento, alavancagem, proteção.</p>
+          <div class="quote">"Ela não está me dando 'diquinhas', ela tem um método baseado em fatos."</div>
+        </div>
+        <div class="archetype-card">
+          <div class="emoji">🥂</div>
+          <span class="pillar-tag">Liberdade</span>
+          <h3>Rebelde</h3>
+          <div class="tone">Tom: provocativa e sofisticada</div>
+          <p class="voice-text">Fala mais alto quando o assunto é estilo de vida, usufruto, destino do capital.</p>
+          <div class="quote">"Finalmente alguém que valida a minha vontade de gastar sem me fazer sentir culpada."</div>
+        </div>
       </div>
 
+      <h3 style="margin-top:44px;">Atributos da voz</h3>
+      <div class="attr-grid">
+        <div class="attr-card">
+          <div class="attr-title">Direta, mas não agressiva</div>
+          <p>Fala a verdade com elegância de mentora de elite — não é tapinha nas costas, é a cura.</p>
+        </div>
+        <div class="attr-card">
+          <div class="attr-title">Analítica, mas não chata</div>
+          <p>Usa números, mas traduz para o impacto na vida dela: fala do rendimento do CDB, mas foca na viagem que ele paga.</p>
+        </div>
+        <div class="attr-card">
+          <div class="attr-title">Sofisticada, mas acessível</div>
+          <p>Usa vocabulário de poder (governança, patrimônio, alavancagem), mas explica de forma simples.</p>
+        </div>
+        <div class="attr-card">
+          <div class="attr-title">Provocativa, mas segura</div>
+          <p>Questiona o status quo do mercado financeiro, mas sempre apresenta a solução como o caminho seguro.</p>
+        </div>
+      </div>
+
+      <h3 style="margin-top:44px;">Linhas vermelhas</h3>
+      <div class="redline">
+        <span class="mark">✕</span>
+        <p><strong>Não infantilize.</strong> Proibido: "diquinha", "dinheirinho", "poupancinha". Fala-se de estratégia patrimonial para mulheres de alto padrão.</p>
+      </div>
+      <div class="redline">
+        <span class="mark">✕</span>
+        <p><strong>Não sugira privação.</strong> Proibido: "economizar", "cortar gastos", "privação". Use: "direcionar capital", "otimizar recursos", "financiar usufruto".</p>
+      </div>
+      <div class="redline">
+        <span class="mark">✕</span>
+        <p><strong>Não seja genérica.</strong> Proibido: "o segredo é a constância", "invista no longo prazo". Explique por que é difícil para ela e como a estratégia resolve.</p>
+      </div>
+      <div class="redline">
+        <span class="mark">✕</span>
+        <p><strong>Não acuse.</strong> Proibido: "você gasta muito". Use: "seu capital está sumindo em drenos invisíveis porque falta Domínio".</p>
+      </div>
+
+      <h3 style="margin-top:44px;">Dicionário de poder</h3>
+      <table class="dictionary">
+        <tr><th>Abolir</th><th>Adotar</th><th>Arquétipo ativado</th></tr>
+        <tr><td class="abolir">Poupar / Guardar</td><td class="adotar">Investir / Aportar</td><td class="arquetipo">Sábia · Crescimento</td></tr>
+        <tr><td class="abolir">Economizar / Cortar</td><td class="adotar">Otimizar / Direcionar capital</td><td class="arquetipo">Governante · Domínio</td></tr>
+        <tr><td class="abolir">Planilha / Anotar gastos</td><td class="adotar">Diagnóstico / Auditoria patrimonial</td><td class="arquetipo">Sábia · Domínio</td></tr>
+        <tr><td class="abolir">Renda passiva / Aposentadoria</td><td class="adotar">Sistema de crescimento / Autonomia de tempo</td><td class="arquetipo">Sábia · Rebelde · Liberdade</td></tr>
+        <tr><td class="abolir">Diquinha de investimento</td><td class="adotar">Estratégia de expansão</td><td class="arquetipo">Sábia · Crescimento</td></tr>
+        <tr><td class="abolir">Gastar sem culpa</td><td class="adotar">Destino carimbado / Usufruto planejado</td><td class="arquetipo">Rebelde · Liberdade</td></tr>
+      </table>
+
+      <h3 style="margin-top:44px;">Aplicação no produto (Dashboard)</h3>
+      <p class="lead" style="font-size:13px;">No dia a dia do dashboard, a voz Governante domina — clara, direta, sempre dizendo o próximo passo — sem perder a acessibilidade que atravessa os três arquétipos.</p>
       <div class="example">"Bem-vinda ao Trilogia Dashboard. 5 passos para começar. Leva menos de 15 minutos — e você sai daqui com uma visão clara da sua vida financeira."</div>
       <div class="example">"💡 Siga a ordem abaixo — cada passo destrava o próximo."</div>
 
