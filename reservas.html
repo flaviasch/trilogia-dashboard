@@ -1072,28 +1072,43 @@
             return;
           }
 
-          // Mapa da Liberdade: acha reserva já chamada "Liberdade Financeira"
-          // (achado 22/07/2026, Flávia: quer que recálculos sucessivos
-          // atualizem a MESMA reserva em vez de duplicar a cada clique).
-          const existente = reservas.find(r => r.nome.trim().toLowerCase() === 'liberdade financeira');
-          if (existente) {
-            abrirModal(existente.id);
-            aplicarSugestao();
-            return;
-          }
+          // achado 12/08/2026, Flávia: vindo da Liberdade Financeira, o modal
+          // às vezes não abria — nada acontecia, sem erro visível pra usuária.
+          // Causa: `r.nome.trim()` abaixo quebra (sem try/catch, dentro de um
+          // requestAnimationFrame — erro só aparecia no console) se QUALQUER
+          // reserva já cadastrada tiver `nome` nulo/vazio (dado legado). Isso
+          // não afeta o "+ Nova reserva" manual (não passa por esse .find()),
+          // só este fluxo — por isso só quebrava vindo daqui. Blindado com
+          // try/catch + fallback: se algo inesperado falhar, abre modal novo
+          // mesmo assim, pra o clique nunca ficar sem efeito nenhum.
+          try {
+            // Mapa da Liberdade: acha reserva já chamada "Liberdade Financeira"
+            // (achado 22/07/2026, Flávia: quer que recálculos sucessivos
+            // atualizem a MESMA reserva em vez de duplicar a cada clique).
+            const existente = reservas.find(r => (r.nome || '').trim().toLowerCase() === 'liberdade financeira');
+            if (existente) {
+              abrirModal(existente.id);
+              aplicarSugestao();
+              return;
+            }
 
-          // Primeira vez: sem reserva "Liberdade Financeira" ainda. Abre nova,
-          // mas oferece vincular a alguma reserva já existente (ex: uma
-          // "Aposentadoria" cadastrada manualmente antes desta ferramenta) —
-          // nesse caso ela é renomeada e atualizada, não duplicada.
-          abrirModal();
-          aplicarSugestao();
-          if (reservas.length) {
-            const sel = document.getElementById('rVincularExistente');
-            sel.innerHTML = '<option value="">+ Criar reserva nova</option>' +
-              reservas.map(r => `<option value="${r.id}">${r.nome} (${brl(r.meta)})</option>`).join('');
-            sel.value = '';
-            document.getElementById('fgVincularLiberdade').classList.remove('hidden');
+            // Primeira vez: sem reserva "Liberdade Financeira" ainda. Abre nova,
+            // mas oferece vincular a alguma reserva já existente (ex: uma
+            // "Aposentadoria" cadastrada manualmente antes desta ferramenta) —
+            // nesse caso ela é renomeada e atualizada, não duplicada.
+            abrirModal();
+            aplicarSugestao();
+            if (reservas.length) {
+              const sel = document.getElementById('rVincularExistente');
+              sel.innerHTML = '<option value="">+ Criar reserva nova</option>' +
+                reservas.map(r => `<option value="${r.id}">${r.nome || '(sem nome)'} (${brl(r.meta)})</option>`).join('');
+              sel.value = '';
+              document.getElementById('fgVincularLiberdade').classList.remove('hidden');
+            }
+          } catch (err) {
+            console.error('[reservas] Falha ao abrir modal vindo da Liberdade Financeira:', err);
+            abrirModal();
+            aplicarSugestao();
           }
         });
       }
