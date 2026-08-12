@@ -851,7 +851,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getMinhaJornada, marcarLicaoCasa, getNivelAcesso, getMateriaisJornada, salvarMaterialJornada, getDashboardHome, registrarDecisaoFinanceira, getDecisoesFinanceiras } from './js/api.js?v=50';
+    import { getMinhaJornada, marcarLicaoCasa, getNivelAcesso, getMateriaisJornada, salvarMaterialJornada, getDashboardHome, registrarDecisaoFinanceira, getDecisoesFinanceiras, uidAtual } from './js/api.js?v=50';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -1157,8 +1157,11 @@
 
       bindMoneyInputFj(elGasto);
 
-      // Prefill com gasto do mês atual (Orçamento), se disponível
-      getDashboardHome({}).then(d => {
+      // Prefill com gasto do mês atual (Orçamento), se disponível.
+      // achado 12/08/2026 (mesmo bug do Mapa da Liberdade): getDashboardHome({})
+      // sem uid ignora viewAs (o backend cai pro auth.uid de quem tá logada de
+      // fato, a admin) — precisa mandar uid: uidAtual() explicitamente.
+      getDashboardHome({ uid: uidAtual() }).then(d => {
         if (!elGasto.value && d?.orcamento?.despesa) setMoneyFj(elGasto, d.orcamento.despesa);
         recalcular();
       }).catch(() => {});
@@ -1244,7 +1247,7 @@
       // editável, mesmo padrão usado no gasto da Calculadora de Reserva Ideal.
       // Usa o PL total (não só ativos financeiros) pra não duplicar a lógica de
       // classificação de ativo que já existe em reservas.html/patrimonio.html.
-      getDashboardHome({}).then(d => {
+      getDashboardHome({ uid: uidAtual() }).then(d => {
         if (!salvo?.respostas?.renda && d?.orcamento?.receita) setMoneyFj(elRenda, d.orcamento.receita);
         if (!salvo?.respostas?.patrimonio && d?.plCacheado != null) setMoneyFj(elPatrimonio, d.plCacheado);
       }).catch(() => {});

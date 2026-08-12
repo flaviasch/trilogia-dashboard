@@ -551,7 +551,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboardHome, getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira, getMinhaJornada, PATRIMONIO_COR } from './js/api.js?v=47';
+    import { getDashboardHome, getPatrimonio, getMateriaisJornada, getPerfil, simularLiberdadeFinanceira, getMinhaJornada, PATRIMONIO_COR, uidAtual } from './js/api.js?v=47';
     import { isAdmin } from './js/admin-guard.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
@@ -963,9 +963,17 @@
 
       // Patrimônio total (referência geral, não entra no cálculo) — mesmo
       // plCacheado usado nas outras calculadoras da Jornada.
+      // achado 12/08/2026, Flávia: vendo o Mapa da Liberdade de uma mentorada
+      // via "Ver como" (admin), o Patrimônio/Investimentos mostrados eram os
+      // DELA (admin), não os da mentorada. Causa: getDashboardHome({}) sem uid
+      // manda payload vazio — o backend cai no fallback `request.data?.uid ||
+      // auth.uid`, e auth.uid é sempre quem está DE FATO logada (a admin),
+      // nunca respeitando viewAs. getPatrimonio()/getPerfil()/etc já iam bem
+      // porque usam uidAtual() internamente; só esta chamada ia direto pela
+      // função crua sem passar uid nenhum.
       let plCacheado = null;
       try {
-        const d = await getDashboardHome({});
+        const d = await getDashboardHome({ uid: uidAtual() });
         plCacheado = d?.plCacheado ?? null;
         document.getElementById('patrimonioTotalValor').textContent = plCacheado != null ? brl(plCacheado) : 'Sem dado ainda';
       } catch (err) {
