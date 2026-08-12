@@ -6465,6 +6465,10 @@ exports.getContasPagarPendentesPJ = onCall({}, async (request) => {
   despesasSnap.docs.forEach(doc => {
     const desp = doc.data();
     if (desp.tipo === 'unica') {
+      // Compra de cartão (cartao:true): não entra individualmente aqui —
+      // fica agrupada por fatura no bloco abaixo (getFaturasCartaoPJ usa a
+      // mesma coleção pra montar a aba Cartões com o detalhe por item).
+      if (desp.cartao) return;
       // 'unica' não usa mesInicio/anoInicio pra determinar a ocorrência (só
       // tem uma, na sua própria `data`) — usar mesInicio/anoInicio aqui seria
       // o mês em que a despesa foi CADASTRADA, não o mês da despesa em si.
@@ -6490,6 +6494,53 @@ exports.getContasPagarPendentesPJ = onCall({}, async (request) => {
     }
   });
 
+  // Faturas de cartão FECHADAS e ainda não pagas entram como 1 linha cada
+  // (o total da fatura), em vez dos lançamentos individuais que a compõem —
+  // mesmo princípio da aba "Faturas" do PF, adaptado pra caber na lista
+  // única de Contas a Pagar do PJ. A fatura ainda ABERTA (em formação, ciclo
+  // de hoje) não entra — ainda não fechou, não é "a pagar" de verdade.
+  const [cartoesSnap, itensCartaoSnap, estadosCartaoSnap] = await Promise.all([
+    db.collection('cartoesPJ').where('uid', '==', uid).get(),
+    db.collection('despesasPJ').where('uid', '==', uid).where('cartao', '==', true).get(),
+    db.collection('faturaEstadosPJ').where('uid', '==', uid).get(),
+  ]);
+  const cartaoMap = {};
+  cartoesSnap.docs.forEach(d => { cartaoMap[d.id] = { id: d.id, ...d.data() }; });
+  const abertaKeyPorCartao = {};
+  Object.values(cartaoMap).forEach(c => {
+    if (c.diaCorte) abertaKeyPorCartao[c.id] = _sugerirFatura(hojeISO, c.diaCorte, c.diaVencimento || 1);
+  });
+  const estadosPorChave = {};
+  estadosCartaoSnap.docs.forEach(d => { estadosPorChave[d.id] = d.data(); });
+  const gruposFatura = {};
+  itensCartaoSnap.docs.forEach(d => {
+    const it = d.data();
+    const chave = `${it.cartaoId}_${it.fatura}`;
+    if (!gruposFatura[chave]) gruposFatura[chave] = { cartaoId: it.cartaoId, faturaKey: it.fatura, total: 0 };
+    gruposFatura[chave].total += it.valor;
+  });
+  Object.values(gruposFatura).forEach(g => {
+    const cartao = cartaoMap[g.cartaoId];
+    if (!cartao) return;
+    if (abertaKeyPorCartao[g.cartaoId] === g.faturaKey) return; // ainda aberta, não é "a pagar"
+    const estadoDoc = estadosPorChave[`${uid}_${g.cartaoId}_${g.faturaKey}`];
+    if (estadoDoc?.estado === 'paga_total') return; // já paga
+    const totalDevido = estadoDoc?.ajusteTotal != null ? estadoDoc.ajusteTotal
+      : (estadoDoc?.estado === 'paga_parcial' ? (g.total - (estadoDoc.valorPago || 0)) : g.total);
+    if (totalDevido <= 0) return;
+    const dataVenc = `${g.faturaKey}-${String(cartao.diaVencimento || cartao.diaCorte).padStart(2, '0')}`;
+    const valorArred = Math.round(totalDevido * 100) / 100;
+    if (g.faturaKey === prefixoMes) previstoNoMes += valorArred;
+    aPagar += valorArred;
+    pendentes.push({
+      despesaId: null, cartaoId: g.cartaoId, faturaKey: g.faturaKey, mesAno: g.faturaKey,
+      nome: `Fatura ${cartao.nome}`, categoria: 'Cartão de crédito',
+      valor: valorArred, dataVencimento: dataVenc,
+      vencido: dataVenc < hojeISO,
+      tipoItem: 'faturaCartao',
+    });
+  });
+
   pendentes.sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
 
   return {
@@ -6500,6 +6551,255 @@ exports.getContasPagarPendentesPJ = onCall({}, async (request) => {
     },
     pendentes,
   };
+});
+
+// ─── Cartões de crédito PJ ──────────────────────────────────────────────────
+// Mesma lógica de fatura do PF (cadastro de cartões, sugerirFatura, estado de
+// pagamento por ciclo) portada pra PJ. Diferença de modelo: no PF os itens de
+// cartão vivem dentro do array `itens` de um doc mensal (por isso getOrcamento
+// precisa "emprestar" itens de meses vizinhos). Aqui cada compra é um doc
+// próprio na coleção plana `despesasPJ` (mesmo padrão já usado pras despesas
+// comuns), com campos extras cartao/cartaoId/fatura — não existe fronteira de
+// mês-documento pra contornar, então getFaturasCartaoPJ é só uma query direta
+// agrupada em memória.
+
+exports.getCartoesPJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const snap = await db.collection('cartoesPJ').where('uid', '==', uid).get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.criadoEmMs ?? 0) - (b.criadoEmMs ?? 0));
+});
+
+exports.saveCartaoPJ = onCall({}, async (request) => {
+  const { uid, cartao } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveCartaoPJ', 10, 60_000); // 10/min
+
+  if (!cartao?.nome || typeof cartao.nome !== 'string' || !cartao.nome.trim())
+    throw new HttpsError('invalid-argument', 'nome é obrigatório.');
+  if (!Number.isInteger(cartao.diaCorte) || cartao.diaCorte < 1 || cartao.diaCorte > 31)
+    throw new HttpsError('invalid-argument', 'diaCorte deve ser entre 1 e 31.');
+  if (cartao.diaVencimento != null && (!Number.isInteger(cartao.diaVencimento) || cartao.diaVencimento < 1 || cartao.diaVencimento > 31))
+    throw new HttpsError('invalid-argument', 'diaVencimento deve ser entre 1 e 31.');
+
+  const dados = {
+    nome:          cartao.nome.trim().slice(0, 100),
+    diaCorte:      cartao.diaCorte,
+    diaVencimento: cartao.diaVencimento || null,
+    limite:        typeof cartao.limite === 'number' ? cartao.limite : null,
+    ativo:         cartao.ativo !== false,
+  };
+
+  if (cartao.id) {
+    const ref  = db.collection('cartoesPJ').doc(cartao.id);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Cartão não encontrado.');
+    if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+    await ref.update(dados);
+    return { id: cartao.id };
+  }
+  const ref = await db.collection('cartoesPJ').add({
+    ...dados, uid, criadoEm: admin.firestore.FieldValue.serverTimestamp(), criadoEmMs: Date.now(),
+  });
+  return { id: ref.id };
+});
+
+exports.deleteCartaoPJ = onCall({}, async (request) => {
+  const { uid, id } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  const ref  = db.collection('cartoesPJ').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Cartão não encontrado.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  await ref.delete();
+  return { ok: true };
+});
+
+/**
+ * Lança uma compra no cartão — única ou parcelada. Cada parcela vira um doc
+ * próprio em `despesasPJ` (tipo 'unica', cartao:true), ligados por
+ * parcelamentoId — mesmo modelo do PF (N itens físicos, não 1 item com
+ * contador dinâmico).
+ */
+exports.lancarCompraCartaoPJ = onCall({}, async (request) => {
+  const { uid, cartaoId, data, valor, descricao, categoria, parcelado, numeroParcelas } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'lancarCompraCartaoPJ', 30, 60_000); // 30/min
+
+  if (!cartaoId || typeof cartaoId !== 'string')
+    throw new HttpsError('invalid-argument', 'cartaoId é obrigatório.');
+  if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data))
+    throw new HttpsError('invalid-argument', 'data deve estar no formato YYYY-MM-DD.');
+  if (typeof valor !== 'number' || valor <= 0)
+    throw new HttpsError('invalid-argument', 'valor deve ser número positivo.');
+  if (!descricao || typeof descricao !== 'string' || !descricao.trim())
+    throw new HttpsError('invalid-argument', 'descricao é obrigatória.');
+
+  const cartaoRef  = db.collection('cartoesPJ').doc(cartaoId);
+  const cartaoSnap = await cartaoRef.get();
+  if (!cartaoSnap.exists) throw new HttpsError('not-found', 'Cartão não encontrado.');
+  const cartao = cartaoSnap.data();
+  if (cartao.uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+
+  const descricaoSafe = descricao.trim().slice(0, 150);
+  const categoriaSafe = categoria ? String(categoria).trim().slice(0, 100) : null;
+  const nParcelas = parcelado ? Number(numeroParcelas) : 1;
+  if (parcelado && (!Number.isInteger(nParcelas) || nParcelas < 2 || nParcelas > 60))
+    throw new HttpsError('invalid-argument', 'numeroParcelas deve ser um inteiro entre 2 e 60.');
+
+  const valorParcela = nParcelas > 1 ? Math.round((valor / nParcelas) * 100) / 100 : valor;
+  const parcelamentoId = nParcelas > 1 ? require('crypto').randomUUID() : null;
+
+  // Mesma aritmética de sugerirFatura, avançando 1 mês por parcela a partir
+  // da fatura da 1ª parcela (idêntico ao fluxo do PF).
+  const faturaBase = _sugerirFatura(data, cartao.diaCorte, cartao.diaVencimento || 1);
+  const [fAnoBase, fMesBase] = faturaBase.split('-').map(Number);
+
+  const batch = db.batch();
+  const idsGerados = [];
+  for (let i = 0; i < nParcelas; i++) {
+    const d = new Date(fAnoBase, fMesBase - 1 + i, 1);
+    const faturaKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const ref = db.collection('despesasPJ').doc();
+    idsGerados.push(ref.id);
+    batch.set(ref, {
+      uid,
+      nome: nParcelas > 1 ? `${descricaoSafe} — Parcela ${i + 1}/${nParcelas}` : descricaoSafe,
+      categoria: categoriaSafe,
+      valor: valorParcela,
+      valorTotal: nParcelas > 1 ? valor : null,
+      tipo: 'unica',
+      data: i === 0 ? data : `${faturaKey}-01`,
+      diaVencimento: null, mesesRestantes: null, numeroParcelas: null,
+      ativo: true,
+      cartao: true,
+      cartaoId,
+      fatura: faturaKey,
+      origem: nParcelas > 1 ? 'parcelamento' : 'manual',
+      ...(parcelamentoId ? { parcelamentoId, parcelaAtual: i + 1, parcelasTotal: nParcelas } : {}),
+    });
+  }
+  await batch.commit();
+  return { ok: true, ids: idsGerados, fatura: faturaBase, parcelamentoId };
+});
+
+/**
+ * Remove parcelas futuras (a partir de hoje) de uma compra parcelada no
+ * cartão — mesmo espírito de cancelarParcelamento do PF. Parcelas já
+ * vencidas/passadas são preservadas como histórico.
+ */
+exports.cancelarParcelasCartaoPJ = onCall({}, async (request) => {
+  const { uid, parcelamentoId } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!parcelamentoId) throw new HttpsError('invalid-argument', 'parcelamentoId é obrigatório.');
+  const hojeISO = new Date().toISOString().slice(0, 10);
+  const snap = await db.collection('despesasPJ')
+    .where('uid', '==', uid).where('parcelamentoId', '==', parcelamentoId).get();
+  const batch = db.batch();
+  let removidas = 0;
+  snap.docs.forEach(d => {
+    const it = d.data();
+    if (it.data >= hojeISO) { batch.delete(d.ref); removidas++; }
+  });
+  await batch.commit();
+  return { ok: true, removidas };
+});
+
+/**
+ * Agrega os lançamentos de cartão em faturas por cartaoId+fatura, pra
+ * alimentar a aba Faturas de cartoes-pj.html.
+ */
+exports.getFaturasCartaoPJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const [cartoesSnap, itensSnap, estadosSnap] = await Promise.all([
+    db.collection('cartoesPJ').where('uid', '==', uid).get(),
+    db.collection('despesasPJ').where('uid', '==', uid).where('cartao', '==', true).get(),
+    db.collection('faturaEstadosPJ').where('uid', '==', uid).get(),
+  ]);
+
+  const cartoes = cartoesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const hojeStr = hoje();
+  const abertaKeyPorCartao = {};
+  cartoes.forEach(c => {
+    if (c.diaCorte) abertaKeyPorCartao[c.id] = _sugerirFatura(hojeStr, c.diaCorte, c.diaVencimento || 1);
+  });
+
+  const estadosPorChave = {};
+  estadosSnap.docs.forEach(d => { estadosPorChave[d.id] = d.data(); });
+
+  const grupos = {};
+  itensSnap.docs.forEach(d => {
+    const it = { id: d.id, ...d.data() };
+    const chave = `${it.cartaoId}_${it.fatura}`;
+    if (!grupos[chave]) grupos[chave] = { cartaoId: it.cartaoId, faturaKey: it.fatura, itens: [] };
+    grupos[chave].itens.push(it);
+  });
+
+  const faturas = Object.values(grupos).map(g => {
+    const total = Math.round(g.itens.reduce((s, it) => s + it.valor, 0) * 100) / 100;
+    const estadoDoc = estadosPorChave[`${uid}_${g.cartaoId}_${g.faturaKey}`] || null;
+    const aberta = abertaKeyPorCartao[g.cartaoId] === g.faturaKey;
+    return {
+      cartaoId: g.cartaoId,
+      faturaKey: g.faturaKey,
+      itens: g.itens.sort((a, b) => (a.data || '').localeCompare(b.data || '')),
+      total,
+      totalExibido: estadoDoc?.ajusteTotal != null ? estadoDoc.ajusteTotal : total,
+      estado: estadoDoc?.estado || null,
+      valorPago: estadoDoc?.valorPago ?? null,
+      rollover: estadoDoc?.rollover ?? null,
+      aberta,
+    };
+  }).sort((a, b) => a.faturaKey.localeCompare(b.faturaKey));
+
+  return { cartoes, faturas };
+});
+
+/**
+ * Salva o estado de pagamento de uma fatura PJ (total/parcial/ajuste). Mesmo
+ * comportamento de saveFaturaEstado do PF — se parcial com rollover>0, cria
+ * automaticamente uma despesa (doc despesasPJ cartao:true) na fatura seguinte.
+ */
+exports.saveFaturaEstadoPJ = onCall({}, async (request) => {
+  const { uid, cartaoId, faturaKey, ajusteTotal, estado, valorPago, rollover, nomeCartao, nextFaturaKey } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveFaturaEstadoPJ', 20, 60_000); // 20/min
+
+  if (!cartaoId || typeof cartaoId !== 'string')
+    throw new HttpsError('invalid-argument', 'cartaoId é obrigatório.');
+  if (!faturaKey || !/^\d{4}-\d{2}$/.test(faturaKey))
+    throw new HttpsError('invalid-argument', 'faturaKey deve estar no formato YYYY-MM.');
+
+  const docId = `${uid}_${cartaoId}_${faturaKey}`;
+  const update = { uid, cartaoId, faturaKey, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() };
+  if (ajusteTotal === null) update.ajusteTotal = admin.firestore.FieldValue.delete();
+  else if (ajusteTotal != null) update.ajusteTotal = ajusteTotal;
+  if (estado    != null) update.estado    = estado;
+  if (valorPago != null) update.valorPago = valorPago;
+  if (rollover  != null) update.rollover  = rollover;
+
+  const ops = [db.collection('faturaEstadosPJ').doc(docId).set(update, { merge: true })];
+
+  if (estado === 'paga_parcial' && rollover > 0 && nextFaturaKey && /^\d{4}-\d{2}$/.test(nextFaturaKey)) {
+    const nomeCartaoSafe = (nomeCartao || cartaoId).slice(0, 60);
+    const [fAno, fMes] = faturaKey.split('-').map(Number);
+    const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    ops.push(db.collection('despesasPJ').add({
+      uid, nome: `Saldo pendente ${nomeCartaoSafe} - Fatura ${MESES_PT[fMes - 1]}/${fAno}`,
+      categoria: 'Cartão de crédito',
+      valor: Math.round(rollover * 100) / 100, valorTotal: null,
+      tipo: 'unica', data: `${nextFaturaKey}-01`,
+      diaVencimento: null, mesesRestantes: null, numeroParcelas: null,
+      ativo: true, cartao: true, cartaoId, fatura: nextFaturaKey, origem: 'rollover',
+    }));
+  }
+
+  await Promise.all(ops);
+  return { ok: true };
 });
 
 // ─── Outras entradas PJ (fatia 2, achado 27/07/2026) ───────────────────────

@@ -102,6 +102,7 @@
         <a href="recebimentos-pj.html">Contas a Receber</a>
         <a href="impostos-pj.html">Impostos</a>
         <a href="contas-a-pagar-pj.html" class="ativo">Contas a Pagar</a>
+        <a href="cartoes-pj.html">Cartões</a>
         <a href="dre-pj.html">DRE</a>
         <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
         <a href="reservas-pj.html">Reservas</a>
@@ -312,7 +313,7 @@
     let _despesasCache = [];
 
     // ─── ViewAs (admin visualizando dashboard PJ da mentorada) ────────────────
-    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','dre-pj.html','fluxo-caixa-pj.html','reservas-pj.html','ajuda-pj.html'];
+    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','cartoes-pj.html','dre-pj.html','fluxo-caixa-pj.html','reservas-pj.html','ajuda-pj.html'];
     const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
                      || localStorage.getItem('viewAsUid');
     if (VIEW_AS_UID) {
@@ -444,7 +445,25 @@
         return;
       }
       document.getElementById('pendentesVazio').style.display = 'none';
-      tbody.innerHTML = dados.pendentes.map(p => `
+      tbody.innerHTML = dados.pendentes.map(p => {
+        // Fatura de cartão fechada: entra agrupada (1 linha = a fatura toda),
+        // sem despesaId — o pagamento (total/parcial/valor diferente) só se
+        // confirma em Cartões, onde existe o fluxo completo de rollover/ajuste.
+        if (p.tipoItem === 'faturaCartao') {
+          return `
+            <tr>
+              <td class="td-fin">${escapeHtml(p.nome)} <span style="color:var(--text-muted)">· ${escapeHtml(p.categoria)}</span></td>
+              <td class="td-fin">${fmtData(p.dataVencimento)}</td>
+              <td class="td-fin">${p.vencido ? '<span class="badge-vencido">Vencido</span>' : '<span class="badge-avencer">A vencer</span>'}</td>
+              <td class="td-fin valor">${brl(p.valor)}</td>
+              <td class="td-fin">
+                <div class="acoes-cell">
+                  <a href="cartoes-pj.html${VIEW_AS_UID ? `?viewAs=${VIEW_AS_UID}` : ''}" class="btn-acao-secundario" style="text-decoration:none;display:inline-block">Ver em Cartões →</a>
+                </div>
+              </td>
+            </tr>`;
+        }
+        return `
         <tr>
           <td class="td-fin">${escapeHtml(p.nome)}${p.categoria ? ` <span style="color:var(--text-muted)">· ${escapeHtml(p.categoria)}</span>` : ''}</td>
           <td class="td-fin">${fmtData(p.dataVencimento)}</td>
@@ -456,7 +475,8 @@
               <button class="btn-cancelar-oc" data-cancelar-despesa="${p.despesaId}" data-cancelar-mesano="${p.mesAno}" title="Dispensar sem confirmar pagamento">Cancelar</button>
             </div>
           </td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
 
       tbody.querySelectorAll('[data-confirmar-despesa]').forEach(b => b.addEventListener('click', async () => {
         const hoje = new Date().toISOString().slice(0, 10);

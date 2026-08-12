@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard PJ — Cartões</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45; --navy-dark: #081e30;
+      --gold: #CFAE65; --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.1);
+      --text-muted: rgba(255,255,255,0.45);
+      --positive: #4ade80; --negative: #f87171;
+      --card-bg: rgba(255,255,255,0.03);
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--navy);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
+    .empresa-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .nav-pj { display: flex; gap: 4px; flex-wrap: wrap; }
+    .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+    .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
+    .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    .view-as-banner { display: none; background: rgba(207,174,101,0.12); border-bottom: 1px solid rgba(207,174,101,0.3); padding: 10px 24px; font-size: 13px; color: var(--gold); gap: 12px; align-items: center; }
+    .view-as-banner a { color: var(--gold); margin-left: auto; }
+    main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+    .secao-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; margin-top: 32px; }
+    .secao-header:first-of-type { margin-top: 0; }
+    .secao-titulo { font-size: 14px; font-weight: 600; }
+    .btn-acao { background: var(--gold); color: var(--navy); border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .btn-acao-secundario { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+    .card-lista { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .vazio { padding: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .td-fin { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .td-fin.valor { text-align: right; font-weight: 600; }
+    .badge-vencido { background: rgba(248,113,113,.15); color: var(--negative); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-avencer { background: rgba(96,165,250,.15); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-pago { background: rgba(74,222,128,.15); color: var(--positive); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-aberta { background: rgba(207,174,101,.15); color: var(--gold); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-parcial { background: rgba(245,158,11,.15); color: #f59e0b; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .btn-confirmar { background: none; border: 1px solid rgba(74,222,128,.3); color: var(--positive); cursor: pointer; font-size: 12px; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+    .btn-cancelar-oc { background: none; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+    .acoes-cell { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+
+    .cartao-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+    .cartao-topo { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .cartao-nome { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; }
+    .cartao-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+    .cartao-acoes { display: flex; gap: 8px; }
+    .cartao-acoes button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; }
+    .fatura-linha { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--border); gap: 10px; flex-wrap: wrap; }
+    .fatura-linha:first-of-type { border-top: none; }
+    .fatura-info { display: flex; flex-direction: column; gap: 3px; }
+    .fatura-label { font-size: 13px; font-weight: 600; }
+    .fatura-meta { font-size: 11px; color: var(--text-muted); }
+    .fatura-valor { font-size: 16px; font-weight: 700; }
+    .sem-cartoes { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 13px; }
+    details.historico { margin-top: 6px; }
+    details.historico summary { cursor: pointer; font-size: 12px; color: var(--text-muted); padding: 8px 0; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal-card.wide { max-width: 560px; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
+    .field-group input, .field-group select { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-group select option { background: var(--navy); }
+    .field-hint { font-size: 11px; color: var(--text-muted); margin-top: -8px; margin-bottom: 4px; }
+    .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .checkbox-row input { width: auto; }
+    .radio-row { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+    .radio-row label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .radio-row input { width: auto; }
+    .item-fatura { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .item-fatura:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
+      <p class="empresa-nome" id="empresaNome">—</p>
+      <nav class="nav-pj">
+        <a href="notas-pj.html">Notas</a>
+        <a href="recebimentos-pj.html">Contas a Receber</a>
+        <a href="impostos-pj.html">Impostos</a>
+        <a href="contas-a-pagar-pj.html">Contas a Pagar</a>
+        <a href="cartoes-pj.html" class="ativo">Cartões</a>
+        <a href="dre-pj.html">DRE</a>
+        <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
+        <a href="reservas-pj.html">Reservas</a>
+      </nav>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="ajuda-pj.html" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">❓ Ajuda</a>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </header>
+
+  <div class="view-as-banner" id="viewAsBanner">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html">← Voltar ao admin</a>
+  </div>
+
+  <main>
+    <h1>Cartões de Crédito</h1>
+    <p class="subtitulo">Cadastre seus cartões, lance compras (à vista ou parceladas) e controle o pagamento de cada fatura.</p>
+
+    <div class="secao-header">
+      <span class="secao-titulo">Seus cartões</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn-acao-secundario" id="btnNovoCartao">+ Cadastrar cartão</button>
+        <button class="btn-acao" id="btnLancarCompra">+ Lançar compra</button>
+      </div>
+    </div>
+
+    <div id="areaCartoes"></div>
+  </main>
+
+  <!-- Modal: Cadastro/edição de cartão -->
+  <div class="modal-overlay hidden" id="modalCartao">
+    <div class="modal-card">
+      <h3 id="tituloModalCartao">Novo cartão</h3>
+      <input type="hidden" id="cartaoId">
+      <div class="field-group">
+        <label for="cartaoNome">Nome do cartão</label>
+        <input type="text" id="cartaoNome" placeholder="Ex: Nubank Empresarial, Bradesco...">
+      </div>
+      <div class="field-group">
+        <label for="cartaoDiaCorte">Dia de corte (fechamento)</label>
+        <input type="number" id="cartaoDiaCorte" min="1" max="31" placeholder="Ex: 25">
+      </div>
+      <div class="field-group">
+        <label for="cartaoDiaVcto">Dia de vencimento (opcional)</label>
+        <input type="number" id="cartaoDiaVcto" min="1" max="31" placeholder="Ex: 5">
+        <span class="field-hint">Se vencer no mês seguinte ao corte, o débito só entra no mês depois.</span>
+      </div>
+      <div class="field-group">
+        <label for="cartaoLimite">Limite (opcional)</label>
+        <input type="number" id="cartaoLimite" min="0" step="0.01" placeholder="0">
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="cartaoAtivo" checked>
+        <label for="cartaoAtivo" style="margin:0">Ativo</label>
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarCartao">Cancelar</button>
+        <button class="btn-save" id="btnSalvarCartao">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Lançar compra no cartão -->
+  <div class="modal-overlay hidden" id="modalCompra">
+    <div class="modal-card">
+      <h3>Lançar compra no cartão</h3>
+      <div class="field-group">
+        <label for="cdCartao">Cartão</label>
+        <select id="cdCartao"></select>
+      </div>
+      <div class="field-group">
+        <label for="cdData">Data da compra</label>
+        <input type="date" id="cdData">
+      </div>
+      <div class="field-group">
+        <label for="cdDescricao">Descrição</label>
+        <input type="text" id="cdDescricao" placeholder="Ex: Software, Material de escritório...">
+      </div>
+      <div class="field-group">
+        <label for="cdCategoria">Categoria (opcional)</label>
+        <input type="text" id="cdCategoria" placeholder="Ex: Operacional, Marketing...">
+      </div>
+      <div class="field-group">
+        <label for="cdValor" id="cdLblValor">Valor (R$)</label>
+        <input type="number" id="cdValor" min="0" step="0.01" placeholder="0">
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="cdParcelado">
+        <label for="cdParcelado" style="margin:0">Compra parcelada</label>
+      </div>
+      <div class="field-group" id="fgCdParcelas" style="display:none">
+        <label for="cdNParcelas">Número de parcelas</label>
+        <input type="number" id="cdNParcelas" min="2" max="60" placeholder="Ex: 10">
+      </div>
+      <p class="field-hint" id="cdFaturaHint" style="margin-top:-4px">—</p>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarCompra">Cancelar</button>
+        <button class="btn-save" id="btnSalvarCompra">Lançar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Detalhe da fatura -->
+  <div class="modal-overlay hidden" id="modalFaturaDetalhe">
+    <div class="modal-card wide">
+      <h3 id="tituloFaturaDetalhe">Fatura</h3>
+      <div id="listaItensFatura"></div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnFecharFaturaDetalhe">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar pagamento de fatura -->
+  <div class="modal-overlay hidden" id="modalConfirmarPag">
+    <div class="modal-card">
+      <h3>Confirmar pagamento — <span id="cpNomeFatura"></span></h3>
+      <p class="field-hint" style="margin-bottom:14px">Total da fatura: <strong id="cpTotalFatura">—</strong></p>
+      <div class="radio-row">
+        <label><input type="radio" name="cpTipo" value="total" checked> Paguei o valor total</label>
+        <label><input type="radio" name="cpTipo" value="parcial"> Paguei parcialmente</label>
+        <label><input type="radio" name="cpTipo" value="diferente"> O valor cobrado foi diferente</label>
+      </div>
+      <div class="field-group" id="fgCpValorPago" style="display:none">
+        <label for="cpValorPago">Quanto você pagou (R$)</label>
+        <input type="number" id="cpValorPago" min="0" step="0.01">
+        <span class="field-hint">O restante vira um lançamento na próxima fatura.</span>
+      </div>
+      <div class="field-group" id="fgCpValorReal" style="display:none">
+        <label for="cpValorReal">Valor real cobrado (R$)</label>
+        <input type="number" id="cpValorReal" min="0" step="0.01">
+        <span class="field-hint">Só ajusta o total exibido — não cria lançamento novo.</span>
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarCp">Cancelar</button>
+        <button class="btn-save" id="btnConfirmarCp">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import {
+      getContaPJ,
+      getCartoesPJ, saveCartaoPJ, deleteCartaoPJ,
+      lancarCompraCartaoPJ, cancelarParcelasCartaoPJ,
+      getFaturasCartaoPJ, saveFaturaEstadoPJ,
+      deleteDespesaPJ,
+      msgErro, setViewAsUid, uidAtual,
+    } from './js/api.js?v=52';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { toast, setLoading, confirmDelete } from './js/ui.js';
+    import { cacheGet, cacheSet } from './js/page-cache.js';
+
+    const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
+    function fmtData(iso) {
+      if (!iso) return '—';
+      const [a, m, d] = iso.split('-');
+      return `${d}/${m}/${a}`;
+    }
+    function fmtFaturaKey(key) {
+      const [a, m] = key.split('-').map(Number);
+      return `${MESES_PT[m - 1]}/${a}`;
+    }
+    function escapeHtml(str) {
+      return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    // Mesma lógica de sugerirFatura do PF (orcamento.html) e de _sugerirFatura
+    // no backend — precisa ficar em sincronia com as duas.
+    function sugerirFatura(dataCompra, diaCorte, diaVencimento) {
+      let [ano, mes] = dataCompra.split('-').map(Number);
+      const dia = Number(dataCompra.split('-')[2]);
+      const avancarMes = () => { mes += 1; if (mes > 12) { mes = 1; ano += 1; } };
+      if (dia > diaCorte) avancarMes();
+      if (!diaVencimento || diaVencimento <= diaCorte) avancarMes();
+      return `${ano}-${String(mes).padStart(2, '0')}`;
+    }
+
+    let _cartoes = [];
+    let _faturas = [];
+
+    // ─── ViewAs (admin visualizando dashboard PJ da mentorada) ────────────────
+    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','cartoes-pj.html','dre-pj.html','fluxo-caixa-pj.html','reservas-pj.html','ajuda-pj.html'];
+    const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
+                     || localStorage.getItem('viewAsUid');
+    if (VIEW_AS_UID) {
+      setViewAsUid(VIEW_AS_UID);
+      localStorage.setItem('viewAsUid', VIEW_AS_UID);
+      const banner = document.getElementById('viewAsBanner');
+      if (banner) banner.style.display = 'flex';
+      const suffix = `?viewAs=${VIEW_AS_UID}`;
+      PAGINAS_PJ.forEach(page => {
+        document.querySelectorAll(`a[href="${page}"], a[href^="${page}?"]`).forEach(a => { a.href = page + suffix; });
+      });
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!href || href.includes('viewAs=') || href.startsWith('http') ||
+            href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('admin')) return;
+        if (!PAGINAS_PJ.some(p => href === p || href.startsWith(p + '#') || href.startsWith(p + '?'))) return;
+        e.preventDefault();
+        window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;
+      }, true);
+    }
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      localStorage.removeItem('viewAsUid');
+      await signOut(auth);
+      window.location.href = 'login-pj.html';
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login-pj.html'; return; }
+
+      const _contaCacheKey = `conta_${uidAtual()}`;
+      const _contaCached = cacheGet(_contaCacheKey);
+      if (_contaCached) document.getElementById('empresaNome').textContent = _contaCached.nomeEmpresa;
+
+      const contaPromise = (async () => {
+        try {
+          const conta = await getContaPJ(uidAtual());
+          if (conta) cacheSet(_contaCacheKey, conta);
+          if (!VIEW_AS_UID) {
+            if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+            if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+          }
+          document.getElementById('empresaNome').textContent = conta ? conta.nomeEmpresa : '—';
+        } catch (err) {
+          console.error('[cartoes-pj] Falha ao carregar conta:', err.message);
+        }
+      })();
+
+      await carregarTudo();
+      await contaPromise;
+    });
+
+    async function carregarTudo() {
+      try {
+        const { cartoes, faturas } = await getFaturasCartaoPJ(uidAtual());
+        _cartoes = cartoes;
+        _faturas = faturas;
+      } catch (err) {
+        alert(msgErro(err));
+        return;
+      }
+      renderCartoes();
+    }
+
+    // ─── Render principal: 1 card por cartão, com fatura aberta + faturas
+    // fechadas pendentes em destaque, e histórico de pagas recolhido ──────────
+    function renderCartoes() {
+      const el = document.getElementById('areaCartoes');
+      if (!_cartoes.length) {
+        el.innerHTML = `<div class="sem-cartoes">Nenhum cartão cadastrado ainda. Clique em "Cadastrar cartão" pra começar.</div>`;
+        return;
+      }
+      el.innerHTML = _cartoes.map(c => {
+        const faturasDoCartao = _faturas.filter(f => f.cartaoId === c.id);
+        const aberta = faturasDoCartao.find(f => f.aberta);
+        const pendentes = faturasDoCartao.filter(f => !f.aberta && f.estado !== 'paga_total').sort((a, b) => b.faturaKey.localeCompare(a.faturaKey));
+        const pagas = faturasDoCartao.filter(f => !f.aberta && f.estado === 'paga_total').sort((a, b) => b.faturaKey.localeCompare(a.faturaKey));
+
+        const linhaAberta = `
+          <div class="fatura-linha">
+            <div class="fatura-info">
+              <span class="fatura-label">Fatura aberta — ${aberta ? fmtFaturaKey(aberta.faturaKey) : '—'} <span class="badge-aberta">● Em aberto</span></span>
+              <span class="fatura-meta">${aberta ? `${aberta.itens.length} lançamento(s)` : 'Nenhuma compra ainda neste ciclo'}${c.diaVencimento ? ` · vence dia ${c.diaVencimento}` : ''}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px">
+              <span class="fatura-valor">${brl(aberta ? aberta.totalExibido : 0)}</span>
+              ${aberta ? `<button class="btn-acao-secundario" data-ver-fatura="${c.id}" data-fatura-key="${aberta.faturaKey}">Ver itens</button>` : ''}
+            </div>
+          </div>`;
+
+        const linhasPendentes = pendentes.map(f => `
+          <div class="fatura-linha">
+            <div class="fatura-info">
+              <span class="fatura-label">Fatura ${fmtFaturaKey(f.faturaKey)} ${f.estado === 'paga_parcial' ? '<span class="badge-parcial">◑ Parcial</span>' : '<span class="badge-vencido">💸 A pagar</span>'}</span>
+              <span class="fatura-meta">${f.itens.length} lançamento(s)${c.diaVencimento ? ` · venceu dia ${c.diaVencimento}/${f.faturaKey.split('-')[1]}` : ''}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="fatura-valor">${brl(f.totalExibido)}</span>
+              <div class="acoes-cell">
+                <button class="btn-acao-secundario" data-ver-fatura="${c.id}" data-fatura-key="${f.faturaKey}">Ver itens</button>
+                <button class="btn-confirmar" data-pagar-fatura="${c.id}" data-fatura-key="${f.faturaKey}">✓ Pagar</button>
+              </div>
+            </div>
+          </div>`).join('');
+
+        const historico = pagas.length ? `
+          <details class="historico">
+            <summary>Faturas já pagas (${pagas.length})</summary>
+            ${pagas.map(f => `
+              <div class="fatura-linha">
+                <div class="fatura-info">
+                  <span class="fatura-label">Fatura ${fmtFaturaKey(f.faturaKey)} <span class="badge-pago">✓ Paga</span></span>
+                  <span class="fatura-meta">${f.itens.length} lançamento(s)</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="fatura-valor">${brl(f.totalExibido)}</span>
+                  <button class="btn-acao-secundario" data-ver-fatura="${c.id}" data-fatura-key="${f.faturaKey}">Ver itens</button>
+                </div>
+              </div>`).join('')}
+          </details>` : '';
+
+        return `
+          <div class="cartao-card" data-cartao-card="${c.id}">
+            <div class="cartao-topo">
+              <span class="cartao-nome">${escapeHtml(c.nome)}${c.ativo === false ? ' <span style="color:var(--text-muted);font-weight:400;font-size:12px">(inativo)</span>' : ''}</span>
+              <div class="cartao-acoes">
+                <button data-editar-cartao="${c.id}" title="Editar">✎</button>
+                <button data-excluir-cartao="${c.id}" title="Excluir">✕</button>
+              </div>
+            </div>
+            <p class="cartao-sub">Corte dia ${c.diaCorte}${c.diaVencimento ? ` · vencimento dia ${c.diaVencimento}` : ''}${c.limite ? ` · limite ${brl(c.limite)}` : ''}</p>
+            ${linhaAberta}
+            ${linhasPendentes}
+            ${historico}
+          </div>`;
+      }).join('');
+
+      el.querySelectorAll('[data-editar-cartao]').forEach(b => b.addEventListener('click', () => abrirModalCartao(_cartoes.find(c => c.id === b.dataset.editarCartao))));
+      el.querySelectorAll('[data-excluir-cartao]').forEach(b => b.addEventListener('click', () => excluirCartao(b.dataset.excluirCartao)));
+      el.querySelectorAll('[data-ver-fatura]').forEach(b => b.addEventListener('click', () => abrirFaturaDetalhe(b.dataset.verFatura, b.dataset.faturaKey)));
+      el.querySelectorAll('[data-pagar-fatura]').forEach(b => b.addEventListener('click', () => abrirModalConfirmarPag(b.dataset.pagarFatura, b.dataset.faturaKey)));
+    }
+
+    // ─── CRUD de cartão ─────────────────────────────────────────────────────
+    const modalCartao = document.getElementById('modalCartao');
+    function abrirModalCartao(cartao = null) {
+      document.getElementById('tituloModalCartao').textContent = cartao ? 'Editar cartão' : 'Novo cartão';
+      document.getElementById('cartaoId').value = cartao?.id || '';
+      document.getElementById('cartaoNome').value = cartao?.nome || '';
+      document.getElementById('cartaoDiaCorte').value = cartao?.diaCorte ?? '';
+      document.getElementById('cartaoDiaVcto').value = cartao?.diaVencimento ?? '';
+      document.getElementById('cartaoLimite').value = cartao?.limite ?? '';
+      document.getElementById('cartaoAtivo').checked = cartao ? cartao.ativo !== false : true;
+      modalCartao.classList.remove('hidden');
+    }
+    document.getElementById('btnNovoCartao').addEventListener('click', () => abrirModalCartao());
+    document.getElementById('btnCancelarCartao').addEventListener('click', () => modalCartao.classList.add('hidden'));
+
+    document.getElementById('btnSalvarCartao').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarCartao');
+      const id = document.getElementById('cartaoId').value || undefined;
+      const nome = document.getElementById('cartaoNome').value.trim();
+      const diaCorte = parseInt(document.getElementById('cartaoDiaCorte').value, 10);
+      const diaVctoVal = document.getElementById('cartaoDiaVcto').value;
+      const diaVencimento = diaVctoVal ? parseInt(diaVctoVal, 10) : null;
+      const limiteVal = document.getElementById('cartaoLimite').value;
+      const limite = limiteVal ? parseFloat(limiteVal) : null;
+      const ativo = document.getElementById('cartaoAtivo').checked;
+
+      if (!nome) { toast('Informe o nome do cartão.', 'warning'); return; }
+      if (!Number.isInteger(diaCorte) || diaCorte < 1 || diaCorte > 31) { toast('Dia de corte deve ser entre 1 e 31.', 'warning'); return; }
+
+      setLoading(btn, true);
+      try {
+        await saveCartaoPJ(uidAtual(), { id, nome, diaCorte, diaVencimento, limite, ativo });
+        modalCartao.classList.add('hidden');
+        toast('Cartão salvo.');
+        await carregarTudo();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    async function excluirCartao(id) {
+      const cartao = _cartoes.find(c => c.id === id);
+      if (!(await confirmDelete(`Excluir o cartão "${cartao?.nome}"? Os lançamentos já feitos nele NÃO são apagados.`))) return;
+      try {
+        await deleteCartaoPJ(uidAtual(), id);
+        toast('Cartão excluído.');
+        await carregarTudo();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      }
+    }
+
+    // ─── Lançar compra no cartão ────────────────────────────────────────────
+    const modalCompra = document.getElementById('modalCompra');
+    function _cartaoSelecionado() {
+      const id = document.getElementById('cdCartao').value;
+      return _cartoes.find(c => c.id === id);
+    }
+    function _atualizarHintFatura() {
+      const cartao = _cartaoSelecionado();
+      const data = document.getElementById('cdData').value;
+      const hint = document.getElementById('cdFaturaHint');
+      if (!cartao || !data) { hint.textContent = '—'; return; }
+      const fatura = sugerirFatura(data, cartao.diaCorte, cartao.diaVencimento || 1);
+      hint.textContent = `Vai entrar na fatura de ${fmtFaturaKey(fatura)}.`;
+    }
+    document.getElementById('btnLancarCompra').addEventListener('click', () => {
+      if (!_cartoes.length) { toast('Cadastre um cartão antes de lançar uma compra.', 'warning'); abrirModalCartao(); return; }
+      document.getElementById('cdCartao').innerHTML = _cartoes.filter(c => c.ativo !== false).map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join('');
+      document.getElementById('cdData').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('cdDescricao').value = '';
+      document.getElementById('cdCategoria').value = '';
+      document.getElementById('cdValor').value = '';
+      document.getElementById('cdParcelado').checked = false;
+      document.getElementById('cdNParcelas').value = '';
+      document.getElementById('fgCdParcelas').style.display = 'none';
+      document.getElementById('cdLblValor').textContent = 'Valor (R$)';
+      _atualizarHintFatura();
+      modalCompra.classList.remove('hidden');
+    });
+    document.getElementById('btnCancelarCompra').addEventListener('click', () => modalCompra.classList.add('hidden'));
+    document.getElementById('cdCartao').addEventListener('change', _atualizarHintFatura);
+    document.getElementById('cdData').addEventListener('change', _atualizarHintFatura);
+    document.getElementById('cdParcelado').addEventListener('change', (e) => {
+      document.getElementById('fgCdParcelas').style.display = e.target.checked ? '' : 'none';
+      document.getElementById('cdLblValor').textContent = e.target.checked ? 'Valor total da compra (R$)' : 'Valor (R$)';
+    });
+
+    document.getElementById('btnSalvarCompra').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarCompra');
+      const cartaoId = document.getElementById('cdCartao').value;
+      const data = document.getElementById('cdData').value;
+      const descricao = document.getElementById('cdDescricao').value.trim();
+      const categoria = document.getElementById('cdCategoria').value.trim() || null;
+      const valor = parseFloat(document.getElementById('cdValor').value);
+      const parcelado = document.getElementById('cdParcelado').checked;
+      const numeroParcelas = parcelado ? parseInt(document.getElementById('cdNParcelas').value, 10) : null;
+
+      if (!cartaoId) { toast('Escolha um cartão.', 'warning'); return; }
+      if (!data) { toast('Informe a data da compra.', 'warning'); return; }
+      if (!descricao) { toast('Informe uma descrição.', 'warning'); return; }
+      if (isNaN(valor) || valor <= 0) { toast('Informe um valor válido.', 'warning'); return; }
+      if (parcelado && (!numeroParcelas || numeroParcelas < 2 || numeroParcelas > 60)) { toast('Número de parcelas deve ser entre 2 e 60.', 'warning'); return; }
+
+      setLoading(btn, true);
+      try {
+        await lancarCompraCartaoPJ(uidAtual(), { cartaoId, data, valor, descricao, categoria, parcelado, numeroParcelas });
+        modalCompra.classList.add('hidden');
+        toast('Compra lançada.');
+        await carregarTudo();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    // ─── Detalhe de fatura (itens individuais) ─────────────────────────────
+    const modalFaturaDetalhe = document.getElementById('modalFaturaDetalhe');
+    function abrirFaturaDetalhe(cartaoId, faturaKey) {
+      const fatura = _faturas.find(f => f.cartaoId === cartaoId && f.faturaKey === faturaKey);
+      const cartao = _cartoes.find(c => c.id === cartaoId);
+      document.getElementById('tituloFaturaDetalhe').textContent = `${cartao?.nome || 'Cartão'} — Fatura ${fmtFaturaKey(faturaKey)}`;
+      const el = document.getElementById('listaItensFatura');
+      if (!fatura || !fatura.itens.length) {
+        el.innerHTML = `<p class="vazio">Nenhum lançamento nesta fatura.</p>`;
+      } else {
+        el.innerHTML = fatura.itens.map(it => `
+          <div class="item-fatura">
+            <div>
+              <div>${escapeHtml(it.nome)}${it.categoria ? ` <span style="color:var(--text-muted)">· ${escapeHtml(it.categoria)}</span>` : ''}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${fmtData(it.data)}${it.parcelasTotal ? ` · parcela ${it.parcelaAtual}/${it.parcelasTotal}` : ''}${it.origem === 'rollover' ? ' · saldo transportado' : ''}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <strong>${brl(it.valor)}</strong>
+              <button data-excluir-item="${it.id}" title="Excluir este lançamento" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+            </div>
+          </div>`).join('');
+        el.querySelectorAll('[data-excluir-item]').forEach(b => b.addEventListener('click', async () => {
+          if (!(await confirmDelete('Excluir este lançamento da fatura?'))) return;
+          try {
+            await deleteDespesaPJ(uidAtual(), b.dataset.excluirItem);
+            toast('Lançamento excluído.');
+            await carregarTudo();
+            abrirFaturaDetalhe(cartaoId, faturaKey);
+          } catch (err) { toast(msgErro(err), 'error'); }
+        }));
+      }
+      modalFaturaDetalhe.classList.remove('hidden');
+    }
+    document.getElementById('btnFecharFaturaDetalhe').addEventListener('click', () => modalFaturaDetalhe.classList.add('hidden'));
+
+    // ─── Confirmar pagamento de fatura ──────────────────────────────────────
+    const modalConfirmarPag = document.getElementById('modalConfirmarPag');
+    let _cpCartaoId = null, _cpFaturaKey = null, _cpTotal = 0;
+    function abrirModalConfirmarPag(cartaoId, faturaKey) {
+      const fatura = _faturas.find(f => f.cartaoId === cartaoId && f.faturaKey === faturaKey);
+      if (!fatura) return;
+      _cpCartaoId = cartaoId; _cpFaturaKey = faturaKey; _cpTotal = fatura.totalExibido;
+      const cartao = _cartoes.find(c => c.id === cartaoId);
+      document.getElementById('cpNomeFatura').textContent = `${cartao?.nome || ''} · ${fmtFaturaKey(faturaKey)}`;
+      document.getElementById('cpTotalFatura').textContent = brl(_cpTotal);
+      document.querySelector('input[name="cpTipo"][value="total"]').checked = true;
+      document.getElementById('cpValorPago').value = '';
+      document.getElementById('cpValorReal').value = '';
+      document.getElementById('fgCpValorPago').style.display = 'none';
+      document.getElementById('fgCpValorReal').style.display = 'none';
+      modalConfirmarPag.classList.remove('hidden');
+    }
+    document.getElementById('btnCancelarCp').addEventListener('click', () => modalConfirmarPag.classList.add('hidden'));
+    document.querySelectorAll('input[name="cpTipo"]').forEach(r => r.addEventListener('change', (e) => {
+      document.getElementById('fgCpValorPago').style.display = e.target.value === 'parcial' ? '' : 'none';
+      document.getElementById('fgCpValorReal').style.display = e.target.value === 'diferente' ? '' : 'none';
+    }));
+
+    document.getElementById('btnConfirmarCp').addEventListener('click', async () => {
+      const btn = document.getElementById('btnConfirmarCp');
+      const tipo = document.querySelector('input[name="cpTipo"]:checked').value;
+      const cartao = _cartoes.find(c => c.id === _cpCartaoId);
+      const payload = { cartaoId: _cpCartaoId, faturaKey: _cpFaturaKey, nomeCartao: cartao?.nome };
+
+      if (tipo === 'total') {
+        payload.estado = 'paga_total';
+        payload.valorPago = _cpTotal;
+      } else if (tipo === 'parcial') {
+        const valorPago = parseFloat(document.getElementById('cpValorPago').value);
+        if (isNaN(valorPago) || valorPago <= 0 || valorPago >= _cpTotal) { toast('Informe um valor pago menor que o total.', 'warning'); return; }
+        payload.estado = 'paga_parcial';
+        payload.valorPago = valorPago;
+        payload.rollover = Math.round((_cpTotal - valorPago) * 100) / 100;
+        const [fAno, fMes] = _cpFaturaKey.split('-').map(Number);
+        const d = new Date(fAno, fMes, 1); // já avança 1 mês
+        payload.nextFaturaKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      } else {
+        const valorReal = parseFloat(document.getElementById('cpValorReal').value);
+        if (isNaN(valorReal) || valorReal < 0) { toast('Informe o valor real cobrado.', 'warning'); return; }
+        payload.ajusteTotal = valorReal;
+      }
+
+      setLoading(btn, true);
+      try {
+        await saveFaturaEstadoPJ(uidAtual(), payload);
+        modalConfirmarPag.classList.add('hidden');
+        toast('Fatura atualizada.');
+        await carregarTudo();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+  </script>
+</body>
+</html>

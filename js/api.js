@@ -818,6 +818,29 @@ export async function criarVendaAntigaParceladaPJ(uid, dados) {
   return callPJ('criarVendaAntigaParceladaPJ')({ uid, ...dados });
 }
 
+// ─── Cartões de crédito PJ ───────────────────────────────────────────────────
+export async function getCartoesPJ(uid) {
+  return callPJ('getCartoesPJ')({ uid });
+}
+export async function saveCartaoPJ(uid, cartao) {
+  return callPJ('saveCartaoPJ')({ uid, cartao });
+}
+export async function deleteCartaoPJ(uid, id) {
+  return callPJ('deleteCartaoPJ')({ uid, id });
+}
+export async function lancarCompraCartaoPJ(uid, dados) {
+  return callPJ('lancarCompraCartaoPJ')({ uid, ...dados });
+}
+export async function cancelarParcelasCartaoPJ(uid, parcelamentoId) {
+  return callPJ('cancelarParcelasCartaoPJ')({ uid, parcelamentoId });
+}
+export async function getFaturasCartaoPJ(uid) {
+  return callPJ('getFaturasCartaoPJ')({ uid });
+}
+export async function saveFaturaEstadoPJ(uid, dados) {
+  return callPJ('saveFaturaEstadoPJ')({ uid, ...dados });
+}
+
 // ─── CRM Pipeline ────────────────────────────────────────────────────────────
 
 /** Retorna todos os leads (filtros opcionais: segmento, estagio, origem). */
