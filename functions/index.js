@@ -1589,34 +1589,146 @@ Regras obrigatórias:
   },
 );
 
-// Fundos cuja classe REAL não bate com o rótulo regulatório do documento
-// (achado recorrente: 20/07/2026 com Alaska, 12/08/2026 de novo com Alaska
-// + Kinea IPCA Dinâmico). A instrução no prompt pra "classificar pela
-// estratégia real, não pelo rótulo legal" não é suficiente sozinha — a IA
-// (Haiku, otimizada pra custo/velocidade, não pra profundidade de
-// conhecimento sobre gestoras brasileiras específicas) já errou o MESMO
-// fundo (Alaska) duas vezes com confiança "alta", então nunca caiu no
-// fluxo de revisão manual (revisarClassesFundos em patrimonio.html só
-// mostra os marcados "baixa"). Esta lista sobrescreve determinística e
-// silenciosamente o que a IA disser pros fundos conhecidos — não depende
-// da IA "lembrar certo" toda vez. Cresce por demanda: quando aparecer mais
-// um fundo classificado errado, adiciona aqui (padrão = regex case
-// insensitive testada contra o nome do ativo extraído).
-const FUNDOS_CLASSE_CONHECIDA = [
-  // Kinea IPCA Dinâmico: fundo de crédito/inflação (Itaú Asset), não
-  // multimercado apesar do wrapper FIM.
-  { padrao: /kinea\s*ipca/i, classe: 'RF Inflação' },
-  // Família Alaska (Black, Institucional, Fund, Master etc.): gestora
-  // conhecida por posição long-biased em ações, apesar do wrapper FIM.
+// ─── Classificação de fundos: 3 camadas, nessa ordem de prioridade ─────────
+// (achado 12/08/2026, discutido com Flávia — layout final depois de descartar
+// "só um dicionário" e "só a base oficial CVM/Anbima" como soluções únicas):
+//
+// 1. GESTORAS_CLASSE_DELIBERADA — override manual. Cobre um padrão conhecido
+//    do MERCADO (não preferência da Flávia): gestoras/fundos que usam o
+//    wrapper "Multimercado" por exigência/conveniência REGULATÓRIA, mesmo
+//    com estratégia real claramente RV ou RF-crédito — comum em previdência
+//    (limite histórico de exposição a RV) e em fundos de crédito corporativo
+//    estruturados como MM pra atender critérios legais. O oficial (CVM e
+//    Anbima) concorda com "Multimercado" nesses casos — não é erro de
+//    registro, é o wrapper cumprindo a regra. Por isso nenhuma base de dados
+//    resolve sozinha; precisa da lista de gestoras/fundos conhecidos por
+//    esse padrão. Caso confirmado: Alaska (especialista em RV via MM).
+// 2. _classificarPorNomePadrao — regra determinística sobre o NOME do ativo
+//    (IPCA/INPC → RF Inflação, prefixado/pré → RF Pré, ações/equity/long
+//    only/long bias → RV). Não depende de banco nem de IA — cobre qualquer
+//    fundo do mercado com nomenclatura padrão.
+// 3. classificacaoOficialFundos (Firestore, por CNPJ) — base oficial CVM +
+//    Anbima, hoje importada da planilha de mercado da XP que a Flávia usa
+//    (scripts/importar-classificacao-fundos.js). Resolve os casos em que a
+//    IA erra de fato o "balde" grosso (ex: Kinea IPCA Dinâmico virou
+//    "Multimercado" quando o registro público diz Renda Fixa) e o nome não
+//    dá pista clara. Só entra quando a IA extraiu um CNPJ do documento.
+//
+// Só cai no palpite cru da IA (camada 4, sempre confiança "baixa" — ver
+// prompt) quando nenhuma das 3 acima resolve.
+
+const GESTORAS_CLASSE_DELIBERADA = [
+  // Alaska Asset Management: especializada em Renda Variável (posições
+  // concentradas, long-biased), mas classifica os fundos como Multimercado
+  // de propósito (liberdade de atuação — previdência tinha limite de
+  // exposição a RV até pouco tempo atrás). Dado de mercado, não opinião —
+  // a base oficial (CVM/Anbima) também concorda com "Multimercado", por
+  // isso nenhuma base de dados sozinha resolve este caso. A própria
+  // planilha de mercado confirma o padrão: quase todos os fundos Alaska têm
+  // "Long Only"/"Long Bias" no nome (já cobertos por PADROES_NOME_CLASSE
+  // abaixo) — esta entrada é só rede de segurança pros que não tiverem.
   { padrao: /alaska/i, classe: 'Renda Variável' },
 ];
 
-function _aplicarClasseConhecida(itens) {
+// Palavras no nome do ativo que indicam a subclasse real de Renda Fixa, ou
+// sinalizam Renda Variável mesmo sob wrapper de Multimercado. Testado nessa
+// ordem (a primeira que bater vence) — IPCA/pré primeiro porque são mais
+// específicos que "crédito" sozinho (ex: "Crédito Privado IPCA" é RF
+// Inflação, não só RF genérica).
+//
+// achado 12/08/2026, Flávia: "fundos de crédito corporativo classificados
+// como multimercado pra atender critérios legais" — confirmado nos dados
+// (planilha de mercado da XP): de 1.290 fundos com "crédito" no nome,
+// 1.014 (78%) vêm com Classificação CVM oficial "Multimercado". Não é caso
+// isolado pra listar fundo a fundo — é convenção de mercado no próprio nome
+// (Multimercado Crédito Privado / Crédito High Grade / Crédito High
+// Yield), então um padrão de texto cobre a fatia inteira do mercado sem
+// manutenção manual.
+// Fundos de previdência costumam levar no nome o TETO regulatório de
+// exposição a RV (ex: "Alaska 100", "Bradesco Dividendos 70", "Alfaprev
+// Mix 49"). Confirmado pela Flávia 12/08/2026: por definição, fundo de
+// Renda Variável precisa ter no mínimo 67% em ações — então um teto de
+// 70 ou 100 já habilita a classificação como RV pela política do fundo
+// (não precisa a alocação atual estar nesse nível, é a política que
+// importa). Teto de 49 (ou menor) fica abaixo do mínimo de 67% — não pode
+// ser RV por definição, continua Multimercado.
+const _RV_TETO_MINIMO = /\b(70|100)\b/;
+
+const PADROES_NOME_CLASSE = [
+  { padrao: /\b(ipca|inpc)\b/i, classe: 'RF Inflação' },
+  { padrao: /\bpr[eé]-?fixad[oa]\b/i, classe: 'RF Pré-fixado' },
+  { padrao: /\b(a[cç][oõ]es|equity|long\s*only|long\s*bias)\b/i, classe: 'Renda Variável' },
+  { padrao: _RV_TETO_MINIMO, classe: 'Renda Variável' },
+  { padrao: /\bcr[eé]dito\b|\bhigh\s*(grade|yield)\b/i, classe: 'RF Pós (liquidez diária)' },
+];
+
+function _classificarPorNomePadrao(nome) {
+  if (typeof nome !== 'string') return null;
+  const achado = PADROES_NOME_CLASSE.find(p => p.padrao.test(nome));
+  return achado ? achado.classe : null;
+}
+
+// Traduz a Classificação Anbima/CVM oficial pro vocabulário interno do
+// sistema. Retorna null pra categorias sem mapeamento claro (ex: "Data-Alvo"
+// / "Balanceados" — misturam RF+RV de propósito, não cabem numa classe só) —
+// nesses casos a função chamadora simplesmente não sobrescreve.
+function _classePorClassificacaoOficial(classeCvm, classeAnbima) {
+  const c = `${classeAnbima || ''} ${classeCvm || ''}`.toLowerCase();
+  if (/a[cç][oõ]es/.test(c)) return 'Renda Variável';
+  if (/cambial/.test(c)) return 'Internacional';
+  if (/multimercado/.test(c)) return 'Multimercado';
+  if (/renda fixa/.test(c)) return 'RF Pós (liquidez diária)'; // default dentro de RF; refinado por nome depois
+  return null;
+}
+
+/**
+ * Busca em lote a classificação oficial (CVM/Anbima) dos CNPJs extraídos
+ * pela IA. Retorna um mapa cnpj → {classeCvm, classeAnbima, nome, gestora}.
+ */
+async function _buscarClassificacaoOficial(cnpjs) {
+  const unicos = [...new Set(cnpjs.filter(Boolean))];
+  if (!unicos.length) return {};
+  const snaps = await Promise.all(
+    unicos.map(cnpj => db.collection('classificacaoOficialFundos').doc(cnpj).get().catch(() => null))
+  );
+  const mapa = {};
+  snaps.forEach((snap, i) => {
+    if (snap && snap.exists) mapa[unicos[i]] = snap.data();
+  });
+  return mapa;
+}
+
+async function _aplicarClasseConhecida(itens) {
+  const cnpjs = itens.map(it => it.cnpj).filter(Boolean);
+  const oficiais = await _buscarClassificacaoOficial(cnpjs);
+
   return itens.map(item => {
-    if (typeof item.nome !== 'string') return item;
-    const conhecido = FUNDOS_CLASSE_CONHECIDA.find(f => f.padrao.test(item.nome));
-    if (!conhecido) return item;
-    return { ...item, classe: conhecido.classe, confianca: 'alta' };
+    const nome = typeof item.nome === 'string' ? item.nome : '';
+
+    // Camada 1: override deliberado por gestora/fundo — sempre vence.
+    const deliberado = GESTORAS_CLASSE_DELIBERADA.find(f => f.padrao.test(nome));
+    if (deliberado) return { ...item, classe: deliberado.classe, confianca: 'alta' };
+
+    // Camada 3 primeiro (base oficial), depois refinada pela camada 2 (nome)
+    // quando o resultado cai em Renda Fixa genérica — "IPCA no nome" é mais
+    // específico que "Renda Fixa" sozinho.
+    const oficial = item.cnpj ? oficiais[item.cnpj] : null;
+    if (oficial) {
+      const classeOficial = _classePorClassificacaoOficial(oficial.classeCvm, oficial.classeAnbima);
+      if (classeOficial) {
+        const classeFinal = classeOficial.startsWith('RF ') ? (_classificarPorNomePadrao(nome) || classeOficial) : classeOficial;
+        return { ...item, classe: classeFinal, confianca: 'alta' };
+      }
+    }
+
+    // Camada 2 sozinha (sem CNPJ ou sem match na base) — nome ainda pode dar
+    // sinal forte o suficiente pra classificar sem ajuda de banco/IA.
+    const porNome = _classificarPorNomePadrao(nome);
+    if (porNome) return { ...item, classe: porNome, confianca: 'alta' };
+
+    // Nenhuma camada resolveu — mantém o palpite da própria IA (com a
+    // confiança que ela mesma reportou).
+    return item;
   });
 }
 
@@ -1721,9 +1833,10 @@ Regras obrigatórias:
 - Se algum ativo estiver em dólar, euro ou outra moeda estrangeira, converta para reais usando a cotação aproximada do dia de hoje (${new Date().toISOString().slice(0, 10)}) antes de somar — nunca deixe valores em moeda estrangeira misturados com reais no mesmo total.
 - "valor" sempre positivo, tipo número (não string), com ponto decimal, já em reais.
 - "nome": nome do ativo/fundo como aparece no documento (curto, até 80 caracteres).
+- "cnpj": CNPJ do fundo, SE aparecer no documento (comum em posições de corretora, geralmente perto do nome do ativo) — só dígitos, sem pontuação. Se não aparecer, use string vazia "". NUNCA invente um CNPJ que você não viu no documento.
 - "confianca": "alta" quando você tem certeza razoável da classe real (inclusive por reconhecer o fundo/gestora), "baixa" quando está no melhor palpite (documento ambíguo, fundo desconhecido, ou rótulo regulatório pode não bater com a estratégia real).
 - Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só). Formato:
-  {"itens": [{"nome": "<nome do ativo/fundo>", "classe": "<nome da classe>", "valor": <número>, "confianca": "alta"|"baixa"}, ...]}`)
+  {"itens": [{"nome": "<nome do ativo/fundo>", "cnpj": "<somente dígitos, ou \"\">", "classe": "<nome da classe>", "valor": <número>, "confianca": "alta"|"baixa"}, ...]}`)
       : `Você extrai dívidas e financiamentos a partir de documentos ou texto descrevendo passivos de usuárias brasileiras (financiamentos, empréstimos, faturas de cartão em aberto).
 
 Para cada dívida, identifique:
@@ -1817,9 +1930,10 @@ Regras obrigatórias:
         if (!classe) throw new HttpsError('internal', `Item ${i + 1}: classe vazia retornada pela IA.`);
         const nome = typeof it.nome === 'string' && it.nome.trim() ? it.nome.trim().slice(0, 80) : classe;
         const confianca = it.confianca === 'baixa' ? 'baixa' : 'alta';
-        return { nome, classe, valor, confianca };
+        const cnpj = typeof it.cnpj === 'string' ? it.cnpj.replace(/\D/g, '') : '';
+        return { nome, classe, valor, confianca, ...(cnpj ? { cnpj } : {}) };
       });
-      itens = _aplicarClasseConhecida(itens);
+      itens = await _aplicarClasseConhecida(itens);
     } else if (modo === 'ativos') {
       itens = itensBrutos.map((it, i) => {
         const valor = Number(it.valor);
