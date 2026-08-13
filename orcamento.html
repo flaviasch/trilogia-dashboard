@@ -3694,6 +3694,7 @@
       if (_recorrenteAtivo && _diaItem) {
         await pularFixaMes(item.recorrenteId, _diaItem);
       }
+      toast('Excluído.', 'success'); // achado 13/08/2026: faltava feedback, parecia que nada tinha acontecido
     }
 
     // Confirma um lançamento pendente (despesa ou receita): some da lista de
