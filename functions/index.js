@@ -1589,6 +1589,37 @@ Regras obrigatórias:
   },
 );
 
+// Fundos cuja classe REAL não bate com o rótulo regulatório do documento
+// (achado recorrente: 20/07/2026 com Alaska, 12/08/2026 de novo com Alaska
+// + Kinea IPCA Dinâmico). A instrução no prompt pra "classificar pela
+// estratégia real, não pelo rótulo legal" não é suficiente sozinha — a IA
+// (Haiku, otimizada pra custo/velocidade, não pra profundidade de
+// conhecimento sobre gestoras brasileiras específicas) já errou o MESMO
+// fundo (Alaska) duas vezes com confiança "alta", então nunca caiu no
+// fluxo de revisão manual (revisarClassesFundos em patrimonio.html só
+// mostra os marcados "baixa"). Esta lista sobrescreve determinística e
+// silenciosamente o que a IA disser pros fundos conhecidos — não depende
+// da IA "lembrar certo" toda vez. Cresce por demanda: quando aparecer mais
+// um fundo classificado errado, adiciona aqui (padrão = regex case
+// insensitive testada contra o nome do ativo extraído).
+const FUNDOS_CLASSE_CONHECIDA = [
+  // Kinea IPCA Dinâmico: fundo de crédito/inflação (Itaú Asset), não
+  // multimercado apesar do wrapper FIM.
+  { padrao: /kinea\s*ipca/i, classe: 'RF Inflação' },
+  // Família Alaska (Black, Institucional, Fund, Master etc.): gestora
+  // conhecida por posição long-biased em ações, apesar do wrapper FIM.
+  { padrao: /alaska/i, classe: 'Renda Variável' },
+];
+
+function _aplicarClasseConhecida(itens) {
+  return itens.map(item => {
+    if (typeof item.nome !== 'string') return item;
+    const conhecido = FUNDOS_CLASSE_CONHECIDA.find(f => f.padrao.test(item.nome));
+    if (!conhecido) return item;
+    return { ...item, classe: conhecido.classe, confianca: 'alta' };
+  });
+}
+
 /**
  * categorizarPatrimonioIA — extrai e classifica ativos ou dívidas a partir de
  * declaração de IR, posição de corretora, ou lista de dívidas (texto colado,
@@ -1788,6 +1819,7 @@ Regras obrigatórias:
         const confianca = it.confianca === 'baixa' ? 'baixa' : 'alta';
         return { nome, classe, valor, confianca };
       });
+      itens = _aplicarClasseConhecida(itens);
     } else if (modo === 'ativos') {
       itens = itensBrutos.map((it, i) => {
         const valor = Number(it.valor);
