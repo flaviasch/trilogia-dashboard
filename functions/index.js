@@ -53,6 +53,7 @@ const {
   emailNovidadesJun2026Completo,
   emailNovidadesJul2026,
   emailNovidadesJul2026Completo,
+  emailNovidadesAgo2026Completo,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
   emailRaioXJul2026,
@@ -7772,7 +7773,15 @@ exports.salvarReservaMinimaCaixaPJ = onCall({}, async (request) => {
   return { ok: true };
 });
 
-const TIPOS_RESERVA_PJ = new Set(['emergencia', 'investimento', 'outro']);
+// 'sazonalidade' e 'imprevistos' são tipos NOVOS, distintos de 'emergencia'
+// (que já significa "sazonalidade" na UI de Reservas desde 29/07/2026 — ver
+// TIPO_LABEL em reservas-pj.html). Decisão de Flávia (14/08/2026, fatia
+// Pró-labore): são conceitos diferentes na prática — sazonalidade cobre
+// meses de faturamento baixo pra manter o pró-labore, "imprevistos" é
+// reserva de emergência de verdade (máquina quebrar etc). Reaproveitar
+// 'emergencia' pros dois colidiria/confundiria com reservas que a
+// mentorada já tenha criado manualmente na aba Reservas.
+const TIPOS_RESERVA_PJ = new Set(['emergencia', 'investimento', 'outro', 'sazonalidade', 'imprevistos']);
 
 exports.criarReservaPJ = onCall({}, async (request) => {
   const { uid, nome, tipo, valorMeta, dataMeta } = request.data;
@@ -7875,6 +7884,296 @@ exports.excluirReservaPJ = onCall({}, async (request) => {
   if (!reservaId) throw new HttpsError('invalid-argument', 'reservaId é obrigatório.');
   const { ref } = await _reservaDoUid(uid, reservaId);
   await ref.update({ ativa: false });
+  return { ok: true };
+});
+
+// ─── Pró-labore com previsibilidade (14/08/2026, fatia fechada em
+// dashboard-pj/BLUEPRINT.md) ────────────────────────────────────────────────
+// Origem: nem Ponto de Equilíbrio (só despesas fixas) nem Retirada Sugerida
+// (aba Reservas, recalcula a cada visita) respondem "quanto posso tirar de
+// salário com previsibilidade". Aqui o salário é travado por trimestre civil
+// (calculado 1x, aprovado pela mentorada, só muda na próxima virada) e o
+// excedente mensal (Lucro Líquido do mês − salário travado) é distribuído em
+// 4 baldes: sazonalidade/emergência/reinvestimento (reservas de verdade,
+// mesmo mecanismo de reservasPJ) e distribuição de lucro (saldo simples
+// acumulado, sem reserva). Não recalcula nada de DRE/Reservas/Fluxo de
+// Caixa — só LÊ (_calcularDRESimplificado) e usa o aporte de reserva já
+// existente (registrarMovimentoReservaPJ via _reservaDoUid).
+
+const PROLABORE_REDUTOR_PADRAO = 10; // % de segurança sobre a média (Profit First, revisável)
+const PROLABORE_JANELA_MAX_MESES = 6;
+const META_SENTINELA_SEM_META_PJ = 999999999; // reinvestimento sem meta definida (criarReservaPJ exige valorMeta > 0)
+
+const NOME_RESERVA_SAZONALIDADE_PL = 'Sazonalidade (Pró-labore)';
+const NOME_RESERVA_EMERGENCIA_PL   = 'Emergência (Pró-labore)';
+const NOME_RESERVA_REINVEST_PL     = 'Reinvestimento (Pró-labore)';
+
+// Reinvestimento usa reserva DEDICADA de nome fixo (não a primeira reserva
+// tipo 'investimento' que aparecer) — decisão de Flávia 14/08/2026: evita
+// ambiguidade se a mentorada já tiver metas livres tipo 'investimento'
+// criadas manualmente na aba Reservas.
+const BALDE_RESERVA_CONFIG_PJ = {
+  sazonalidade:   { tipo: 'sazonalidade', nome: NOME_RESERVA_SAZONALIDADE_PL, mesesMeta: 6 },
+  emergencia:     { tipo: 'imprevistos',  nome: NOME_RESERVA_EMERGENCIA_PL,   mesesMeta: 3 },
+  reinvestimento: { tipo: 'investimento', nome: NOME_RESERVA_REINVEST_PL,     mesesMeta: null },
+};
+
+function _trimestreDoMesPJ(mes) { return Math.floor((mes - 1) / 3) + 1; }
+function _primeiroMesDoTrimestrePJ(trimestre) { return (trimestre - 1) * 3 + 1; }
+
+/**
+ * Janela adaptativa de até 6 meses FECHADOS imediatamente antes do início do
+ * trimestre, andando pra trás a partir do 1º mês do trimestre — pára no
+ * primeiro mês sem nenhuma nota emitida (limite real do histórico da
+ * empresa), mesmo que isso dê menos de 6 meses.
+ */
+async function _calcularSugestaoSalarioPJ(uid, trimestre, ano) {
+  const primeiroMes = _primeiroMesDoTrimestrePJ(trimestre);
+  const meses = [];
+  let cursorMes = primeiroMes, cursorAno = ano;
+  for (let i = 0; i < PROLABORE_JANELA_MAX_MESES; i++) {
+    cursorMes--; if (cursorMes < 1) { cursorMes = 12; cursorAno--; }
+    const notasSnap = await db.collection('notasEmitidas')
+      .where('uid', '==', uid).where('mes', '==', cursorMes).where('ano', '==', cursorAno).limit(1).get();
+    if (notasSnap.empty) break; // sem histórico além daqui
+    const dre = await _calcularDRESimplificado(uid, cursorMes, cursorAno);
+    meses.unshift({ mes: cursorMes, ano: cursorAno, lucroLiquido: dre.lucroLiquido });
+  }
+  const mediaUsada = meses.length ? Math.round((meses.reduce((s, m) => s + m.lucroLiquido, 0) / meses.length) * 100) / 100 : 0;
+  const valor = Math.max(0, Math.round(mediaUsada * (1 - PROLABORE_REDUTOR_PADRAO / 100) * 100) / 100);
+  return { valor, baseCalculo: { meses, mediaUsada, redutorPercentual: PROLABORE_REDUTOR_PADRAO } };
+}
+
+/** Salário aprovado (ou 0 se nunca aprovado) vigente num trimestre/ano específico — olha trimestreAtual ou o histórico arquivado. */
+async function _salarioAprovadoNoTrimestrePJ(uid, trimestre, ano, dadosAtuais) {
+  if (dadosAtuais.trimestreAtual && dadosAtuais.trimestreAtual.trimestre === trimestre && dadosAtuais.trimestreAtual.ano === ano) {
+    return dadosAtuais.trimestreAtual.aprovadoEm ? (dadosAtuais.trimestreAtual.salarioTravado || 0) : 0;
+  }
+  const histSnap = await db.collection('proLaborePJ').doc(uid).collection('trimestres').doc(`${trimestre}-${ano}`).get();
+  if (!histSnap.exists) return 0;
+  const h = histSnap.data();
+  return h.aprovadoEm ? (h.salarioTravado || 0) : 0;
+}
+
+/**
+ * Acumula no saldoADistribuir a fração do excedente dos meses que FECHARAM
+ * desde a última chamada (idempotente via `ultimoMesProcessado` salvo no
+ * doc) — nunca processa o mês corrente (ainda em andamento). Na primeira
+ * chamada de sempre (sem ultimoMesProcessado salvo), não varre retroativo:
+ * só passa a valer a partir de agora, pra não jogar de uma vez vários meses
+ * de excedente pré-Pró-labore no saldo a distribuir.
+ */
+async function _processarMesesFechadosProLaborePJ(uid, dados) {
+  const hoje = new Date();
+  const mesAtualNum = hoje.getMonth() + 1, anoAtualNum = hoje.getFullYear();
+
+  if (!dados.ultimoMesProcessado) {
+    return { saldoADistribuirDelta: 0, novoUltimoMesProcessado: { mes: mesAtualNum, ano: anoAtualNum } };
+  }
+
+  let { mes: cursorMes, ano: cursorAno } = dados.ultimoMesProcessado;
+  const pct = (dados.percentuaisBaldes?.distribuicao ?? 20) / 100;
+  let delta = 0;
+  let avancou = false;
+
+  while (true) {
+    let proxMes = cursorMes + 1, proxAno = cursorAno;
+    if (proxMes > 12) { proxMes = 1; proxAno++; }
+    if (proxAno > anoAtualNum || (proxAno === anoAtualNum && proxMes >= mesAtualNum)) break; // não processa o mês corrente
+
+    const dre = await _calcularDRESimplificado(uid, proxMes, proxAno);
+    const trimestreDoMes = _trimestreDoMesPJ(proxMes);
+    const salario = await _salarioAprovadoNoTrimestrePJ(uid, trimestreDoMes, proxAno, dados);
+    const excedente = dre.lucroLiquido - salario;
+    delta += excedente * pct;
+    cursorMes = proxMes; cursorAno = proxAno;
+    avancou = true;
+  }
+
+  if (!avancou) return { saldoADistribuirDelta: 0, novoUltimoMesProcessado: dados.ultimoMesProcessado };
+  return { saldoADistribuirDelta: Math.round(delta * 100) / 100, novoUltimoMesProcessado: { mes: cursorMes, ano: cursorAno } };
+}
+
+/** Acha (ou cria, com meta calculada) a reserva dedicada de um balde. */
+async function _resolverReservaBaldePJ(uid, balde) {
+  const cfg = BALDE_RESERVA_CONFIG_PJ[balde];
+  const snap = await db.collection('reservasPJ')
+    .where('uid', '==', uid).where('tipo', '==', cfg.tipo).where('nome', '==', cfg.nome).limit(1).get();
+  if (!snap.empty) return snap.docs[0].id;
+
+  let valorMeta = META_SENTINELA_SEM_META_PJ;
+  if (cfg.mesesMeta != null) {
+    const hoje = new Date();
+    const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
+    const despesaOperacionalMensal = despesasSnap.docs.reduce((s, d) => {
+      const desp = d.data();
+      const oc = _ocorrenciaDespesaPJ(desp, hoje.getMonth() + 1, hoje.getFullYear());
+      return oc ? s + (desp.valor || 0) : s;
+    }, 0);
+    const calculada = Math.round(despesaOperacionalMensal * cfg.mesesMeta * 100) / 100;
+    if (calculada > 0) valorMeta = calculada; // sem despesa configurada ainda -- fica sem meta visível até ter dado
+  }
+
+  const ref = await db.collection('reservasPJ').add({
+    uid, nome: cfg.nome, tipo: cfg.tipo, valorMeta, dataMeta: null,
+    saldoAtual: 0, ativa: true, criadaEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return ref.id;
+}
+
+exports.getProLaborePJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const ref = db.collection('proLaborePJ').doc(uid);
+  const snap = await ref.get();
+  let dados = snap.exists ? snap.data() : {
+    uid, trimestreAtual: null,
+    percentuaisBaldes: { sazonalidade: 40, emergencia: 20, reinvestimento: 20, distribuicao: 20 },
+    saldoADistribuir: 0,
+  };
+  if (!snap.exists) await ref.set({ ...dados, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+
+  const hoje = new Date();
+  const mesAtualNum = hoje.getMonth() + 1, anoAtualNum = hoje.getFullYear();
+  const trimestreAtualNum = _trimestreDoMesPJ(mesAtualNum);
+
+  const proc = await _processarMesesFechadosProLaborePJ(uid, dados);
+  if (proc.saldoADistribuirDelta !== 0 || !dados.ultimoMesProcessado) {
+    const novoSaldoADistribuir = Math.round(((dados.saldoADistribuir || 0) + proc.saldoADistribuirDelta) * 100) / 100;
+    await ref.set({ saldoADistribuir: novoSaldoADistribuir, ultimoMesProcessado: proc.novoUltimoMesProcessado, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    dados = { ...dados, saldoADistribuir: novoSaldoADistribuir, ultimoMesProcessado: proc.novoUltimoMesProcessado };
+  }
+
+  const trimestreBate = dados.trimestreAtual && dados.trimestreAtual.trimestre === trimestreAtualNum && dados.trimestreAtual.ano === anoAtualNum;
+  let sugestaoPendente = null;
+  if (!trimestreBate || !dados.trimestreAtual.aprovadoEm) {
+    sugestaoPendente = await _calcularSugestaoSalarioPJ(uid, trimestreAtualNum, anoAtualNum);
+  }
+
+  const salarioVigente = (trimestreBate && dados.trimestreAtual.aprovadoEm) ? (dados.trimestreAtual.salarioTravado || 0) : 0;
+  const dreAtual = await _calcularDRESimplificado(uid, mesAtualNum, anoAtualNum);
+  const excedenteMesAtual = Math.round((dreAtual.lucroLiquido - salarioVigente) * 100) / 100;
+
+  const reservasSnap = await db.collection('reservasPJ').where('uid', '==', uid).where('ativa', '==', true).get();
+  const reservasPorNome = {};
+  reservasSnap.docs.forEach(d => { reservasPorNome[d.data().nome] = { id: d.id, ...d.data() }; });
+  const statusBaldes = {};
+  for (const [balde, cfg] of Object.entries(BALDE_RESERVA_CONFIG_PJ)) {
+    const r = reservasPorNome[cfg.nome];
+    statusBaldes[balde] = r ? {
+      reservaId: r.id, saldoAtual: r.saldoAtual || 0, valorMeta: r.valorMeta,
+      metaBatida: r.valorMeta < META_SENTINELA_SEM_META_PJ && (r.saldoAtual || 0) >= r.valorMeta,
+    } : { reservaId: null, saldoAtual: 0, valorMeta: null, metaBatida: false };
+  }
+
+  return {
+    trimestreAtual: dados.trimestreAtual || null,
+    sugestaoPendente,
+    percentuaisBaldes: dados.percentuaisBaldes,
+    saldoADistribuir: dados.saldoADistribuir || 0,
+    excedenteMesAtual,
+    lucroLiquidoMesAtual: dreAtual.lucroLiquido,
+    salarioVigente,
+    statusBaldes,
+  };
+});
+
+exports.aprovarSalarioTrimestrePJ = onCall({}, async (request) => {
+  const { uid, valor } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (typeof valor !== 'number' || valor <= 0) throw new HttpsError('invalid-argument', 'valor deve ser um número positivo.');
+
+  const hoje = new Date();
+  const mesAtualNum = hoje.getMonth() + 1, anoAtualNum = hoje.getFullYear();
+  const trimestreAtualNum = _trimestreDoMesPJ(mesAtualNum);
+
+  const ref = db.collection('proLaborePJ').doc(uid);
+  const snap = await ref.get();
+  const dados = snap.exists ? snap.data() : {};
+
+  const sugestao = await _calcularSugestaoSalarioPJ(uid, trimestreAtualNum, anoAtualNum);
+  const agora = admin.firestore.FieldValue.serverTimestamp();
+  const novoTrimestreAtual = {
+    trimestre: trimestreAtualNum, ano: anoAtualNum,
+    salarioTravado: valor, baseCalculo: sugestao.baseCalculo,
+    calculadoEm: agora, aprovadoEm: agora,
+  };
+
+  const batch = db.batch();
+  if (dados.trimestreAtual && (dados.trimestreAtual.trimestre !== trimestreAtualNum || dados.trimestreAtual.ano !== anoAtualNum)) {
+    const idAnterior = `${dados.trimestreAtual.trimestre}-${dados.trimestreAtual.ano}`;
+    batch.set(ref.collection('trimestres').doc(idAnterior), { ...dados.trimestreAtual, arquivadoEm: agora });
+  }
+  batch.set(ref, {
+    uid, trimestreAtual: novoTrimestreAtual,
+    percentuaisBaldes: dados.percentuaisBaldes || { sazonalidade: 40, emergencia: 20, reinvestimento: 20, distribuicao: 20 },
+    saldoADistribuir: dados.saldoADistribuir || 0,
+    ultimoMesProcessado: dados.ultimoMesProcessado || { mes: mesAtualNum, ano: anoAtualNum },
+    atualizadoEm: agora,
+  }, { merge: true });
+  await batch.commit();
+
+  return { ok: true, trimestreAtual: { trimestre: trimestreAtualNum, ano: anoAtualNum, salarioTravado: valor } };
+});
+
+exports.salvarPercentuaisBaldesProLaborePJ = onCall({}, async (request) => {
+  const { uid, sazonalidade, emergencia, reinvestimento, distribuicao } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const campos = { sazonalidade, emergencia, reinvestimento, distribuicao };
+  for (const [k, v] of Object.entries(campos)) {
+    if (typeof v !== 'number' || v < 0) throw new HttpsError('invalid-argument', `${k} deve ser um número não-negativo.`);
+  }
+  const soma = sazonalidade + emergencia + reinvestimento + distribuicao;
+  if (Math.abs(soma - 100) > 0.5) throw new HttpsError('invalid-argument', `Os percentuais devem somar 100% (soma atual: ${soma}%).`);
+
+  await db.collection('proLaborePJ').doc(uid).set({
+    uid, percentuaisBaldes: campos, atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return { ok: true };
+});
+
+exports.confirmarAporteBaldeExcedentePJ = onCall({}, async (request) => {
+  const { uid, balde, valor } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!BALDE_RESERVA_CONFIG_PJ[balde] || balde === 'distribuicao') throw new HttpsError('invalid-argument', 'balde deve ser sazonalidade, emergencia ou reinvestimento.');
+  if (typeof valor !== 'number' || valor <= 0) throw new HttpsError('invalid-argument', 'valor deve ser um número positivo.');
+
+  const reservaId = await _resolverReservaBaldePJ(uid, balde);
+  const { ref, reserva } = await _reservaDoUid(uid, reservaId);
+  const novoSaldo = Math.round(((reserva.saldoAtual || 0) + valor) * 100) / 100;
+  const hojeISO = new Date().toISOString().slice(0, 10);
+
+  await db.runTransaction(async (tx) => {
+    tx.update(ref, { saldoAtual: novoSaldo });
+    tx.set(ref.collection('movimentos').doc(), {
+      uid, tipo: 'aporte', valor, data: hojeISO, origem: 'prolabore',
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+  return { ok: true, reservaId, saldoAtual: novoSaldo };
+});
+
+exports.registrarDistribuicaoLucroPJ = onCall({}, async (request) => {
+  const { uid, valor } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (typeof valor !== 'number' || valor <= 0) throw new HttpsError('invalid-argument', 'valor deve ser um número positivo.');
+
+  const ref = db.collection('proLaborePJ').doc(uid);
+  const hojeISO = new Date().toISOString().slice(0, 10);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const saldoAtual = snap.exists ? (snap.data().saldoADistribuir || 0) : 0;
+    if (valor > saldoAtual) {
+      throw new HttpsError('failed-precondition', `Saldo insuficiente: você tem ${saldoAtual.toFixed(2)} a distribuir e tentou retirar ${valor.toFixed(2)}.`);
+    }
+    const novoSaldo = Math.round((saldoAtual - valor) * 100) / 100;
+    tx.set(ref, { uid, saldoADistribuir: novoSaldo, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(ref.collection('distribuicoes').doc(), {
+      uid, valor, data: hojeISO, saldoAntesDaRetirada: saldoAtual, criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
   return { ok: true };
 });
 
@@ -8709,6 +9008,31 @@ exports.anunciarNovidadesJul2026Completo = onCall({ secrets: SECRETS_EMAIL }, as
   }
   await db.collection('config').doc('comunicados').set(
     { novidadesJul2026Completo: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+exports.anunciarNovidadesAgo2026Completo = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Tudo que melhoramos em Agosto para você — Trilogia Dashboard',
+        html:    emailNovidadesAgo2026Completo(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarNovidadesAgo2026Completo] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { novidadesAgo2026Completo: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };

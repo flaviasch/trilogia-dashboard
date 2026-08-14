@@ -62,6 +62,7 @@
         <a href="contas-a-pagar-pj.html">Contas a Pagar</a>
         <a href="cartoes-pj.html">Cartões</a>
         <a href="dre-pj.html">DRE</a>
+        <a href="pro-labore-pj.html">Pró-labore</a>
         <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
         <a href="reservas-pj.html">Reservas</a>
       </nav>
@@ -153,6 +154,24 @@
       <p class="faq-a">Sim — é o quanto você quer poder tirar por mês. O valor salvo vale pra todos os meses até você mudar de novo; não precisa redigitar mês a mês.</p>
     </div>
 
+    <div class="secao-titulo">Pró-labore</div>
+    <div class="faq-item">
+      <p class="faq-q">Por que meu salário fica travado o trimestre inteiro, em vez de mudar todo mês?</p>
+      <p class="faq-a">É essa a ideia: seu faturamento varia mês a mês (é normal, todo negócio tem meses melhores e piores), mas seu salário não deveria variar junto — senão fica impossível planejar sua vida pessoal. Por isso o valor é calculado uma vez no fechamento do trimestre anterior (média do Lucro Líquido dos últimos meses, com uma margem de segurança de 10% pra baixo), você aprova ou ajusta, e ele fica fixo até a próxima virada de trimestre. Nunca muda sozinho no meio do caminho.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">O que acontece quando uma reserva de Sazonalidade ou Emergência bate 100% da meta?</p>
+      <p class="faq-a">O percentual dela sai da conta do mês e é redistribuído proporcionalmente entre os baldes que ainda não bateram meta — assim o excedente continua sendo 100% alocado, sem sobra. Isso é só uma sugestão de exibição: nada é confirmado sozinho, você continua clicando pra efetivar cada aporte.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">Qual a diferença entre a calculadora "sugerir" e eu "efetivar" o aporte?</p>
+      <p class="faq-a">A calculadora só sugere valores — pro salário do trimestre, pro excedente do mês e pra cada um dos 4 baldes. Nada disso mexe em saldo nenhum sozinho. Você decide clicando em "Aprovar" (salário) ou "Confirmar aporte"/"Registrar distribuição" (baldes) — só aí o dinheiro é de fato registrado na reserva ou no saldo a distribuir.</p>
+    </div>
+    <div class="faq-item">
+      <p class="faq-q">Sazonalidade, Emergência e a antiga "Reserva de sazonalidade" da aba Reservas são a mesma coisa?</p>
+      <p class="faq-a">Não. Sazonalidade e Emergência do Pró-labore são reservas próprias, dedicadas a esse cálculo, separadas de qualquer reserva que você já tenha criado manualmente na aba Reservas — mesmo que o nome pareça parecido. Isso evita misturar um controle com o outro.</p>
+    </div>
+
     <div class="secao-titulo">Reservas</div>
     <div class="faq-item">
       <p class="faq-q">O que é o Capital de Giro e por que ele é diferente de uma reserva?</p>
@@ -206,7 +225,7 @@
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     // ─── ViewAs (admin visualizando dashboard PJ da mentorada) ────────────────
-    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','cartoes-pj.html','dre-pj.html','fluxo-caixa-pj.html','reservas-pj.html','ajuda-pj.html'];
+    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','cartoes-pj.html','dre-pj.html','pro-labore-pj.html','fluxo-caixa-pj.html','reservas-pj.html','ajuda-pj.html'];
     const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
                      || localStorage.getItem('viewAsUid');
     if (VIEW_AS_UID) {

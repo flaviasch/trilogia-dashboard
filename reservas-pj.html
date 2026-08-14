@@ -99,6 +99,7 @@
         <a href="contas-a-pagar-pj.html">Contas a Pagar</a>
         <a href="cartoes-pj.html">Cartões</a>
         <a href="dre-pj.html">DRE</a>
+        <a href="pro-labore-pj.html">Pró-labore</a>
         <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
         <a href="reservas-pj.html" class="ativo">Reservas</a>
       </nav>
@@ -242,7 +243,7 @@
       getContaPJ, getIndicadoresReservasPJ, salvarReservaMinimaCaixaPJ,
       criarReservaPJ, getReservasPJ, registrarMovimentoReservaPJ, ajustarSaldoReservaPJ, excluirReservaPJ,
       msgErro, setViewAsUid, uidAtual,
-    } from './js/api.js?v=53';
+    } from './js/api.js?v=57';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { toast, setLoading } from './js/ui.js';
     import { cacheGet, cacheSet } from './js/page-cache.js';
@@ -250,7 +251,7 @@
     const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
       'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
     const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
-    const TIPO_LABEL = { emergencia: 'Reserva de sazonalidade', investimento: 'Reserva de investimento', outro: 'Outra reserva' };
+    const TIPO_LABEL = { emergencia: 'Reserva de sazonalidade', investimento: 'Reserva de investimento', outro: 'Outra reserva', sazonalidade: 'Sazonalidade (Pró-labore)', imprevistos: 'Emergência (Pró-labore)' };
 
     let currentUser = null;
     let mesAtual = new Date().getMonth() + 1;
@@ -258,7 +259,7 @@
     let _indicadoresCache = null;
 
     // ─── ViewAs (admin visualizando dashboard PJ da mentorada) ────────────────
-    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','cartoes-pj.html','dre-pj.html','fluxo-caixa-pj.html','reservas-pj.html','ajuda-pj.html'];
+    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','cartoes-pj.html','dre-pj.html','pro-labore-pj.html','fluxo-caixa-pj.html','reservas-pj.html','ajuda-pj.html'];
     const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
                      || localStorage.getItem('viewAsUid');
     if (VIEW_AS_UID) {

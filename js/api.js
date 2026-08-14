@@ -798,6 +798,23 @@ export async function excluirReservaPJ(uid, reservaId) {
   return callPJ('excluirReservaPJ')({ uid, reservaId });
 }
 
+// Pró-labore com previsibilidade (14/08/2026)
+export async function getProLaborePJ(uid) {
+  return callPJ('getProLaborePJ')({ uid });
+}
+export async function aprovarSalarioTrimestrePJ(uid, valor) {
+  return callPJ('aprovarSalarioTrimestrePJ')({ uid, valor });
+}
+export async function salvarPercentuaisBaldesProLaborePJ(uid, percentuais) {
+  return callPJ('salvarPercentuaisBaldesProLaborePJ')({ uid, ...percentuais });
+}
+export async function confirmarAporteBaldeExcedentePJ(uid, balde, valor) {
+  return callPJ('confirmarAporteBaldeExcedentePJ')({ uid, balde, valor });
+}
+export async function registrarDistribuicaoLucroPJ(uid, valor) {
+  return callPJ('registrarDistribuicaoLucroPJ')({ uid, valor });
+}
+
 // Importação de extrato/fatura com IA (28/07/2026)
 export async function categorizarExtratoPJIA(uid, conteudo, tipoConteudo) {
   return callPJ('categorizarExtratoPJIA')({ uid, conteudo, tipoConteudo });
@@ -1283,6 +1300,11 @@ export async function anunciarNovidadesJul2026() {
 /** Dispara e-mail completo de Julho/2026 — todas as melhorias do mês. Admin only. */
 export async function anunciarNovidadesJul2026Completo() {
   return call('anunciarNovidadesJul2026Completo')({});
+}
+
+/** Dispara e-mail completo de Agosto/2026 — todas as melhorias do mês. Admin only. */
+export async function anunciarNovidadesAgo2026Completo() {
+  return call('anunciarNovidadesAgo2026Completo')({});
 }
 
 /** Dispara e-mail de balanço Jul/2026 — Detalhe, Planejamento e despesas fixas. Admin only. */

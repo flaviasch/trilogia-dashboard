@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard PJ — Pró-labore</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45; --navy-dark: #081e30;
+      --gold: #CFAE65; --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(255,255,255,0.1);
+      --text-muted: rgba(255,255,255,0.45);
+      --positive: #4ade80; --negative: #f87171;
+      --card-bg: rgba(255,255,255,0.03);
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--navy);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
+    .empresa-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .nav-pj { display: flex; gap: 4px; flex-wrap: wrap; }
+    .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+    .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
+    .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    .view-as-banner { display: none; background: rgba(207,174,101,0.12); border-bottom: 1px solid rgba(207,174,101,0.3); padding: 10px 24px; font-size: 13px; color: var(--gold); gap: 12px; align-items: center; }
+    .view-as-banner a { color: var(--gold); margin-left: auto; }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+    .card-ouro { background: linear-gradient(135deg, rgba(207,174,101,0.12), rgba(207,174,101,0.03)); border: 1px solid rgba(207,174,101,0.3); }
+    .card-titulo { font-family: 'Playfair Display', serif; font-size: 16px; margin-bottom: 4px; }
+    .card-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+    .card-valor { font-size: 30px; font-weight: 700; color: var(--gold); margin-bottom: 4px; }
+    .card-valor.negativo { color: var(--negative); }
+    .card-valor.pequeno { font-size: 22px; }
+    .card-composicao { font-size: 12px; color: var(--text-muted); }
+    .card-aviso { font-size: 11px; color: var(--text-muted); margin-top: 10px; font-style: italic; }
+    .card-ok { font-size: 13px; color: var(--positive); background: rgba(74,222,128,.1); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; padding: 12px 14px; margin-top: 10px; }
+    .card-alerta { font-size: 12px; color: var(--gold); background: rgba(207,174,101,.1); border: 1px solid rgba(207,174,101,.3); border-radius: 8px; padding: 10px 14px; margin-top: 10px; }
+
+    .selo { display: inline-block; font-size: 11px; color: var(--gold); background: rgba(207,174,101,.12); border: 1px solid rgba(207,174,101,.3); border-radius: 20px; padding: 3px 10px; margin-bottom: 10px; }
+
+    .expander-toggle { font-size: 12px; color: var(--gold); background: none; border: none; cursor: pointer; padding: 0; text-decoration: underline; margin-top: 8px; }
+    .expander-conteudo { display: none; margin-top: 12px; padding: 12px 14px; background: rgba(255,255,255,.03); border-radius: 8px; font-size: 12px; color: var(--text-muted); }
+    .expander-conteudo.aberto { display: block; }
+    .expander-conteudo table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    .expander-conteudo td { padding: 3px 0; }
+    .expander-conteudo td:last-child { text-align: right; color: var(--white); }
+
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
+    .field-group input { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-row { display: flex; gap: 10px; align-items: flex-end; }
+    .field-row .field-group { flex: 1; margin-bottom: 0; }
+    input[type="range"] { width: 100%; accent-color: var(--gold); }
+    .range-valor { font-size: 13px; color: var(--gold); font-weight: 600; text-align: right; }
+
+    .btn-acao { background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 10px 16px; font-weight: 700; cursor: pointer; font-size: 13px; white-space: nowrap; }
+    .btn-acao-secundario { background: none; border: 1px solid rgba(207,174,101,0.4); color: var(--gold); border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .btn-acao-fraco { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+
+    .secao-titulo { font-size: 14px; font-weight: 600; margin-bottom: 12px; margin-top: 32px; }
+
+    .balde { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px; }
+    .balde:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+    .balde-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .balde-nome { font-size: 14px; font-weight: 600; }
+    .balde-pct { font-size: 13px; color: var(--gold); font-weight: 600; }
+    .balde-progresso-track { background: rgba(255,255,255,.06); border-radius: 20px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .balde-progresso-fill { background: var(--gold); height: 100%; }
+    .balde-valores { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+    .balde-acoes { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .balde-acoes .field-group { flex: 1; min-width: 140px; margin-bottom: 0; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
+    .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
+      <p class="empresa-nome" id="empresaNome">—</p>
+      <nav class="nav-pj">
+        <a href="notas-pj.html">Notas</a>
+        <a href="recebimentos-pj.html">Contas a Receber</a>
+        <a href="impostos-pj.html">Impostos</a>
+        <a href="contas-a-pagar-pj.html">Contas a Pagar</a>
+        <a href="cartoes-pj.html">Cartões</a>
+        <a href="dre-pj.html">DRE</a>
+        <a href="pro-labore-pj.html" class="ativo">Pró-labore</a>
+        <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
+        <a href="reservas-pj.html">Reservas</a>
+      </nav>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="ajuda-pj.html" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">❓ Ajuda</a>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </header>
+
+  <div class="view-as-banner" id="viewAsBanner">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html">← Voltar ao admin</a>
+  </div>
+
+  <main>
+    <h1>Pró-labore</h1>
+    <p class="subtitulo">Quanto você pode tirar de salário com previsibilidade — separado do que é lucro excedente.</p>
+
+    <div class="card card-ouro">
+      <div class="card-titulo">Seu salário este trimestre</div>
+      <div id="salarioConteudo"><div class="card-sub">Carregando…</div></div>
+    </div>
+
+    <div class="card card-ouro">
+      <div class="card-titulo">Excedente deste mês</div>
+      <div class="card-sub">Lucro líquido do mês, descontado o salário travado — o que sobra é seu pra decidir o destino.</div>
+      <div id="excedenteConteudo"><div class="card-sub">Carregando…</div></div>
+    </div>
+
+    <div class="secao-titulo">Os 4 baldes do excedente</div>
+    <p class="card-sub" style="margin-bottom:16px">A calculadora sugere o valor de cada balde — você efetiva o aporte ou a distribuição com um clique. Nenhum saldo muda sozinho.</p>
+    <div class="card" id="baldesCard"></div>
+
+    <div class="secao-titulo">Ajustar percentuais dos baldes</div>
+    <div class="card" id="percentuaisCard">
+      <div class="field-group">
+        <label>Sazonalidade: <span id="pctSazonalidadeValor">40</span>%</label>
+        <input type="range" id="pctSazonalidade" min="0" max="100" value="40">
+      </div>
+      <div class="field-group">
+        <label>Emergência: <span id="pctEmergenciaValor">20</span>%</label>
+        <input type="range" id="pctEmergencia" min="0" max="100" value="20">
+      </div>
+      <div class="field-group">
+        <label>Reinvestimento: <span id="pctReinvestimentoValor">20</span>%</label>
+        <input type="range" id="pctReinvestimento" min="0" max="100" value="20">
+      </div>
+      <div class="field-group">
+        <label>Distribuição de lucro: <span id="pctDistribuicaoValor">20</span>%</label>
+        <input type="range" id="pctDistribuicao" min="0" max="100" value="20">
+      </div>
+      <div class="card-composicao" id="pctSomaAviso" style="margin-bottom:12px"></div>
+      <button class="btn-acao" id="btnSalvarPercentuais">Salvar percentuais</button>
+    </div>
+  </main>
+
+  <!-- Modal: aprovar/ajustar salário do trimestre -->
+  <div class="modal-overlay hidden" id="modalSalario">
+    <div class="modal-card">
+      <h3>Aprovar salário do trimestre</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin:-8px 0 14px">
+        Aceite o valor sugerido ou digite um valor diferente. Depois de aprovado, fica travado até a virada do próximo trimestre.
+      </p>
+      <div class="field-group">
+        <label for="salarioValorInput">Valor do salário (R$)</label>
+        <input type="number" id="salarioValorInput" min="0.01" step="0.01" placeholder="0">
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarSalario">Cancelar</button>
+        <button class="btn-save" id="btnConfirmarSalario">Aprovar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: confirmar aporte num balde reserva -->
+  <div class="modal-overlay hidden" id="modalAporte">
+    <div class="modal-card">
+      <h3 id="modalAporteTitulo">Confirmar aporte</h3>
+      <input type="hidden" id="aporteBalde">
+      <div class="field-group">
+        <label for="aporteValorInput">Valor do aporte (R$)</label>
+        <input type="number" id="aporteValorInput" min="0.01" step="0.01" placeholder="0">
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarAporte">Cancelar</button>
+        <button class="btn-save" id="btnConfirmarAporte">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: registrar distribuição de lucro -->
+  <div class="modal-overlay hidden" id="modalDistribuicao">
+    <div class="modal-card">
+      <h3>Registrar distribuição de lucro</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin:-8px 0 14px" id="distribuicaoSaldoTexto"></p>
+      <div class="field-group">
+        <label for="distribuicaoValorInput">Valor a retirar (R$)</label>
+        <input type="number" id="distribuicaoValorInput" min="0.01" step="0.01" placeholder="0">
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarDistribuicao">Cancelar</button>
+        <button class="btn-save" id="btnConfirmarDistribuicao">Registrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import {
+      getContaPJ, getProLaborePJ, aprovarSalarioTrimestrePJ,
+      salvarPercentuaisBaldesProLaborePJ, confirmarAporteBaldeExcedentePJ, registrarDistribuicaoLucroPJ,
+      msgErro, setViewAsUid, uidAtual,
+    } from './js/api.js?v=57';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { toast, setLoading } from './js/ui.js';
+    import { cacheGet, cacheSet } from './js/page-cache.js';
+
+    const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+      'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
+    const SEM_META = 999999999;
+
+    const BALDE_INFO = {
+      sazonalidade:   { label: 'Sazonalidade',   sub: 'Colchão pra manter o pró-labore nos meses de faturamento baixo.', acao: 'Confirmar aporte' },
+      emergencia:     { label: 'Emergência',      sub: 'Buffer pra imprevistos (máquina quebrar, reparo urgente etc) — diferente de sazonalidade.', acao: 'Confirmar aporte' },
+      reinvestimento: { label: 'Reinvestimento',  sub: 'Meta livre — só se você tiver um objetivo específico pro negócio.', acao: 'Confirmar aporte' },
+      distribuicao:   { label: 'Distribuição de lucro', sub: 'Sem meta — acumula até você decidir retirar, parcial ou total.', acao: 'Registrar distribuição' },
+    };
+
+    let currentUser = null;
+    let _dadosCache = null;
+
+    // ─── ViewAs (admin visualizando dashboard PJ da mentorada) ────────────────
+    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','cartoes-pj.html','dre-pj.html','pro-labore-pj.html','fluxo-caixa-pj.html','reservas-pj.html','ajuda-pj.html'];
+    const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
+                     || localStorage.getItem('viewAsUid');
+    if (VIEW_AS_UID) {
+      setViewAsUid(VIEW_AS_UID);
+      localStorage.setItem('viewAsUid', VIEW_AS_UID);
+      const banner = document.getElementById('viewAsBanner');
+      if (banner) banner.style.display = 'flex';
+      const suffix = `?viewAs=${VIEW_AS_UID}`;
+      PAGINAS_PJ.forEach(page => {
+        document.querySelectorAll(`a[href="${page}"], a[href^="${page}?"]`).forEach(a => { a.href = page + suffix; });
+      });
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!href || href.includes('viewAs=') || href.startsWith('http') ||
+            href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('admin')) return;
+        if (!PAGINAS_PJ.some(p => href === p || href.startsWith(p + '#') || href.startsWith(p + '?'))) return;
+        e.preventDefault();
+        window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;
+      }, true);
+    }
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      localStorage.removeItem('viewAsUid');
+      await signOut(auth);
+      window.location.href = 'login-pj.html';
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login-pj.html'; return; }
+      currentUser = user;
+
+      const _contaCacheKey = `conta_${uidAtual()}`;
+      const _contaCached = cacheGet(_contaCacheKey);
+      if (_contaCached) document.getElementById('empresaNome').textContent = _contaCached.nomeEmpresa;
+
+      const contaPromise = (async () => {
+        try {
+          const conta = await getContaPJ(uidAtual());
+          if (conta) cacheSet(_contaCacheKey, conta);
+          if (!VIEW_AS_UID) {
+            if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+            if (conta.ativo === false) { await signOut(auth); window.location.href = 'login-pj.html'; return; }
+          }
+          document.getElementById('empresaNome').textContent = conta ? conta.nomeEmpresa : '—';
+        } catch (err) {
+          console.error('[pro-labore-pj] Falha ao carregar conta:', err.message);
+        }
+      })();
+
+      await Promise.all([renderTudo(), contaPromise]);
+    });
+
+    async function renderTudo() {
+      let dados;
+      try { dados = await getProLaborePJ(uidAtual()); }
+      catch (err) {
+        toast(msgErro(err), 'error');
+        document.getElementById('salarioConteudo').innerHTML = '<div class="card-sub">Não deu pra carregar. Recarregue a página.</div>';
+        document.getElementById('excedenteConteudo').innerHTML = '';
+        return;
+      }
+      _dadosCache = dados;
+      renderSalario(dados);
+      renderExcedente(dados);
+      renderBaldes(dados);
+      renderPercentuaisInputs(dados);
+    }
+
+    // ── Card: Seu salário este trimestre ──
+    function renderSalario(dados) {
+      const el = document.getElementById('salarioConteudo');
+      const jaAprovado = dados.trimestreAtual && dados.trimestreAtual.aprovadoEm && !dados.sugestaoPendente;
+
+      if (jaAprovado) {
+        const t = dados.trimestreAtual;
+        const nMeses = t.baseCalculo?.meses?.length || 0;
+        el.innerHTML = `
+          <div class="card-valor">${brl(t.salarioTravado)}</div>
+          <div class="card-composicao">Travado pro trimestre ${t.trimestre}/${t.ano} — só muda na próxima virada.</div>
+          ${nMeses < 6 ? `<div class="selo" style="margin-top:10px">Baseado em ${nMeses} ${nMeses === 1 ? 'mês' : 'meses'} — vai ficar mais preciso com o tempo</div>` : ''}
+          <button class="expander-toggle" id="btnExpanderSalario">Como cheguei nesse número</button>
+          <div class="expander-conteudo" id="expanderSalario">${montarExpanderBaseCalculo(t.baseCalculo)}</div>`;
+        document.getElementById('btnExpanderSalario').addEventListener('click', () => {
+          document.getElementById('expanderSalario').classList.toggle('aberto');
+        });
+        return;
+      }
+
+      const s = dados.sugestaoPendente;
+      const nMeses = s?.baseCalculo?.meses?.length || 0;
+      const trimestreLabel = `${Math.floor(new Date().getMonth() / 3) + 1}º trimestre`;
+      el.innerHTML = `
+        <div class="card-sub">Sugestão pro ${trimestreLabel} — aprove ou ajuste antes de travar.</div>
+        <div class="card-valor pequeno">${brl(s?.valor || 0)}</div>
+        ${nMeses < 6 ? `<div class="selo">Baseado em ${nMeses} ${nMeses === 1 ? 'mês' : 'meses'} — vai ficar mais preciso com o tempo</div>` : ''}
+        ${nMeses === 0 ? '<div class="card-aviso">Sem histórico de notas emitidas ainda — a sugestão parte de R$0. Aprove um valor manual se preferir.</div>' : ''}
+        <button class="expander-toggle" id="btnExpanderSalario">Como cheguei nesse número</button>
+        <div class="expander-conteudo" id="expanderSalario">${montarExpanderBaseCalculo(s?.baseCalculo)}</div>
+        <div style="margin-top:14px"><button class="btn-acao" id="btnAbrirAprovacao">Aprovar salário do trimestre</button></div>`;
+      document.getElementById('btnExpanderSalario').addEventListener('click', () => {
+        document.getElementById('expanderSalario').classList.toggle('aberto');
+      });
+      document.getElementById('btnAbrirAprovacao').addEventListener('click', () => abrirModalSalario(s?.valor || 0));
+    }
+
+    function montarExpanderBaseCalculo(baseCalculo) {
+      if (!baseCalculo || !baseCalculo.meses?.length) return '<div>Sem meses de histórico usados no cálculo.</div>';
+      const linhas = baseCalculo.meses.map(m => `<tr><td>${MESES_NOME[m.mes - 1]}/${m.ano}</td><td>${brl(m.lucroLiquido)}</td></tr>`).join('');
+      return `
+        <div>Média do Lucro Líquido dos meses abaixo, com redutor de segurança de ${baseCalculo.redutorPercentual}%:</div>
+        <table>${linhas}<tr><td><strong>Média</strong></td><td><strong>${brl(baseCalculo.mediaUsada)}</strong></td></tr></table>`;
+    }
+
+    // ── Modal: aprovar salário ──
+    const modalSalario = document.getElementById('modalSalario');
+    function abrirModalSalario(valorSugerido) {
+      document.getElementById('salarioValorInput').value = valorSugerido ? valorSugerido.toFixed(2) : '';
+      modalSalario.classList.remove('hidden');
+    }
+    document.getElementById('btnCancelarSalario').addEventListener('click', () => modalSalario.classList.add('hidden'));
+    document.getElementById('btnConfirmarSalario').addEventListener('click', async () => {
+      const btn = document.getElementById('btnConfirmarSalario');
+      const valor = parseFloat(document.getElementById('salarioValorInput').value);
+      if (!(valor > 0)) { toast('Informe um valor válido.', 'warning'); return; }
+      setLoading(btn, true, 'Aprovando…');
+      try {
+        await aprovarSalarioTrimestrePJ(uidAtual(), valor);
+        modalSalario.classList.add('hidden');
+        toast('Salário do trimestre aprovado.');
+        await renderTudo();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false, 'Aprovar');
+      }
+    });
+
+    // ── Card: Excedente deste mês ──
+    function renderExcedente(dados) {
+      const el = document.getElementById('excedenteConteudo');
+      const excedente = dados.excedenteMesAtual;
+      el.innerHTML = `
+        <div class="card-valor ${excedente < 0 ? 'negativo' : ''}">${brl(excedente)}</div>
+        <div class="card-composicao">Lucro líquido do mês ${brl(dados.lucroLiquidoMesAtual)} − salário travado ${brl(dados.salarioVigente)}.</div>
+        ${!dados.trimestreAtual?.aprovadoEm || dados.sugestaoPendente ? '<div class="card-aviso">Salário do trimestre ainda não aprovado — o excedente hoje é o Lucro Líquido inteiro. Aprove o salário acima pra separar os dois.</div>' : ''}`;
+    }
+
+    // ── Baldes ──
+    function calcularPercentuaisEfetivos(dados) {
+      const base = { ...dados.percentuaisBaldes };
+      const baldesComMeta = ['sazonalidade', 'emergencia'];
+      const batidos = baldesComMeta.filter(b => dados.statusBaldes[b]?.metaBatida);
+      if (!batidos.length) return { efetivos: base, redistribuido: false, batidos: [] };
+
+      const naoBatidos = ['sazonalidade', 'emergencia', 'reinvestimento', 'distribuicao'].filter(b => !batidos.includes(b));
+      const somaLiberada = batidos.reduce((s, b) => s + (base[b] || 0), 0);
+      const somaNaoBatidos = naoBatidos.reduce((s, b) => s + (base[b] || 0), 0);
+      const efetivos = { ...base };
+      batidos.forEach(b => { efetivos[b] = 0; });
+      if (somaNaoBatidos > 0) {
+        naoBatidos.forEach(b => { efetivos[b] = Math.round((base[b] / somaNaoBatidos) * (somaNaoBatidos + somaLiberada) * 10) / 10; });
+      }
+      return { efetivos, redistribuido: true, batidos };
+    }
+
+    function renderBaldes(dados) {
+      const el = document.getElementById('baldesCard');
+      const { efetivos, redistribuido, batidos } = calcularPercentuaisEfetivos(dados);
+      const excedente = Math.max(0, dados.excedenteMesAtual);
+
+      el.innerHTML = Object.entries(BALDE_INFO).map(([balde, info]) => {
+        const pctConfigurado = dados.percentuaisBaldes[balde] || 0;
+        const pctEfetivo = efetivos[balde] ?? pctConfigurado;
+        const sugerido = Math.round(excedente * (pctEfetivo / 100) * 100) / 100;
+
+        if (balde === 'distribuicao') {
+          return `
+            <div class="balde">
+              <div class="balde-header"><span class="balde-nome">${info.label}</span><span class="balde-pct">${pctConfigurado}%</span></div>
+              <div class="card-sub" style="margin-bottom:8px">${info.sub}</div>
+              <div class="balde-valores">Saldo acumulado a distribuir: <strong style="color:var(--gold)">${brl(dados.saldoADistribuir)}</strong>${sugerido > 0 ? ` · sugestão deste mês: +${brl(sugerido)}` : ''}</div>
+              <button class="btn-acao-secundario" data-registrar-distribuicao ${dados.saldoADistribuir > 0 ? '' : 'disabled'}>${info.acao}</button>
+            </div>`;
+        }
+
+        const status = dados.statusBaldes[balde] || {};
+        const temMeta = status.valorMeta != null && status.valorMeta < SEM_META;
+        const progresso = temMeta && status.valorMeta > 0 ? Math.min(1, (status.saldoAtual || 0) / status.valorMeta) : 0;
+        const metaBatida = batidos.includes(balde);
+
+        return `
+          <div class="balde">
+            <div class="balde-header"><span class="balde-nome">${info.label}</span><span class="balde-pct">${pctEfetivo}%${redistribuido && pctEfetivo !== pctConfigurado ? ` <span style="color:var(--text-muted);font-weight:400">(era ${pctConfigurado}%)</span>` : ''}</span></div>
+            <div class="card-sub" style="margin-bottom:8px">${info.sub}</div>
+            ${temMeta ? `
+              <div class="balde-progresso-track"><div class="balde-progresso-fill" style="width:${Math.round(progresso * 100)}%"></div></div>
+              <div class="balde-valores">${brl(status.saldoAtual)} de ${brl(status.valorMeta)} (${Math.round(progresso * 100)}%)</div>` :
+              `<div class="balde-valores">Saldo atual: ${brl(status.saldoAtual)}${status.valorMeta == null ? ' · meta ainda não calculada (sem despesa operacional configurada)' : ' · sem meta definida'}</div>`}
+            ${metaBatida ? `<div class="card-ok" style="margin:8px 0">✓ meta atingida — redistribuindo ${pctConfigurado}% pros demais baldes</div>` : ''}
+            <div class="balde-acoes" style="margin-top:10px">
+              ${sugerido > 0 ? `<span class="card-composicao">Sugestão deste mês: ${brl(sugerido)}</span>` : ''}
+              <button class="btn-acao-secundario" data-confirmar-aporte="${balde}" data-sugerido="${sugerido}">${info.acao}</button>
+            </div>
+          </div>`;
+      }).join('');
+
+      el.querySelectorAll('[data-confirmar-aporte]').forEach(b => b.addEventListener('click', () => {
+        abrirModalAporte(b.dataset.confirmarAporte, parseFloat(b.dataset.sugerido) || 0);
+      }));
+      const btnDist = el.querySelector('[data-registrar-distribuicao]');
+      if (btnDist) btnDist.addEventListener('click', abrirModalDistribuicao);
+    }
+
+    // ── Modal: confirmar aporte num balde ──
+    const modalAporte = document.getElementById('modalAporte');
+    function abrirModalAporte(balde, sugerido) {
+      document.getElementById('aporteBalde').value = balde;
+      document.getElementById('modalAporteTitulo').textContent = `Confirmar aporte — ${BALDE_INFO[balde].label}`;
+      document.getElementById('aporteValorInput').value = sugerido > 0 ? sugerido.toFixed(2) : '';
+      modalAporte.classList.remove('hidden');
+    }
+    document.getElementById('btnCancelarAporte').addEventListener('click', () => modalAporte.classList.add('hidden'));
+    document.getElementById('btnConfirmarAporte').addEventListener('click', async () => {
+      const btn = document.getElementById('btnConfirmarAporte');
+      const balde = document.getElementById('aporteBalde').value;
+      const valor = parseFloat(document.getElementById('aporteValorInput').value);
+      if (!(valor > 0)) { toast('Informe um valor válido.', 'warning'); return; }
+      setLoading(btn, true, 'Confirmando…');
+      try {
+        await confirmarAporteBaldeExcedentePJ(uidAtual(), balde, valor);
+        modalAporte.classList.add('hidden');
+        toast('Aporte confirmado.');
+        await renderTudo();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false, 'Confirmar');
+      }
+    });
+
+    // ── Modal: registrar distribuição de lucro ──
+    const modalDistribuicao = document.getElementById('modalDistribuicao');
+    function abrirModalDistribuicao() {
+      document.getElementById('distribuicaoSaldoTexto').textContent = `Saldo disponível: ${brl(_dadosCache?.saldoADistribuir || 0)}.`;
+      document.getElementById('distribuicaoValorInput').value = '';
+      document.getElementById('distribuicaoValorInput').max = _dadosCache?.saldoADistribuir || 0;
+      modalDistribuicao.classList.remove('hidden');
+    }
+    document.getElementById('btnCancelarDistribuicao').addEventListener('click', () => modalDistribuicao.classList.add('hidden'));
+    document.getElementById('btnConfirmarDistribuicao').addEventListener('click', async () => {
+      const btn = document.getElementById('btnConfirmarDistribuicao');
+      const valor = parseFloat(document.getElementById('distribuicaoValorInput').value);
+      if (!(valor > 0)) { toast('Informe um valor válido.', 'warning'); return; }
+      if (valor > (_dadosCache?.saldoADistribuir || 0)) { toast('Valor maior que o saldo disponível.', 'warning'); return; }
+      setLoading(btn, true, 'Registrando…');
+      try {
+        await registrarDistribuicaoLucroPJ(uidAtual(), valor);
+        modalDistribuicao.classList.add('hidden');
+        toast('Distribuição registrada.');
+        await renderTudo();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false, 'Registrar');
+      }
+    });
+
+    // ── Percentuais dos baldes ──
+    function renderPercentuaisInputs(dados) {
+      const p = dados.percentuaisBaldes;
+      document.getElementById('pctSazonalidade').value = p.sazonalidade;
+      document.getElementById('pctEmergencia').value = p.emergencia;
+      document.getElementById('pctReinvestimento').value = p.reinvestimento;
+      document.getElementById('pctDistribuicao').value = p.distribuicao;
+      atualizarLabelsPercentuais();
+    }
+    function atualizarLabelsPercentuais() {
+      const s = +document.getElementById('pctSazonalidade').value;
+      const e = +document.getElementById('pctEmergencia').value;
+      const r = +document.getElementById('pctReinvestimento').value;
+      const d = +document.getElementById('pctDistribuicao').value;
+      document.getElementById('pctSazonalidadeValor').textContent = s;
+      document.getElementById('pctEmergenciaValor').textContent = e;
+      document.getElementById('pctReinvestimentoValor').textContent = r;
+      document.getElementById('pctDistribuicaoValor').textContent = d;
+      const soma = s + e + r + d;
+      const aviso = document.getElementById('pctSomaAviso');
+      aviso.textContent = `Soma: ${soma}%${Math.abs(soma - 100) > 0.5 ? ' — precisa somar 100% pra salvar' : ' ✓'}`;
+      aviso.style.color = Math.abs(soma - 100) > 0.5 ? 'var(--negative)' : 'var(--positive)';
+    }
+    ['pctSazonalidade', 'pctEmergencia', 'pctReinvestimento', 'pctDistribuicao'].forEach(id => {
+      document.getElementById(id).addEventListener('input', atualizarLabelsPercentuais);
+    });
+    document.getElementById('btnSalvarPercentuais').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarPercentuais');
+      const percentuais = {
+        sazonalidade: +document.getElementById('pctSazonalidade').value,
+        emergencia: +document.getElementById('pctEmergencia').value,
+        reinvestimento: +document.getElementById('pctReinvestimento').value,
+        distribuicao: +document.getElementById('pctDistribuicao').value,
+      };
+      const soma = Object.values(percentuais).reduce((s, v) => s + v, 0);
+      if (Math.abs(soma - 100) > 0.5) { toast('Os percentuais precisam somar 100%.', 'warning'); return; }
+      setLoading(btn, true, 'Salvando…');
+      try {
+        await salvarPercentuaisBaldesProLaborePJ(uidAtual(), percentuais);
+        toast('Percentuais salvos.');
+        await renderTudo();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false, 'Salvar percentuais');
+      }
+    });
+  </script>
+
+</body>
+</html>
