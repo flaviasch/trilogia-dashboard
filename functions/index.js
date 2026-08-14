@@ -7900,7 +7900,7 @@ exports.excluirReservaPJ = onCall({}, async (request) => {
 // Caixa — só LÊ (_calcularDRESimplificado) e usa o aporte de reserva já
 // existente (registrarMovimentoReservaPJ via _reservaDoUid).
 
-const PROLABORE_REDUTOR_PADRAO = 10; // % de segurança sobre a média (Profit First, revisável)
+const PROLABORE_REDUTOR_PADRAO = 20; // % de segurança sobre a média (Profit First, revisável)
 const PROLABORE_JANELA_MAX_MESES = 6;
 const META_SENTINELA_SEM_META_PJ = 999999999; // reinvestimento sem meta definida (criarReservaPJ exige valorMeta > 0)
 
@@ -7929,16 +7929,38 @@ function _primeiroMesDoTrimestrePJ(trimestre) { return (trimestre - 1) * 3 + 1; 
  */
 async function _calcularSugestaoSalarioPJ(uid, trimestre, ano) {
   const primeiroMes = _primeiroMesDoTrimestrePJ(trimestre);
-  const meses = [];
+
+  // Monta os até 6 candidatos (mês anterior ao início do trimestre, indo pra
+  // trás) antes de qualquer query, e dispara as buscas de notasEmitidas em
+  // paralelo — achado de performance 14/08/2026: o loop sequencial original
+  // fazia até 12+ idas e voltas ao Firestore em série (1 query de nota + 1
+  // DRE por mês, cada um esperando o anterior terminar).
+  const candidatos = [];
   let cursorMes = primeiroMes, cursorAno = ano;
   for (let i = 0; i < PROLABORE_JANELA_MAX_MESES; i++) {
     cursorMes--; if (cursorMes < 1) { cursorMes = 12; cursorAno--; }
-    const notasSnap = await db.collection('notasEmitidas')
-      .where('uid', '==', uid).where('mes', '==', cursorMes).where('ano', '==', cursorAno).limit(1).get();
-    if (notasSnap.empty) break; // sem histórico além daqui
-    const dre = await _calcularDRESimplificado(uid, cursorMes, cursorAno);
-    meses.unshift({ mes: cursorMes, ano: cursorAno, lucroLiquido: dre.lucroLiquido });
+    candidatos.push({ mes: cursorMes, ano: cursorAno });
   }
+
+  const temNotaPorCandidato = await Promise.all(candidatos.map(c =>
+    db.collection('notasEmitidas').where('uid', '==', uid).where('mes', '==', c.mes).where('ano', '==', c.ano).limit(1).get()
+      .then(snap => !snap.empty)
+  ));
+
+  // Mesmo comportamento do loop sequencial original: pára no primeiro
+  // candidato (do mais recente pro mais antigo) sem nota — assume histórico
+  // contíguo pra trás, não "pula buracos" pegando meses mais antigos ainda.
+  const candidatosValidos = [];
+  for (let i = 0; i < candidatos.length; i++) {
+    if (!temNotaPorCandidato[i]) break;
+    candidatosValidos.push(candidatos[i]);
+  }
+
+  const dres = await Promise.all(candidatosValidos.map(c => _calcularDRESimplificado(uid, c.mes, c.ano)));
+  const meses = candidatosValidos
+    .map((c, i) => ({ mes: c.mes, ano: c.ano, lucroLiquido: dres[i].lucroLiquido }))
+    .reverse(); // candidatos vêm do mais recente pro mais antigo; meses precisa cronológico (mais antigo primeiro), igual ao unshift() da versão sequencial
+
   const mediaUsada = meses.length ? Math.round((meses.reduce((s, m) => s + m.lucroLiquido, 0) / meses.length) * 100) / 100 : 0;
   const valor = Math.max(0, Math.round(mediaUsada * (1 - PROLABORE_REDUTOR_PADRAO / 100) * 100) / 100);
   return { valor, baseCalculo: { meses, mediaUsada, redutorPercentual: PROLABORE_REDUTOR_PADRAO } };
@@ -8021,7 +8043,7 @@ async function _resolverReservaBaldePJ(uid, balde) {
   return ref.id;
 }
 
-exports.getProLaborePJ = onCall({}, async (request) => {
+exports.getProLaborePJ = onCall({ minInstances: 1 }, async (request) => {
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
 
