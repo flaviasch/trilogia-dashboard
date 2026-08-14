@@ -7607,16 +7607,21 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
 // getIndicadoresReservasPJ (Retirada Sugerida precisa do mesmo Lucro Líquido)
 // sem duplicar a lógica — mesmo cálculo de sempre, só virou helper interno.
 async function _calcularDRESimplificado(uid, mes, ano) {
-  const notasSnap = await db.collection('notasEmitidas')
-    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
+  // As 3 queries não dependem uma da outra — disparar em paralelo em vez de
+  // em série corta o tempo de resposta em ~3x (achado de performance
+  // 14/08/2026, mesmo padrão já aplicado em _calcularSugestaoSalarioPJ).
+  const [notasSnap, impSnap, despesasSnap] = await Promise.all([
+    db.collection('notasEmitidas').where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get(),
+    db.collection('impostosPrevistos').where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get(),
+    db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get(),
+  ]);
+
   // Notas 'legado' (venda antiga sem nota, reconstruída só pra Contas a
   // Receber — achado 31/07/2026) não contam como Receita Bruta do mês: a
   // venda já aconteceu no passado, contar de novo infla o Lucro Líquido do
   // mês errado.
   const receitaBruta = notasSnap.docs.filter(d => !d.data().legado).reduce((s, d) => s + (d.data().valor || 0), 0);
 
-  const impSnap = await db.collection('impostosPrevistos')
-    .where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get();
   const impostos = impSnap.docs.reduce((s, d) => {
     const imp = d.data();
     if (imp.trimestre && !imp.referenciaTrimestral) return s; // linha acumulada real — é vencimento de caixa, não competência
@@ -7625,7 +7630,6 @@ async function _calcularDRESimplificado(uid, mes, ano) {
 
   const receitaLiquida = receitaBruta - impostos;
 
-  const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get();
   const despesasOperacionais = despesasSnap.docs.reduce((s, d) => {
     const desp = d.data();
     const oc = _ocorrenciaDespesaPJ(desp, mes, ano);
@@ -8068,16 +8072,28 @@ exports.getProLaborePJ = onCall({ minInstances: 1 }, async (request) => {
   }
 
   const trimestreBate = dados.trimestreAtual && dados.trimestreAtual.trimestre === trimestreAtualNum && dados.trimestreAtual.ano === anoAtualNum;
-  let sugestaoPendente = null;
-  if (!trimestreBate || !dados.trimestreAtual.aprovadoEm) {
-    sugestaoPendente = await _calcularSugestaoSalarioPJ(uid, trimestreAtualNum, anoAtualNum);
-  }
+  const aprovado = trimestreBate && !!dados.trimestreAtual.aprovadoEm;
+  const precisaSugestao = !aprovado;
+  // salarioVigente = o que está de fato TRAVADO (0 se ainda não aprovado —
+  // usado só pra exibir "salário travado" com precisão). O excedente do mês
+  // é outra conta: mesmo sem aprovação, o excedente real já precisa
+  // descontar o salário sugerido pro trimestre, senão o card mostra o Lucro
+  // Líquido inteiro como se fosse "sobra", escondendo que grande parte dele
+  // já tem destino (achado 14/08/2026, Flávia: "o excedente é o lucro -
+  // salário", não lucro - 0 até a aprovação).
+  const salarioVigente = aprovado ? (dados.trimestreAtual.salarioTravado || 0) : 0;
 
-  const salarioVigente = (trimestreBate && dados.trimestreAtual.aprovadoEm) ? (dados.trimestreAtual.salarioTravado || 0) : 0;
-  const dreAtual = await _calcularDRESimplificado(uid, mesAtualNum, anoAtualNum);
-  const excedenteMesAtual = Math.round((dreAtual.lucroLiquido - salarioVigente) * 100) / 100;
+  // Sugestão de salário, DRE do mês atual e reservas não dependem uma da
+  // outra — disparar em paralelo em vez de em série (achado de performance
+  // 14/08/2026, mesma otimização aplicada em _calcularDRESimplificado).
+  const [sugestaoPendente, dreAtual, reservasSnap] = await Promise.all([
+    precisaSugestao ? _calcularSugestaoSalarioPJ(uid, trimestreAtualNum, anoAtualNum) : Promise.resolve(null),
+    _calcularDRESimplificado(uid, mesAtualNum, anoAtualNum),
+    db.collection('reservasPJ').where('uid', '==', uid).where('ativa', '==', true).get(),
+  ]);
 
-  const reservasSnap = await db.collection('reservasPJ').where('uid', '==', uid).where('ativa', '==', true).get();
+  const salarioParaExcedente = aprovado ? salarioVigente : (sugestaoPendente?.valor || 0);
+  const excedenteMesAtual = Math.round((dreAtual.lucroLiquido - salarioParaExcedente) * 100) / 100;
   const reservasPorNome = {};
   reservasSnap.docs.forEach(d => { reservasPorNome[d.data().nome] = { id: d.id, ...d.data() }; });
   const statusBaldes = {};
@@ -8097,6 +8113,8 @@ exports.getProLaborePJ = onCall({ minInstances: 1 }, async (request) => {
     excedenteMesAtual,
     lucroLiquidoMesAtual: dreAtual.lucroLiquido,
     salarioVigente,
+    salarioParaExcedente,
+    salarioAprovado: aprovado,
     statusBaldes,
   };
 });

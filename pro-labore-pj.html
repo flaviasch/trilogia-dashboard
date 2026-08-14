@@ -384,10 +384,11 @@
     function renderExcedente(dados) {
       const el = document.getElementById('excedenteConteudo');
       const excedente = dados.excedenteMesAtual;
+      const rotuloSalario = dados.salarioAprovado ? 'salário travado' : 'salário sugerido (ainda não aprovado)';
       el.innerHTML = `
         <div class="card-valor ${excedente < 0 ? 'negativo' : ''}">${brl(excedente)}</div>
-        <div class="card-composicao">Lucro líquido do mês ${brl(dados.lucroLiquidoMesAtual)} − salário travado ${brl(dados.salarioVigente)}.</div>
-        ${!dados.trimestreAtual?.aprovadoEm || dados.sugestaoPendente ? '<div class="card-aviso">Salário do trimestre ainda não aprovado — o excedente hoje é o Lucro Líquido inteiro. Aprove o salário acima pra separar os dois.</div>' : ''}`;
+        <div class="card-composicao">Lucro líquido do mês ${brl(dados.lucroLiquidoMesAtual)} − ${rotuloSalario} ${brl(dados.salarioParaExcedente)}.</div>
+        ${!dados.salarioAprovado ? '<div class="card-aviso">Salário do trimestre ainda não aprovado — o excedente já desconta a sugestão acima. Aprove o salário pra travar esse valor.</div>' : ''}`;
     }
 
     // ── Baldes ──
