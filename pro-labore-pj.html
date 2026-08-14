@@ -341,7 +341,7 @@
         ${nMeses === 0 ? '<div class="card-aviso">Sem histórico de notas emitidas ainda — a sugestão parte de R$0. Aprove um valor manual se preferir.</div>' : ''}
         <button class="expander-toggle" id="btnExpanderSalario">Como cheguei nesse número</button>
         <div class="expander-conteudo" id="expanderSalario">${montarExpanderBaseCalculo(s?.baseCalculo)}</div>
-        <div style="margin-top:14px"><button class="btn-acao" id="btnAbrirAprovacao">Aprovar salário do trimestre</button></div>`;
+        <div style="margin-top:14px"><button class="btn-acao" id="btnAbrirAprovacao">Revisar e aprovar salário do trimestre</button></div>`;
       document.getElementById('btnExpanderSalario').addEventListener('click', () => {
         document.getElementById('expanderSalario').classList.toggle('aberto');
       });
