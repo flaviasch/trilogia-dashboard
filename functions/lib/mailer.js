@@ -1190,6 +1190,59 @@ function emailNovidadesJul2026Completo(nome) {
   `);
 }
 
+function emailNovidadesAgo2026Completo(nome) {
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  const secao = (titulo) =>
+    `<tr><td style="padding:18px 0 6px;">
+      <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Tudo que melhoramos em Agosto</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Mais um mês de ajustes direto do uso real do Dashboard. Veja o que chegou:
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('💳 Orçamento')}
+      ${item('⇄','Transferência entre contas','Registre transferências entre suas contas cadastradas — o saldo por conta se ajusta, o saldo consolidado não muda.')}
+      ${item('💳','Pague a fatura adiantado','Novo botão "Pagar adiantado" no card da fatura aberta. Quando ela fechar, o valor já pago é descontado automaticamente.')}
+      ${item('🗂️','Categorias do seu jeito','Agora dá pra criar categorias-mãe próprias, além das já existentes.')}
+      ${item('📅','Detalhe também por data','Além de ver por categoria, agora dá pra ver todos os lançamentos do mês organizados por data.')}
+
+      ${secao('🗺️ Minha Jornada')}
+      ${item('🧭','Mapa da Liberdade Financeira no Dashboard','A calculadora que projeta sua liberdade financeira mês a mês agora está dentro da Jornada, sem precisar de arquivo separado.')}
+      ${item('✅','Checklist antes de decidir','P.A.R.I.S. e Anti-Impulso viraram um checklist guiado direto na Jornada, pra usar antes de qualquer decisão de compra.')}
+      ${item('🔥','Desafio dos 7 dias','O desafio da consciência financeira também já está disponível na Jornada.')}
+
+      ${secao('🏢 Dashboard PJ — cresceu')}
+      ${item('📊','DRE e Ponto de Equilíbrio','Veja o resultado da empresa e a partir de quanto ela começa a dar lucro.')}
+      ${item('📥','Contas a Receber','Controle consolidado do que ainda vai entrar, por cliente e vencimento.')}
+      ${item('🏦','Reservas PJ com retirada sugerida','Reservas da empresa com sugestão automática de quanto retirar.')}
+      ${item('❓','FAQ do Dashboard PJ','Tutorial e perguntas frequentes direto na área da empresa.')}
+      ${item('💰','Calculadora de Pró-labore','Defina um salário fixo por trimestre com previsibilidade, e distribua o excedente entre sazonalidade, emergência, reinvestimento e distribuição.')}
+
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Explorar as novidades →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 module.exports = {
   sendEmail,
   emailRenovacaoPerfil,
@@ -1203,6 +1256,7 @@ module.exports = {
   emailNovidadesJun2026Completo,
   emailNovidadesJul2026,
   emailNovidadesJul2026Completo,
+  emailNovidadesAgo2026Completo,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
   emailRaioXJul2026,
