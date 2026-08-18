@@ -3672,11 +3672,15 @@
       }
     });
 
-    async function excluirItem(tipo, idx) {
+    async function excluirItem(tipo, idx, btn) {
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
       const item  = lista[idx];
       if (!item) return;
       if (!(await confirmDelete(`Excluir "${item.categoria}"?`))) return;
+      // Feedback imediato ao confirmar — mesmo padrão já usado em
+      // confirmarPendente (achado 14/08/2026, Flávia: "excluí e o feedback de
+      // processamento não apareceu, parece que nada está acontecendo").
+      if (btn) btn.disabled = true;
       // Item vinculado a uma recorrente ATIVA (não-cartão): excluir sozinho
       // não basta — no próximo render, diasFaltantesRecorrente vê o dia sem
       // ocorrência de novo e regenera o placeholder virtual (✓/⏭) pra esse
@@ -3690,11 +3694,26 @@
         : null;
       const _diaItem = _recorrenteAtivo && item.data ? parseInt(item.data.split('-')[2], 10) : null;
       lista.splice(idx, 1);
-      await salvarEAtualizar();
-      if (_recorrenteAtivo && _diaItem) {
-        await pularFixaMes(item.recorrenteId, _diaItem);
+      const ok = await salvarEAtualizar();
+      if (!ok) {
+        // salvarEAtualizar já mostrou o toast de erro — não mostra "Excluído"
+        // em cima disso, senão fica contraditório (achado 14/08/2026).
+        if (btn) btn.disabled = false;
+        return;
       }
-      toast('Excluído.', 'success'); // achado 13/08/2026: faltava feedback, parecia que nada tinha acontecido
+      if (_recorrenteAtivo && _diaItem) {
+        try {
+          await pularFixaMes(item.recorrenteId, _diaItem);
+        } catch (err) {
+          // A exclusão em si já salvou — isso só evita que a recorrência
+          // reapareça sozinha. Se falhar, avisa mas não trata como falha da
+          // exclusão (achado 14/08/2026).
+          console.error('[excluirItem] pularFixaMes falhou:', err.message);
+          toast('Excluído, mas pode reaparecer no próximo mês — recarregue se isso acontecer.', 'warning');
+          return;
+        }
+      }
+      toast('Excluído.', 'success');
     }
 
     // Confirma um lançamento pendente (despesa ou receita): some da lista de
@@ -3790,14 +3809,19 @@
           data: t.data || '', nota: t.nota || '',
         })),
       ];
+      let _ok = true;
       try {
         await saveOrcamento(mes, ano, itens);
         _invalPeriodo(mes, ano);
       } catch (err) {
         toast(msgErro(err), 'error');
+        _ok = false;
       }
       render(currentData);
       if (mes === mesAtual) refreshGrafico();
+      return _ok; // achado 14/08/2026: chamadores precisam saber se salvou de
+      // verdade antes de mostrar seu próprio toast de sucesso (senão erro e
+      // "sucesso" apareciam um atrás do outro, contraditórios)
     }
 
     // ─── Aporte efetivado — fluxo em 2 passos ────────────────────────────────
@@ -4763,7 +4787,7 @@
         projecaoListaEl.querySelectorAll('[data-proj-excluir]').forEach(btn =>
           btn.addEventListener('click', () => {
             const [tipo, idx] = btn.dataset.projExcluir.split(':');
-            excluirItem(tipo, +idx);
+            excluirItem(tipo, +idx, btn);
           }));
         projecaoListaEl.querySelectorAll('[data-proj-fatura]').forEach(btn =>
           btn.addEventListener('click', () => {
@@ -4861,7 +4885,7 @@
       recList.querySelectorAll('[data-edit-rec]').forEach(btn =>
         btn.addEventListener('click', () => abrirModal('receita', +btn.dataset.editRec)));
       recList.querySelectorAll('[data-del-rec]').forEach(btn =>
-        btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec)));
+        btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec, btn)));
       document.getElementById('btnAddReceita').addEventListener('click', () => abrirModal('receita'));
 
       // ── Despesas — lista plana no Resumo ────────────────────────────────────
@@ -5730,11 +5754,11 @@
       el.querySelectorAll('[data-edit-desp]').forEach(btn =>
         btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
       el.querySelectorAll('[data-del-desp]').forEach(btn =>
-        btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
+        btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp, btn)));
       el.querySelectorAll('[data-edit-rec]').forEach(btn =>
         btn.addEventListener('click', () => abrirModal('receita', +btn.dataset.editRec)));
       el.querySelectorAll('[data-del-rec]').forEach(btn =>
-        btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec)));
+        btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec, btn)));
       el.querySelectorAll('[data-add-cartao]').forEach(btn =>
         btn.addEventListener('click', () => abrirModalCartaoDespesa(btn.dataset.addCartao)));
       el.querySelectorAll('[data-confirmar-fat]').forEach(btn =>
@@ -6081,7 +6105,7 @@
       despList.querySelectorAll('[data-edit-rec]').forEach(btn =>
         btn.addEventListener('click', () => abrirModalEditRecorrente(+btn.dataset.editRec, btn.dataset.recId)));
       despList.querySelectorAll('[data-del-desp]').forEach(btn =>
-        btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp)));
+        btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp, btn)));
       despList.querySelectorAll('[data-confirmar-pend]').forEach(btn =>
         btn.addEventListener('click', () => confirmarPendente('despesa', +btn.dataset.confirmarPend, btn)));
       despList.querySelectorAll('[data-cancelar-parcela]').forEach(btn =>
