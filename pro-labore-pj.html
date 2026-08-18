@@ -166,8 +166,8 @@
   <!-- Modal: aprovar/ajustar salário do trimestre -->
   <div class="modal-overlay hidden" id="modalSalario">
     <div class="modal-card">
-      <h3>Aprovar salário do trimestre</h3>
-      <p style="font-size:12px;color:var(--text-muted);margin:-8px 0 14px">
+      <h3 id="modalSalarioTitulo">Aprovar salário do trimestre</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin:-8px 0 14px" id="modalSalarioTexto">
         Aceite o valor sugerido ou digite um valor diferente. Depois de aprovado, fica travado até a virada do próximo trimestre.
       </p>
       <div class="field-group">
@@ -321,13 +321,15 @@
         const nMeses = t.baseCalculo?.meses?.length || 0;
         el.innerHTML = `
           <div class="card-valor">${brl(t.salarioTravado)}</div>
-          <div class="card-composicao">Travado pro trimestre ${t.trimestre}/${t.ano} — só muda na próxima virada.</div>
+          <div class="card-composicao">Travado pro trimestre ${t.trimestre}/${t.ano} — só muda na próxima virada, a não ser que você edite.</div>
           ${nMeses < 6 ? `<div class="selo" style="margin-top:10px">Baseado em ${nMeses} ${nMeses === 1 ? 'mês' : 'meses'} — vai ficar mais preciso com o tempo</div>` : ''}
           <button class="expander-toggle" id="btnExpanderSalario">Como cheguei nesse número</button>
-          <div class="expander-conteudo" id="expanderSalario">${montarExpanderBaseCalculo(t.baseCalculo)}</div>`;
+          <div class="expander-conteudo" id="expanderSalario">${montarExpanderBaseCalculo(t.baseCalculo)}</div>
+          <div style="margin-top:14px"><button class="btn-acao-secundario" id="btnEditarSalario">✎ Editar valor travado</button></div>`;
         document.getElementById('btnExpanderSalario').addEventListener('click', () => {
           document.getElementById('expanderSalario').classList.toggle('aberto');
         });
+        document.getElementById('btnEditarSalario').addEventListener('click', () => abrirModalSalario(t.salarioTravado, true));
         return;
       }
 
@@ -356,27 +358,34 @@
         <table>${linhas}<tr><td><strong>Média</strong></td><td><strong>${brl(baseCalculo.mediaUsada)}</strong></td></tr></table>`;
     }
 
-    // ── Modal: aprovar salário ──
+    // ── Modal: aprovar/editar salário ──
     const modalSalario = document.getElementById('modalSalario');
-    function abrirModalSalario(valorSugerido) {
+    function abrirModalSalario(valorSugerido, editando) {
       document.getElementById('salarioValorInput').value = valorSugerido ? valorSugerido.toFixed(2) : '';
+      document.getElementById('modalSalarioTitulo').textContent = editando ? 'Editar valor travado' : 'Aprovar salário do trimestre';
+      document.getElementById('modalSalarioTexto').textContent = editando
+        ? 'O novo valor substitui o salário travado deste trimestre imediatamente — inclusive pro cálculo do excedente já feito.'
+        : 'Aceite o valor sugerido ou digite um valor diferente. Depois de aprovado, fica travado até a virada do próximo trimestre.';
+      document.getElementById('btnConfirmarSalario').textContent = editando ? 'Salvar' : 'Aprovar';
+      modalSalario.dataset.editando = editando ? '1' : '';
       modalSalario.classList.remove('hidden');
     }
     document.getElementById('btnCancelarSalario').addEventListener('click', () => modalSalario.classList.add('hidden'));
     document.getElementById('btnConfirmarSalario').addEventListener('click', async () => {
       const btn = document.getElementById('btnConfirmarSalario');
+      const editando = !!modalSalario.dataset.editando;
       const valor = parseFloat(document.getElementById('salarioValorInput').value);
       if (!(valor > 0)) { toast('Informe um valor válido.', 'warning'); return; }
-      setLoading(btn, true, 'Aprovando…');
+      setLoading(btn, true, editando ? 'Salvando…' : 'Aprovando…');
       try {
         await aprovarSalarioTrimestrePJ(uidAtual(), valor);
         modalSalario.classList.add('hidden');
-        toast('Salário do trimestre aprovado.');
+        toast(editando ? 'Salário travado atualizado.' : 'Salário do trimestre aprovado.');
         await renderTudo();
       } catch (err) {
         toast(msgErro(err), 'error');
       } finally {
-        setLoading(btn, false, 'Aprovar');
+        setLoading(btn, false, editando ? 'Salvar' : 'Aprovar');
       }
     });
 
