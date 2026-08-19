@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trilogia Dashboard PJ — Pró-labore</title>
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
@@ -12,11 +13,21 @@
       --navy: #0D2B45; --navy-dark: #081e30;
       --gold: #CFAE65; --gold-light: #e8d49b;
       --white: #FFFFFF;
-      --border: rgba(255,255,255,0.1);
-      --text-muted: rgba(255,255,255,0.45);
+      --border: rgba(var(--rgb-fg),0.1);
+      --text-muted: rgba(var(--rgb-fg),0.45);
       --positive: #4ade80; --negative: #f87171;
-      --card-bg: rgba(255,255,255,0.03);
+      --card-bg: rgba(var(--rgb-fg),0.03);
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
+  --card-bg: rgba(87,52,34,0.035);
     }
+
     body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
     header {
       display: flex; align-items: center; justify-content: space-between;
@@ -52,15 +63,15 @@
     .selo { display: inline-block; font-size: 11px; color: var(--gold); background: rgba(207,174,101,.12); border: 1px solid rgba(207,174,101,.3); border-radius: 20px; padding: 3px 10px; margin-bottom: 10px; }
 
     .expander-toggle { font-size: 12px; color: var(--gold); background: none; border: none; cursor: pointer; padding: 0; text-decoration: underline; margin-top: 8px; }
-    .expander-conteudo { display: none; margin-top: 12px; padding: 12px 14px; background: rgba(255,255,255,.03); border-radius: 8px; font-size: 12px; color: var(--text-muted); }
+    .expander-conteudo { display: none; margin-top: 12px; padding: 12px 14px; background: rgba(var(--rgb-fg),.03); border-radius: 8px; font-size: 12px; color: var(--text-muted); }
     .expander-conteudo.aberto { display: block; }
     .expander-conteudo table { width: 100%; border-collapse: collapse; margin-top: 6px; }
     .expander-conteudo td { padding: 3px 0; }
     .expander-conteudo td:last-child { text-align: right; color: var(--white); }
 
     .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
-    .field-group input { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-group label { font-size: 12px; color: rgba(var(--rgb-fg),.6); }
+    .field-group input { background: rgba(var(--rgb-fg),.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
     .field-row { display: flex; gap: 10px; align-items: flex-end; }
     .field-row .field-group { flex: 1; margin-bottom: 0; }
     input[type="range"] { width: 100%; accent-color: var(--gold); }
@@ -77,7 +88,7 @@
     .balde-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
     .balde-nome { font-size: 14px; font-weight: 600; }
     .balde-pct { font-size: 13px; color: var(--gold); font-weight: 600; }
-    .balde-progresso-track { background: rgba(255,255,255,.06); border-radius: 20px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .balde-progresso-track { background: rgba(var(--rgb-fg),.06); border-radius: 20px; height: 6px; margin: 8px 0; overflow: hidden; }
     .balde-progresso-fill { background: var(--gold); height: 100%; }
     .balde-valores { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
     .balde-acoes { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
@@ -112,6 +123,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <a href="ajuda-pj.html" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">❓ Ajuda</a>
+      <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </header>
@@ -569,5 +581,6 @@
     });
   </script>
 
+<script src="js/theme.js" defer></script>
 </body>
 </html>

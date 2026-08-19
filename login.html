@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trilogia Dashboard — Login</title>
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
@@ -9,7 +10,7 @@
   <script>window.__pwaPrompt=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__pwaPrompt=e;});</script>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.json?v=2" />
-  <meta name="theme-color" content="#0D2B45" />
+  <meta name="theme-color" content="var(--navy)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Trilogia" />
@@ -30,9 +31,19 @@
       --white: #FFFFFF;
       --off-white: #F9F7F4;
       --gray: #6B7280;
-      --border: rgba(255,255,255,0.1);
+      --border: rgba(var(--rgb-fg),0.1);
       --error: #f87171;
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
+  --off-white: #F4F0E8;
     }
+
     body {
       font-family: 'Inter', sans-serif;
       background: var(--navy-dark);
@@ -64,7 +75,7 @@
     .logo-icon { width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0; }
     .subtitle {
       font-size: 13px;
-      color: rgba(255,255,255,0.45);
+      color: rgba(var(--rgb-fg),0.45);
       margin-bottom: 36px;
     }
     .field-group {
@@ -76,10 +87,10 @@
     label {
       font-size: 12px;
       font-weight: 500;
-      color: rgba(255,255,255,0.6);
+      color: rgba(var(--rgb-fg),0.6);
     }
     input {
-      background: rgba(255,255,255,0.05);
+      background: rgba(var(--rgb-fg),0.05);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 12px 16px;
@@ -93,7 +104,7 @@
       outline: none;
       border-color: rgba(207,174,101,0.5);
     }
-    input::placeholder { color: rgba(255,255,255,0.25); }
+    input::placeholder { color: rgba(var(--rgb-fg),0.25); }
     .btn-login {
       width: 100%;
       background: var(--gold);
@@ -116,7 +127,7 @@
     }
     .forgot a {
       font-size: 13px;
-      color: rgba(255,255,255,0.4);
+      color: rgba(var(--rgb-fg),0.4);
       text-decoration: none;
       transition: color 0.2s;
     }
@@ -173,7 +184,7 @@
       color: var(--gold); font-size: 1.25rem; margin-bottom: 6px;
     }
     .modo-card p {
-      color: rgba(255,255,255,0.45); font-size: 13px; margin-bottom: 28px;
+      color: rgba(var(--rgb-fg),0.45); font-size: 13px; margin-bottom: 28px;
     }
     .btn-modo {
       display: block; width: 100%;
@@ -323,35 +334,35 @@
   </div>
 
   <!-- Banner de instalação PWA (mobile only) — oculto por padrão, JS mostra se elegível -->
-  <div id="pwaBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#0D2B45;border-top:1px solid rgba(207,174,101,0.3);padding:14px 20px;align-items:center;gap:12px;box-shadow:0 -4px 16px rgba(0,0,0,0.3);">
+  <div id="pwaBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:var(--navy);border-top:1px solid rgba(207,174,101,0.3);padding:14px 20px;align-items:center;gap:12px;box-shadow:0 -4px 16px rgba(0,0,0,0.3);">
     <img src="/icons/icon-192-v2.png" style="width:40px;height:40px;border-radius:10px;flex-shrink:0;" alt="">
     <div style="flex:1;min-width:0;">
       <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.3;">Instalar Trilogia Dashboard</div>
-      <div id="pwaBannerSub" style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.3;">Salve como app na tela inicial</div>
+      <div id="pwaBannerSub" style="font-size:12px;color:rgba(var(--rgb-fg),0.6);line-height:1.3;">Salve como app na tela inicial</div>
     </div>
-    <button id="pwaBannerInstall" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Instalar</button>
-    <button id="pwaBannerDismiss" style="background:transparent;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
+    <button id="pwaBannerInstall" style="background:#CFAE65;color:var(--navy);border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Instalar</button>
+    <button id="pwaBannerDismiss" style="background:transparent;border:none;color:rgba(var(--rgb-fg),0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
   </div>
 
   <!-- Modal instruções Android -->
   <div id="pwaAndroidModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);align-items:flex-end;">
-    <div style="background:#0D2B45;border-radius:16px 16px 0 0;padding:28px 24px 36px;width:100%;border-top:1px solid rgba(207,174,101,0.3);">
+    <div style="background:var(--navy);border-radius:16px 16px 0 0;padding:28px 24px 36px;width:100%;border-top:1px solid rgba(207,174,101,0.3);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <span style="font-size:16px;font-weight:700;color:#fff;">Instalar no Android</span>
-        <button id="pwaAndroidClose" style="background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;">✕</button>
+        <button id="pwaAndroidClose" style="background:transparent;border:none;color:rgba(var(--rgb-fg),0.5);font-size:22px;cursor:pointer;">✕</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px;">
         <div style="display:flex;align-items:center;gap:14px;">
           <span style="font-size:28px;flex-shrink:0;">1️⃣</span>
-          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Toque nos <strong style="color:#CFAE65;">⋮ três pontos</strong> no canto superior direito do Chrome</span>
+          <span style="font-size:14px;color:rgba(var(--rgb-fg),0.85);line-height:1.4;">Toque nos <strong style="color:#CFAE65;">⋮ três pontos</strong> no canto superior direito do Chrome</span>
         </div>
         <div style="display:flex;align-items:center;gap:14px;">
           <span style="font-size:28px;flex-shrink:0;">2️⃣</span>
-          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Toque em <strong style="color:#CFAE65;">"Adicionar à tela inicial"</strong></span>
+          <span style="font-size:14px;color:rgba(var(--rgb-fg),0.85);line-height:1.4;">Toque em <strong style="color:#CFAE65;">"Adicionar à tela inicial"</strong></span>
         </div>
         <div style="display:flex;align-items:center;gap:14px;">
           <span style="font-size:28px;flex-shrink:0;">3️⃣</span>
-          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong></span>
+          <span style="font-size:14px;color:rgba(var(--rgb-fg),0.85);line-height:1.4;">Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong></span>
         </div>
       </div>
     </div>
@@ -359,23 +370,23 @@
 
   <!-- Modal instruções iOS -->
   <div id="pwaIosModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);align-items:flex-end;">
-    <div style="background:#0D2B45;border-radius:16px 16px 0 0;padding:28px 24px 36px;width:100%;border-top:1px solid rgba(207,174,101,0.3);">
+    <div style="background:var(--navy);border-radius:16px 16px 0 0;padding:28px 24px 36px;width:100%;border-top:1px solid rgba(207,174,101,0.3);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <span style="font-size:16px;font-weight:700;color:#fff;">Instalar no iPhone</span>
-        <button id="pwaIosClose" style="background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;">✕</button>
+        <button id="pwaIosClose" style="background:transparent;border:none;color:rgba(var(--rgb-fg),0.5);font-size:22px;cursor:pointer;">✕</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px;">
         <div style="display:flex;align-items:center;gap:14px;">
           <span style="font-size:28px;flex-shrink:0;">1️⃣</span>
-          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Toque no ícone de <strong style="color:#CFAE65;">Compartilhar</strong> <span style="font-size:18px;">⬆️</span> na barra do Safari</span>
+          <span style="font-size:14px;color:rgba(var(--rgb-fg),0.85);line-height:1.4;">Toque no ícone de <strong style="color:#CFAE65;">Compartilhar</strong> <span style="font-size:18px;">⬆️</span> na barra do Safari</span>
         </div>
         <div style="display:flex;align-items:center;gap:14px;">
           <span style="font-size:28px;flex-shrink:0;">2️⃣</span>
-          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Role a lista e toque em <strong style="color:#CFAE65;">"Adicionar à Tela de Início"</strong></span>
+          <span style="font-size:14px;color:rgba(var(--rgb-fg),0.85);line-height:1.4;">Role a lista e toque em <strong style="color:#CFAE65;">"Adicionar à Tela de Início"</strong></span>
         </div>
         <div style="display:flex;align-items:center;gap:14px;">
           <span style="font-size:28px;flex-shrink:0;">3️⃣</span>
-          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong> no canto superior direito</span>
+          <span style="font-size:14px;color:rgba(var(--rgb-fg),0.85);line-height:1.4;">Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong> no canto superior direito</span>
         </div>
       </div>
     </div>
@@ -448,5 +459,6 @@
     });
   </script>
 
+<script src="js/theme.js" defer></script>
 </body>
 </html>

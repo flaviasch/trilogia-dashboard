@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trilogia Dashboard PJ — Reservas</title>
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
@@ -12,11 +13,21 @@
       --navy: #0D2B45; --navy-dark: #081e30;
       --gold: #CFAE65; --gold-light: #e8d49b;
       --white: #FFFFFF;
-      --border: rgba(255,255,255,0.1);
-      --text-muted: rgba(255,255,255,0.45);
+      --border: rgba(var(--rgb-fg),0.1);
+      --text-muted: rgba(var(--rgb-fg),0.45);
       --positive: #4ade80; --negative: #f87171;
-      --card-bg: rgba(255,255,255,0.03);
+      --card-bg: rgba(var(--rgb-fg),0.03);
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
+  --card-bg: rgba(87,52,34,0.035);
     }
+
     body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
     header {
       display: flex; align-items: center; justify-content: space-between;
@@ -51,8 +62,8 @@
     .card-ok { font-size: 13px; color: var(--positive); background: rgba(74,222,128,.1); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; padding: 12px 14px; }
 
     .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
-    .field-group input { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-group label { font-size: 12px; color: rgba(var(--rgb-fg),.6); }
+    .field-group input { background: rgba(var(--rgb-fg),.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
     .field-row { display: flex; gap: 10px; align-items: flex-end; }
     .field-row .field-group { flex: 1; margin-bottom: 0; }
     input[type="range"] { width: 100%; accent-color: var(--gold); }
@@ -68,7 +79,7 @@
     .reserva-info { flex: 1; min-width: 180px; }
     .reserva-nome { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
     .reserva-tipo { font-size: 11px; color: var(--text-muted); }
-    .reserva-progresso-track { background: rgba(255,255,255,.06); border-radius: 20px; height: 6px; margin-top: 8px; overflow: hidden; }
+    .reserva-progresso-track { background: rgba(var(--rgb-fg),.06); border-radius: 20px; height: 6px; margin-top: 8px; overflow: hidden; }
     .reserva-progresso-fill { background: var(--gold); height: 100%; }
     .reserva-valores { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
     .reserva-acoes { display: flex; gap: 8px; }
@@ -82,7 +93,7 @@
     .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
     .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
     .tipo-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
-    .tipo-toggle button { flex: 1; background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 10px; font-size: 13px; cursor: pointer; }
+    .tipo-toggle button { flex: 1; background: rgba(var(--rgb-fg),.05); border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 10px; font-size: 13px; cursor: pointer; }
     .tipo-toggle button.ativo { background: rgba(207,174,101,.15); color: var(--gold); border-color: rgba(207,174,101,.4); font-weight: 600; }
   </style>
 </head>
@@ -106,6 +117,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <a href="ajuda-pj.html" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">❓ Ajuda</a>
+      <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </header>
@@ -550,5 +562,6 @@
     });
   </script>
 
+<script src="js/theme.js" defer></script>
 </body>
 </html>

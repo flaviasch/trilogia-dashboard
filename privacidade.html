@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Política de Privacidade — Trilogia Dashboard</title>
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png">
@@ -14,8 +15,17 @@
       --gold:    #CFAE65;
       --white:   #F5F3EE;
       --text:    #C8C8D0;
-      --border:  rgba(255,255,255,0.08);
+      --border:  rgba(var(--rgb-fg),0.08);
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-mid: #F1E8DA;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
     }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--navy);
@@ -44,7 +54,7 @@
       color: var(--white);
       margin-bottom: 8px;
     }
-    .data { font-size: 13px; color: rgba(255,255,255,0.4); margin-bottom: 40px; }
+    .data { font-size: 13px; color: rgba(var(--rgb-fg),0.4); margin-bottom: 40px; }
     h2 {
       font-family: 'Playfair Display', serif;
       font-size: 18px;
@@ -66,7 +76,7 @@
       text-align: center;
       padding: 32px 24px;
       font-size: 12px;
-      color: rgba(255,255,255,0.3);
+      color: rgba(var(--rgb-fg),0.3);
       border-top: 1px solid var(--border);
     }
   </style>
@@ -191,5 +201,6 @@
   Trilogia Dashboard · Flávia Shuscimann CFP® · LGPD (Lei nº 13.709/2018)
 </footer>
 
+<script src="js/theme.js" defer></script>
 </body>
 </html>

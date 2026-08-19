@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trilogia Dashboard PJ — Fluxo de Caixa</title>
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
@@ -12,11 +13,21 @@
       --navy: #0D2B45; --navy-dark: #081e30;
       --gold: #CFAE65; --gold-light: #e8d49b;
       --white: #FFFFFF;
-      --border: rgba(255,255,255,0.1);
-      --text-muted: rgba(255,255,255,0.45);
+      --border: rgba(var(--rgb-fg),0.1);
+      --text-muted: rgba(var(--rgb-fg),0.45);
       --positive: #4ade80; --negative: #f87171;
-      --card-bg: rgba(255,255,255,0.03);
+      --card-bg: rgba(var(--rgb-fg),0.03);
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
+  --card-bg: rgba(87,52,34,0.035);
     }
+
     body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
     header {
       display: flex; align-items: center; justify-content: space-between;
@@ -68,8 +79,8 @@
     .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; }
     .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
     .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    .field-group label { font-size: 12px; color: rgba(255,255,255,.6); }
-    .field-group input, .field-group select { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-group label { font-size: 12px; color: rgba(var(--rgb-fg),.6); }
+    .field-group input, .field-group select { background: rgba(var(--rgb-fg),.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
     .field-group select option { background: var(--navy); }
     .field-row { display: flex; gap: 10px; }
     .field-row .field-group { flex: 1; }
@@ -98,6 +109,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <a href="ajuda-pj.html" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">❓ Ajuda</a>
+      <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </header>
@@ -429,5 +441,6 @@
     });
   </script>
 
+<script src="js/theme.js" defer></script>
 </body>
 </html>

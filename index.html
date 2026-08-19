@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trilogia Dashboard</title>
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
@@ -9,7 +10,7 @@
   <script>window.__pwaPrompt=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__pwaPrompt=e;});</script>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.json?v=2" />
-  <meta name="theme-color" content="#0D2B45" />
+  <meta name="theme-color" content="var(--navy)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Trilogia" />
@@ -32,13 +33,24 @@
       --white: #FFFFFF;
       --off-white: #F9F7F4;
       --gray: #6B7280;
-      --border: rgba(255,255,255,0.08);
+      --border: rgba(var(--rgb-fg),0.08);
       --border-gold: rgba(207,174,101,0.2);
       --positive: #4ade80;
       --negative: #f87171;
-      --text-muted: rgba(255,255,255,0.45);
-      --text-secondary: rgba(255,255,255,0.65);
+      --text-muted: rgba(var(--rgb-fg),0.45);
+      --text-secondary: rgba(var(--rgb-fg),0.65);
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy-mid: #F1E8DA;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
+  --off-white: #F4F0E8;
     }
+
 
     body {
       font-family: 'Inter', sans-serif;
@@ -48,7 +60,7 @@
     }
 
     /* ─── Navbar ─────────────────────────────── */
-    .navbar {
+    .navbar { --rgb-fg: 255,255,255; --navy-dark: #081e30; --navy-mid: #0f3352; --navy: #0D2B45; --white: #FFFFFF; --off-white: #F9F7F4;
       background: var(--navy);
       border-bottom: 1px solid var(--border);
       padding: 0 32px;
@@ -327,7 +339,7 @@
     .reserva-tag {
       font-size: 11px;
       color: var(--text-muted);
-      background: rgba(255,255,255,0.05);
+      background: rgba(var(--rgb-fg),0.05);
       border-radius: 20px;
       padding: 2px 10px;
     }
@@ -353,7 +365,7 @@
       color: var(--gold);
     }
     .progress-track {
-      background: rgba(255,255,255,0.07);
+      background: rgba(var(--rgb-fg),0.07);
       border-radius: 4px;
       height: 6px;
       overflow: hidden;
@@ -395,7 +407,7 @@
     .welcome-sub { font-size: 15px; color: var(--text-secondary); line-height: 1.6; max-width: 500px; }
     .welcome-order-note {
       margin-top: 16px; max-width: 560px; font-size: 13px; line-height: 1.6;
-      color: rgba(255,255,255,0.75); background: rgba(207,174,101,0.06);
+      color: rgba(var(--rgb-fg),0.75); background: rgba(207,174,101,0.06);
       border: 1px solid rgba(207,174,101,0.2); border-radius: 10px; padding: 12px 16px;
     }
     .welcome-order-note strong { color: var(--gold); }
@@ -458,7 +470,7 @@
     }
     .setup-info-link:hover { color: var(--gold-light); }
     .setup-track {
-      background: rgba(255,255,255,0.07); border-radius: 6px; height: 4px; margin-bottom: 16px; overflow: hidden;
+      background: rgba(var(--rgb-fg),0.07); border-radius: 6px; height: 4px; margin-bottom: 16px; overflow: hidden;
     }
     .setup-fill { height: 100%; border-radius: 6px; background: var(--gold); transition: width 0.5s ease; }
     .setup-etapas { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -570,7 +582,7 @@
     }
     .notif-itens.fechado { display: none; }
     .notif-item {
-      background: rgba(255,255,255,0.04); border-radius: 8px; padding: 10px 12px;
+      background: rgba(var(--rgb-fg),0.04); border-radius: 8px; padding: 10px 12px;
     }
     .notif-item-emoji { font-size: 16px; margin-bottom: 4px; }
     .notif-item-titulo { font-size: 12px; font-weight: 700; color: var(--white); margin-bottom: 2px; }
@@ -649,7 +661,7 @@
       font-size: 13px; font-weight: 500; color: var(--white);
       text-decoration: none; transition: background 0.15s;
     }
-    .suporte-link:hover { background: rgba(255,255,255,0.07); }
+    .suporte-link:hover { background: rgba(var(--rgb-fg),0.07); }
     .suporte-link-icon { font-size: 19px; flex-shrink: 0; line-height: 1; }
     .suporte-label { display: flex; flex-direction: column; gap: 1px; }
     .suporte-label em { font-size: 11px; color: var(--text-muted); font-style: normal; }
@@ -671,6 +683,7 @@
       <a href="clube.html" class="link-clube link-jornada-nav" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
       <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <span class="user-name" id="userDisplayName"></span>
+      <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </nav>
@@ -852,13 +865,13 @@
           <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px;">Saúde Financeira · <span id="scoreMesLabel">—</span></div>
           <div style="display:flex;align-items:baseline;gap:6px;">
             <span id="scoreValorHome" style="font-family:'Playfair Display',serif;font-size:36px;font-weight:700;line-height:1;">—</span>
-            <span style="font-size:15px;color:rgba(255,255,255,0.3);font-family:'Playfair Display',serif;">/100</span>
+            <span style="font-size:15px;color:rgba(var(--rgb-fg),0.3);font-family:'Playfair Display',serif;">/100</span>
           </div>
           <div id="scoreNivelHome" style="font-size:13px;font-weight:600;margin-top:6px;">—</div>
           <div id="scoreAcao" style="display:none;font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.4;"></div>
         </div>
         <div style="flex:1;min-width:120px;max-width:220px;">
-          <div style="height:6px;background:rgba(255,255,255,0.07);border-radius:6px;overflow:hidden;margin-bottom:10px;">
+          <div style="height:6px;background:rgba(var(--rgb-fg),0.07);border-radius:6px;overflow:hidden;margin-bottom:10px;">
             <div id="scoreBarraFill" style="height:100%;border-radius:6px;transition:width .6s ease;width:0%"></div>
           </div>
           <a href="orcamento.html" style="font-size:12px;color:var(--gold);text-decoration:none;opacity:.8;">Ver detalhes →</a>
@@ -1983,14 +1996,14 @@
         Você pode solicitar a exclusão imediata dos seus dados a qualquer momento
         pelo suporte. <a href="privacidade.html" target="_blank" style="color:var(--gold);">Ver política completa →</a>
       </div>
-      <label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:18px;cursor:pointer;font-size:13px;color:rgba(255,255,255,0.75);line-height:1.5;">
+      <label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:18px;cursor:pointer;font-size:13px;color:rgba(var(--rgb-fg),0.75);line-height:1.5;">
         <input type="checkbox" id="chkLGPD" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:#CFAE65;cursor:pointer;" />
         <span>Li e concordo com o uso dos meus dados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da mentoria.</span>
       </label>
       <button class="btn-aceitar-lgpd" id="btnAceitarLGPD" disabled style="opacity:0.4;cursor:not-allowed;">
         Confirmar ciência
       </button>
-      <p style="font-size:11px;color:rgba(255,255,255,0.3);text-align:center;margin-top:14px;line-height:1.5;">
+      <p style="font-size:11px;color:rgba(var(--rgb-fg),0.3);text-align:center;margin-top:14px;line-height:1.5;">
         Esta confirmação é registrada por dispositivo. Em um novo dispositivo ou navegador, você verá esta tela novamente.
       </p>
     </div>
@@ -2014,59 +2027,59 @@
   <button class="suporte-btn" id="suporteBtn" title="Suporte &amp; ajuda">?</button>
 
   <!-- Banner de instalação PWA -->
-  <div id="pwaBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#0D2B45;border-top:1px solid rgba(207,174,101,0.3);padding:14px 20px;align-items:center;gap:12px;box-shadow:0 -4px 16px rgba(0,0,0,0.3);">
+  <div id="pwaBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:var(--navy);border-top:1px solid rgba(207,174,101,0.3);padding:14px 20px;align-items:center;gap:12px;box-shadow:0 -4px 16px rgba(0,0,0,0.3);">
     <img src="/icons/icon-192-v2.png" style="width:40px;height:40px;border-radius:10px;flex-shrink:0;" alt="">
     <div style="flex:1;min-width:0;">
       <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.3;">Instalar Trilogia Dashboard</div>
-      <div id="pwaBannerSub" style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.3;">Salve como app na tela inicial</div>
+      <div id="pwaBannerSub" style="font-size:12px;color:rgba(var(--rgb-fg),0.6);line-height:1.3;">Salve como app na tela inicial</div>
     </div>
-    <button id="pwaBannerInstall" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Instalar</button>
-    <button id="pwaBannerDismiss" style="background:transparent;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
+    <button id="pwaBannerInstall" style="background:#CFAE65;color:var(--navy);border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Instalar</button>
+    <button id="pwaBannerDismiss" style="background:transparent;border:none;color:rgba(var(--rgb-fg),0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
   </div>
 
   <!-- Modal instruções Android -->
   <div id="pwaAndroidModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);align-items:flex-end;">
-    <div style="background:#0D2B45;border-radius:16px 16px 0 0;padding:28px 24px 36px;width:100%;border-top:1px solid rgba(207,174,101,0.3);">
+    <div style="background:var(--navy);border-radius:16px 16px 0 0;padding:28px 24px 36px;width:100%;border-top:1px solid rgba(207,174,101,0.3);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <span style="font-size:16px;font-weight:700;color:#fff;">Instalar no Android</span>
-        <button id="pwaAndroidClose" style="background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;">✕</button>
+        <button id="pwaAndroidClose" style="background:transparent;border:none;color:rgba(var(--rgb-fg),0.5);font-size:22px;cursor:pointer;">✕</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px;">
         <div style="display:flex;align-items:center;gap:14px;">
           <span style="font-size:28px;flex-shrink:0;">1️⃣</span>
-          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Toque nos <strong style="color:#CFAE65;">⋮ três pontos</strong> no canto superior direito do Chrome</span>
+          <span style="font-size:14px;color:rgba(var(--rgb-fg),0.85);line-height:1.4;">Toque nos <strong style="color:#CFAE65;">⋮ três pontos</strong> no canto superior direito do Chrome</span>
         </div>
         <div style="display:flex;align-items:center;gap:14px;">
           <span style="font-size:28px;flex-shrink:0;">2️⃣</span>
-          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Toque em <strong style="color:#CFAE65;">"Adicionar à tela inicial"</strong></span>
+          <span style="font-size:14px;color:rgba(var(--rgb-fg),0.85);line-height:1.4;">Toque em <strong style="color:#CFAE65;">"Adicionar à tela inicial"</strong></span>
         </div>
         <div style="display:flex;align-items:center;gap:14px;">
           <span style="font-size:28px;flex-shrink:0;">3️⃣</span>
-          <span style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.4;">Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong></span>
+          <span style="font-size:14px;color:rgba(var(--rgb-fg),0.85);line-height:1.4;">Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong></span>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Banner iOS — instalar como app para ativar notificações -->
-  <div id="pushBannerIOS" style="display:none;position:fixed;bottom:70px;left:12px;right:12px;z-index:9998;background:#0D2B45;border:1px solid rgba(207,174,101,0.35);border-radius:14px;padding:14px 16px;align-items:flex-start;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);">
+  <div id="pushBannerIOS" style="display:none;position:fixed;bottom:70px;left:12px;right:12px;z-index:9998;background:var(--navy);border:1px solid rgba(207,174,101,0.35);border-radius:14px;padding:14px 16px;align-items:flex-start;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);">
     <div style="font-size:22px;flex-shrink:0;">📲</div>
     <div style="flex:1;min-width:0;">
       <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.3;">Instale o app para receber notificações</div>
-      <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:4px;line-height:1.5;">No Safari, toque em <strong style="color:rgba(255,255,255,0.85);">Compartilhar ↑</strong> e depois <strong style="color:rgba(255,255,255,0.85);">"Adicionar à Tela de Início"</strong>.</div>
+      <div style="font-size:12px;color:rgba(var(--rgb-fg),0.6);margin-top:4px;line-height:1.5;">No Safari, toque em <strong style="color:rgba(var(--rgb-fg),0.85);">Compartilhar ↑</strong> e depois <strong style="color:rgba(var(--rgb-fg),0.85);">"Adicionar à Tela de Início"</strong>.</div>
     </div>
-    <button id="pushBannerIOSDismiss" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:20px;line-height:1;padding:0 2px;flex-shrink:0;">✕</button>
+    <button id="pushBannerIOSDismiss" style="background:none;border:none;color:rgba(var(--rgb-fg),0.5);cursor:pointer;font-size:20px;line-height:1;padding:0 2px;flex-shrink:0;">✕</button>
   </div>
 
   <!-- Banner ativar notificações push -->
-  <div id="pushBanner" style="display:none;position:fixed;bottom:70px;left:12px;right:12px;z-index:9998;background:#0D2B45;border:1px solid rgba(207,174,101,0.35);border-radius:14px;padding:14px 16px;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);">
+  <div id="pushBanner" style="display:none;position:fixed;bottom:70px;left:12px;right:12px;z-index:9998;background:var(--navy);border:1px solid rgba(207,174,101,0.35);border-radius:14px;padding:14px 16px;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);">
     <div style="font-size:22px;flex-shrink:0;">🔔</div>
     <div style="flex:1;min-width:0;">
       <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.3;">Ativar notificações</div>
-      <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:2px;">Receba lembretes de aporte e orçamento direto no celular.</div>
+      <div style="font-size:12px;color:rgba(var(--rgb-fg),0.6);margin-top:2px;">Receba lembretes de aporte e orçamento direto no celular.</div>
     </div>
-    <button id="pushBannerAtivar" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Ativar</button>
-    <button id="pushBannerDismiss" style="background:transparent;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
+    <button id="pushBannerAtivar" style="background:#CFAE65;color:var(--navy);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Ativar</button>
+    <button id="pushBannerDismiss" style="background:transparent;border:none;color:rgba(var(--rgb-fg),0.5);cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0;">✕</button>
   </div>
 
   <!-- Service Worker (PWA) -->
@@ -2532,5 +2545,6 @@
     })();
   </script>
 
+<script src="js/theme.js" defer></script>
 </body>
 </html>

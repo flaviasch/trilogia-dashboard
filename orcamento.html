@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Orçamento — Trilogia Dashboard</title>
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
   <!-- PWA -->
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#0D2B45" />
+  <meta name="theme-color" content="var(--navy)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Trilogia" />
@@ -28,15 +29,25 @@
       --gold-light: #e8d49b;
       --gold-dim: rgba(207,174,101,0.15);
       --white: #FFFFFF;
-      --border: rgba(255,255,255,0.08);
+      --border: rgba(var(--rgb-fg),0.08);
       --border-gold: rgba(207,174,101,0.2);
       --positive: #4ade80;
       --positive-dim: rgba(74,222,128,0.12);
       --negative: #f87171;
       --negative-dim: rgba(248,113,113,0.12);
-      --text-muted: rgba(255,255,255,0.45);
-      --text-secondary: rgba(255,255,255,0.65);
+      --text-muted: rgba(var(--rgb-fg),0.45);
+      --text-secondary: rgba(var(--rgb-fg),0.65);
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy-mid: #F1E8DA;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
     }
+
 
     body {
       font-family: 'Inter', sans-serif;
@@ -46,7 +57,7 @@
     }
 
     /* ─── Navbar ─────────────────────────────── */
-    .navbar {
+    .navbar { --rgb-fg: 255,255,255; --navy-dark: #081e30; --navy-mid: #0f3352; --navy: #0D2B45; --white: #FFFFFF;
       background: var(--navy);
       border-bottom: 1px solid var(--border);
       padding: 0 32px;
@@ -392,7 +403,7 @@
       gap: 16px;
       transition: border-color 0.2s;
     }
-    .item-row:hover { border-color: rgba(255,255,255,0.14); }
+    .item-row:hover { border-color: rgba(var(--rgb-fg),0.14); }
     .item-row + .item-row { margin-top: 4px; }
 
     .item-categoria {
@@ -408,7 +419,7 @@
       width: 160px;
     }
     .item-bar-track {
-      background: rgba(255,255,255,0.07);
+      background: rgba(var(--rgb-fg),0.07);
       border-radius: 4px;
       height: 5px;
       overflow: hidden;
@@ -508,7 +519,7 @@
 
     /* ─── Ritmo dos aportes ─────────────────── */
     .ritmo-box {
-      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      background: rgba(var(--rgb-fg),0.03); border: 1px solid var(--border);
       border-radius: 12px; padding: 20px 24px; margin-top: 24px;
     }
     .ritmo-title {
@@ -595,9 +606,9 @@
     }
     .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
     .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-    .field-group label { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.6); }
+    .field-group label { font-size: 12px; font-weight: 500; color: rgba(var(--rgb-fg),0.6); }
     .field-group input, .field-group select {
-      background: rgba(255,255,255,0.05);
+      background: rgba(var(--rgb-fg),0.05);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 12px 16px;
@@ -609,7 +620,7 @@
     .field-group input:focus, .field-group select:focus {
       outline: none; border-color: rgba(207,174,101,0.5);
     }
-    .field-group input::placeholder { color: rgba(255,255,255,0.25); }
+    .field-group input::placeholder { color: rgba(var(--rgb-fg),0.25); }
     .field-group select option { background: var(--navy); }
     /* Dropdown de categoria agrupada por mãe (campo Categoria do lançamento
        avulso) — achado 05/08/2026, Flávia: a usuária tem que ver as
@@ -632,7 +643,7 @@
     .cat-dropdown-item {
       padding: 8px 14px 8px 22px; font-size: 13.5px; color: var(--white); cursor: pointer;
     }
-    .cat-dropdown-item:hover { background: rgba(255,255,255,0.06); }
+    .cat-dropdown-item:hover { background: rgba(var(--rgb-fg),0.06); }
     .cat-dropdown-item.nova { color: var(--text-muted); font-style: italic; }
     .cat-dropdown-vazio { padding: 12px 14px; font-size: 13px; color: var(--text-muted); text-align: center; }
     .modal-actions { display: flex; gap: 12px; margin-top: 24px; }
@@ -664,7 +675,7 @@
     .reserva-aporte-plan { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
     .reserva-aporte-input {
       width: 110px; flex-shrink: 0;
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      background: rgba(var(--rgb-fg),0.05); border: 1px solid var(--border);
       border-radius: 6px; padding: 6px 10px;
       font-size: 13px; color: var(--white);
       font-family: 'Inter', sans-serif; text-align: right;
@@ -673,7 +684,7 @@
     .reserva-aporte-input:focus { outline: none; border-color: rgba(207,174,101,0.5); }
     .aporte-distribuido {
       margin-top: 14px; padding: 10px 12px; border-radius: 8px;
-      background: rgba(255,255,255,0.04); font-size: 12px;
+      background: rgba(var(--rgb-fg),0.04); font-size: 12px;
       display: flex; justify-content: space-between; align-items: center;
       color: var(--text-muted);
     }
@@ -694,7 +705,7 @@
     .classe-aporte-prazo { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
     .classe-select {
       flex-shrink: 0; width: 185px;
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      background: rgba(var(--rgb-fg),0.05); border: 1px solid var(--border);
       border-radius: 6px; padding: 7px 10px;
       font-size: 13px; color: var(--white);
       font-family: 'Inter', sans-serif;
@@ -763,7 +774,7 @@
     }
     .aporte-strip-row { display: flex; gap: 8px; flex: 1; min-width: 180px; }
     .aporte-strip-input {
-      flex: 1; background: rgba(255,255,255,0.06);
+      flex: 1; background: rgba(var(--rgb-fg),0.06);
       border: 1px solid var(--border); border-radius: 8px;
       padding: 10px 14px; font-size: 15px; font-weight: 600;
       color: var(--gold); font-family: 'Inter', sans-serif;
@@ -917,7 +928,7 @@
       padding: 16px 20px; margin-bottom: 0; cursor: pointer; user-select: none;
       transition: border-color .2s; display: flex; align-items: center; justify-content: space-between;
     }
-    .section-header.expansivel:hover { border-color: rgba(255,255,255,.14); }
+    .section-header.expansivel:hover { border-color: rgba(var(--rgb-fg),.14); }
     .section-header.expansivel.aberta { border-radius: 12px 12px 0 0; border-bottom-color: transparent; }
     .section-title-row { display: flex; align-items: center; gap: 10px; }
     .section-chevron {
@@ -975,9 +986,9 @@
     .plan-thead th:not(:first-child) { text-align: right; }
     .plan-row td { padding: 13px 16px; font-size: 14px; vertical-align: middle; border-top: 1px solid var(--border); }
     .plan-row td:not(:first-child) { text-align: right; }
-    .plan-row:hover td { background: rgba(255,255,255,.02); }
-    .plan-mae-row td { background: rgba(255,255,255,.02); }
-    .plan-mae-row:hover td { background: rgba(255,255,255,.045); }
+    .plan-row:hover td { background: rgba(var(--rgb-fg),.02); }
+    .plan-mae-row td { background: rgba(var(--rgb-fg),.02); }
+    .plan-mae-row:hover td { background: rgba(var(--rgb-fg),.045); }
     .plan-cat { font-weight: 500; }
     .plan-plan-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
     .plan-valor-plan { font-weight: 600; color: var(--gold); }
@@ -989,12 +1000,12 @@
     }
     .btn-edit-plan:hover { border-color: var(--border-gold); color: var(--gold); }
     .input-plan {
-      background: rgba(255,255,255,.06); border: 1px solid var(--border-gold); border-radius: 6px;
+      background: rgba(var(--rgb-fg),.06); border: 1px solid var(--border-gold); border-radius: 6px;
       padding: 4px 8px; font-size: 13px; font-weight: 600; color: var(--gold);
       font-family: 'Inter', sans-serif; text-align: right; width: 90px; outline: none;
     }
     .plan-bar-wrap { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
-    .plan-bar-track { width: 80px; height: 5px; background: rgba(255,255,255,.07); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
+    .plan-bar-track { width: 80px; height: 5px; background: rgba(var(--rgb-fg),.07); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
     .plan-bar-fill { height: 100%; border-radius: 4px; transition: width .3s; }
     .plan-pct-text { font-size: 12px; font-weight: 700; width: 34px; text-align: right; flex-shrink: 0; }
     .plan-status { font-size: 16px; }
@@ -1032,7 +1043,7 @@
       border: 1px solid var(--border);
     }
     .cat-group-header {
-      background: rgba(255,255,255,0.04);
+      background: rgba(var(--rgb-fg),0.04);
       padding: 11px 20px;
       display: flex;
       align-items: center;
@@ -1076,7 +1087,7 @@
     .cat-limit-bar {
       width: 80px;
       height: 4px;
-      background: rgba(255,255,255,0.07);
+      background: rgba(var(--rgb-fg),0.07);
       border-radius: 4px;
       overflow: hidden;
     }
@@ -1096,13 +1107,13 @@
       border: none;
       border-top: 1px solid var(--border);
     }
-    .cat-group .item-row:hover { background: rgba(255,255,255,0.025); }
+    .cat-group .item-row:hover { background: rgba(var(--rgb-fg),0.025); }
     .cat-group .item-row + .item-row { margin-top: 0; }
     .cat-add-btn {
       display: block;
       background: transparent;
       border: none;
-      border-top: 1px dashed rgba(255,255,255,0.07);
+      border-top: 1px dashed rgba(var(--rgb-fg),0.07);
       border-radius: 0;
       padding: 8px 20px;
       width: 100%;
@@ -1113,7 +1124,7 @@
       text-align: left;
       transition: all 0.15s;
     }
-    .cat-add-btn:hover { background: rgba(255,255,255,0.03); color: var(--gold); }
+    .cat-add-btn:hover { background: rgba(var(--rgb-fg),0.03); color: var(--gold); }
 
     /* ─── Data tag dentro do item ─────────── */
     input[type="date"] { color-scheme: dark; }
@@ -1144,7 +1155,7 @@
       font-size: 13px; font-weight: 500; color: var(--white);
       text-decoration: none; transition: background 0.15s;
     }
-    .suporte-link:hover { background: rgba(255,255,255,0.07); }
+    .suporte-link:hover { background: rgba(var(--rgb-fg),0.07); }
     .suporte-link-icon { font-size: 19px; flex-shrink: 0; line-height: 1; }
     .suporte-label { display: flex; flex-direction: column; gap: 1px; }
     .suporte-label em { font-size: 11px; color: var(--text-muted); font-style: normal; }
@@ -1160,10 +1171,10 @@
     .score-widget.nivel-construcao { border-color:rgba(251,191,36,0.25); }
     .score-widget.nivel-atencao    { border-color:rgba(248,113,113,0.25); }
     .score-top { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
-    .score-barra-track { height:6px; background:rgba(255,255,255,0.07); border-radius:6px; overflow:hidden; margin-bottom:14px; }
+    .score-barra-track { height:6px; background:rgba(var(--rgb-fg),0.07); border-radius:6px; overflow:hidden; margin-bottom:14px; }
     .score-barra-fill  { height:100%; border-radius:6px; transition:width .6s ease; }
     .score-componentes { display:flex; gap:10px; flex-wrap:wrap; }
-    .score-comp { display:flex; flex-direction:column; gap:2px; background:rgba(255,255,255,0.04); border-radius:8px; padding:8px 12px; min-width:72px; }
+    .score-comp { display:flex; flex-direction:column; gap:2px; background:rgba(var(--rgb-fg),0.04); border-radius:8px; padding:8px 12px; min-width:72px; }
     .score-comp-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); }
     .score-comp-val   { font-size:15px; font-weight:700; }
 
@@ -1251,6 +1262,7 @@
       <a href="jornada.html" class="link-jornada-nav nivel-completo" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
       <span class="user-name" id="userDisplayName"></span>
+      <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </nav>
@@ -1427,7 +1439,7 @@
     <div class="resumo-section">
       <div class="resumo-grid">
         <!-- Saldo em Conta — editável -->
-        <div class="resumo-card" style="border-color:rgba(255,255,255,0.15);">
+        <div class="resumo-card" style="border-color:rgba(var(--rgb-fg),0.15);">
           <div class="resumo-label" style="display:flex;align-items:center;justify-content:space-between;">
             Saldo em Conta
             <button id="btnEditarSaldo" onclick="window._editarSaldoConta()" title="Editar saldo" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0;line-height:1;">✏️</button>
@@ -1437,11 +1449,11 @@
           </div>
           <div id="saldoContaForm" style="display:none;margin-top:8px;">
             <input id="saldoContaInput" type="text" inputmode="decimal"
-              style="width:100%;background:rgba(255,255,255,0.07);border:1px solid var(--border-gold);border-radius:6px;padding:6px 10px;font-size:14px;color:var(--white);font-family:'Inter',sans-serif;outline:none;"
+              style="width:100%;background:rgba(var(--rgb-fg),0.07);border:1px solid var(--border-gold);border-radius:6px;padding:6px 10px;font-size:14px;color:var(--white);font-family:'Inter',sans-serif;outline:none;"
               placeholder="0,00" />
             <div style="display:flex;gap:6px;margin-top:6px;">
               <button onclick="window._salvarSaldoConta()" style="flex:1;background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:5px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Salvar</button>
-              <button onclick="window._cancelarSaldoConta()" style="flex:1;background:rgba(255,255,255,0.07);color:var(--text-muted);border:none;border-radius:6px;padding:5px;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif;">Cancelar</button>
+              <button onclick="window._cancelarSaldoConta()" style="flex:1;background:rgba(var(--rgb-fg),0.07);color:var(--text-muted);border:none;border-radius:6px;padding:5px;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif;">Cancelar</button>
             </div>
           </div>
           <div class="resumo-sub" id="saldoContaSub">saldo inicial do mês</div>
@@ -1828,7 +1840,7 @@
         <div class="section-header expansivel" id="headerDespesas">
           <div class="section-title-row">
             <h2 class="section-title">Despesas totais
-              <span style="font-size:10px;font-weight:600;color:var(--text-muted);background:rgba(255,255,255,.06);border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:1px;"
+              <span style="font-size:10px;font-weight:600;color:var(--text-muted);background:rgba(var(--rgb-fg),.06);border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:1px;"
                 title="Só conta o que já saiu da conta: despesas efetivadas e faturas de cartão já pagas. Pendentes, faturas a vencer e despesas fixas ainda não lançadas entram no Realizado da aba Planejamento, não aqui.">já pagas</span>
             </h2>
           </div>
@@ -2353,7 +2365,7 @@
           </div>
           <input type="checkbox" id="mVirarFixa" style="width:17px;height:17px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;" />
         </label>
-        <label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-top:1px solid rgba(255,255,255,0.06);cursor:pointer;user-select:none;gap:12px;">
+        <label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-top:1px solid rgba(var(--rgb-fg),0.06);cursor:pointer;user-select:none;gap:12px;">
           <div style="display:flex;align-items:center;gap:8px;">
             <span>🔄</span>
             <div>
@@ -2397,7 +2409,7 @@
     <div class="modal-card">
       <h2 class="modal-title">Confirmar pagamento</h2>
       <p class="modal-sub" id="cpSub">—</p>
-      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:14px 16px;margin:14px 0;">
+      <div style="background:rgba(var(--rgb-fg),0.04);border-radius:10px;padding:14px 16px;margin:14px 0;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text-secondary);">Total da fatura</span>
           <span style="font-size:17px;font-weight:700;color:var(--negative);" id="cpTotalLabel">—</span>
@@ -2431,7 +2443,7 @@
           <label for="cpValorPago">Valor pago (R$)</label>
           <input type="text" inputmode="numeric" id="cpValorPago" placeholder="ex: 800" />
         </div>
-        <div id="cpRolloverInfo" style="font-size:12px;color:var(--text-muted);margin-top:6px;padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:8px;display:none;"></div>
+        <div id="cpRolloverInfo" style="font-size:12px;color:var(--text-muted);margin-top:6px;padding:8px 12px;background:rgba(var(--rgb-fg),0.04);border-radius:8px;display:none;"></div>
       </div>
       <div class="field-group" id="cpFgConta" style="display:none">
         <label for="cpConta">Pago com a conta</label>
@@ -2449,7 +2461,7 @@
     <div class="modal-card">
       <h2 class="modal-title">Ajustar total da fatura</h2>
       <p class="modal-sub" id="afSub">—</p>
-      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+      <div style="background:rgba(var(--rgb-fg),0.04);border-radius:10px;padding:12px 16px;margin-bottom:14px;">
         <div style="display:flex;justify-content:space-between;">
           <span style="font-size:12px;color:var(--text-muted);">Total calculado pelos lançamentos</span>
           <span style="font-size:13px;font-weight:600;color:var(--text-secondary);" id="afTotalCalculado">—</span>
@@ -2473,7 +2485,7 @@
     <div class="modal-card">
       <h2 class="modal-title">Pagar adiantado</h2>
       <p class="modal-sub" id="afaSub">—</p>
-      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+      <div style="background:rgba(var(--rgb-fg),0.04);border-radius:10px;padding:12px 16px;margin-bottom:14px;">
         <div style="display:flex;justify-content:space-between;">
           <span style="font-size:12px;color:var(--text-muted);">Acumulado até agora nesta fatura</span>
           <span style="font-size:13px;font-weight:600;color:var(--text-secondary);" id="afaAcumulado">—</span>
@@ -4481,7 +4493,7 @@
       }
 
       const htmlSugestao = sugestao ? `
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(var(--rgb-fg),0.06);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <span style="font-size:12px;color:var(--text-muted);line-height:1.4">💡 ${sugestao.texto}</span>
           ${sugestao.acao ? `<button onclick="(${sugestao.fn.toString()})()" style="background:none;border:1px solid rgba(207,174,101,0.35);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--gold);cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif">${sugestao.acao} →</button>` : ''}
         </div>` : '';
@@ -4493,7 +4505,7 @@
           <div class="score-top">
             <div style="display:flex;align-items:baseline;gap:8px;">
               <span style="font-family:'Playfair Display',serif;font-size:40px;font-weight:700;line-height:1;color:${cor}">${score}</span>
-              <span style="font-size:18px;color:rgba(255,255,255,0.3);font-family:'Playfair Display',serif;">/100</span>
+              <span style="font-size:18px;color:rgba(var(--rgb-fg),0.3);font-family:'Playfair Display',serif;">/100</span>
             </div>
             <div style="display:flex;flex-direction:column;gap:3px;">
               <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted)">Saúde financeira · ${MESES[mes-1]}</span>
@@ -4857,7 +4869,7 @@
           const p   = totalReceita > 0 ? (r.valor / totalReceita) * 100 : 0;
           const sub = [r.data ? formatData(r.data) : null, r.descricao || null].filter(Boolean).join(' · ');
           const pendenteTag = isPendenteEfetivo(r)
-            ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">⏳ pendente</span>`
+            ? `<span style="font-size:10px;background:rgba(var(--rgb-fg),0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">⏳ pendente</span>`
             : '';
           const pendenteRowStyle = isPendenteEfetivo(r) ? 'opacity:0.6;border-left:2px dashed var(--border);padding-left:6px;' : '';
           return `
@@ -5066,7 +5078,7 @@
             const msg = a.pct > 100
               ? `${brl(a.real - a.limite)} acima do limite`
               : `restam ${brl(a.limite - a.real)}`;
-            return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:rgba(255,255,255,0.8);">
+            return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:rgba(var(--rgb-fg),0.8);">
               <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;background:${bg};color:${cor};flex-shrink:0;">${a.pct}%</span>
               <span><strong style="color:var(--white)">${escapeHtml(a.nome)}</strong> — ${brl(a.real)} de ${brl(a.limite)} — <em style="color:var(--text-muted)">${msg}</em></span>
             </div>`;
@@ -5472,7 +5484,7 @@
         const p = Math.min(total / limite * 100, 200);
         const cor = p > 100 ? 'var(--negative)' : p > 80 ? '#f59e0b' : 'var(--positive)';
         return `<div style="display:flex;align-items:center;gap:8px;padding:10px 20px 0;">
-          <div style="flex:1;height:5px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;">
+          <div style="flex:1;height:5px;background:rgba(var(--rgb-fg),0.07);border-radius:4px;overflow:hidden;">
             <div style="height:100%;border-radius:4px;width:${Math.min(p,100).toFixed(1)}%;background:${cor};"></div>
           </div>
           <span style="font-size:11px;font-weight:700;color:${cor};white-space:nowrap;">${p.toFixed(0)}% do limite (${brl(limite)})</span>
@@ -5728,7 +5740,7 @@
         : 'flex:1;padding:8px 12px;border:none;border-radius:7px;background:transparent;color:var(--text-muted);font-size:13px;font-weight:500;cursor:pointer;font-family:"Inter",sans-serif;';
 
       el.innerHTML = `
-        <div style="display:flex;gap:4px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:14px;">
+        <div style="display:flex;gap:4px;background:rgba(var(--rgb-fg),0.04);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:14px;">
           <button onclick="window._setFatTab('abertas')" style="${tabStyle(_fatTabAtiva==='abertas')}">
             Abertas <span style="font-size:10px;opacity:.6;">(${todosIds.length})</span>
           </button>
@@ -5794,7 +5806,7 @@
       return `
         <details style="margin-top:10px">
           <summary style="cursor:pointer;font-size:12px;color:var(--text-muted)">Ver detalhes de "Lançamentos não identificados"</summary>
-          <div style="margin-top:6px;padding:10px 12px;background:var(--card-bg,rgba(255,255,255,.03));border-radius:8px">
+          <div style="margin-top:6px;padding:10px 12px;background:var(--card-bg,rgba(var(--rgb-fg),.03));border-radius:8px">
             ${linha('Despesas em caixa', c.despesaCaixa)}
             ${linha('Pendentes (ainda não confirmadas)', c.totalPendente)}
             ${linha('Faturas de cartão', c.totalFaturas)}
@@ -5832,7 +5844,7 @@
         ? escapeHtml(item.descricao)
         : escapeHtml(item.categoria);
       const categoriaTag = mostrarCategoria
-        ? `<span style="font-size:10px;background:rgba(255,255,255,0.05);color:var(--text-secondary);border-radius:3px;padding:1px 5px;margin-right:4px">${escapeHtml(item.categoria)}</span>`
+        ? `<span style="font-size:10px;background:rgba(var(--rgb-fg),0.05);color:var(--text-secondary);border-radius:3px;padding:1px 5px;margin-right:4px">${escapeHtml(item.categoria)}</span>`
         : '';
       const faturaTag = (() => {
         if (!item.cartao || !item.fatura) return '';
@@ -5864,13 +5876,13 @@
       // (não existe ação de confirmar um lançamento de cartão avulso).
       const _pendenteRelevante = !item.virtual && !item.cartao && isPendenteEfetivo(item);
       const pendenteTag = _pendenteRelevante
-        ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">⏳ pendente</span>`
+        ? `<span style="font-size:10px;background:rgba(var(--rgb-fg),0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">⏳ pendente</span>`
         : '';
       // Fixa em conta ainda não lançada — não existe como lançamento de
       // verdade ainda (ver materializarFixaPendente), por isso tem ações
       // próprias (lançar/pular) em vez de editar/excluir.
       const virtualTag = item.virtual
-        ? `<span style="font-size:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">🔜 a lançar</span>`
+        ? `<span style="font-size:10px;background:rgba(var(--rgb-fg),0.07);color:var(--text-muted);border-radius:3px;padding:1px 5px;margin-left:4px">🔜 a lançar</span>`
         : '';
       const pendenteRowStyle = (_pendenteRelevante || item.virtual) ? 'opacity:0.6;border-left:2px dashed var(--border);padding-left:6px;' : '';
       const confirmarBtn = _pendenteRelevante
@@ -6553,7 +6565,7 @@
             Copiar de ${nomeMesCurto(mes > 1 ? mes - 1 : 12, mes > 1 ? ano : ano - 1)}
           </button>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:16px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(var(--rgb-fg),.03);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:16px;flex-wrap:wrap;">
           <span class="plan-desc">${naoPlan.temMeta
             ? `Planejado do mês: <strong style="color:var(--white)">${brl(naoPlan.totalPlanejado)}</strong> (${brl(planejamentoMeta.renda)} × ${planejamentoMeta.percentual}%)`
             : 'Defina a renda e o percentual planejado pra calcular o total do mês.'}</span>
@@ -6729,9 +6741,9 @@
             options: {
               responsive: true, maintainAspectRatio: false, cutout: '62%',
               plugins: {
-                legend: { position: 'bottom', labels: { color: 'rgba(255,255,255,.65)', boxWidth: 10, padding: 12, font: { size: 11 } } },
+                legend: { position: 'bottom', labels: { color: 'rgba(var(--rgb-fg),.65)', boxWidth: 10, padding: 12, font: { size: 11 } } },
                 tooltip: {
-                  backgroundColor: '#0D2B45', borderColor: 'rgba(207,174,101,.25)', borderWidth: 1,
+                  backgroundColor: 'var(--navy)', borderColor: 'rgba(207,174,101,.25)', borderWidth: 1,
                   callbacks: {
                     label: ctx => `  ${brl(ctx.parsed)} (${totalDespesa > 0 ? ((ctx.parsed/totalDespesa)*100).toFixed(1) : 0}%)`,
                   },
@@ -6932,7 +6944,7 @@
           <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:24px;">
             <div style="padding:14px 20px 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">💳 Gastos por cartão — últimos 12 meses</div>
             <table style="width:100%;border-collapse:collapse;">
-              <thead><tr style="background:rgba(255,255,255,.03);">
+              <thead><tr style="background:rgba(var(--rgb-fg),.03);">
                 <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Cartão</th>
                 <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Total anual</th>
                 <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">% das despesas</th>
@@ -6988,7 +7000,7 @@
             </div>
             <div style="overflow-x:auto;">
               <table style="width:100%;border-collapse:collapse;">
-                <thead><tr style="background:rgba(255,255,255,.03);">
+                <thead><tr style="background:rgba(var(--rgb-fg),.03);">
                   <th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;">Categoria</th>
                   ${cabecalhoMeses}
                   <th style="padding:9px 12px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;">Total</th>
@@ -7051,7 +7063,7 @@
         <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
           <table style="width:100%;border-collapse:collapse;">
             <thead>
-              <tr style="background:rgba(255,255,255,0.03);">
+              <tr style="background:rgba(var(--rgb-fg),0.03);">
                 <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Mês</th>
                 <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Receita</th>
                 <th style="padding:12px 16px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Despesa</th>
@@ -7063,7 +7075,7 @@
             </thead>
             <tbody>${linhas}</tbody>
             <tfoot>
-              <tr style="border-top:2px solid var(--border);background:rgba(255,255,255,0.02);">
+              <tr style="border-top:2px solid var(--border);background:rgba(var(--rgb-fg),0.02);">
                 <td style="padding:13px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Total 12 meses</td>
                 <td style="padding:13px 16px;text-align:right;font-weight:700;color:var(--positive)">${brl(totReceita)}</td>
                 <td style="padding:13px 16px;text-align:right;font-weight:700;color:var(--negative)">${brl(totDespesa)}</td>
@@ -7111,14 +7123,14 @@
             plugins: {
               legend: { display: false },
               tooltip: {
-                backgroundColor: '#0D2B45', borderColor: 'rgba(207,174,101,0.25)', borderWidth: 1,
-                titleColor: '#fff', bodyColor: 'rgba(255,255,255,0.65)', padding: 12,
+                backgroundColor: 'var(--navy)', borderColor: 'rgba(207,174,101,0.25)', borderWidth: 1,
+                titleColor: '#fff', bodyColor: 'rgba(var(--rgb-fg),0.65)', padding: 12,
                 callbacks: { label: ctx => `  ${ctx.dataset.label}: ${brl(ctx.parsed.y)}` },
               },
             },
             scales: {
-              x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 11 } }, border: { color: 'rgba(255,255,255,0.06)' } },
-              y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 11 }, callback: v => brl(v), maxTicksLimit: 6 }, border: { color: 'rgba(255,255,255,0.06)' }, beginAtZero: true },
+              x: { grid: { color: 'rgba(var(--rgb-fg),0.04)' }, ticks: { color: 'rgba(var(--rgb-fg),0.45)', font: { size: 11 } }, border: { color: 'rgba(var(--rgb-fg),0.06)' } },
+              y: { grid: { color: 'rgba(var(--rgb-fg),0.04)' }, ticks: { color: 'rgba(var(--rgb-fg),0.45)', font: { size: 11 }, callback: v => brl(v), maxTicksLimit: 6 }, border: { color: 'rgba(var(--rgb-fg),0.06)' }, beginAtZero: true },
             },
           },
         });
@@ -7442,7 +7454,7 @@
           return `
             <div class="item-row" style="padding:10px 12px;border-radius:8px;border:1px solid var(--border-gold);">
               <input id="renomeInput_${c.id}" type="text" value="${escapeHtml(c.nome)}" maxlength="100"
-                style="width:100%;background:rgba(255,255,255,.07);border:1px solid var(--border-gold);border-radius:6px;padding:6px 10px;font-size:13px;color:var(--white);font-family:'Inter',sans-serif;outline:none;margin-bottom:6px;" />
+                style="width:100%;background:rgba(var(--rgb-fg),.07);border:1px solid var(--border-gold);border-radius:6px;padding:6px 10px;font-size:13px;color:var(--white);font-family:'Inter',sans-serif;outline:none;margin-bottom:6px;" />
               <div style="display:flex;gap:6px;">
                 <button class="btn-save" id="btnSalvarRenome_${c.id}" style="flex:1;padding:5px;font-size:12px;" onclick="window._salvarRenomearConta('${c.id}')">Salvar</button>
                 <button class="btn-cancel" style="flex:1;padding:5px;font-size:12px;" onclick="window._cancelarRenomearConta()">Cancelar</button>
@@ -7746,11 +7758,11 @@
           plugins: {
             legend: { display: false },
             tooltip: {
-              backgroundColor: '#0D2B45',
+              backgroundColor: 'var(--navy)',
               borderColor: 'rgba(207,174,101,0.25)',
               borderWidth: 1,
               titleColor: '#fff',
-              bodyColor: 'rgba(255,255,255,0.65)',
+              bodyColor: 'rgba(var(--rgb-fg),0.65)',
               padding: 12,
               callbacks: {
                 label: ctx => `  ${ctx.dataset.label}: ${brl(ctx.parsed.y)}`,
@@ -7759,19 +7771,19 @@
           },
           scales: {
             x: {
-              grid: { color: 'rgba(255,255,255,0.04)' },
-              ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 12 } },
-              border: { color: 'rgba(255,255,255,0.06)' },
+              grid: { color: 'rgba(var(--rgb-fg),0.04)' },
+              ticks: { color: 'rgba(var(--rgb-fg),0.45)', font: { size: 12 } },
+              border: { color: 'rgba(var(--rgb-fg),0.06)' },
             },
             y: {
-              grid: { color: 'rgba(255,255,255,0.04)' },
+              grid: { color: 'rgba(var(--rgb-fg),0.04)' },
               ticks: {
-                color: 'rgba(255,255,255,0.45)',
+                color: 'rgba(var(--rgb-fg),0.45)',
                 font: { size: 11 },
                 callback: v => brl(v),
                 maxTicksLimit: 6,
               },
-              border: { color: 'rgba(255,255,255,0.06)' },
+              border: { color: 'rgba(var(--rgb-fg),0.06)' },
               beginAtZero: true,
             },
           },
@@ -11489,5 +11501,6 @@
     }
   </script>
 
+<script src="js/theme.js" defer></script>
 </body>
 </html>

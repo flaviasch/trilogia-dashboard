@@ -2,7 +2,8 @@
 <!-- v3 -->
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -30,7 +31,7 @@
       --gold-light: #e8d49b;
       --gold-dim: rgba(207,174,101,0.15);
       --white: #FFFFFF;
-      --border: rgba(255,255,255,0.08);
+      --border: rgba(var(--rgb-fg),0.08);
       --border-gold: rgba(207,174,101,0.2);
       --positive: #4ade80;
       --positive-dim: rgba(74,222,128,0.12);
@@ -38,14 +39,23 @@
       --negative-dim: rgba(248,113,113,0.12);
       --warning: #fbbf24;
       --warning-dim: rgba(251,191,36,0.12);
-      --text-muted: rgba(255,255,255,0.45);
-      --text-secondary: rgba(255,255,255,0.65);
+      --text-muted: rgba(var(--rgb-fg),0.45);
+      --text-secondary: rgba(var(--rgb-fg),0.65);
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
     }
+
 
     body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
 
     /* ─── Navbar ────────────────────────────── */
-    .navbar {
+    .navbar { --rgb-fg: 255,255,255; --navy-dark: #081e30; --navy: #0D2B45; --white: #FFFFFF;
       background: var(--navy); border-bottom: 1px solid var(--border);
       padding: 0 32px; height: 64px;
       display: flex; align-items: center; justify-content: space-between;
@@ -62,7 +72,7 @@
       padding: 7px 14px; font-size: 13px; color: var(--text-muted);
       cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
     }
-    .nav-tab:hover { color: var(--white); background: rgba(255,255,255,0.06); }
+    .nav-tab:hover { color: var(--white); background: rgba(var(--rgb-fg),0.06); }
     .nav-tab.ativo { color: var(--gold); background: var(--gold-dim); }
     .navbar-right { display: flex; align-items: center; gap: 12px; }
     .admin-badge {
@@ -124,13 +134,13 @@
     }
     .search-wrap { position: relative; flex: 1; min-width: 200px; }
     .search-wrap input {
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      background: rgba(var(--rgb-fg),0.05); border: 1px solid var(--border);
       border-radius: 8px; padding: 10px 16px 10px 36px;
       font-size: 14px; color: var(--white); font-family: 'Inter', sans-serif;
       width: 100%; transition: border-color 0.2s;
     }
     .search-wrap input:focus { outline: none; border-color: rgba(207,174,101,0.4); }
-    .search-wrap input::placeholder { color: rgba(255,255,255,0.25); }
+    .search-wrap input::placeholder { color: rgba(var(--rgb-fg),0.25); }
     .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; opacity: 0.4; }
     .filter-btn {
       background: transparent; border: 1px solid var(--border); border-radius: 8px;
@@ -191,7 +201,7 @@
     }
     .status-ativa    { background: var(--positive-dim); color: var(--positive); }
     .status-alerta   { background: var(--warning-dim); color: var(--warning); }
-    .status-inativa  { background: rgba(255,255,255,0.07); color: var(--text-muted); }
+    .status-inativa  { background: rgba(var(--rgb-fg),0.07); color: var(--text-muted); }
     .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
     .perfil-tag {
@@ -232,7 +242,7 @@
     .detalhe-section-title { font-family: 'Playfair Display', serif; font-size: 16px; margin-bottom: 14px; }
 
     .nota-area {
-      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      background: rgba(var(--rgb-fg),0.04); border: 1px solid var(--border);
       border-radius: 8px; padding: 12px 16px; font-size: 14px; color: var(--white);
       font-family: 'Inter', sans-serif; width: 100%; resize: vertical; min-height: 100px;
     }
@@ -390,14 +400,14 @@
     }
     .modal-title { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 24px; }
     .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-    label { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.6); }
+    label { font-size: 12px; font-weight: 500; color: rgba(var(--rgb-fg),0.6); }
     input, select {
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      background: rgba(var(--rgb-fg),0.05); border: 1px solid var(--border);
       border-radius: 8px; padding: 12px 16px; font-size: 14px; color: var(--white);
       font-family: 'Inter', sans-serif; transition: border-color 0.2s; width: 100%;
     }
     input:focus, select:focus { outline: none; border-color: rgba(207,174,101,0.5); }
-    input::placeholder { color: rgba(255,255,255,0.25); }
+    input::placeholder { color: rgba(var(--rgb-fg),0.25); }
     input[type="month"], input[type="date"] { color-scheme: dark; }
     input[type="month"]::-webkit-calendar-picker-indicator,
     input[type="date"]::-webkit-calendar-picker-indicator {
@@ -420,7 +430,7 @@
     .btn-save:hover { background: var(--gold-light); }
 
     .produto-tag {
-      font-size: 11px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      font-size: 11px; background: rgba(var(--rgb-fg),0.06); border: 1px solid rgba(var(--rgb-fg),0.1);
       border-radius: 20px; padding: 2px 10px; color: var(--text-secondary);
     }
     .expiracao-ok     { color: var(--text-secondary); font-size: 13px; }
@@ -483,7 +493,7 @@
       border-radius: 6px; padding: 7px; font-size: 12px; color: var(--text-muted);
       cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s;
     }
-    .inline-edit-actions .btn-cancel-small:hover { color: var(--white); border-color: rgba(255,255,255,0.2); }
+    .inline-edit-actions .btn-cancel-small:hover { color: var(--white); border-color: rgba(var(--rgb-fg),0.2); }
     .inline-edit-actions .btn-save-small {
       flex: 2; background: var(--gold); color: var(--navy); border: none;
       border-radius: 6px; padding: 7px; font-size: 12px; font-weight: 700;
@@ -542,7 +552,7 @@
       padding: 12px 16px; cursor: pointer;
       border-bottom: 1px solid transparent; transition: border-color .2s;
     }
-    .contrato-header:hover { background: rgba(255,255,255,.02); }
+    .contrato-header:hover { background: rgba(var(--rgb-fg),.02); }
     .contrato-header.aberto { border-bottom-color: var(--border); }
     .contrato-titulo { font-size: 14px; font-weight: 600; flex: 1; }
     .contrato-status-tag {
@@ -550,7 +560,7 @@
     }
     .status-ativo    { background: rgba(74,222,128,.12);  color: var(--positive); }
     .status-quitado  { background: rgba(207,174,101,.12); color: var(--gold); }
-    .status-cancelado{ background: rgba(255,255,255,.06); color: var(--text-muted); }
+    .status-cancelado{ background: rgba(var(--rgb-fg),.06); color: var(--text-muted); }
     .contrato-body { padding: 0 16px 12px; }
     .parcelas-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
     .parcelas-table th { font-size:11px; color:var(--text-muted); text-align:left; padding:4px 8px; font-weight:500; }
@@ -608,109 +618,110 @@
       " onmouseover="this.style.background='rgba(207,174,101,0.1)'" onmouseout="this.style.background='transparent'">
         📣 Comunicados
       </button>
+      <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </nav>
 
   <!-- Modal Comunicados -->
   <div id="modalComunicados" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;display:none;align-items:center;justify-content:center;padding:24px;">
-    <div style="background:#0D2B45;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px;width:100%;max-width:420px;">
+    <div style="background:var(--navy);border:1px solid rgba(var(--rgb-fg),0.1);border-radius:16px;padding:32px;width:100%;max-width:420px;">
       <h2 style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:6px;">Comunicados</h2>
-      <p style="font-size:13px;color:rgba(255,255,255,0.45);margin-bottom:24px;">Envia e-mail para todas as mentoradas ativas.</p>
+      <p style="font-size:13px;color:rgba(var(--rgb-fg),0.45);margin-bottom:24px;">Envia e-mail para todas as mentoradas ativas.</p>
 
       <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:28px;max-height:60vh;overflow-y:auto;padding-right:4px;">
         <div style="background:rgba(207,174,101,0.07);border:1px solid rgba(207,174,101,0.25);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🎊 Tudo que melhoramos em Agosto — Ago/2026 <span style="font-size:11px;font-weight:400;color:#CFAE65;">Novo</span></div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Resumo do mês: transferência entre contas, pagamento antecipado de fatura, categorias personalizadas, Detalhe por data, Mapa da Liberdade + checklist P.A.R.I.S. na Jornada, e Dashboard PJ com DRE, Contas a Receber, Reservas, FAQ e Calculadora de Pró-labore.</div>
-          <button id="btnDispararNovidadesAgo2026Completo" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusNovidadesAgo2026Completo" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Resumo do mês: transferência entre contas, pagamento antecipado de fatura, categorias personalizadas, Detalhe por data, Mapa da Liberdade + checklist P.A.R.I.S. na Jornada, e Dashboard PJ com DRE, Contas a Receber, Reservas, FAQ e Calculadora de Pró-labore.</div>
+          <button id="btnDispararNovidadesAgo2026Completo" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusNovidadesAgo2026Completo" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🎊 Tudo que melhoramos em Julho — Jul/2026</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Resumo completo do mês: cartão/faturas mais precisos, Detalhe/Planejamento batendo, importação por IA no Orçamento e no Patrimônio, múltiplas contas correntes e o lançamento do Dashboard PJ.</div>
-          <button id="btnDispararNovidadesJul2026Completo" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusNovidadesJul2026Completo" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Resumo completo do mês: cartão/faturas mais precisos, Detalhe/Planejamento batendo, importação por IA no Orçamento e no Patrimônio, múltiplas contas correntes e o lançamento do Dashboard PJ.</div>
+          <button id="btnDispararNovidadesJul2026Completo" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusNovidadesJul2026Completo" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🏦 Importar Patrimônio com IA — IR, corretora e dívidas — Jul/2026</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Liberado geral: declaração de IR, posição da corretora (com suporte a mais de uma posição) e dívidas agora importam com IA. Inclui separação de Automóveis/Bens Móveis de Alternativos e classificação de fundos mais criteriosa.</div>
-          <button id="btnDispararPatrimonioIAJul2026" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusPatrimonioIAJul2026" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Liberado geral: declaração de IR, posição da corretora (com suporte a mais de uma posição) e dívidas agora importam com IA. Inclui separação de Automóveis/Bens Móveis de Alternativos e classificação de fundos mais criteriosa.</div>
+          <button id="btnDispararPatrimonioIAJul2026" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusPatrimonioIAJul2026" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">⚡ Importar extrato com IA no Orçamento — Jul/2026</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">A classificação por IA saiu do agente de chat e entrou direto na aba Orçamento — botão "Importar extrato com IA" liberado pra todas as mentoradas.</div>
-          <button id="btnDispararRaioXJul2026" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusRaioXJul2026" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">A classificação por IA saiu do agente de chat e entrou direto na aba Orçamento — botão "Importar extrato com IA" liberado pra todas as mentoradas.</div>
+          <button id="btnDispararRaioXJul2026" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusRaioXJul2026" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🏦 Múltiplas contas correntes — Jul/2026</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Escolher a conta ao lançar despesa/receita e ao confirmar pagamento de fatura, mais correções: confirmação de lançamento de hoje, fatura paga que sumia da aba Faturas, e fatura paga no Resumo por categoria.</div>
-          <button id="btnDispararMultiplasContasJul2026" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusMultiplasContasJul2026" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Escolher a conta ao lançar despesa/receita e ao confirmar pagamento de fatura, mais correções: confirmação de lançamento de hoje, fatura paga que sumia da aba Faturas, e fatura paga no Resumo por categoria.</div>
+          <button id="btnDispararMultiplasContasJul2026" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusMultiplasContasJul2026" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">📊 Detalhe, Planejamento e despesas fixas — Jul/2026</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Aba Detalhe agora mostra tudo (inclusive fixas ainda não lançadas) e bate com o Planejamento e a home; despesas fixas só valem a partir do mês certo; Saldo Projetado mais preciso.</div>
-          <button id="btnDispararBalancoJul2026" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusBalancoJul2026" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Aba Detalhe agora mostra tudo (inclusive fixas ainda não lançadas) e bate com o Planejamento e a home; despesas fixas só valem a partir do mês certo; Saldo Projetado mais preciso.</div>
+          <button id="btnDispararBalancoJul2026" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusBalancoJul2026" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🎊 Tudo que melhoramos em Junho — Jun/2026</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Resumo completo do mês: Saldo em Conta, Saldo Final, ciclo de fatura, despesas fixas futuras, Jornada, melhorias Android/iOS, sessão sem expiração e LGPD.</div>
-          <button id="btnDispararNovidadesJun2026Completo" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusNovidadesJun2026Completo" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Resumo completo do mês: Saldo em Conta, Saldo Final, ciclo de fatura, despesas fixas futuras, Jornada, melhorias Android/iOS, sessão sem expiração e LGPD.</div>
+          <button id="btnDispararNovidadesJun2026Completo" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusNovidadesJun2026Completo" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">💳 Faturas + Jornada — Jul/2026</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Faturas no mês de vencimento, pagamento parcial com rollover automático e materiais na Jornada.</div>
-          <button id="btnDispararNovidadesJul2026" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusNovidadesJul2026" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Faturas no mês de vencimento, pagamento parcial com rollover automático e materiais na Jornada.</div>
+          <button id="btnDispararNovidadesJul2026" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusNovidadesJul2026" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🗺️ Minha Jornada no Dashboard — Jun/2026</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Comunica que mentoradas em processo podem acompanhar a jornada na nova aba.</div>
-          <button id="btnDispararJornada" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusJornada" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Comunica que mentoradas em processo podem acompanhar a jornada na nova aba.</div>
+          <button id="btnDispararJornada" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusJornada" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">✨ Texto livre + CSV por mês — Jun/2026 (v3)</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Registrar gasto por texto e importação de CSV com detecção automática de mês.</div>
-          <button id="btnDispararNovidadesJun2026v3" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusNovidadesJun2026v3" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Registrar gasto por texto e importação de CSV com detecção automática de mês.</div>
+          <button id="btnDispararNovidadesJun2026v3" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusNovidadesJun2026v3" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🎉 Novidades — Jun/2026 (v2)</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Reenvio com conteúdo correto das melhorias.</div>
-          <button id="btnDispararNovidadesJun2026" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusNovidadesJun2026" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Reenvio com conteúdo correto das melhorias.</div>
+          <button id="btnDispararNovidadesJun2026" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusNovidadesJun2026" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🎉 Novidades — Jun/2026</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Cartões, aba Faturas, toggles de fixas, Raio-X automático e FAB de atalho.</div>
-          <button id="btnDispararNovidades" style="background:#CFAE65;color:#0D2B45;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusNovidades" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Cartões, aba Faturas, toggles de fixas, Raio-X automático e FAB de atalho.</div>
+          <button id="btnDispararNovidades" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusNovidades" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,160,0,0.2);border-radius:10px;padding:16px;">
+        <div style="background:rgba(var(--rgb-fg),0.04);border:1px solid rgba(255,160,0,0.2);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">⚠️ Comunicado técnico</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Avisa mentoradas sobre instabilidade e orienta a reinstalar o app.</div>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Avisa mentoradas sobre instabilidade e orienta a reinstalar o app.</div>
           <button id="btnDispararTecnico" style="background:rgba(255,160,0,0.2);color:#fbbf24;border:1px solid rgba(255,160,0,0.3);border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
-          <span id="statusTecnico" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+          <span id="statusTecnico" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
         </div>
       </div>
 
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:12px">
+      <div style="background:rgba(var(--rgb-fg),0.03);border:1px solid rgba(var(--rgb-fg),0.08);border-radius:10px;padding:16px;margin-bottom:12px">
         <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🗄️ Migrar orçamento → Firestore</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:12px;">Copia histórico do Sheets para Firestore. Idempotente — seguro rodar várias vezes.</div>
-        <button id="btnMigrarOrcamento" style="background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);border-radius:7px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">
+        <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Copia histórico do Sheets para Firestore. Idempotente — seguro rodar várias vezes.</div>
+        <button id="btnMigrarOrcamento" style="background:rgba(var(--rgb-fg),0.07);color:rgba(var(--rgb-fg),0.7);border:1px solid rgba(var(--rgb-fg),0.15);border-radius:7px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">
           Executar migração →
         </button>
-        <span id="statusMigracao" style="font-size:12px;color:rgba(255,255,255,0.45);margin-left:10px;"></span>
+        <span id="statusMigracao" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
       </div>
 
       <button id="btnFecharComunicados" style="
-        width:100%;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:8px;
-        padding:10px;font-size:14px;color:rgba(255,255,255,0.45);cursor:pointer;
+        width:100%;background:transparent;border:1px solid rgba(var(--rgb-fg),0.1);border-radius:8px;
+        padding:10px;font-size:14px;color:rgba(var(--rgb-fg),0.45);cursor:pointer;
         font-family:'Inter',sans-serif;
       ">Fechar</button>
     </div>
@@ -775,13 +786,13 @@
       </div>
 
       <!-- Abas Ativas / Inativas -->
-      <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08);">
+      <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid rgba(var(--rgb-fg),.08);">
         <div role="button" tabindex="0" data-aba-mentoradas="ativas" id="tabBtnAtivas"
              style="display:inline-flex;align-items:center;gap:4px;background:none;border:0;border-bottom:2px solid #CFAE65;padding:8px 18px;font-size:13px;font-weight:600;color:#CFAE65;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;box-shadow:none;outline:none;user-select:none;">
           Ativas <span id="cntMentoradasAtivas" style="font-size:11px;opacity:.6"></span>
         </div>
         <div role="button" tabindex="0" data-aba-mentoradas="inativas" id="tabBtnInativas"
-             style="display:inline-flex;align-items:center;gap:4px;background:none;border:0;border-bottom:2px solid transparent;padding:8px 18px;font-size:13px;font-weight:500;color:rgba(255,255,255,.45);cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;box-shadow:none;outline:none;user-select:none;">
+             style="display:inline-flex;align-items:center;gap:4px;background:none;border:0;border-bottom:2px solid transparent;padding:8px 18px;font-size:13px;font-weight:500;color:rgba(var(--rgb-fg),.45);cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;box-shadow:none;outline:none;user-select:none;">
           Inativas <span id="cntMentoradasInativas" style="font-size:11px;opacity:.6"></span>
         </div>
       </div>
@@ -1006,14 +1017,14 @@
       </div>
 
       <!-- Toggle Dashboard (acesso ao painel independente da mentoria/Clube) -->
-      <div style="margin-top:10px;padding:14px 18px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between">
+      <div style="margin-top:10px;padding:14px 18px;background:rgba(var(--rgb-fg),.03);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:13px;color:var(--text-secondary);font-weight:600">🖥 Dashboard</span>
         <button id="btnToggleDashboard" style="border:2px solid var(--border);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:transparent;color:var(--text-muted)">Dashboard: —</button>
       </div>
 
       <!-- Toggle PJ (só aparece se esse uid tiver conta PJ — independente do
            Dashboard/Clube PF, mesmo Auth compartilhado, achado 26/07/2026) -->
-      <div id="blocoTogglePJ" style="display:none;margin-top:10px;padding:14px 18px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;align-items:center;justify-content:space-between;gap:10px">
+      <div id="blocoTogglePJ" style="display:none;margin-top:10px;padding:14px 18px;background:rgba(var(--rgb-fg),.03);border:1px solid var(--border);border-radius:10px;align-items:center;justify-content:space-between;gap:10px">
         <span style="font-size:13px;color:var(--text-secondary);font-weight:600">🏢 Dashboard PJ</span>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn-acao" id="btnAbrirDashboardPJ" style="padding:6px 14px;font-size:12px">Ver dashboard PJ</button>
@@ -1088,7 +1099,7 @@
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse" id="tabelaCobrancas">
               <thead>
-                <tr style="background:rgba(255,255,255,.03)">
+                <tr style="background:rgba(var(--rgb-fg),.03)">
                   <th class="th-fin">Aluna</th>
                   <th class="th-fin">Produto</th>
                   <th class="th-fin">Parc.</th>
@@ -1159,7 +1170,7 @@
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse" id="tabelaProvisao">
               <thead>
-                <tr style="background:rgba(255,255,255,.03)">
+                <tr style="background:rgba(var(--rgb-fg),.03)">
                   <th class="th-fin">Tributo</th>
                   <th class="th-fin">Competência</th>
                   <th class="th-fin">Vencimento</th>
@@ -1184,7 +1195,7 @@
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse" id="tabelaDevidos">
               <thead>
-                <tr style="background:rgba(255,255,255,.03)">
+                <tr style="background:rgba(var(--rgb-fg),.03)">
                   <th class="th-fin">Tributo</th>
                   <th class="th-fin">Competência</th>
                   <th class="th-fin">Vencimento</th>
@@ -1215,11 +1226,11 @@
         </div>
         <div class="field-group" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
-            <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Competência (mês/ano) *</label>
+            <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Competência (mês/ano) *</label>
             <input type="month" id="notaCompetencia">
           </div>
           <div>
-            <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Data de emissão</label>
+            <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Data de emissão</label>
             <input type="date" id="notaDataEmissao">
           </div>
         </div>
@@ -1247,14 +1258,14 @@
             <input type="text" id="tribNome" placeholder="Ex: DAM ISS, DARF PIS...">
           </div>
           <div class="field-group">
-            <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Tipo de cálculo *</label>
+            <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Tipo de cálculo *</label>
             <select id="tribTipo">
               <option value="percentual">% sobre as notas emitidas</option>
               <option value="fixo">Valor fixo (editável por competência)</option>
             </select>
           </div>
           <div class="field-group">
-            <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Periodicidade *</label>
+            <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Periodicidade *</label>
             <select id="tribPeriodicidade">
               <option value="mensal">Mensal</option>
               <option value="trimestral">Trimestral (ex: IRPJ/CSLL Lucro Presumido) — soma as notas dos 3 meses do trimestre numa provisão extra, além da linha mensal de referência</option>
@@ -1271,15 +1282,15 @@
           </div>
           <div class="field-group" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div>
-              <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Dia de vencimento *</label>
+              <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Dia de vencimento *</label>
               <input type="number" id="tribDiaVencimento" min="1" max="28" placeholder="10">
             </div>
             <div id="fgTribDefasagem">
-              <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Vence quantos meses após a competência?</label>
+              <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Vence quantos meses após a competência?</label>
               <input type="number" id="tribDefasagem" min="-1" max="3" value="1">
             </div>
             <div id="fgTribMesVencimento" style="display:none">
-              <label style="font-size:12px;color:rgba(255,255,255,.6);display:block;margin-bottom:6px">Mês de vencimento *</label>
+              <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Mês de vencimento *</label>
               <select id="tribMesVencimento">
                 <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
                 <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
@@ -1321,7 +1332,7 @@
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
           <div>
             <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">Tipo *</label>
-            <select id="clubeTipo" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;">
+            <select id="clubeTipo" style="width:100%; background:rgba(var(--rgb-fg),0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;">
               <option value="gravacao">Gravação</option>
               <option value="documento">Documento</option>
               <option value="agenda">Agenda</option>
@@ -1329,25 +1340,25 @@
           </div>
           <div>
             <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">Data *</label>
-            <input type="date" id="clubeData" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
+            <input type="date" id="clubeData" style="width:100%; background:rgba(var(--rgb-fg),0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
           </div>
         </div>
         <div style="margin-bottom:14px;">
           <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">Título *</label>
-          <input type="text" id="clubeTitulo" placeholder="Ex: Encontro 01 — Fundamentos do Investimento" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
+          <input type="text" id="clubeTitulo" placeholder="Ex: Encontro 01 — Fundamentos do Investimento" style="width:100%; background:rgba(var(--rgb-fg),0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
         </div>
         <div style="margin-bottom:14px;">
           <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">URL *</label>
-          <input type="url" id="clubeUrl" placeholder="https://youtube.com/watch?v=... ou https://drive.google.com/..." style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
+          <input type="url" id="clubeUrl" placeholder="https://youtube.com/watch?v=... ou https://drive.google.com/..." style="width:100%; background:rgba(var(--rgb-fg),0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
         </div>
         <div style="display:grid; grid-template-columns:1fr 120px; gap:14px; margin-bottom:20px;">
           <div>
             <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">Descrição (opcional)</label>
-            <textarea id="clubeDescricao" rows="2" placeholder="Resumo ou instruções..." style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif; resize:vertical;"></textarea>
+            <textarea id="clubeDescricao" rows="2" placeholder="Resumo ou instruções..." style="width:100%; background:rgba(var(--rgb-fg),0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif; resize:vertical;"></textarea>
           </div>
           <div>
             <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">Ordem</label>
-            <input type="number" id="clubeOrdem" value="0" min="0" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
+            <input type="number" id="clubeOrdem" value="0" min="0" style="width:100%; background:rgba(var(--rgb-fg),0.06); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--white); font-family:'Inter',sans-serif;" />
           </div>
         </div>
         <input type="hidden" id="clubeEditId" value="" />
@@ -1431,7 +1442,7 @@
       </div>
 
       <!-- Sub-abas do Pipeline -->
-      <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:0;">
+      <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid rgba(var(--rgb-fg),.08);padding-bottom:0;">
         <button class="pipeline-subtab ativo" data-vista="ativos"  style="background:transparent;border:none;border-bottom:2px solid var(--gold);padding:8px 18px;font-size:13px;font-weight:600;color:var(--gold);cursor:pointer;font-family:'Inter',sans-serif;">Ativos <span id="cntAtivos" style="font-size:11px;opacity:.7"></span></button>
         <button class="pipeline-subtab"        data-vista="ganhos" style="background:transparent;border:none;border-bottom:2px solid transparent;padding:8px 18px;font-size:13px;color:var(--text-muted);cursor:pointer;font-family:'Inter',sans-serif;">Ganhos <span id="cntGanhos" style="font-size:11px;opacity:.7"></span></button>
         <button class="pipeline-subtab"        data-vista="perdidos" style="background:transparent;border:none;border-bottom:2px solid transparent;padding:8px 18px;font-size:13px;color:var(--text-muted);cursor:pointer;font-family:'Inter',sans-serif;">Perdidos <span id="cntPerdidos" style="font-size:11px;opacity:.7"></span></button>
@@ -1574,7 +1585,7 @@
         </div>
         <div class="field-group" style="margin-top:4px;">
           <label>Notas</label>
-          <textarea id="lNotas" rows="3" style="width:100%;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px;color:inherit;font-size:14px;resize:vertical;font-family:inherit;"></textarea>
+          <textarea id="lNotas" rows="3" style="width:100%;background:rgba(0,0,0,.2);border:1px solid rgba(var(--rgb-fg),.12);border-radius:8px;padding:10px;color:inherit;font-size:14px;resize:vertical;font-family:inherit;"></textarea>
         </div>
         <input type="hidden" id="lEditId" />
         <div style="display:flex;gap:10px;margin-top:16px;align-items:center;">
@@ -1645,7 +1656,7 @@
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse" id="tabelaPJTable">
             <thead>
-              <tr style="background:rgba(255,255,255,.03)">
+              <tr style="background:rgba(var(--rgb-fg),.03)">
                 <th class="th-fin">Empresa</th>
                 <th class="th-fin">E-mail</th>
                 <th class="th-fin">Regime</th>
@@ -1713,12 +1724,12 @@
         <div style="margin-bottom:12px;">
           <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px;">Título *</label>
           <input type="text" id="missaoTituloInput" placeholder="Ex: Revise suas reservas este mês" maxlength="80"
-            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;box-sizing:border-box;">
+            style="width:100%;padding:10px 14px;background:rgba(var(--rgb-fg),0.06);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;box-sizing:border-box;">
         </div>
         <div style="margin-bottom:16px;">
           <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px;">Descrição (opcional)</label>
           <textarea id="missaoDescricaoInput" rows="2" placeholder="Ex: Verifique se os aportes programados estão sendo feitos." maxlength="200"
-            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;resize:vertical;box-sizing:border-box;"></textarea>
+            style="width:100%;padding:10px 14px;background:rgba(var(--rgb-fg),0.06);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;resize:vertical;box-sizing:border-box;"></textarea>
         </div>
         <div style="display:flex;align-items:center;gap:12px;">
           <button id="btnSalvarMissao" class="btn-salvar-nota" style="padding:10px 24px;">Salvar missão</button>
@@ -1737,12 +1748,12 @@
         <div style="margin-bottom:12px;">
           <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px;">Título *</label>
           <input type="text" id="pushTitulo" placeholder="Ex: Nova gravação disponível no Clube" maxlength="80"
-            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;box-sizing:border-box;">
+            style="width:100%;padding:10px 14px;background:rgba(var(--rgb-fg),0.06);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;box-sizing:border-box;">
         </div>
         <div style="margin-bottom:16px;">
           <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px;">Mensagem *</label>
           <textarea id="pushCorpo" rows="2" placeholder="Ex: O encontro de maio já está disponível para assistir." maxlength="200"
-            style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;resize:vertical;box-sizing:border-box;"></textarea>
+            style="width:100%;padding:10px 14px;background:rgba(var(--rgb-fg),0.06);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;font-family:'Inter',sans-serif;resize:vertical;box-sizing:border-box;"></textarea>
         </div>
         <div style="display:flex;align-items:center;gap:12px;">
           <button id="btnEnviarPush" class="btn-salvar-nota" style="padding:10px 24px;">Enviar push</button>
@@ -1875,7 +1886,7 @@
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Copie o link abaixo e envie manualmente para a mentorada:</p>
       <div style="display:flex;gap:8px;align-items:center">
         <input id="modalLinkInput" type="text" readonly
-          style="flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border-gold);border-radius:8px;
+          style="flex:1;background:rgba(var(--rgb-fg),0.05);border:1px solid var(--border-gold);border-radius:8px;
                  padding:10px 12px;color:var(--white);font-size:12px;font-family:monospace;min-width:0">
         <button id="modalLinkCopiar" onclick="
           const inp = document.getElementById('modalLinkInput');
@@ -2034,7 +2045,7 @@
       <p id="modalVencDesc" style="font-size:13px;color:var(--text-muted);margin-bottom:16px"></p>
       <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px">Novo vencimento</label>
       <input id="modalVencData" type="date"
-        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--border-gold);border-radius:8px;
+        style="width:100%;background:rgba(var(--rgb-fg),0.06);border:1px solid var(--border-gold);border-radius:8px;
                padding:10px 12px;color:var(--white);font-size:14px;box-sizing:border-box;margin-bottom:20px">
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button id="btnCancelarVenc" class="btn-secondary" style="padding:8px 16px">Cancelar</button>
@@ -2049,7 +2060,7 @@
       <h2 class="modal-title">Fechar mentoria</h2>
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
         Copie o prompt abaixo e cole em uma nova conversa no Claude. O skill
-        <code style="background:rgba(255,255,255,.08);padding:1px 6px;border-radius:4px">/entregaveis-finais-mentoria</code>
+        <code style="background:rgba(var(--rgb-fg),.08);padding:1px 6px;border-radius:4px">/entregaveis-finais-mentoria</code>
         vai gerar o PDF e o Excel automaticamente.
       </p>
       <textarea id="promptEncerramento" readonly
@@ -2482,7 +2493,7 @@
         const res = await comunicadoTecnico();
         btn.textContent = '✓ Enviado!';
         btn.style.background = '#4ade80';
-        btn.style.color = '#0D2B45';
+        btn.style.color = 'var(--navy)';
         status.textContent = `${res.enviados} e-mails enviados${res.erros > 0 ? `, ${res.erros} erros` : ''}`;
         status.style.color = res.erros > 0 ? '#f87171' : '#4ade80';
       } catch (err) {
@@ -2877,7 +2888,7 @@
     // ─── Abas Ativas / Inativas ──────────────
     const _cssTabBase = 'display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:8px 18px;font-size:13px;cursor:pointer;font-family:\'Inter\',sans-serif;white-space:nowrap;box-shadow:none;outline:none;user-select:none;';
     const _cssTabAtivo   = _cssTabBase + 'border-bottom:2px solid #CFAE65;color:#CFAE65;font-weight:600;';
-    const _cssTabInativo = _cssTabBase + 'border-bottom:2px solid transparent;color:rgba(255,255,255,.45);font-weight:500;';
+    const _cssTabInativo = _cssTabBase + 'border-bottom:2px solid transparent;color:rgba(var(--rgb-fg),.45);font-weight:500;';
 
     function ativarAbaMentoradas(aba) {
       abaMentoradasAtual = aba;
@@ -2972,6 +2983,78 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 </div>
 <div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
 <br><button onclick="window.print()" style="padding:10px 24px;background:#0D2B45;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
+</body></html>`);<style>
+  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
+  .campo { margin: 18px 0; }
+  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
+  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
+  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
+  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
+  @media print { button { display: none; } }
+</style></head><body>
+<h1>Comprovante de Aceite — LGPD</h1>
+<div class="campo"><div class="label">Titular dos dados</div><div class="valor">${nome}</div></div>
+<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
+<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
+<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard (dashboard.flaviaschusciman.com)</div></div>
+<div class="politica">
+<strong>Texto da política aceita:</strong><br><br>
+Para funcionar, o Trilogia Dashboard armazena seus dados financeiros (patrimônio, reservas, orçamento e perfil de investidor) de forma segura na nuvem, acessíveis apenas por você e pela sua mentora.<br><br>
+Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
+Suas informações são usadas exclusivamente para fins de acompanhamento financeiro dentro da metodologia Trilogia e são mantidas pelo prazo da mentoria ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente.<br><br>
+A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da mentoria."</em>
+</div>
+<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
+<br><button onclick="window.print()" style="padding:10px 24px;background:#0D2B45;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
+</body></html>`);<style>
+  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
+  .campo { margin: 18px 0; }
+  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
+  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
+  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
+  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
+  @media print { button { display: none; } }
+</style></head><body>
+<h1>Comprovante de Aceite — LGPD</h1>
+<div class="campo"><div class="label">Titular dos dados</div><div class="valor">${nome}</div></div>
+<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
+<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
+<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard (dashboard.flaviaschusciman.com)</div></div>
+<div class="politica">
+<strong>Texto da política aceita:</strong><br><br>
+Para funcionar, o Trilogia Dashboard armazena seus dados financeiros (patrimônio, reservas, orçamento e perfil de investidor) de forma segura na nuvem, acessíveis apenas por você e pela sua mentora.<br><br>
+Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
+Suas informações são usadas exclusivamente para fins de acompanhamento financeiro dentro da metodologia Trilogia e são mantidas pelo prazo da mentoria ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente.<br><br>
+A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da mentoria."</em>
+</div>
+<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
+<br><button onclick="window.print()" style="padding:10px 24px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
+</body></html>`);<style>
+  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
+  .campo { margin: 18px 0; }
+  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
+  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
+  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
+  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
+  @media print { button { display: none; } }
+</style></head><body>
+<h1>Comprovante de Aceite — LGPD</h1>
+<div class="campo"><div class="label">Titular dos dados</div><div class="valor">${nome}</div></div>
+<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
+<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
+<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard (dashboard.flaviaschusciman.com)</div></div>
+<div class="politica">
+<strong>Texto da política aceita:</strong><br><br>
+Para funcionar, o Trilogia Dashboard armazena seus dados financeiros (patrimônio, reservas, orçamento e perfil de investidor) de forma segura na nuvem, acessíveis apenas por você e pela sua mentora.<br><br>
+Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
+Suas informações são usadas exclusivamente para fins de acompanhamento financeiro dentro da metodologia Trilogia e são mantidas pelo prazo da mentoria ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente.<br><br>
+A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da mentoria."</em>
+</div>
+<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
+<br><button onclick="window.print()" style="padding:10px 24px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
 </body></html>`);
       w.document.close();
     }
@@ -3284,6 +3367,78 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
 </div>
 <div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
 <br><button onclick="window.print()" style="padding:10px 24px;background:#0D2B45;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
+</body></html>`);<style>
+  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
+  .campo { margin: 18px 0; }
+  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
+  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
+  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
+  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
+  @media print { button { display: none; } }
+</style></head><body>
+<h1>Comprovante de Aceite — LGPD (Dashboard PJ)</h1>
+<div class="campo"><div class="label">Titular dos dados (empresa)</div><div class="valor">${nome}</div></div>
+<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
+<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
+<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard PJ (dashboard.flaviaschusciman.com)</div></div>
+<div class="politica">
+<strong>Texto da política aceita:</strong><br><br>
+Os dados da empresa (notas fiscais emitidas, recebimentos, impostos previstos, despesas e seus pagamentos, outras entradas de caixa e reservas) ficam armazenados de forma segura na nuvem, acessíveis apenas pela titular e pela Flávia.<br><br>
+Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
+As informações são usadas exclusivamente para o funcionamento do Dashboard PJ e são mantidas enquanto a assinatura estiver ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente, salvo pedido de exclusão antecipada pela titular.<br><br>
+A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa são tratados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da assinatura."</em>
+</div>
+<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
+<br><button onclick="window.print()" style="padding:10px 24px;background:#0D2B45;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
+</body></html>`);<style>
+  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
+  .campo { margin: 18px 0; }
+  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
+  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
+  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
+  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
+  @media print { button { display: none; } }
+</style></head><body>
+<h1>Comprovante de Aceite — LGPD (Dashboard PJ)</h1>
+<div class="campo"><div class="label">Titular dos dados (empresa)</div><div class="valor">${nome}</div></div>
+<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
+<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
+<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard PJ (dashboard.flaviaschusciman.com)</div></div>
+<div class="politica">
+<strong>Texto da política aceita:</strong><br><br>
+Os dados da empresa (notas fiscais emitidas, recebimentos, impostos previstos, despesas e seus pagamentos, outras entradas de caixa e reservas) ficam armazenados de forma segura na nuvem, acessíveis apenas pela titular e pela Flávia.<br><br>
+Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
+As informações são usadas exclusivamente para o funcionamento do Dashboard PJ e são mantidas enquanto a assinatura estiver ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente, salvo pedido de exclusão antecipada pela titular.<br><br>
+A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa são tratados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da assinatura."</em>
+</div>
+<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
+<br><button onclick="window.print()" style="padding:10px 24px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
+</body></html>`);<style>
+  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
+  .campo { margin: 18px 0; }
+  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
+  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
+  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
+  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
+  @media print { button { display: none; } }
+</style></head><body>
+<h1>Comprovante de Aceite — LGPD (Dashboard PJ)</h1>
+<div class="campo"><div class="label">Titular dos dados (empresa)</div><div class="valor">${nome}</div></div>
+<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
+<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
+<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard PJ (dashboard.flaviaschusciman.com)</div></div>
+<div class="politica">
+<strong>Texto da política aceita:</strong><br><br>
+Os dados da empresa (notas fiscais emitidas, recebimentos, impostos previstos, despesas e seus pagamentos, outras entradas de caixa e reservas) ficam armazenados de forma segura na nuvem, acessíveis apenas pela titular e pela Flávia.<br><br>
+Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
+As informações são usadas exclusivamente para o funcionamento do Dashboard PJ e são mantidas enquanto a assinatura estiver ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente, salvo pedido de exclusão antecipada pela titular.<br><br>
+A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa são tratados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da assinatura."</em>
+</div>
+<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
+<br><button onclick="window.print()" style="padding:10px 24px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
 </body></html>`);
       w.document.close();
     }
@@ -3496,9 +3651,9 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input type="number" id="${idScore}" min="0" max="100" placeholder="Nota (0-100)"
-              style="width:110px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--white);font-family:'Inter',sans-serif" />
+              style="width:110px;background:rgba(var(--rgb-fg),0.06);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--white);font-family:'Inter',sans-serif" />
             <input type="date" id="${idData}"
-              style="background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--white);font-family:'Inter',sans-serif" />
+              style="background:rgba(var(--rgb-fg),0.06);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--white);font-family:'Inter',sans-serif" />
             <button id="isfBtnManual-${momento}" style="background:var(--gold);color:var(--navy);font-weight:600;font-size:12px;border:none;border-radius:6px;padding:9px 14px;cursor:pointer;font-family:'Inter',sans-serif">${labelBotao}</button>
           </div>
           <div id="isfManualMsg-${momento}" style="font-size:12px;margin-top:6px"></div>
@@ -5456,7 +5611,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
           <span style="color:var(--text-muted)">${label}</span>
           <span style="color:var(--white);font-weight:600">${count}</span>
         </div>
-        <div style="background:rgba(255,255,255,.06);border-radius:4px;height:6px;">
+        <div style="background:rgba(var(--rgb-fg),.06);border-radius:4px;height:6px;">
           <div style="background:${cor};width:${pct}%;height:6px;border-radius:4px;transition:width .4s;"></div>
         </div>
       </div>`;
@@ -5479,7 +5634,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
           <span style="color:var(--text-muted)">${label}</span>
           <span style="color:var(--white);font-weight:600">${count} <span style="color:var(--text-muted);font-weight:400">(${pct}%)</span>${extra}</span>
         </div>
-        <div style="background:rgba(255,255,255,.06);border-radius:4px;height:6px;">
+        <div style="background:rgba(var(--rgb-fg),.06);border-radius:4px;height:6px;">
           <div style="background:${cor};width:${barW}%;height:6px;border-radius:4px;transition:width .4s;"></div>
         </div>
       </div>`;
@@ -5505,7 +5660,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       const decididos = ganhos + perdidos;
       const winRate = decididos > 0 ? Math.round((ganhos / decididos) * 100) : null;
       const winRateHTML = winRate !== null
-        ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;display:flex;justify-content:space-between;">
+        ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(var(--rgb-fg),.08);font-size:12px;display:flex;justify-content:space-between;">
             <span style="color:var(--text-muted)">Win rate (decididos)</span>
             <span style="color:${winRate >= 50 ? 'var(--positive)' : 'var(--gold)'};font-weight:700;">${winRate}%</span>
            </div>` : '';
@@ -6060,5 +6215,6 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       });
     }
   </script>
+<script src="js/theme.js" defer></script>
 </body>
 </html>

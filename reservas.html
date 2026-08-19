@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -15,7 +16,7 @@
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
   <!-- PWA -->
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#0D2B45" />
+  <meta name="theme-color" content="var(--navy)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Trilogia" />
@@ -35,7 +36,7 @@
       --gold-light: #e8d49b;
       --gold-dim: rgba(207,174,101,0.15);
       --white: #FFFFFF;
-      --border: rgba(255,255,255,0.08);
+      --border: rgba(var(--rgb-fg),0.08);
       --border-gold: rgba(207,174,101,0.2);
       --positive: #4ade80;
       --positive-dim: rgba(74,222,128,0.12);
@@ -43,14 +44,23 @@
       --negative-dim: rgba(248,113,113,0.12);
       --warning: #fbbf24;
       --warning-dim: rgba(251,191,36,0.12);
-      --text-muted: rgba(255,255,255,0.45);
-      --text-secondary: rgba(255,255,255,0.65);
+      --text-muted: rgba(var(--rgb-fg),0.45);
+      --text-secondary: rgba(var(--rgb-fg),0.65);
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
     }
+
 
     body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
 
     /* ─── Navbar ────────────────────────────── */
-    .navbar {
+    .navbar { --rgb-fg: 255,255,255; --navy-dark: #081e30; --navy: #0D2B45; --white: #FFFFFF;
       background: var(--navy); border-bottom: 1px solid var(--border);
       padding: 0 32px; height: 64px;
       display: flex; align-items: center; justify-content: space-between;
@@ -133,7 +143,7 @@
     .cobertura-val span { color: var(--text-muted); }
     .cobertura-val strong { color: var(--white); }
     .cobertura-track {
-      background: rgba(255,255,255,0.08); border-radius: 6px; height: 8px;
+      background: rgba(var(--rgb-fg),0.08); border-radius: 6px; height: 8px;
       overflow: hidden; margin-bottom: 10px;
     }
     .cobertura-fill { height: 100%; border-radius: 6px; transition: width 0.5s ease; }
@@ -183,7 +193,7 @@
       padding: 24px; margin-bottom: 12px; transition: border-color 0.2s;
       scroll-margin-top: 80px;
     }
-    .reserva-card:hover { border-color: rgba(255,255,255,0.14); }
+    .reserva-card:hover { border-color: rgba(var(--rgb-fg),0.14); }
     .reserva-card.completa { border-color: rgba(74,222,128,0.25); background: rgba(74,222,128,0.04); }
     .reserva-card.alerta { border-color: rgba(251,191,36,0.3); }
 
@@ -196,7 +206,7 @@
     .tag {
       font-size: 11px; border-radius: 20px; padding: 2px 10px; font-weight: 500;
     }
-    .tag-prazo { background: rgba(255,255,255,0.07); color: var(--text-secondary); }
+    .tag-prazo { background: rgba(var(--rgb-fg),0.07); color: var(--text-secondary); }
     .tag-completa { background: var(--positive-dim); color: var(--positive); }
     .tag-alerta { background: var(--warning-dim); color: var(--warning); }
 
@@ -219,7 +229,7 @@
     .valor-pct.ok { color: var(--positive); }
     .valor-pct.andamento { color: var(--gold); }
 
-    .progress-track { background: rgba(255,255,255,0.07); border-radius: 6px; height: 8px; overflow: hidden; margin-bottom: 16px; }
+    .progress-track { background: rgba(var(--rgb-fg),0.07); border-radius: 6px; height: 8px; overflow: hidden; margin-bottom: 16px; }
     .progress-fill { height: 100%; border-radius: 6px; background: var(--gold); transition: width 0.6s ease; }
     .progress-fill.completa { background: var(--positive); }
 
@@ -272,14 +282,14 @@
     .modal-title { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 8px; }
     .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
     .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-    label { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.6); }
+    label { font-size: 12px; font-weight: 500; color: rgba(var(--rgb-fg),0.6); }
     input, select {
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      background: rgba(var(--rgb-fg),0.05); border: 1px solid var(--border);
       border-radius: 8px; padding: 12px 16px; font-size: 14px; color: var(--white);
       font-family: 'Inter', sans-serif; transition: border-color 0.2s; width: 100%;
     }
     input:focus, select:focus { outline: none; border-color: rgba(207,174,101,0.5); }
-    input::placeholder { color: rgba(255,255,255,0.25); }
+    input::placeholder { color: rgba(var(--rgb-fg),0.25); }
     input[type="month"], input[type="date"] { color-scheme: dark; }
     input[type="month"]::-webkit-calendar-picker-indicator,
     input[type="date"]::-webkit-calendar-picker-indicator {
@@ -289,7 +299,7 @@
     select option { background: var(--navy); }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .alocacao-preview {
-      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      background: rgba(var(--rgb-fg),0.04); border: 1px solid var(--border);
       border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
       font-size: 13px; color: var(--text-secondary); min-height: 44px;
     }
@@ -327,7 +337,7 @@
 
     /* Modal de retirada — saldo disponível */
     .retirada-saldo {
-      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      background: rgba(var(--rgb-fg),0.04); border: 1px solid var(--border);
       border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;
       font-size: 13px; color: var(--text-secondary);
       display: flex; justify-content: space-between; align-items: center;
@@ -340,7 +350,7 @@
     }
     .opcao-card {
       display: flex; align-items: flex-start; gap: 14px;
-      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      background: rgba(var(--rgb-fg),0.04); border: 1px solid var(--border);
       border-radius: 10px; padding: 16px; cursor: pointer; text-align: left;
       transition: border-color 0.18s, background 0.18s; width: 100%;
       color: var(--white);
@@ -361,7 +371,7 @@
     .expansao-titulo { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
     .comp-grid { display: grid; gap: 4px; }
     .comp-row { display: grid; grid-template-columns: 1fr 68px 68px 76px; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; font-size: 13px; }
-    .comp-row:not(.comp-header) { background: rgba(255,255,255,0.03); }
+    .comp-row:not(.comp-header) { background: rgba(var(--rgb-fg),0.03); }
     .comp-header { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 10px; }
     .comp-label { display: flex; align-items: center; gap: 8px; }
     .comp-num { text-align: right; }
@@ -372,7 +382,7 @@
     .comp-aviso a { color: var(--gold); }
     .comp-base {
       font-size: 11px; color: var(--text-muted); margin-bottom: 10px;
-      padding: 6px 10px; background: rgba(255,255,255,0.03);
+      padding: 6px 10px; background: rgba(var(--rgb-fg),0.03);
       border-radius: 6px; line-height: 1.5;
     }
     .comp-base strong { color: var(--white); }
@@ -439,7 +449,7 @@
       font-size: 13px; font-weight: 500; color: var(--white);
       text-decoration: none; transition: background 0.15s;
     }
-    .suporte-link:hover { background: rgba(255,255,255,0.07); }
+    .suporte-link:hover { background: rgba(var(--rgb-fg),0.07); }
     .suporte-link-icon { font-size: 19px; flex-shrink: 0; line-height: 1; }
     .suporte-label { display: flex; flex-direction: column; gap: 1px; }
     .suporte-label em { font-size: 11px; color: var(--text-muted); font-style: normal; }
@@ -460,6 +470,7 @@
       <a href="jornada.html" class="link-jornada-nav nivel-completo" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
       <span class="user-name" id="userDisplayName"></span>
+      <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
   </nav>
@@ -2104,5 +2115,6 @@
     }
   </script>
 
+<script src="js/theme.js" defer></script>
 </body>
 </html>

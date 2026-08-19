@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trilogia Dashboard — Como usar</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -19,9 +20,18 @@
       --gold: #CFAE65;
       --gold-light: #e8d49b;
       --white: #FFFFFF;
-      --border: rgba(255,255,255,0.1);
-      --text-muted: rgba(255,255,255,0.55);
+      --border: rgba(var(--rgb-fg),0.1);
+      --text-muted: rgba(var(--rgb-fg),0.55);
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
     }
+
     body {
       font-family: 'Inter', sans-serif;
       background: var(--navy-dark);
@@ -63,7 +73,7 @@
       margin-bottom: 24px;
     }
     .agent-header {
-      background: rgba(255,255,255,0.04);
+      background: rgba(var(--rgb-fg),0.04);
       padding: 24px 28px;
       border-bottom: 1px solid var(--border);
       display: flex;
@@ -94,7 +104,7 @@
       padding: 14px 18px;
       margin-bottom: 20px;
     }
-    .agent-when p { font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.6; }
+    .agent-when p { font-size: 13px; color: rgba(var(--rgb-fg),0.7); line-height: 1.6; }
     .agent-when strong { color: var(--gold); }
     .steps-title { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; }
     .steps { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
@@ -103,7 +113,7 @@
       width: 22px;
       height: 22px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.06);
+      background: rgba(var(--rgb-fg),0.06);
       border: 1px solid var(--border);
       display: flex;
       align-items: center;
@@ -114,7 +124,7 @@
       flex-shrink: 0;
       margin-top: 1px;
     }
-    .step p { font-size: 14px; color: rgba(255,255,255,0.8); line-height: 1.6; }
+    .step p { font-size: 14px; color: rgba(var(--rgb-fg),0.8); line-height: 1.6; }
     .step p strong { color: var(--white); font-weight: 500; }
     .btn-agent {
       display: inline-flex;
@@ -146,7 +156,7 @@
       vertical-align: middle;
     }
     .tag-mensal { background: rgba(207,174,101,0.15); color: var(--gold); }
-    .tag-anual { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.5); }
+    .tag-anual { background: rgba(var(--rgb-fg),0.08); color: rgba(var(--rgb-fg),0.5); }
   </style>
 </head>
 <body>
@@ -513,9 +523,9 @@
     <div style="background:#1a3d5c;border-radius:18px 18px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;margin:0 auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <span style="font-size:16px;font-weight:700;color:#fff;">Instalar no iPhone</span>
-        <button id="pwaIosClose" style="background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;">✕</button>
+        <button id="pwaIosClose" style="background:transparent;border:none;color:rgba(var(--rgb-fg),0.5);font-size:22px;cursor:pointer;">✕</button>
       </div>
-      <ol style="color:rgba(255,255,255,0.85);font-size:14px;line-height:1.8;padding-left:20px;">
+      <ol style="color:rgba(var(--rgb-fg),0.85);font-size:14px;line-height:1.8;padding-left:20px;">
         <li>Toque no ícone de compartilhar <strong style="color:#CFAE65;">⬆️</strong> na barra do Safari</li>
         <li>Role a lista para baixo</li>
         <li>Toque em <strong style="color:#CFAE65;">"Adicionar à Tela de Início"</strong></li>
@@ -529,9 +539,9 @@
     <div style="background:#1a3d5c;border-radius:18px 18px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;margin:0 auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <span style="font-size:16px;font-weight:700;color:#fff;">Instalar no Android</span>
-        <button id="pwaAndroidClose" style="background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:22px;cursor:pointer;">✕</button>
+        <button id="pwaAndroidClose" style="background:transparent;border:none;color:rgba(var(--rgb-fg),0.5);font-size:22px;cursor:pointer;">✕</button>
       </div>
-      <ol style="color:rgba(255,255,255,0.85);font-size:14px;line-height:1.8;padding-left:20px;">
+      <ol style="color:rgba(var(--rgb-fg),0.85);font-size:14px;line-height:1.8;padding-left:20px;">
         <li>Abra o menu do Chrome <strong style="color:#CFAE65;">⋮</strong> (canto superior direito)</li>
         <li>Toque em <strong style="color:#CFAE65;">"Adicionar à tela inicial"</strong></li>
         <li>Confirme tocando em <strong style="color:#CFAE65;">"Adicionar"</strong></li>
@@ -590,5 +600,6 @@
     })();
   </script>
 
+<script src="js/theme.js" defer></script>
 </body>
 </html>

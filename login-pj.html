@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trilogia Dashboard PJ — Login</title>
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
@@ -19,9 +20,18 @@
       --gold: #CFAE65;
       --gold-light: #e8d49b;
       --white: #FFFFFF;
-      --border: rgba(255,255,255,0.1);
+      --border: rgba(var(--rgb-fg),0.1);
       --error: #f87171;
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
     }
+
     body {
       font-family: 'Inter', sans-serif;
       background: var(--navy-dark);
@@ -66,7 +76,7 @@
     }
     .subtitle {
       font-size: 13px;
-      color: rgba(255,255,255,0.45);
+      color: rgba(var(--rgb-fg),0.45);
       margin-bottom: 36px;
     }
     .field-group {
@@ -78,10 +88,10 @@
     label {
       font-size: 12px;
       font-weight: 500;
-      color: rgba(255,255,255,0.6);
+      color: rgba(var(--rgb-fg),0.6);
     }
     input {
-      background: rgba(255,255,255,0.05);
+      background: rgba(var(--rgb-fg),0.05);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 12px 16px;
@@ -92,7 +102,7 @@
       width: 100%;
     }
     input:focus { outline: none; border-color: rgba(207,174,101,0.5); }
-    input::placeholder { color: rgba(255,255,255,0.25); }
+    input::placeholder { color: rgba(var(--rgb-fg),0.25); }
     .btn-login {
       width: 100%;
       background: var(--gold);
@@ -112,7 +122,7 @@
     .forgot { text-align: center; margin-top: 20px; }
     .forgot a {
       font-size: 13px;
-      color: rgba(255,255,255,0.4);
+      color: rgba(var(--rgb-fg),0.4);
       text-decoration: none;
       transition: color 0.2s;
     }
@@ -130,7 +140,7 @@
     .error-msg.visible { display: block; }
     .nota-mesma-conta {
       font-size: 12px;
-      color: rgba(255,255,255,0.35);
+      color: rgba(var(--rgb-fg),0.35);
       margin-top: 20px;
       text-align: center;
       line-height: 1.5;
@@ -156,11 +166,11 @@
     .modal-overlay.hidden { display: none; }
     .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 32px; max-width: 440px; width: 100%; max-height: 85vh; overflow-y: auto; }
     .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 18px; margin-bottom: 14px; }
-    .modal-card p { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.7; margin-bottom: 14px; }
+    .modal-card p { font-size: 13px; color: rgba(var(--rgb-fg),0.6); line-height: 1.7; margin-bottom: 14px; }
     .modal-card a { color: var(--gold); }
     .modal-lgpd-check { display: flex; align-items: flex-start; gap: 10px; margin: 18px 0; }
     .modal-lgpd-check input { width: auto; margin-top: 2px; flex-shrink: 0; accent-color: var(--gold); }
-    .modal-lgpd-check label { font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.5; cursor: pointer; }
+    .modal-lgpd-check label { font-size: 13px; color: rgba(var(--rgb-fg),0.75); line-height: 1.5; cursor: pointer; }
     .btn-lgpd-confirmar { width: 100%; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 13px; font-weight: 700; font-size: 14px; cursor: pointer; }
     .btn-lgpd-confirmar:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
@@ -321,5 +331,6 @@
     });
   </script>
 
+<script src="js/theme.js" defer></script>
 </body>
 </html>
