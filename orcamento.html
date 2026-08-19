@@ -3677,10 +3677,13 @@
       const item  = lista[idx];
       if (!item) return;
       if (!(await confirmDelete(`Excluir "${item.categoria}"?`))) return;
-      // Feedback imediato ao confirmar — mesmo padrão já usado em
-      // confirmarPendente (achado 14/08/2026, Flávia: "excluí e o feedback de
-      // processamento não apareceu, parece que nada está acontecendo").
-      if (btn) btn.disabled = true;
+      // Feedback imediato ao confirmar — spinner de verdade, não só disabled
+      // (achado 14/08/2026, Flávia: "quando clica, não vem feedback de
+      // processando, excluindo... parece que nada está acontecendo" — só
+      // desabilitar o botão não dava nenhum sinal visual). Sem texto porque
+      // é um botão-ícone pequeno numa linha de tabela — texto quebraria o
+      // layout, só o spinner já resolve a sensação de "travou".
+      if (btn) setLoading(btn, true, '');
       // Item vinculado a uma recorrente ATIVA (não-cartão): excluir sozinho
       // não basta — no próximo render, diasFaltantesRecorrente vê o dia sem
       // ocorrência de novo e regenera o placeholder virtual (✓/⏭) pra esse
@@ -3698,7 +3701,7 @@
       if (!ok) {
         // salvarEAtualizar já mostrou o toast de erro — não mostra "Excluído"
         // em cima disso, senão fica contraditório (achado 14/08/2026).
-        if (btn) btn.disabled = false;
+        if (btn) setLoading(btn, false);
         return;
       }
       if (_recorrenteAtivo && _diaItem) {
