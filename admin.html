@@ -55,7 +55,7 @@
     body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
 
     /* ─── Navbar ────────────────────────────── */
-    .navbar { --rgb-fg: 255,255,255; --navy-dark: #081e30; --navy: #0D2B45; --white: #FFFFFF;
+    .navbar { --rgb-fg: 255,255,255; --navy-dark: #081e30; --navy: #0D2B45; --white: #FFFFFF; --border: rgba(255,255,255,0.08); --text-muted: rgba(255,255,255,0.45); --text-secondary: rgba(255,255,255,0.65);
       background: var(--navy); border-bottom: 1px solid var(--border);
       padding: 0 32px; height: 64px;
       display: flex; align-items: center; justify-content: space-between;
@@ -2983,78 +2983,6 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 </div>
 <div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
 <br><button onclick="window.print()" style="padding:10px 24px;background:#0D2B45;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
-</body></html>`);<style>
-  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
-  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
-  .campo { margin: 18px 0; }
-  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
-  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
-  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
-  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
-  @media print { button { display: none; } }
-</style></head><body>
-<h1>Comprovante de Aceite — LGPD</h1>
-<div class="campo"><div class="label">Titular dos dados</div><div class="valor">${nome}</div></div>
-<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
-<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
-<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard (dashboard.flaviaschusciman.com)</div></div>
-<div class="politica">
-<strong>Texto da política aceita:</strong><br><br>
-Para funcionar, o Trilogia Dashboard armazena seus dados financeiros (patrimônio, reservas, orçamento e perfil de investidor) de forma segura na nuvem, acessíveis apenas por você e pela sua mentora.<br><br>
-Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
-Suas informações são usadas exclusivamente para fins de acompanhamento financeiro dentro da metodologia Trilogia e são mantidas pelo prazo da mentoria ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente.<br><br>
-A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da mentoria."</em>
-</div>
-<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
-<br><button onclick="window.print()" style="padding:10px 24px;background:#0D2B45;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
-</body></html>`);<style>
-  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
-  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
-  .campo { margin: 18px 0; }
-  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
-  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
-  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
-  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
-  @media print { button { display: none; } }
-</style></head><body>
-<h1>Comprovante de Aceite — LGPD</h1>
-<div class="campo"><div class="label">Titular dos dados</div><div class="valor">${nome}</div></div>
-<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
-<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
-<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard (dashboard.flaviaschusciman.com)</div></div>
-<div class="politica">
-<strong>Texto da política aceita:</strong><br><br>
-Para funcionar, o Trilogia Dashboard armazena seus dados financeiros (patrimônio, reservas, orçamento e perfil de investidor) de forma segura na nuvem, acessíveis apenas por você e pela sua mentora.<br><br>
-Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
-Suas informações são usadas exclusivamente para fins de acompanhamento financeiro dentro da metodologia Trilogia e são mantidas pelo prazo da mentoria ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente.<br><br>
-A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da mentoria."</em>
-</div>
-<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
-<br><button onclick="window.print()" style="padding:10px 24px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
-</body></html>`);<style>
-  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
-  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
-  .campo { margin: 18px 0; }
-  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
-  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
-  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
-  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
-  @media print { button { display: none; } }
-</style></head><body>
-<h1>Comprovante de Aceite — LGPD</h1>
-<div class="campo"><div class="label">Titular dos dados</div><div class="valor">${nome}</div></div>
-<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
-<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
-<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard (dashboard.flaviaschusciman.com)</div></div>
-<div class="politica">
-<strong>Texto da política aceita:</strong><br><br>
-Para funcionar, o Trilogia Dashboard armazena seus dados financeiros (patrimônio, reservas, orçamento e perfil de investidor) de forma segura na nuvem, acessíveis apenas por você e pela sua mentora.<br><br>
-Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
-Suas informações são usadas exclusivamente para fins de acompanhamento financeiro dentro da metodologia Trilogia e são mantidas pelo prazo da mentoria ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente.<br><br>
-A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da mentoria."</em>
-</div>
-<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
-<br><button onclick="window.print()" style="padding:10px 24px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
 </body></html>`);
       w.document.close();
     }
@@ -3367,78 +3295,6 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
 </div>
 <div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
 <br><button onclick="window.print()" style="padding:10px 24px;background:#0D2B45;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
-</body></html>`);<style>
-  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
-  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
-  .campo { margin: 18px 0; }
-  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
-  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
-  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
-  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
-  @media print { button { display: none; } }
-</style></head><body>
-<h1>Comprovante de Aceite — LGPD (Dashboard PJ)</h1>
-<div class="campo"><div class="label">Titular dos dados (empresa)</div><div class="valor">${nome}</div></div>
-<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
-<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
-<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard PJ (dashboard.flaviaschusciman.com)</div></div>
-<div class="politica">
-<strong>Texto da política aceita:</strong><br><br>
-Os dados da empresa (notas fiscais emitidas, recebimentos, impostos previstos, despesas e seus pagamentos, outras entradas de caixa e reservas) ficam armazenados de forma segura na nuvem, acessíveis apenas pela titular e pela Flávia.<br><br>
-Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
-As informações são usadas exclusivamente para o funcionamento do Dashboard PJ e são mantidas enquanto a assinatura estiver ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente, salvo pedido de exclusão antecipada pela titular.<br><br>
-A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa são tratados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da assinatura."</em>
-</div>
-<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
-<br><button onclick="window.print()" style="padding:10px 24px;background:#0D2B45;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
-</body></html>`);<style>
-  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
-  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
-  .campo { margin: 18px 0; }
-  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
-  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
-  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
-  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
-  @media print { button { display: none; } }
-</style></head><body>
-<h1>Comprovante de Aceite — LGPD (Dashboard PJ)</h1>
-<div class="campo"><div class="label">Titular dos dados (empresa)</div><div class="valor">${nome}</div></div>
-<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
-<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
-<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard PJ (dashboard.flaviaschusciman.com)</div></div>
-<div class="politica">
-<strong>Texto da política aceita:</strong><br><br>
-Os dados da empresa (notas fiscais emitidas, recebimentos, impostos previstos, despesas e seus pagamentos, outras entradas de caixa e reservas) ficam armazenados de forma segura na nuvem, acessíveis apenas pela titular e pela Flávia.<br><br>
-Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
-As informações são usadas exclusivamente para o funcionamento do Dashboard PJ e são mantidas enquanto a assinatura estiver ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente, salvo pedido de exclusão antecipada pela titular.<br><br>
-A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa são tratados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da assinatura."</em>
-</div>
-<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
-<br><button onclick="window.print()" style="padding:10px 24px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
-</body></html>`);<style>
-  body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; color: #1a1a1a; line-height: 1.7; }
-  h1 { font-size: 20px; border-bottom: 2px solid #0D2B45; padding-bottom: 10px; color: #0D2B45; }
-  .campo { margin: 18px 0; }
-  .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
-  .valor { font-size: 15px; font-weight: bold; margin-top: 2px; }
-  .politica { background: #f5f5f5; padding: 18px 22px; font-size: 13px; border-left: 3px solid #CFAE65; margin-top: 24px; line-height: 1.6; }
-  .rodape { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 16px; }
-  @media print { button { display: none; } }
-</style></head><body>
-<h1>Comprovante de Aceite — LGPD (Dashboard PJ)</h1>
-<div class="campo"><div class="label">Titular dos dados (empresa)</div><div class="valor">${nome}</div></div>
-<div class="campo"><div class="label">E-mail</div><div class="valor">${email}</div></div>
-<div class="campo"><div class="label">Data e hora do aceite</div><div class="valor">${dataHora}</div></div>
-<div class="campo"><div class="label">Mecanismo de aceite</div><div class="valor">Checkbox explícito no Trilogia Dashboard PJ (dashboard.flaviaschusciman.com)</div></div>
-<div class="politica">
-<strong>Texto da política aceita:</strong><br><br>
-Os dados da empresa (notas fiscais emitidas, recebimentos, impostos previstos, despesas e seus pagamentos, outras entradas de caixa e reservas) ficam armazenados de forma segura na nuvem, acessíveis apenas pela titular e pela Flávia.<br><br>
-Os dados são processados em servidores nos <strong>Estados Unidos</strong> (Google Firebase / Google Cloud), em conformidade com as salvaguardas previstas na <strong>LGPD (Lei 13.709/2018)</strong> para transferência internacional de dados.<br><br>
-As informações são usadas exclusivamente para o funcionamento do Dashboard PJ e são mantidas enquanto a assinatura estiver ativa. Após o encerramento, os dados são retidos por até <strong>12 meses</strong> e então excluídos automaticamente, salvo pedido de exclusão antecipada pela titular.<br><br>
-A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa são tratados conforme descrito acima, incluindo o armazenamento em servidores nos EUA e a retenção por até 12 meses após o encerramento da assinatura."</em>
-</div>
-<div class="rodape">Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo painel administrativo da Flávia Shuscimann CFP® — Trilogia Financeira.</div>
-<br><button onclick="window.print()" style="padding:10px 24px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ Imprimir / Salvar PDF</button>
 </body></html>`);
       w.document.close();
     }
