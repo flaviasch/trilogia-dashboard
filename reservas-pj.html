@@ -96,6 +96,15 @@
     .tipo-toggle button { flex: 1; background: rgba(var(--rgb-fg),.05); border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 10px; font-size: 13px; cursor: pointer; }
     .tipo-toggle button.ativo { background: rgba(207,174,101,.15); color: var(--gold); border-color: rgba(207,174,101,.4); font-weight: 600; }
   </style>
+<!-- MOBILE_NAVBAR_FIX -->
+<style>
+@media (max-width: 640px) {
+  .navbar-right { flex-wrap: wrap; justify-content: flex-end; gap: 8px; row-gap: 6px; }
+  .navbar { flex-wrap: wrap; height: auto; min-height: 64px; padding: 10px 16px; }
+  #btnTheme { padding: 5px 8px; margin-right: 0 !important; font-size: 14px; }
+}
+</style>
+
 </head>
 <body>
 

@@ -102,6 +102,15 @@
     .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
     .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
   </style>
+<!-- MOBILE_NAVBAR_FIX -->
+<style>
+@media (max-width: 640px) {
+  .navbar-right { flex-wrap: wrap; justify-content: flex-end; gap: 8px; row-gap: 6px; }
+  .navbar { flex-wrap: wrap; height: auto; min-height: 64px; padding: 10px 16px; }
+  #btnTheme { padding: 5px 8px; margin-right: 0 !important; font-size: 14px; }
+}
+</style>
+
 </head>
 <body>
 

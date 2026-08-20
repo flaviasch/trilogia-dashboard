@@ -462,6 +462,15 @@
       .suporte-popover { bottom: 130px; right: 16px; }
     }
   </style>
+<!-- MOBILE_NAVBAR_FIX -->
+<style>
+@media (max-width: 640px) {
+  .navbar-right { flex-wrap: wrap; justify-content: flex-end; gap: 8px; row-gap: 6px; }
+  .navbar { flex-wrap: wrap; height: auto; min-height: 64px; padding: 10px 16px; }
+  #btnTheme { padding: 5px 8px; margin-right: 0 !important; font-size: 14px; }
+}
+</style>
+
   <script>window.sentryOnLoad=function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0,allowUrls:['dashboard.flaviaschusciman.com','localhost'],ignoreErrors:['Script error.','Script error','Non-Error promise rejection captured']});};</script>
   <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
 </head>
