@@ -8122,9 +8122,9 @@
       const sessaoAnterior = { ...currentData.periodo, contaId: _contaAtivaId, saldoFinal: _ultimoSaldoFinal };
       let { mes, ano } = currentData.periodo;
       const agora = new Date();
-      const limiteTotal  = (agora.getFullYear() * 12 + agora.getMonth() + 1) + 2;
+      const limiteTotal  = (agora.getFullYear() * 12 + agora.getMonth() + 1) + 12;
       const periodoTotal = ano * 12 + mes;
-      if (periodoTotal >= limiteTotal) return; // já no limite (+2 meses)
+      if (periodoTotal >= limiteTotal) return; // já no limite (+12 meses) — bate com o _limiteTotal do render() que desabilita o botão
       mes++;
       if (mes > 12) { mes = 1; ano++; }
       currentData = await buscarPeriodo(mes, ano);
