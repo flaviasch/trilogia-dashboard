@@ -2704,7 +2704,11 @@
     });
 
     // ─── Helpers ─────────────────────────────
-    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const brl = (v) => {
+      let vv = Math.round(v ?? 0);
+      if (vv === 0) vv = 0; // normaliza -0 pra nao mostrar "-R$ 0"
+      return vv.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    };
     const pct = (v, total) => total > 0 ? `${((v / total) * 100).toFixed(1)}%` : '0%';
 
     const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
