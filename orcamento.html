@@ -4056,7 +4056,7 @@
 
       listEl.innerHTML = linhas.join('');
       document.getElementById('modalClasseSub').textContent =
-        `Confirme a classe para atualizar o patrimônio agora (${brl(valorAportePendente)}), ou clique em Pular e importe o extrato da corretora depois.`;
+        `Confirme a classe para atualizar o patrimônio agora (${brl(valorAportePendente)}), ou clique em Pular para alocar automaticamente em Pós-fixado.`;
       modalClasse.classList.remove('hidden');
       _lockBody();
     };
@@ -4069,7 +4069,9 @@
       alocacoesPendentes  = [];
     });
 
-    // ── Pular: salva aporte + reservas sem registrar classe no patrimônio ─────
+    // ── Pular: aloca automaticamente em Pós-fixado (achado 21/08/2026: deixar
+    // sem classe fazia o valor ficar só na reserva, sem nunca sensibilizar o
+    // patrimônio — usuária tinha que lembrar de importar extrato depois) ─────
     document.getElementById('btnPularClasse').addEventListener('click', async () => {
       if (valorAportePendente == null) return;
       const valor     = valorAportePendente;
@@ -4090,21 +4092,22 @@
         })
         .filter(Boolean);
 
+      const { ativos: _ativosAtuais } = await getPatrimonio().catch(() => ({ ativos: [] }));
+      const classePadrao = _resolverClasseReal('pos', _ativosAtuais);
+
       const resultados = await Promise.allSettled([
         salvarEAtualizar(),
+        aportePatrimonio(classePadrao, valor),
         ...reservasAtualizadas.map(r => saveReserva(r)),
       ]);
 
       const erros = resultados.filter(r => r.status === 'rejected');
       if (erros.length) {
-        toast('Aporte salvo parcialmente. Confira as reservas.', 'warning');
+        toast('Aporte salvo parcialmente. Confira Patrimônio e Reservas.', 'warning');
       } else {
-        toast('Aporte confirmado!', 'success');
+        toast('Aporte confirmado! Alocado em Pós-fixado — ajuste a classe em Patrimônio se investiu em outra.', 'success', 6000);
+        registrarEvento('aporte_registrado');
         setTimeout(() => toast('Atualize a página para o gráfico refletir o aporte.', 'info', 6000), 800);
-        setTimeout(() => toast(
-          'Patrimônio não atualizado — importe o extrato da corretora para refletir a nova alocação.',
-          'info', 5000
-        ), 400);
       }
 
       for (const r of reservasAtualizadas) {
