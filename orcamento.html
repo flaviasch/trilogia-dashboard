@@ -1450,7 +1450,7 @@
         <!-- Saldo em Conta — editável -->
         <div class="resumo-card" style="border-color:rgba(var(--rgb-fg),0.15);">
           <div class="resumo-label" style="display:flex;align-items:center;justify-content:space-between;">
-            Saldo em Conta
+            Saldo em Conta Inicial
             <button id="btnEditarSaldo" onclick="window._editarSaldoConta()" title="Editar saldo" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0;line-height:1;">✏️</button>
           </div>
           <div id="saldoContaDisplay" style="display:flex;align-items:center;gap:8px;">
@@ -1466,6 +1466,10 @@
             </div>
           </div>
           <div class="resumo-sub" id="saldoContaSub">saldo inicial do mês</div>
+          <div id="saldoContaDivergencia" style="display:none;margin-top:8px;padding:8px 10px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:6px;font-size:11px;color:#f87171;line-height:1.5;">
+            <span id="saldoContaDivergenciaTexto"></span>
+            <button id="btnAtualizarSaldoDivergente" style="margin-left:4px;background:none;border:none;color:#f87171;text-decoration:underline;cursor:pointer;font-size:11px;padding:0;font-weight:700;">Atualizar →</button>
+          </div>
         </div>
 
         <div class="resumo-card">
@@ -4595,17 +4599,25 @@
       document.getElementById('uploadBanner')?.classList.toggle('compacto', temDados);
 
       // Saldo em Conta card — editar só faz sentido numa conta específica (ou
-      // consolidado quando só existe a principal, onde os dois são a mesma coisa).
+      // consolidado quando só existe a principal, onde os dois são a mesma coisa)
+      // E só no mês vigente (achado 21/08/2026: meses passados e futuros agora
+      // sempre herdam o Saldo Final do mês anterior — ver resolverSaldoContaId —
+      // então não tem valor próprio pra editar; só o mês vigente "trava" um
+      // valor editável, que os meses seguintes herdam quando chegar a vez deles).
       document.getElementById('totalSaldoConta').textContent = brl(saldoConta);
-      const _podeEditarSaldo = _contaAtivaId || _contas.length <= 1;
+      const _ehMesVigente = _periodoTotal === (_agora.getFullYear() * 12 + _agora.getMonth() + 1);
+      const _podeEditarSaldo = _ehMesVigente && (_contaAtivaId || _contas.length <= 1);
       const _btnEditarSaldoEl = document.getElementById('btnEditarSaldo');
       if (_btnEditarSaldoEl) {
         _btnEditarSaldoEl.style.display = _podeEditarSaldo ? '' : 'none';
       }
       const _saldoContaSubEl = document.getElementById('saldoContaSub');
       if (_saldoContaSubEl && document.getElementById('saldoContaForm')?.style.display !== '') {
-        _saldoContaSubEl.textContent = _podeEditarSaldo ? 'saldo inicial do mês' : 'soma de todas as contas';
+        _saldoContaSubEl.textContent = !_ehMesVigente
+          ? 'herdado do mês anterior'
+          : (_contaAtivaId || _contas.length <= 1) ? 'saldo inicial do mês' : 'soma de todas as contas';
       }
+      _atualizarBannerDivergencia();
 
       // Resumo
       document.getElementById('totalReceita').textContent = brl(totalReceita);
@@ -7892,13 +7904,26 @@
     }
 
     /**
-     * Resolve o saldo inicial de UMA conta (`contaAlvo`) no mês de `data`, na ordem:
-     * 1) valor já salvo em saldosConta pro mês — inclusive se for 0 (explícito);
+     * Resolve o saldo inicial de UMA conta (`contaAlvo`) no mês de `data`.
+     *
+     * Só o mês VIGENTE trava um valor editável — meses passados e futuros
+     * nunca gravam nada em saldosConta, sempre herdam ao vivo o Saldo Final
+     * do mês anterior, recalculado a cada visita (achado 21/08/2026: era
+     * congelar isso na primeira vez que um mês futuro era aberto que causava
+     * o saldo ficar desatualizado quando o mês anterior mudava depois —
+     * Ana Paula abriu setembro com agosto ainda em R$3.727, depois agosto
+     * fechou em R$0 e setembro nunca soube). Passado nunca edita por design
+     * (livro fechado); futuro nunca edita porque qualquer valor salvo lá
+     * seria ignorado mesmo (sempre recalculado ao vivo).
+     *
+     * No mês vigente, a ordem é:
+     * 1) valor já salvo em saldosConta pro mês — inclusive se for 0 (explícito,
+     *    seja porque o carryover já rodou antes, seja edição manual da usuária);
      * 2) item-sentinela legado "__saldo_conta__" (só existe pra conta principal —
      *    buscarPeriodo já extraiu pra data.saldoConta) — migra;
      * 3) carryover do Saldo Final do mês anterior, calculado só com os itens
-     *    dessa conta (contaId). Nunca recursivo: um único salto pra trás; se o
-     *    mês anterior também não tiver saldo resolvido, assume 0 como base dele.
+     *    dessa conta (contaId) — e aí sim grava, travando o valor pra esse mês
+     *    a partir de agora (só volta a mudar se a usuária editar manualmente).
      *
      * `sessaoAnterior`, se informado ({ mes, ano, saldoFinal }), evita rebuscar
      * o mês anterior quando ele é exatamente o que estava em tela antes desta
@@ -7911,6 +7936,14 @@
      */
     async function resolverSaldoContaId(data, contaAlvo, sessaoAnterior = null) {
       const { mes, ano } = data.periodo;
+      const agora = new Date();
+      const periodoTotal = ano * 12 + mes;
+      const atualTotal   = agora.getFullYear() * 12 + agora.getMonth() + 1;
+
+      if (periodoTotal !== atualTotal) {
+        return await calcularCarryoverEsperado(mes, ano, contaAlvo, sessaoAnterior);
+      }
+
       let saldos = {};
       try { saldos = await getSaldosConta(mes, ano); } catch (_) { /* segue pro fallback */ }
 
@@ -7922,27 +7955,87 @@
         return data.saldoConta;
       }
 
-      const mesPrev = mes > 1 ? mes - 1 : 12;
-      const anoPrev = mes > 1 ? ano : ano - 1;
-      let saldoFinalPrev = 0;
-      try {
-        if (sessaoAnterior?.mes === mesPrev && sessaoAnterior?.ano === anoPrev
-            && sessaoAnterior?.contaId === contaAlvo && sessaoAnterior?.saldoFinal != null) {
-          saldoFinalPrev = sessaoAnterior.saldoFinal; // mês anterior já estava em tela — reaproveita
-        } else {
-          const dataPrev   = await buscarPeriodo(mesPrev, anoPrev, false);
-          const saldosPrev = await getSaldosConta(mesPrev, anoPrev).catch(() => ({}));
-          const baseAnterior = contaAlvo in saldosPrev ? saldosPrev[contaAlvo]
-            : (contaAlvo === CONTA_PRINCIPAL_ID ? (dataPrev.saldoConta || 0) : 0);
-          saldoFinalPrev = calcularAgregadosOrcamento({
-            data: { ...dataPrev, saldoConta: baseAnterior }, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, fixasPuladas: _fixasPuladasServidor, contaId: contaAlvo,
-          }).saldoFinal;
-        }
-      } catch (_) { saldoFinalPrev = 0; }
-
+      const saldoFinalPrev = await calcularCarryoverEsperado(mes, ano, contaAlvo, sessaoAnterior);
       saveSaldoConta(mes, ano, contaAlvo, saldoFinalPrev).catch(() => {});
       return saldoFinalPrev;
     }
+
+    // Calcula o carryover "correto" — Saldo Final real do mês anterior — sem
+    // olhar pro valor já salvo em saldosConta do mês atual. Extraído do
+    // fallback de resolverSaldoContaId acima (achado 21/08/2026) pra ser
+    // reaproveitado também pela checagem de divergência abaixo, sem duplicar
+    // a lógica.
+    async function calcularCarryoverEsperado(mes, ano, contaAlvo, sessaoAnterior = null) {
+      const mesPrev = mes > 1 ? mes - 1 : 12;
+      const anoPrev = mes > 1 ? ano : ano - 1;
+      try {
+        if (sessaoAnterior?.mes === mesPrev && sessaoAnterior?.ano === anoPrev
+            && sessaoAnterior?.contaId === contaAlvo && sessaoAnterior?.saldoFinal != null) {
+          return sessaoAnterior.saldoFinal; // mês anterior já estava em tela — reaproveita
+        }
+        const dataPrev   = await buscarPeriodo(mesPrev, anoPrev, false);
+        const saldosPrev = await getSaldosConta(mesPrev, anoPrev).catch(() => ({}));
+        const baseAnterior = contaAlvo in saldosPrev ? saldosPrev[contaAlvo]
+          : (contaAlvo === CONTA_PRINCIPAL_ID ? (dataPrev.saldoConta || 0) : 0);
+        return calcularAgregadosOrcamento({
+          data: { ...dataPrev, saldoConta: baseAnterior }, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, fixasPuladas: _fixasPuladasServidor, contaId: contaAlvo,
+        }).saldoFinal;
+      } catch (_) { return 0; }
+    }
+
+    // Avisa (sem nunca sobrescrever sozinho) quando o saldo inicial travado do
+    // mês VIGENTE ficou desatualizado — só o mês vigente trava um valor
+    // editável (passado e futuro sempre herdam ao vivo, ver resolverSaldoContaId),
+    // mas ele ainda pode ficar desatualizado se a usuária editar um lançamento
+    // do mês anterior DEPOIS que o vigente já travou seu carryover (achado
+    // 21/08/2026, Ana Paula: mesmo bug, versão mais estreita — antes podia
+    // acontecer com qualquer mês futuro aberto cedo demais, agora só entre o
+    // vigente e o mês logo anterior). Só roda pra uma conta identificável
+    // (principal, ou única conta existente) — na visão consolidada com mais
+    // de uma conta não dá pra apontar qual diverge sem mais UI, então não checa.
+    let _divergenciaSaldoInicial = null;
+    function _atualizarBannerDivergencia() {
+      const el = document.getElementById('saldoContaDivergencia');
+      if (!el) return;
+      const info = _divergenciaSaldoInicial;
+      const aindaValido = info && currentData?.periodo?.mes === info.mes && currentData?.periodo?.ano === info.ano
+        && (_contaAtivaId || CONTA_PRINCIPAL_ID) === info.contaId;
+      if (!aindaValido) { el.style.display = 'none'; return; }
+      document.getElementById('saldoContaDivergenciaTexto').textContent =
+        `Saldo inicial salvo (${brl(info.valorSalvo)}) não bate mais com o final do mês anterior (${brl(info.valorEsperado)}).`;
+      el.style.display = '';
+    }
+    async function checarDivergenciaSaldoInicial(data, contaAlvo, sessaoAnterior) {
+      const { mes, ano } = data.periodo;
+      const agora = new Date();
+      const periodoTotal = ano * 12 + mes;
+      const atualTotal   = agora.getFullYear() * 12 + agora.getMonth() + 1;
+      // Passado e futuro nunca têm valor travado (sempre recalculado ao vivo
+      // por resolverSaldoContaId) — nada a divergir fora do mês vigente.
+      if (periodoTotal !== atualTotal) { _divergenciaSaldoInicial = null; _atualizarBannerDivergencia(); return; }
+
+      let saldos = {};
+      try { saldos = await getSaldosConta(mes, ano); } catch (_) { return; }
+      if (!(contaAlvo in saldos)) { _divergenciaSaldoInicial = null; _atualizarBannerDivergencia(); return; }
+
+      const valorSalvo    = saldos[contaAlvo];
+      const valorEsperado = await calcularCarryoverEsperado(mes, ano, contaAlvo, sessaoAnterior);
+      _divergenciaSaldoInicial = Math.abs(valorSalvo - valorEsperado) > 0.01
+        ? { mes, ano, contaId: contaAlvo, valorSalvo, valorEsperado }
+        : null;
+      _atualizarBannerDivergencia();
+    }
+    document.getElementById('btnAtualizarSaldoDivergente')?.addEventListener('click', async () => {
+      const info = _divergenciaSaldoInicial;
+      if (!info) return;
+      await saveSaldoConta(info.mes, info.ano, info.contaId, info.valorEsperado).catch(() => {});
+      _divergenciaSaldoInicial = null;
+      _atualizarBannerDivergencia();
+      if (currentData.periodo.mes === info.mes && currentData.periodo.ano === info.ano) {
+        currentData.saldoConta = info.valorEsperado;
+        render(currentData);
+      }
+    });
 
     /**
      * Resolve `data.saldoConta` pra visão ativa (`_contaAtivaId`): uma conta
@@ -7955,10 +8048,17 @@
       const valorAntes = data.saldoConta;
       if (_contaAtivaId) {
         data.saldoConta = await resolverSaldoContaId(data, _contaAtivaId, sessaoAnterior);
+        checarDivergenciaSaldoInicial(data, _contaAtivaId, sessaoAnterior).catch(() => {});
       } else {
         const contasParaSomar = _contas.length ? _contas : [{ id: CONTA_PRINCIPAL_ID }];
         const valores = await Promise.all(contasParaSomar.map(c => resolverSaldoContaId(data, c.id, sessaoAnterior)));
         data.saldoConta = valores.reduce((s, v) => s + v, 0);
+        if (contasParaSomar.length === 1) {
+          checarDivergenciaSaldoInicial(data, contasParaSomar[0].id, sessaoAnterior).catch(() => {});
+        } else {
+          _divergenciaSaldoInicial = null;
+          _atualizarBannerDivergencia();
+        }
       }
       return data.saldoConta !== valorAntes;
     }
