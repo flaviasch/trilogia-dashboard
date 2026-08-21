@@ -1788,6 +1788,19 @@
         });
       }
 
+      // ⓪-j Modo claro/escuro + aporte sem alocação (Ago/2026)
+      if (!localStorage.getItem('notif_completo_ago2026')) {
+        notifs.unshift({ id: 'completo-ago2026', type: 'novidades', key: 'notif_completo_ago2026', icon: '☀️', _expansivel: true,
+          titulo: 'Modo claro chegou ao dashboard',
+          desc: 'Escolha entre tema claro e escuro no ícone do menu superior — sua escolha fica salva. E o aporte agora se resolve sozinho quando você pula a etapa de alocação.',
+          cta: { label: 'Ver dashboard', href: 'index.html' },
+          itens: [
+            { emoji: '☀️', titulo: 'Modo claro/escuro', desc: 'Toque no ícone de sol/lua no menu, ao lado do seu e-mail, pra alternar entre tema claro e escuro. Sua escolha fica salva no navegador, não precisa escolher de novo toda vez.' },
+            { emoji: '💰', titulo: 'Aporte mais simples', desc: 'Se você pular a etapa de escolher a classe do aporte, o sistema já assume pós-fixado automaticamente e o valor entra direto no seu patrimônio, sem ficar parado só na reserva.' },
+          ],
+        });
+      }
+
       // ① Perfil de investidor — ausente ou > 180 dias sem atualizar
       const perfilKey = `notif_perfil_${mesKey}`;
       if (!localStorage.getItem(perfilKey)) {
