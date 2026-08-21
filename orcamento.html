@@ -7944,7 +7944,13 @@
       const periodoTotal = ano * 12 + mes;
       const atualTotal   = agora.getFullYear() * 12 + agora.getMonth() + 1;
 
-      if (periodoTotal !== atualTotal) {
+      // Só FUTURO nunca trava (recalcula ao vivo em cadeia). Passado mantém o
+      // comportamento de sempre — confia no valor salvo — porque, ao contrário
+      // do futuro, não existe um "mês vigente" caminhando pra trás pra cadeia
+      // parar nele: recalcular passado em cadeia recursaria pro início dos
+      // tempos sem nunca parar (achado 21/08/2026, ao corrigir a cadeia futura
+      // abaixo).
+      if (periodoTotal > atualTotal) {
         return await calcularCarryoverEsperado(mes, ano, contaAlvo, sessaoAnterior);
       }
 
@@ -7969,6 +7975,20 @@
     // fallback de resolverSaldoContaId acima (achado 21/08/2026) pra ser
     // reaproveitado também pela checagem de divergência abaixo, sem duplicar
     // a lógica.
+    //
+    // A base do mês anterior só recursa de verdade (resolverSaldoContaId)
+    // quando ele ainda é vigente-ou-futuro — a cadeia futuro→futuro→vigente
+    // sempre termina em no máximo ~12 saltos (o limite de navegação pra
+    // frente). Achado 21/08/2026, Flávia: outubro herdava setembro lendo o
+    // valor travado ANTIGO de setembro direto do Firestore, em vez de deixar
+    // setembro se resolver pela lógica nova — um mês futuro só "confiava"
+    // corretamente quando aberto diretamente, herdado em cadeia por outro mês
+    // futuro a correção não se propagava.
+    //
+    // Quando o mês anterior já é PASSADO, volta pro salto único original (lê
+    // saldosConta direto, sem recursão) — sem esse corte, abrir um mês
+    // passado nunca visitado recursaria pro início dos tempos, sem nunca bater
+    // em nada que pare a cadeia (não existe "vigente" caminhando pra trás).
     async function calcularCarryoverEsperado(mes, ano, contaAlvo, sessaoAnterior = null) {
       const mesPrev = mes > 1 ? mes - 1 : 12;
       const anoPrev = mes > 1 ? ano : ano - 1;
@@ -7977,10 +7997,20 @@
             && sessaoAnterior?.contaId === contaAlvo && sessaoAnterior?.saldoFinal != null) {
           return sessaoAnterior.saldoFinal; // mês anterior já estava em tela — reaproveita
         }
-        const dataPrev   = await buscarPeriodo(mesPrev, anoPrev, false);
-        const saldosPrev = await getSaldosConta(mesPrev, anoPrev).catch(() => ({}));
-        const baseAnterior = contaAlvo in saldosPrev ? saldosPrev[contaAlvo]
-          : (contaAlvo === CONTA_PRINCIPAL_ID ? (dataPrev.saldoConta || 0) : 0);
+        const dataPrev = await buscarPeriodo(mesPrev, anoPrev, false);
+
+        const agora      = new Date();
+        const prevTotal  = anoPrev * 12 + mesPrev;
+        const atualTotal = agora.getFullYear() * 12 + agora.getMonth() + 1;
+        let baseAnterior;
+        if (prevTotal >= atualTotal) {
+          baseAnterior = await resolverSaldoContaId(dataPrev, contaAlvo);
+        } else {
+          const saldosPrev = await getSaldosConta(mesPrev, anoPrev).catch(() => ({}));
+          baseAnterior = contaAlvo in saldosPrev ? saldosPrev[contaAlvo]
+            : (contaAlvo === CONTA_PRINCIPAL_ID ? (dataPrev.saldoConta || 0) : 0);
+        }
+
         return calcularAgregadosOrcamento({
           data: { ...dataPrev, saldoConta: baseAnterior }, cartoes: _cartoes, faturaEstados: _faturaEstados, recorrentes: _recorrentes, fixasPuladas: _fixasPuladasServidor, contaId: contaAlvo,
         }).saldoFinal;
