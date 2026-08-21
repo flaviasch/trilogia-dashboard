@@ -1243,6 +1243,37 @@ function emailNovidadesAgo2026Completo(nome) {
   `);
 }
 
+function emailModoClaroAporteAgo2026(nome) {
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Modo claro chegou ao Dashboard</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      Duas novidades direto do uso real do Dashboard:
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+      ${item('☀️','Modo claro/escuro','Toque no ícone de sol/lua no menu, ao lado do seu e-mail, pra alternar entre tema claro e escuro. Sua escolha fica salva no navegador, não precisa escolher de novo toda vez.')}
+      ${item('💰','Aporte mais simples','Se você pular a etapa de escolher a classe do aporte, o sistema já assume pós-fixado automaticamente e o valor entra direto no seu patrimônio, sem ficar parado só na reserva.')}
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Ver dashboard →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 module.exports = {
   sendEmail,
   emailRenovacaoPerfil,
@@ -1257,6 +1288,7 @@ module.exports = {
   emailNovidadesJul2026,
   emailNovidadesJul2026Completo,
   emailNovidadesAgo2026Completo,
+  emailModoClaroAporteAgo2026,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
   emailRaioXJul2026,

@@ -1307,6 +1307,11 @@ export async function anunciarNovidadesAgo2026Completo() {
   return call('anunciarNovidadesAgo2026Completo')({});
 }
 
+/** Dispara e-mail do modo claro/escuro + aporte sem alocação (Ago/2026). Admin only. */
+export async function anunciarModoClaroAgo2026() {
+  return call('anunciarModoClaroAgo2026')({});
+}
+
 /** Dispara e-mail de balanço Jul/2026 — Detalhe, Planejamento e despesas fixas. Admin only. */
 export async function anunciarBalancoJul2026() {
   return call('anunciarBalancoJul2026')({});
