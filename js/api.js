@@ -322,6 +322,20 @@ export async function aportePatrimonio(classe, valor) {
 }
 
 /**
+ * Registra a venda de um bem não financeiro (imóvel, veículo, bem móvel):
+ * baixa o valor declarado na classe do bem e credita o valor de venda na
+ * classe financeira de destino, na mesma transação — evita que o patrimônio
+ * fique inflado até a próxima reimportação de IR.
+ * @param {string} classeBem      - classe do bem no IR (ex: 'Imóveis')
+ * @param {number} valorBaixa     - valor declarado que sai dessa classe
+ * @param {string} classeDestino  - classe financeira que recebe a venda
+ * @param {number} valorVenda     - valor de venda recebido
+ */
+export async function venderBemPatrimonio(classeBem, valorBaixa, classeDestino, valorVenda) {
+  return call('venderBemPatrimonio')({ uid: uidAtual(), classeBem, valorBaixa, classeDestino, valorVenda });
+}
+
+/**
  * Debita `valor` proporcionalmente de todos os ativos financeiros — operação atômica.
  * @param {number} valor — valor positivo a ser debitado
  */

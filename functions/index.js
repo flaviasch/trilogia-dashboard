@@ -3407,6 +3407,100 @@ exports.aportePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) =
   return { ok: true };
 });
 
+// ─── VENDA DE BEM NÃO FINANCEIRO (patrimonio.html) ───────────────────────────
+
+/**
+ * Registra a venda de um bem não financeiro (imóvel, veículo, bem móvel) que
+ * ainda não foi refletida na declaração de IR — o array `ir` só é reescrito
+ * na reimportação anual. Sem essa função, lançar a venda como aporte comum
+ * inflava o patrimônio: o dinheiro entrava do lado financeiro, mas o bem
+ * continuava contando com o valor antigo do lado não financeiro até a
+ * próxima importação de IR. Debita o valor declarado do bem e credita o
+ * valor de venda na classe financeira de destino na mesma transação — a
+ * diferença entre os dois valores é ganho ou perda de capital de verdade, e
+ * deve mesmo aparecer no patrimônio líquido (achado 26/08/2026, Flávia).
+ */
+exports.venderBemPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  requireAuth(request);
+  const { uid, classeBem, valorBaixa, classeDestino, valorVenda } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  if (!classeBem || typeof valorBaixa !== 'number' || valorBaixa <= 0) {
+    throw new HttpsError('invalid-argument', 'classeBem e valorBaixa (positivo) são obrigatórios.');
+  }
+  if (!classeDestino || typeof valorVenda !== 'number' || valorVenda <= 0) {
+    throw new HttpsError('invalid-argument', 'classeDestino e valorVenda (positivo) são obrigatórios.');
+  }
+
+  const patRef = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
+  const classeBemLC     = classeBem.toLowerCase();
+  const classeDestinoLC = classeDestino.toLowerCase();
+
+  const { totalAtivos, totalDividas, ir: irFinal, corretora: corretoraFinal, mesKey } =
+    await db.runTransaction(async (tx) => {
+      const patSnap = await tx.get(patRef);
+      if (!patSnap.exists) {
+        throw new HttpsError('failed-precondition', 'Nenhum patrimônio importado ainda.');
+      }
+      const ir        = patSnap.data().ir        || [];
+      const corretora = patSnap.data().corretora || [];
+      const dividas   = patSnap.data().dividas   || [];
+
+      // 1) Baixa do bem na declaração de IR — reduz ou remove a linha
+      const idxBem = ir.findIndex(i => i.classe.toLowerCase() === classeBemLC);
+      if (idxBem === -1) {
+        throw new HttpsError('failed-precondition', `Bem "${classeBem}" não encontrado no patrimônio.`);
+      }
+      ir[idxBem].valor -= valorBaixa;
+      if (ir[idxBem].valor <= 0.01) ir.splice(idxBem, 1);
+
+      // 2) Crédito do valor de venda — corretora tem prioridade, mesma regra do aportePatrimonio
+      const idxInv = corretora.findIndex(i => i.classe.toLowerCase() === classeDestinoLC);
+      if (idxInv !== -1) {
+        corretora[idxInv].valor += valorVenda;
+      } else {
+        const idxPat = ir.findIndex(i => i.classe.toLowerCase() === classeDestinoLC);
+        if (idxPat !== -1) ir[idxPat].valor += valorVenda;
+        else               ir.push({ classe: classeDestino, valor: valorVenda });
+      }
+
+      tx.set(patRef, {
+        ir, corretora, dividas,
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const consolidado  = consolidarAtivos(ir, corretora);
+      const totalAtivos  = consolidado.reduce((s, i) => s + i.valor, 0);
+      const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+      const mesKey = hoje().slice(0, 7);
+
+      tx.update(db.collection('mentoradas').doc(uid), {
+        pl: totalAtivos - totalDividas,
+        dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      tx.set(db.collection('mentoradas').doc(uid).collection('historico').doc(mesKey), {
+        data: mesKey, ativos: totalAtivos, dividas: totalDividas,
+        pl: totalAtivos - totalDividas,
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return { totalAtivos, totalDividas, ir, corretora, mesKey };
+    });
+
+  // Backup Sheets (fire-and-forget)
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    const sheets = new SheetsClient(sheetId);
+    return Promise.all([
+      sheets.saveInvestimentos(corretoraFinal),
+      sheets.savePatrimonio(irFinal),
+      sheets.upsertHistorico(mesKey, totalAtivos, totalDividas),
+    ]);
+  }).catch(e => console.warn('[venderBemPatrimonio] Backup Sheets falhou:', e.message));
+
+  return { ok: true };
+});
+
 // ─── HISTÓRICO DE PL ─────────────────────────────────────────────────────────
 
 exports.getHistoricoPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {

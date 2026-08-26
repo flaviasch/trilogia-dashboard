@@ -688,6 +688,7 @@
       <div id="patrimonioVazioConfirmado" style="display:none; font-size:13px; color:rgba(74,222,128,0.9); margin-bottom:8px; padding:10px 0;">✓ Etapa concluída — importe seus investimentos quando começar a investir.</div>
 
       <button class="btn-add-divida" id="btnAddAtivo">+ Adicionar ativo manualmente</button>
+      <button class="btn-add-divida" id="btnVendaBem" style="margin-top:8px;">💰 Registrar venda de bem</button>
     </div>
 
     <!-- Dívidas -->
@@ -728,6 +729,36 @@
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelAtivo">Cancelar</button>
         <button class="btn-save" id="btnSaveAtivo">Salvar ativo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal venda de bem -->
+  <div class="modal-overlay hidden" id="modalVendaBem">
+    <div class="modal-card">
+      <h2 class="modal-title">Registrar venda de bem</h2>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:24px; margin-top:-8px;">
+        Baixa o valor do bem vendido e credita o valor recebido no investimento de destino, sem esperar a próxima declaração de IR.
+      </p>
+      <div class="field-group">
+        <label for="vendaBemClasse">Qual bem foi vendido?</label>
+        <select id="vendaBemClasse"></select>
+      </div>
+      <div class="field-group">
+        <label for="vendaBemBaixa">Valor declarado que sai desse bem (R$)</label>
+        <input type="text" inputmode="numeric" id="vendaBemBaixa" placeholder="0" />
+      </div>
+      <div class="field-group">
+        <label for="vendaBemVenda">Valor de venda recebido (R$)</label>
+        <input type="text" inputmode="numeric" id="vendaBemVenda" placeholder="0" />
+      </div>
+      <div class="field-group">
+        <label for="vendaBemDestino">Onde esse dinheiro entrou?</label>
+        <select id="vendaBemDestino"></select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelVendaBem">Cancelar</button>
+        <button class="btn-save" id="btnSaveVendaBem">Registrar venda</button>
       </div>
     </div>
   </div>
@@ -840,8 +871,8 @@
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
-      categorizarPatrimonioIA,
-    } from './js/api.js?v=47';
+      categorizarPatrimonioIA, venderBemPatrimonio,
+    } from './js/api.js?v=48';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
     // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se
@@ -977,6 +1008,8 @@
     bindMoneyInput(document.getElementById('ativoValor'));
     bindMoneyInput(document.getElementById('dividaSaldo'));
     bindMoneyInput(document.getElementById('dividaParcela'));
+    bindMoneyInput(document.getElementById('vendaBemBaixa'));
+    bindMoneyInput(document.getElementById('vendaBemVenda'));
 
     // ─── Classes de ativos ───────────────────
     const CLASSES = [
@@ -2002,6 +2035,99 @@
       render(ativos, dividas);
       await gravarAtivos();
     }
+
+    // ─── Venda de bem não financeiro ──────────
+    // Baixa o bem escolhido (imóvel/veículo/bem móvel) e credita a venda no
+    // destino financeiro na mesma transação do backend — não espera a
+    // próxima reimportação de IR (achado 26/08/2026, Flávia: venda de bem no
+    // meio do ano inflava o patrimônio porque o bem continuava contando com
+    // o valor antigo até reimportar a declaração).
+    const modalVendaBem = document.getElementById('modalVendaBem');
+
+    // Mesma lógica de orcamento.html (_resolverClasseReal): tenta casar o
+    // código genérico com o nome já usado nos ativos da usuária, pra somar
+    // na linha existente em vez de criar uma nova linha duplicada.
+    function _resolverClasseDestino(classeGenerica) {
+      const lc = classeGenerica.toLowerCase();
+      const existente = ativos.find(a => a.classe.toLowerCase() === lc);
+      return existente ? existente.classe : classeGenerica;
+    }
+
+    function _bensVendaveis() {
+      return ativos.filter(a => {
+        const base = classeBaseId(a.classe);
+        return CLASSES_IMOBILIZADO.has(base) && a.source !== 'investimentos' && a.valor > 0.01;
+      });
+    }
+
+    function abrirModalVendaBem() {
+      const bens = _bensVendaveis();
+      if (!bens.length) {
+        toast('Nenhum bem não financeiro (imóvel, veículo, bem móvel) cadastrado ainda — importe a declaração de IR primeiro.', 'warning', 6000);
+        return;
+      }
+
+      const selClasse = document.getElementById('vendaBemClasse');
+      selClasse.innerHTML = bens.map(a =>
+        `<option value="${escapeHtml(a.classe)}" data-valor="${a.valor}">${escapeHtml(a.classe)} — ${brl(a.valor)}</option>`
+      ).join('');
+
+      const selDestino = document.getElementById('vendaBemDestino');
+      selDestino.innerHTML = CLASSES.filter(c => CLASSES_FINANCEIRO.has(c.id)).map(c =>
+        `<option value="${escapeHtml(_resolverClasseDestino(c.label))}">${escapeHtml(c.label)}</option>`
+      ).join('');
+
+      setMoney(document.getElementById('vendaBemBaixa'), bens[0].valor);
+      document.getElementById('vendaBemVenda').value = '';
+
+      modalVendaBem.classList.remove('hidden');
+    }
+
+    function fecharModalVendaBem() {
+      modalVendaBem.classList.add('hidden');
+    }
+
+    document.getElementById('btnVendaBem').addEventListener('click', abrirModalVendaBem);
+    document.getElementById('btnCancelVendaBem').addEventListener('click', fecharModalVendaBem);
+
+    // Ao trocar o bem selecionado, pré-preenche a baixa com o valor cheio
+    // dele — editável, pra venda parcial (ex: um de dois imóveis lançados juntos).
+    document.getElementById('vendaBemClasse').addEventListener('change', (e) => {
+      const opt = e.target.selectedOptions[0];
+      if (opt) setMoney(document.getElementById('vendaBemBaixa'), parseFloat(opt.dataset.valor));
+    });
+
+    document.getElementById('btnSaveVendaBem').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSaveVendaBem');
+      const classeBem     = document.getElementById('vendaBemClasse').value;
+      const valorBaixa    = readMoney(document.getElementById('vendaBemBaixa'));
+      const valorVenda    = readMoney(document.getElementById('vendaBemVenda'));
+      const classeDestino = document.getElementById('vendaBemDestino').value;
+
+      if (!classeBem)        { toast('Selecione o bem vendido.', 'warning'); return; }
+      if (valorBaixa <= 0)   { toast('Preencha o valor declarado que sai do bem.', 'warning'); return; }
+      if (valorVenda <= 0)   { toast('Preencha o valor de venda recebido.', 'warning'); return; }
+      if (!classeDestino)    { toast('Selecione onde o dinheiro entrou.', 'warning'); return; }
+
+      const bemAtual = ativos.find(a => a.classe === classeBem);
+      if (bemAtual && valorBaixa > bemAtual.valor + 0.01) {
+        toast(`A baixa (${brl(valorBaixa)}) não pode ser maior que o valor atual do bem (${brl(bemAtual.valor)}).`, 'warning', 6000);
+        return;
+      }
+
+      setLoading(btn, true, 'Registrando…');
+      try {
+        await venderBemPatrimonio(classeBem, valorBaixa, classeDestino, valorVenda);
+        fecharModalVendaBem();
+        toast('Venda registrada — patrimônio atualizado.', 'success');
+        registrarEvento('venda_bem_registrada');
+        await init(auth.currentUser);
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
 
     // ─── Modal de dívida ──────────────────────
     const modalEl = document.getElementById('modalDivida');
