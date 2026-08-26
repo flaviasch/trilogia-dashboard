@@ -3071,6 +3071,14 @@
         document.body.style.width = '';
         window.scrollTo(0, _bodyScrollY);
       }
+      // Android, achado 26/08/2026: soltar overflow:hidden logo depois do
+      // teclado virtual fechar (ao salvar um lançamento, modal fecha e
+      // desbloqueia o body quase no mesmo instante) deixava elementos
+      // position:fixed (o FAB de lançamento rápido, bottom:140px) com o
+      // layout desatualizado — flutuava no meio da tela até trocar de
+      // página forçar um reflow real. Um scroll de 0px força esse reflow
+      // sem mexer na posição de rolagem de verdade.
+      requestAnimationFrame(() => window.scrollBy(0, 0));
     }
 
     function atualizarCategoriasSugeridas() {
