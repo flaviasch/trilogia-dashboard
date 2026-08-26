@@ -2627,30 +2627,11 @@
     </div>
   </div>
 
-  <!-- Modal admin: recalcular faturas de cartão -->
-  <div class="modal-overlay hidden" id="modalRecalcFaturas">
-    <div class="modal-card wide">
-      <h2 class="modal-title">Recalcular faturas do cartão (admin)</h2>
-      <p class="modal-sub" style="margin-bottom:14px">
-        Corrige compras que ficaram gravadas na fatura errada por causa de um dia de corte incorreto no momento do lançamento. Roda em simulação primeiro — nada é gravado até você confirmar.
-      </p>
-      <div class="field-group">
-        <label for="rfCartao">Cartão</label>
-        <select id="rfCartao" style="width:100%;padding:9px 12px;background:var(--navy-mid);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:14px;box-sizing:border-box;"></select>
-      </div>
-      <div id="rfResultado" style="margin:14px 0; max-height:40vh; overflow-y:auto;"></div>
-      <div class="modal-actions">
-        <button class="btn-cancel" id="btnFecharRecalcFaturas">Fechar</button>
-        <button class="btn-cancel" id="btnSimularRecalcFaturas">Simular</button>
-        <button class="btn-save" id="btnAplicarRecalcFaturas" style="display:none">Aplicar correção</button>
-      </div>
-    </div>
-  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor, recalcularFaturasCartaoPF } from './js/api.js?v=59';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor } from './js/api.js?v=59';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -5796,10 +5777,6 @@
         : 'flex:1;padding:8px 12px;border:none;border-radius:7px;background:transparent;color:var(--text-muted);font-size:13px;font-weight:500;cursor:pointer;font-family:"Inter",sans-serif;';
 
       el.innerHTML = `
-        ${VIEW_AS_UID ? `
-        <div style="text-align:right;margin-bottom:8px;">
-          <button id="btnAbrirRecalcFaturas" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:11px;padding:5px 10px;border-radius:7px;cursor:pointer;font-family:'Inter',sans-serif;">🔧 Recalcular faturas (admin)</button>
-        </div>` : ''}
         <div style="display:flex;gap:4px;background:rgba(var(--rgb-fg),0.04);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:14px;">
           <button onclick="window._setFatTab('abertas')" style="${tabStyle(_fatTabAtiva==='abertas')}">
             Abertas <span style="font-size:10px;opacity:.6;">(${todosIds.length})</span>
@@ -5825,8 +5802,6 @@
         else _faturasExpandidas.add(key);
         renderFaturas(currentData);
       };
-
-      el.querySelector('#btnAbrirRecalcFaturas')?.addEventListener('click', () => abrirModalRecalcFaturas());
 
       el.querySelectorAll('[data-edit-desp]').forEach(btn =>
         btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
@@ -9622,86 +9597,6 @@
       } catch (e) {
         toast('Erro ao registrar: ' + e.message, 'error');
       } finally { setLoading(btn, false); }
-    });
-
-    // ─── RECALCULAR FATURAS (admin) ─────────────────────────────────────────
-    // Corrige compras de cartão gravadas na fatura errada por causa de um
-    // diaCorte incorreto no lançamento — achado 26/08/2026, Flávia: Márcia
-    // corrigiu o dia de corte, mas as parcelas já lançadas continuaram na
-    // fatura calculada com o valor antigo. Sempre simula antes de aplicar.
-    const modalRecalcFaturas = document.getElementById('modalRecalcFaturas');
-    let _rfPropostas = null;
-
-    function abrirModalRecalcFaturas() {
-      document.getElementById('rfCartao').innerHTML = _cartoes
-        .map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nome)}</option>`).join('');
-      document.getElementById('rfResultado').innerHTML = '';
-      document.getElementById('btnAplicarRecalcFaturas').style.display = 'none';
-      _rfPropostas = null;
-      modalRecalcFaturas.classList.remove('hidden');
-    }
-    document.getElementById('btnFecharRecalcFaturas').addEventListener('click', () =>
-      modalRecalcFaturas.classList.add('hidden'));
-
-    function _renderRfPropostas(propostas) {
-      const box = document.getElementById('rfResultado');
-      if (!propostas.length) {
-        box.innerHTML = `<p style="font-size:13px;color:var(--text-muted)">Nenhuma correção necessária — todas as faturas desse cartão já estão certas.</p>`;
-        return;
-      }
-      box.innerHTML = `
-        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${propostas.length} lançamento(s) mudariam de fatura:</p>
-        ${propostas.map(p => `
-          <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--border);font-size:12px">
-            <div>${escapeHtml(p.descricao || '')}${p.parcela ? ` · parcela ${p.parcela}` : ''}</div>
-            <div style="white-space:nowrap">${brl(p.valor)} · <span style="color:var(--text-muted)">${p.faturaAntiga}</span> → <strong>${p.faturaNova}</strong></div>
-          </div>`).join('')}`;
-    }
-
-    document.getElementById('btnSimularRecalcFaturas').addEventListener('click', async () => {
-      const btn = document.getElementById('btnSimularRecalcFaturas');
-      const cartaoId = document.getElementById('rfCartao').value;
-      if (!cartaoId) { toast('Cadastre um cartão primeiro.', 'warning'); return; }
-      setLoading(btn, true, 'Simulando…');
-      try {
-        const { propostas } = await recalcularFaturasCartaoPF(uidAtual(), cartaoId, false);
-        _rfPropostas = propostas;
-        _renderRfPropostas(propostas);
-        document.getElementById('btnAplicarRecalcFaturas').style.display = propostas.length ? '' : 'none';
-      } catch (err) {
-        toast(msgErro(err), 'error');
-      } finally {
-        setLoading(btn, false);
-      }
-    });
-
-    document.getElementById('btnAplicarRecalcFaturas').addEventListener('click', async () => {
-      if (!_rfPropostas || !_rfPropostas.length) return;
-      if (!(await confirmDelete(`Mover ${_rfPropostas.length} lançamento(s) para a fatura correta?`, 'Aplicar'))) return;
-      const btn = document.getElementById('btnAplicarRecalcFaturas');
-      const cartaoId = document.getElementById('rfCartao').value;
-      setLoading(btn, true, 'Aplicando…');
-      try {
-        const { totalPropostas } = await recalcularFaturasCartaoPF(uidAtual(), cartaoId, true);
-        toast(`${totalPropostas} lançamento(s) corrigido(s).`, 'success');
-        modalRecalcFaturas.classList.add('hidden');
-        // Invalida o cache de todos os meses envolvidos (fatura antiga e
-        // nova) — não só o mês em tela, porque a correção pode mexer em
-        // meses passados ou futuros que não são o período atual.
-        (_rfPropostas || []).forEach(p => {
-          [p.faturaAntiga, p.faturaNova].forEach(key => {
-            const [a, m] = key.split('-').map(Number);
-            if (a && m) _invalPeriodo(m, a);
-          });
-        });
-        currentData = await buscarPeriodo(currentData.periodo.mes, currentData.periodo.ano);
-        render(currentData);
-        renderFaturas(currentData);
-      } catch (err) {
-        toast(msgErro(err), 'error');
-      } finally {
-        setLoading(btn, false);
-      }
     });
 
     // ─── CARTÕES DE CRÉDITO ──────────────────────────────────────────────────
