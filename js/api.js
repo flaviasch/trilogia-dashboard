@@ -223,6 +223,15 @@ export async function saveFaturaEstado(cartaoId, faturaKey, updates) {
   return call('saveFaturaEstado')({ uid: uidAtual(), cartaoId, faturaKey, ...updates });
 }
 
+/**
+ * Admin: recalcula a fatura de lançamentos de cartão PF que ficaram gravados
+ * errados por causa de um diaCorte incorreto no momento do lançamento.
+ * aplicar=false (padrão) só simula e devolve o que mudaria, sem gravar nada.
+ */
+export async function recalcularFaturasCartaoPF(uid, cartaoId, aplicar = false) {
+  return call('recalcularFaturasCartaoPF')({ uid, cartaoId, aplicar });
+}
+
 // ─── Patrimônio ───────────────────────────────────────────────────────────────
 
 /**

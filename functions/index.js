@@ -2464,6 +2464,96 @@ exports.deleteCartao = onCall(async (request) => {
 });
 
 /**
+ * Admin: corrige compras de cartão PF que ficaram gravadas na fatura errada
+ * por causa de um diaCorte incorreto no momento do lançamento — mesmo
+ * problema já corrigido do lado da leitura em getOrcamento/getFaturasCartaoPJ
+ * (achado 26/08/2026), mas aqui o dado gravado em si precisa ser corrigido,
+ * não só a exibição.
+ *
+ * Cada compra de cartão é salva no documento de orçamento cuja chave é a
+ * PRÓPRIA fatura (`saveOrcamento(fatMes, fatAno, ...)`, ver orcamento.html)
+ * — não necessariamente o mês da compra nem o mês que estava em tela. Um
+ * diaCorte errado no momento do lançamento grava a compra no documento da
+ * fatura ERRADA. Corrigir só o campo `fatura` no lugar, sem mover o item
+ * pro documento certo, o deixaria invisível pra sempre: getOrcamento só
+ * escaneia o mês em tela ± 1 mês, então um item "corrigido" que ficasse
+ * fisicamente a 3 meses de distância da fatura certa nunca mais apareceria
+ * em lugar nenhum. Por isso este recálculo MOVE o item pro documento da
+ * fatura recalculada (remove de onde estava, adiciona lá), não só edita o
+ * campo.
+ *
+ * aplicar=false (padrão): só simula, devolve as propostas sem gravar nada.
+ * aplicar=true: aplica de verdade, grava com db.batch().
+ */
+exports.recalcularFaturasCartaoPF = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { uid, cartaoId, aplicar } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+  if (!cartaoId) throw new HttpsError('invalid-argument', 'cartaoId é obrigatório.');
+
+  const cartaoRef  = db.collection('mentoradas').doc(uid).collection('cartoes').doc(cartaoId);
+  const cartaoSnap = await cartaoRef.get();
+  if (!cartaoSnap.exists) throw new HttpsError('not-found', 'Cartão não encontrado.');
+  const cartao = cartaoSnap.data();
+  if (!cartao.diaCorte) throw new HttpsError('failed-precondition', 'Cartão sem dia de corte configurado — nada pra recalcular.');
+
+  if (aplicar) await checkRateLimit(uid, 'recalcularFaturasCartaoPF', 5, 60_000); // 5/min — ação admin pesada, pouco frequente
+
+  const orcamentoCol = db.collection('mentoradas').doc(uid).collection('orcamento');
+  const docsSnap = await orcamentoCol.get();
+
+  // docId (= mesKey) -> { itens (mutável), mes, ano } — carrega todos os
+  // meses existentes primeiro; documentos novos (fatura recalculada aponta
+  // pra um mês que ainda não tem doc) são criados sob demanda abaixo.
+  const docsPorId = {};
+  docsSnap.forEach(doc => {
+    const d = doc.data();
+    docsPorId[doc.id] = { itens: [...(d.itens || [])], mes: d.mes, ano: d.ano };
+  });
+
+  const propostas = [];
+
+  for (const doc of docsSnap.docs) {
+    const info = docsPorId[doc.id];
+    const itensOriginais = info.itens;
+    const permanecem = [];
+    for (const item of itensOriginais) {
+      if (!item || !item.cartao || item.cartaoId !== cartaoId || !item.data) { permanecem.push(item); continue; }
+      const faturaCorreta = _sugerirFatura(item.data, cartao.diaCorte, cartao.diaVencimento || 1);
+      if (faturaCorreta === item.fatura) { permanecem.push(item); continue; }
+
+      propostas.push({
+        descricao: item.descricao || item.categoria || 'Item',
+        parcela: (item.parcelaAtual && item.parcelasTotal) ? `${item.parcelaAtual}/${item.parcelasTotal}` : null,
+        valor: item.valor,
+        faturaAntiga: item.fatura || '(sem fatura)',
+        faturaNova: faturaCorreta,
+      });
+
+      if (!docsPorId[faturaCorreta]) {
+        const [anoD, mesD] = faturaCorreta.split('-').map(Number);
+        docsPorId[faturaCorreta] = { itens: [], mes: mesD, ano: anoD };
+      }
+      docsPorId[faturaCorreta].itens.push({ ...item, fatura: faturaCorreta });
+    }
+    info.itens = permanecem;
+  }
+
+  if (!aplicar) return { propostas };
+
+  const batch = db.batch();
+  Object.entries(docsPorId).forEach(([docId, info]) => {
+    batch.set(orcamentoCol.doc(docId), {
+      uid, mes: info.mes, ano: info.ano, itens: info.itens,
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+  await batch.commit();
+
+  return { totalPropostas: propostas.length };
+});
+
+/**
  * Migra os dados de orçamento do Sheets para o Firestore para todas as usuárias.
  * Pula meses que já existem no Firestore. Idempotente — seguro rodar múltiplas vezes.
  * Admin only.
