@@ -1172,12 +1172,20 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 
   const col = db.collection('mentoradas').doc(uid).collection('orcamento');
   const cartoesCol = db.collection('mentoradas').doc(uid).collection('cartoes');
-  const [docSnap, prevSnap, nextSnap, cartoesSnap] = await Promise.all([
-    col.doc(mesKey).get(), col.doc(prevKey).get(), col.doc(nextKey).get(), cartoesCol.get(),
+  const faturaEstadosCol = db.collection('mentoradas').doc(uid).collection('faturaEstados');
+  const [docSnap, prevSnap, nextSnap, cartoesSnap, faturaEstadosSnap] = await Promise.all([
+    col.doc(mesKey).get(), col.doc(prevKey).get(), col.doc(nextKey).get(), cartoesCol.get(), faturaEstadosCol.get(),
   ]);
 
   const cartaoMap = {};
   cartoesSnap.forEach(doc => { cartaoMap[doc.id] = doc.data(); });
+
+  // Faturas que já têm estado salvo (paga/ajustada, mesmo que parcial) —
+  // usado abaixo pra nunca deixar uma fatura já fechada voltar a ser
+  // "aberta" só porque o dia de corte do cartão mudou depois (achado
+  // 26/08/2026, Flávia: mesmo problema encontrado no cartão PJ).
+  const faturasComEstado = new Set();
+  faturaEstadosSnap.forEach(doc => faturasComEstado.add(doc.id)); // doc.id = `${cartaoId}_${faturaKey}`
 
   // Wrapper que usa dados do cartão para determinar o mês de pagamento correto
   const _mp = item => {
@@ -1197,6 +1205,10 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     if (!item.cartao || !item.fatura || !item.cartaoId) return false;
     const c = cartaoMap[item.cartaoId];
     if (!c?.diaCorte) return false;
+    // Fatura já fechada de verdade (tem estado salvo) nunca mais volta a
+    // ser "aberta", mesmo que o dia de corte tenha mudado depois e o
+    // cálculo abaixo aponte pra ela de novo.
+    if (faturasComEstado.has(`${item.cartaoId}_${item.fatura}`)) return false;
     if (!(item.cartaoId in _abertaKeyPorCartao)) {
       _abertaKeyPorCartao[item.cartaoId] = _sugerirFatura(hojeStr, c.diaCorte, c.diaVencimento || 1);
     }
@@ -6764,8 +6776,14 @@ exports.getContasPagarPendentesPJ = onCall({}, async (request) => {
   Object.values(gruposFatura).forEach(g => {
     const cartao = cartaoMap[g.cartaoId];
     if (!cartao) return;
-    if (abertaKeyPorCartao[g.cartaoId] === g.faturaKey) return; // ainda aberta, não é "a pagar"
     const estadoDoc = estadosPorChave[`${uid}_${g.cartaoId}_${g.faturaKey}`];
+    // Mesma regra de getFaturasCartaoPJ: só é "ainda aberta" (fora de Contas
+    // a Pagar) se bater com o ciclo de hoje E nunca ter recebido estado de
+    // pagamento — sem o segundo critério, editar o dia de corte podia fazer
+    // uma fatura JÁ FECHADA (com estado salvo) sumir daqui, ou uma fatura
+    // realmente pendente aparecer como "ainda aberta" e sumir por engano
+    // (achado 26/08/2026, Flávia).
+    if (!estadoDoc && abertaKeyPorCartao[g.cartaoId] === g.faturaKey) return;
     if (estadoDoc?.estado === 'paga_total') return; // já paga
     const totalDevido = estadoDoc?.ajusteTotal != null ? estadoDoc.ajusteTotal
       : (estadoDoc?.estado === 'paga_parcial' ? (g.total - (estadoDoc.valorPago || 0)) : g.total);
@@ -6984,7 +7002,17 @@ exports.getFaturasCartaoPJ = onCall({}, async (request) => {
   const faturas = Object.values(grupos).map(g => {
     const total = Math.round(g.itens.reduce((s, it) => s + it.valor, 0) * 100) / 100;
     const estadoDoc = estadosPorChave[`${uid}_${g.cartaoId}_${g.faturaKey}`] || null;
-    const aberta = abertaKeyPorCartao[g.cartaoId] === g.faturaKey;
+    // "Aberta" é recalculada a cada leitura a partir do diaCorte ATUAL do
+    // cartão — editar o diaCorte (corrigir um erro de digitação, por
+    // exemplo) muda o que "hoje" mapeia pra qual fatura, e uma fatura já
+    // fechada/paga podia voltar a aparecer como aberta, com o total antigo
+    // (ajusteTotal) da época em que foi paga, divergindo dos lançamentos
+    // reais. Uma fatura que já tem estado salvo (foi paga/confirmada, mesmo
+    // que parcial) nunca mais volta a ser "aberta" — o ciclo dela já
+    // fechou de verdade, independente do que o diaCorte disser agora
+    // (achado 26/08/2026, Flávia: Márcia editou o dia de corte e a fatura
+    // aberta mudou de valor sozinha).
+    const aberta = !estadoDoc && abertaKeyPorCartao[g.cartaoId] === g.faturaKey;
     return {
       cartaoId: g.cartaoId,
       faturaKey: g.faturaKey,
