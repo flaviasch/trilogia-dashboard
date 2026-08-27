@@ -271,9 +271,13 @@ export function calcularAgregadosOrcamento({
     const [a, m] = (key || '').split('-').map(Number);
     return (a || 0) * 12 + (m || 0);
   };
+  // Estritamente ANTERIOR à fatura aberta de hoje — não <=, senão a própria
+  // fatura em curso (ainda acumulando, não fechada) contava como "já abriu"
+  // (achado 27/08/2026, mesmo bug do getOrcamento: fatura de setembro ainda
+  // sem ciclo aberto aparecendo em "Faturas a vencer" de agosto).
   const _faturaJaAbriu = (cartaoId, fatura) => {
     const aberta = _openKeyPorCartao[cartaoId];
-    return !aberta || _periodoNumCalc(fatura) <= _periodoNumCalc(aberta);
+    return !aberta || _periodoNumCalc(fatura) < _periodoNumCalc(aberta);
   };
   const gruposFechadaCaixa = {};
   data.despesas.forEach(d => {

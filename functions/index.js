@@ -1271,6 +1271,31 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     return item.fatura === _abertaKeyPorCartao[item.cartaoId];
   };
 
+  // "YYYY-MM" → número comparável (ano*12+mes) — usado abaixo pra distinguir
+  // uma fatura que JÁ fechou de verdade (ciclo aberto de hoje já passou dela)
+  // de uma que ainda nem abriu (ciclo aberto de hoje ainda não chegou nela).
+  const _periodoNumGet = key => {
+    const [a, m] = (key || '').split('-').map(Number);
+    return (a || 0) * 12 + (m || 0);
+  };
+  // Fatura do mês seguinte genuinamente FECHADA (não só "diferente da aberta
+  // de hoje" — achado 27/08/2026, Flávia: uma fatura de setembro, cujo ciclo
+  // ainda nem tinha aberto pra valer, aparecia em "Faturas a vencer" de
+  // agosto como se já tivesse fechado, só porque não era a fatura aberta de
+  // hoje. `!_ehCicloAberto` sozinho é verdadeiro tanto pra fatura já fechada
+  // (passado) quanto pra fatura que ainda nem começou a acumular (futuro) —
+  // só a primeira deveria voltar "emprestada" pro mês anterior.
+  const _cicloJaFechouDeVerdade = item => {
+    if (!item.cartao || !item.fatura || !item.cartaoId) return false;
+    const c = cartaoMap[item.cartaoId];
+    if (!c?.diaCorte) return false;
+    if (faturasComEstado.has(`${item.cartaoId}_${item.fatura}`)) return true;
+    if (!(item.cartaoId in _abertaKeyPorCartao)) {
+      _abertaKeyPorCartao[item.cartaoId] = _sugerirFatura(hojeStr, c.diaCorte, c.diaVencimento || 1);
+    }
+    return _periodoNumGet(item.fatura) < _periodoNumGet(_abertaKeyPorCartao[item.cartaoId]);
+  };
+
   const normalizar = arr => (arr || []).filter(item => item != null).map(item =>
     item.categoria ? { ...item, categoria: _resolverCategoria(item.categoria) } : item
   );
@@ -1307,7 +1332,7 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   // ainda em aberto: esse aparece completo quando o próprio mês seguinte é
   // visto diretamente, não precisa ser emprestado incompleto pra trás).
   const itensNext = normalizar(nextSnap.exists ? nextSnap.data().itens : [])
-    .filter(item => item.cartao && item.fatura === nextKey && !_ehCicloAberto(item))
+    .filter(item => item.cartao && item.fatura === nextKey && _cicloJaFechouDeVerdade(item))
     .map(item => ({
       ...item,
       _sourceMes: nextMes,

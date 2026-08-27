@@ -87,6 +87,34 @@ test('getOrcamento — classificação de fatura aberta/fechada', async (t) => {
     assert.equal(itens[0]._sourceAno, prevAno);
   });
 
+  await t.test('achado 27/08/2026: fatura do mês seguinte cujo ciclo ainda não fechou (ainda é a aberta de hoje) NÃO aparece emprestada pro mês atual', async () => {
+    const uid = uidTeste();
+    const cartaoId = 'cartao-teste-3';
+    // diaCorte=31 nunca é ultrapassado (dia do mês vai no máximo até 31) e
+    // diaVencimento<=diaCorte força o duplo deslocamento — resultado:
+    // openKey = mês consultado + 1, sempre, não importa o dia de hoje. Ou
+    // seja, a fatura do mês seguinte é sempre a que está em curso agora,
+    // nunca uma já fechada.
+    const diaCorte = 31, diaVencimento = 5;
+    await db.collection('mentoradas').doc(uid).collection('cartoes').doc(cartaoId)
+      .set({ nome: 'Cartão Teste 3', diaCorte, diaVencimento, ativo: true });
+
+    const hoje = new Date();
+    const mes = hoje.getMonth() + 1, ano = hoje.getFullYear();
+    const nextMes = mes === 12 ? 1 : mes + 1;
+    const nextAno = mes === 12 ? ano + 1 : ano;
+    const nextKey = mesKeyDe(nextAno, nextMes);
+
+    await db.collection('mentoradas').doc(uid).collection('orcamento').doc(nextKey).set({
+      itens: [
+        { categoria: 'Assinaturas', tipo: 'despesa', valor: 99, cartao: true, cartaoId, fatura: nextKey, data: nextKey + '-03' },
+      ],
+    });
+
+    const itens = await fns.getOrcamento.run({ data: { uid, mes, ano }, auth: auth(uid) });
+    assert.equal(itens.length, 0, 'fatura do mês seguinte ainda em curso não deve aparecer como pendência do mês atual — só quando o próprio mês seguinte for visto diretamente');
+  });
+
   await t.test('achado 05/07/2026: item emprestado do mês anterior vem marcado _faturaAberta se essa fatura for a que está aberta hoje', async () => {
     const uid = uidTeste();
     const cartaoId = 'cartao-teste-2';
