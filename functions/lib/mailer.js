@@ -177,6 +177,73 @@ function emailLembreteAporte(nome, nomeMes) {
 }
 
 /**
+ * E-mail: alerta de caixa da empresa (PJ) abaixo da reserva mínima configurada.
+ * @param {string} nome        — nome da mentorada
+ * @param {number} saldoAtual  — soma do saldoAtual das reservas PJ ativas
+ * @param {number} minimo      — reservaMinimaCaixa configurada em contasPJ
+ */
+function emailCaixaBaixoPJ(nome, saldoAtual, minimo) {
+  const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return layout(`
+    <h2 style="${S.h2}">Seu caixa está abaixo da reserva mínima</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">
+      O caixa atual da sua empresa está em <strong>${brl(saldoAtual)}</strong>,
+      abaixo da reserva mínima que você definiu de <strong>${brl(minimo)}</strong>.
+    </p>
+    <p style="${S.p}">
+      Vale revisar antes de fazer novas retiradas ou distribuições.
+    </p>
+    <a href="https://dashboard.flaviaschusciman.com/reservas-pj.html" style="${S.btn}">
+      Ver reservas da empresa
+    </a>
+  `);
+}
+
+/**
+ * E-mail: contas a pagar e a receber (PJ) que vencem HOJE.
+ * @param {string} nome           — nome da mentorada
+ * @param {Array}  contasAPagar   — [{ nome, valor }]
+ * @param {Array}  impostos       — [{ tributoNome, valor }]
+ * @param {Array}  contasAReceber — [{ valorLiquido, valorBruto }]
+ */
+function emailVencimentosHojePJ(nome, contasAPagar, impostos, contasAReceber) {
+  const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const totalPagar   = contasAPagar.reduce((s, c) => s + (c.valor || 0), 0) + impostos.reduce((s, i) => s + (i.valor || 0), 0);
+  const totalReceber = contasAReceber.reduce((s, c) => s + (c.valorLiquido ?? c.valorBruto ?? 0), 0);
+
+  const linhaPagar = (label, valor) => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111827;font-size:13px;">${label}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#0D2B45;font-weight:700;text-align:right;font-size:13px;">${brl(valor)}</td>
+    </tr>`;
+
+  const linhasPagar = [
+    ...contasAPagar.map(c => linhaPagar(c.nome, c.valor)),
+    ...impostos.map(i => linhaPagar(`Imposto: ${i.tributoNome}`, i.valor)),
+  ].join('');
+
+  const linhasReceber = contasAReceber.map((c, idx) =>
+    linhaPagar(`Recebimento previsto ${idx + 1}`, c.valorLiquido ?? c.valorBruto)).join('');
+
+  return layout(`
+    <h2 style="${S.h2}">Vencimentos de hoje na sua empresa</h2>
+    <p style="${S.p}">Olá, ${nome}!</p>
+    ${linhasPagar ? `
+      <p style="${S.p}"><strong>A pagar hoje — total ${brl(totalPagar)}</strong></p>
+      <table width="100%" style="border-collapse:collapse;margin-bottom:16px;">${linhasPagar}</table>
+    ` : ''}
+    ${linhasReceber ? `
+      <p style="${S.p}"><strong>A receber hoje — total ${brl(totalReceber)}</strong></p>
+      <table width="100%" style="border-collapse:collapse;margin-bottom:16px;">${linhasReceber}</table>
+    ` : ''}
+    <a href="https://dashboard.flaviaschusciman.com/contas-a-pagar-pj.html" style="${S.btn}">
+      Ver Contas a Pagar
+    </a>
+  `);
+}
+
+/**
  * E-mail: lembrete de importação da declaração de IR (todo maio).
  * @param {string} nome — nome da mentorada
  */
@@ -1281,6 +1348,8 @@ module.exports = {
   emailLembreteOrcamento,
   emailLembreteAporte,
   emailLembretePlanejamento,
+  emailCaixaBaixoPJ,
+  emailVencimentosHojePJ,
   emailNovidades,
   emailNovidadesJun2026,
   emailNovidadesJun2026v3,

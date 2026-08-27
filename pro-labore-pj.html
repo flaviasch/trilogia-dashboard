@@ -101,6 +101,11 @@
     .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
     .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
     .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
+
+    .venc-banner { align-items: center; gap: 12px; background: rgba(248,113,113,.10); border-bottom: 1px solid rgba(248,113,113,.3); padding: 10px 24px; font-size: 13px; color: #f87171; }
+    .venc-banner.hidden { display: none; }
+    .venc-banner:not(.hidden) { display: flex; }
+    .venc-banner button { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; margin-left: auto; }
   </style>
 <!-- MOBILE_NAVBAR_FIX -->
 <style>
@@ -141,6 +146,8 @@
     <span>👁 Visualizando como mentorada</span>
     <a href="admin.html">← Voltar ao admin</a>
   </div>
+
+  <div class="venc-banner hidden" id="vencBanner"></div>
 
   <main>
     <h1>Pró-labore</h1>
@@ -239,8 +246,9 @@
     import {
       getContaPJ, getProLaborePJ, aprovarSalarioTrimestrePJ,
       salvarPercentuaisBaldesProLaborePJ, confirmarAporteBaldeExcedentePJ, registrarDistribuicaoLucroPJ,
+      getVencimentosHojePJ,
       msgErro, setViewAsUid, uidAtual,
-    } from './js/api.js?v=57';
+    } from './js/api.js?v=58';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { toast, setLoading } from './js/ui.js';
     import { cacheGet, cacheSet } from './js/page-cache.js';
@@ -313,8 +321,33 @@
         }
       })();
 
+      renderVencimentosBanner();
       await Promise.all([renderTudo(), contaPromise]);
     });
+
+    // ─── Banner: vencimentos de hoje (27/08/2026) ──────────────────────────────
+    async function renderVencimentosBanner() {
+      const hojeISO = new Date().toISOString().slice(0, 10);
+      if (sessionStorage.getItem('vencBannerDispensado') === hojeISO) return;
+      let v;
+      try { v = await getVencimentosHojePJ(uidAtual()); } catch { return; }
+      const nPagar = (v.contasAPagar?.length || 0) + (v.impostos?.length || 0);
+      const nReceber = v.contasAReceber?.length || 0;
+      if (!nPagar && !nReceber) return;
+      const totalPagar = (v.contasAPagar || []).reduce((s, c) => s + (c.valor || 0), 0) + (v.impostos || []).reduce((s, i) => s + (i.valor || 0), 0);
+      const totalReceber = (v.contasAReceber || []).reduce((s, c) => s + (c.valorLiquido ?? c.valorBruto ?? 0), 0);
+      const partes = [];
+      if (nPagar) partes.push(`${nPagar} conta${nPagar > 1 ? 's' : ''} a pagar hoje (${brl(totalPagar)})`);
+      if (nReceber) partes.push(`${nReceber} recebimento${nReceber > 1 ? 's' : ''} previsto${nReceber > 1 ? 's' : ''} hoje (${brl(totalReceber)})`);
+      const el = document.getElementById('vencBanner');
+      if (!el) return;
+      el.innerHTML = `<span>⏰ Hoje: ${partes.join(' · ')}</span><button id="vencBannerFechar" title="Dispensar por hoje">✕</button>`;
+      el.classList.remove('hidden');
+      document.getElementById('vencBannerFechar').addEventListener('click', () => {
+        sessionStorage.setItem('vencBannerDispensado', hojeISO);
+        el.classList.add('hidden');
+      });
+    }
 
     async function renderTudo() {
       let dados;

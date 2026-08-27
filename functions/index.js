@@ -47,6 +47,8 @@ const {
   emailLembreteOrcamento,
   emailLembreteAporte,
   emailLembretePlanejamento,
+  emailCaixaBaixoPJ,
+  emailVencimentosHojePJ,
   emailNovidades,
   emailNovidadesJun2026,
   emailNovidadesJun2026v3,
@@ -92,6 +94,60 @@ async function deleteSubcolecao(uid, nomeColecao) {
   const batch = db.batch();
   snap.docs.forEach(d => batch.delete(d.ref));
   await batch.commit();
+}
+
+/**
+ * Converte um arquivo OFX (extrato bancário no padrão universal dos bancos —
+ * OFX 1.x/SGML sem fechamento de tag, ou OFX 2.x/XML bem formado, ambos
+ * suportados pela mesma regex) numa tabela de texto simples, reaproveitando
+ * o MESMO pipeline de IA que já existe pra texto colado/PDF/imagem
+ * (categorizarExtratoIA e categorizarExtratoPJIA) — em vez de duplicar toda
+ * a lógica de categorização/matching pra um formato novo.
+ *
+ * Achado 27/08/2026, Flávia: quis estender a importação por IA (que já
+ * existe em texto/PDF/imagem, tanto PF quanto PJ) pra aceitar OFX também.
+ * Vantagem de fazer o parse aqui em código, e não jogar o OFX bruto pra IA
+ * ler: data e valor no OFX são sempre estruturados e sem ambiguidade
+ * (AAAAMMDD, ponto decimal, sinal explícito no TRNAMT) — não faz sentido
+ * pedir pra IA "adivinhar" o que já vem pronto; ela só entra depois, na
+ * parte que exige julgamento (categoria, aporte de sócio vs. venda, etc.).
+ *
+ * @param {string} conteudo — texto bruto do arquivo .ofx (não é base64)
+ * @returns {{ texto: string, total: number }}
+ */
+function _ofxParaTextoTabular(conteudo) {
+  const blocos = conteudo.match(/<STMTTRN>([\s\S]*?)(?=<STMTTRN>|<\/BANKTRANLIST>|<\/STMTTRN>)/gi) || [];
+  const linhas = [];
+
+  for (const bloco of blocos) {
+    const pegar = (tag) => {
+      const m = bloco.match(new RegExp(`<${tag}>\\s*([^\\r\\n<]+)`, 'i'));
+      return m ? m[1].trim() : '';
+    };
+    const dtBruta = pegar('DTPOSTED');
+    const amtBruto = pegar('TRNAMT');
+    if (!dtBruta || !amtBruto) continue; // linha sem os dois dados essenciais, ignora
+
+    const ano = dtBruta.slice(0, 4), mes = dtBruta.slice(4, 6), dia = dtBruta.slice(6, 8);
+    if (!/^\d{4}$/.test(ano) || !/^\d{2}$/.test(mes) || !/^\d{2}$/.test(dia)) continue;
+    const data = `${ano}-${mes}-${dia}`;
+
+    const valorNum = parseFloat(amtBruto.replace(/[^\d.-]/g, ''));
+    if (!Number.isFinite(valorNum) || valorNum === 0) continue;
+
+    const nome = pegar('NAME');
+    const memo = pegar('MEMO');
+    const trntype = pegar('TRNTYPE');
+    const descricao = (nome || memo || trntype || 'Lançamento').slice(0, 200);
+    const tipoLabel = valorNum < 0 ? 'DÉBITO (saída)' : 'CRÉDITO (entrada)';
+
+    linhas.push(`${data} | ${tipoLabel} | R$ ${Math.abs(valorNum).toFixed(2)} | ${descricao}`);
+  }
+
+  const texto = linhas.length
+    ? `Extrato bancário — arquivo OFX já convertido em tabela. Colunas: DATA | TIPO (indicador estrutural real de crédito/débito do banco, não inferido) | VALOR | DESCRIÇÃO.\n${linhas.join('\n')}`
+    : '';
+  return { texto, total: linhas.length };
 }
 
 // Arrays de defineSecret para cada grupo de funções.
@@ -1440,16 +1496,35 @@ exports.categorizarExtratoIA = onCall(
     if (!conteudo || typeof conteudo !== 'string') {
       throw new HttpsError('invalid-argument', 'conteudo é obrigatório (texto colado ou base64 do arquivo).');
     }
-    const TIPOS_CONTEUDO = new Set(['texto', 'pdf', 'imagem']);
+    const TIPOS_CONTEUDO = new Set(['texto', 'pdf', 'imagem', 'ofx']);
     if (!TIPOS_CONTEUDO.has(tipoConteudo)) {
-      throw new HttpsError('invalid-argument', 'tipoConteudo deve ser "texto", "pdf" ou "imagem".');
+      throw new HttpsError('invalid-argument', 'tipoConteudo deve ser "texto", "pdf", "imagem" ou "ofx".');
     }
     // Limites de tamanho — protege custo de API e timeout da function.
     if (tipoConteudo === 'texto' && conteudo.length > 60_000) {
       throw new HttpsError('invalid-argument', 'Texto muito longo (máximo ~60.000 caracteres). Envie em partes menores.');
     }
-    if (tipoConteudo !== 'texto' && conteudo.length > 15_000_000) { // ~10MB decodificado de base64
+    if (tipoConteudo === 'ofx' && conteudo.length > 5_000_000) {
+      throw new HttpsError('invalid-argument', 'Arquivo OFX muito grande (máximo ~5MB).');
+    }
+    if (tipoConteudo !== 'texto' && tipoConteudo !== 'ofx' && conteudo.length > 15_000_000) { // ~10MB decodificado de base64
       throw new HttpsError('invalid-argument', 'Arquivo muito grande (máximo ~10MB).');
+    }
+
+    // OFX é texto puro (não base64) — vira uma tabela e segue pelo MESMO
+    // caminho de 'texto' daqui pra baixo, sem duplicar o resto da function.
+    let conteudoEfetivo = conteudo;
+    let tipoEfetivo = tipoConteudo;
+    if (tipoConteudo === 'ofx') {
+      const { texto, total } = _ofxParaTextoTabular(conteudo);
+      if (!total) {
+        throw new HttpsError('invalid-argument', 'Não encontrei nenhuma transação (tag <STMTTRN>) neste arquivo OFX. Confira se é mesmo um arquivo OFX válido exportado do banco.');
+      }
+      if (texto.length > 60_000) {
+        throw new HttpsError('invalid-argument', `Extrato OFX muito longo (${total} transações). Exporte um período menor do banco.`);
+      }
+      conteudoEfetivo = texto;
+      tipoEfetivo = 'texto';
     }
 
     const listaCategorias = Object.entries(_CATEGORIAS_CODIGO)
@@ -1500,11 +1575,11 @@ Regras obrigatórias:
 - Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só, sem indentação nem quebras de linha). Formato:
   {"vencimentoFatura": "AAAA-MM-DD"|null, "pagamentosFatura": [{"descricao": "<texto completo da linha>", "valor": <número>, "data": "AAAA-MM-DD"}], "itens": [{"categoria": "<código numérico como string, se despesa — ou texto da lista de receita, se receita>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false, "tipoIncerto": true|false}, ...]}`;
 
-    const contentBlock = tipoConteudo === 'texto'
-      ? { type: 'text', text: conteudo }
-      : tipoConteudo === 'pdf'
-        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: conteudo } }
-        : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: conteudo } };
+    const contentBlock = tipoEfetivo === 'texto'
+      ? { type: 'text', text: conteudoEfetivo }
+      : tipoEfetivo === 'pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: conteudoEfetivo } }
+        : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: conteudoEfetivo } };
 
     let respostaIA;
     try {
@@ -6706,6 +6781,71 @@ function _ocorrenciaDespesaPJ(desp, mesX, anoX) {
   return { mesAno: prefixoX, dataVenc, sufixo: '' };
 }
 
+/**
+ * Vencimentos DE HOJE (não "vencidos até hoje", que é escopo mais amplo já
+ * coberto por getContasPagarPendentesPJ) — usado pelo banner no dashboard
+ * e pelo e-mail diário (achado 27/08/2026, Flávia: alertas devem incluir
+ * contas a pagar e a receber vencendo no dia, por e-mail E dentro do
+ * dashboard). Cartão fica de fora de contasAPagar: tem fluxo próprio de
+ * fatura (getFaturasCartaoPJ), somar aqui duplicaria o aviso.
+ */
+async function _vencimentosHojePJ(uid) {
+  const hojeISO = new Date().toISOString().slice(0, 10);
+  const hoje = new Date();
+  const mesAtual = hoje.getMonth() + 1, anoAtual = hoje.getFullYear();
+
+  const [despesasSnap, pagamentosSnap, impSnap, recebSnap] = await Promise.all([
+    db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get(),
+    db.collectionGroup('pagamentos').where('uid', '==', uid).get(),
+    db.collection('impostosPrevistos').where('uid', '==', uid).where('vencimento', '==', hojeISO).where('pago', '==', false).get(),
+    db.collectionGroup('recebimentos').where('uid', '==', uid).where('dataPrevista', '==', hojeISO).get(),
+  ]);
+
+  const pagamentosPorChave = new Map();
+  pagamentosSnap.docs.forEach(d => pagamentosPorChave.set(`${d.ref.parent.parent.id}_${d.id}`, d.data()));
+
+  const contasAPagar = [];
+  despesasSnap.docs.forEach(doc => {
+    const desp = doc.data();
+    if (desp.cartao) return;
+    let oc = null;
+    if (desp.tipo === 'unica') {
+      if (!desp.data) return;
+      const [anoU, mesU] = desp.data.split('-').map(Number);
+      oc = _ocorrenciaDespesaPJ(desp, mesU, anoU);
+    } else {
+      oc = _ocorrenciaDespesaPJ(desp, mesAtual, anoAtual);
+    }
+    if (!oc || oc.dataVenc !== hojeISO) return;
+    const pagamento = pagamentosPorChave.get(`${doc.id}_${oc.mesAno}`);
+    if (pagamento) return; // já confirmada ou cancelada
+    contasAPagar.push({ despesaId: doc.id, mesAno: oc.mesAno, nome: `${desp.nome}${oc.sufixo}`, valor: desp.valor });
+  });
+
+  const impostos = impSnap.docs.map(d => {
+    const i = d.data();
+    return { id: d.id, tributoNome: i.tributoNome, valor: i.valor };
+  });
+
+  const contasAReceber = [];
+  recebSnap.docs.forEach(d => {
+    const r = d.data();
+    if (r.dataRecebimento) return; // já confirmado
+    contasAReceber.push({
+      notaId: d.ref.parent.parent.id, id: d.id,
+      valorLiquido: r.valorLiquido, valorBruto: r.valorBruto,
+    });
+  });
+
+  return { contasAPagar, impostos, contasAReceber };
+}
+
+exports.getVencimentosHojePJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  return _vencimentosHojePJ(uid);
+});
+
 async function _despesaDoUid(uid, despesaId) {
   const ref  = db.collection('despesasPJ').doc(despesaId);
   const snap = await ref.get();
@@ -7869,6 +8009,87 @@ exports.getDRESimplificadoPJ = onCall({}, async (request) => {
   return _calcularDRESimplificado(uid, mes, ano);
 });
 
+/**
+ * Relatório anual consolidado PJ (achado 27/08/2026, Flávia: item 2 do
+ * escopo aprovado — fecha o ano pra reunião com a contadora/planejamento
+ * tributário). Reaproveita _calcularDRESimplificado mês a mês (mesma lógica
+ * já usada no DRE mensal — nada de recalcular receita/despesa de outro
+ * jeito aqui) e soma dois blocos que o DRE mensal não cobre:
+ *   - Impostos EFETIVAMENTE pagos no ano (por dataPagamento, não por
+ *     competência/vencimento) — é o caixa real que saiu, o número que
+ *     interessa pra fechamento anual.
+ *   - Reservas: saldo atual de cada uma (reservasPJ não guarda snapshot
+ *     mensal como o patrimônio PF guarda em historico/{mesKey} — não dá
+ *     pra reconstruir "o saldo em 31/12" retroativamente, só o saldo de
+ *     hoje) + quanto entrou/saiu de cada uma DENTRO do ano pedido, pelos
+ *     movimentos.
+ */
+exports.getRelatorioAnualPJ = onCall({}, async (request) => {
+  const { uid, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
+
+  const arredonda = v => Math.round((v || 0) * 100) / 100;
+
+  const dresMensais = await Promise.all(
+    Array.from({ length: 12 }, (_, i) => _calcularDRESimplificado(uid, i + 1, ano))
+  );
+  const meses = dresMensais.map((d, i) => ({ mes: i + 1, ...d }));
+  const totais = meses.reduce((acc, m) => ({
+    receitaBruta:          acc.receitaBruta + m.receitaBruta,
+    impostos:              acc.impostos + m.impostos,
+    receitaLiquida:        acc.receitaLiquida + m.receitaLiquida,
+    despesasOperacionais:  acc.despesasOperacionais + m.despesasOperacionais,
+    lucroLiquido:          acc.lucroLiquido + m.lucroLiquido,
+  }), { receitaBruta: 0, impostos: 0, receitaLiquida: 0, despesasOperacionais: 0, lucroLiquido: 0 });
+  Object.keys(totais).forEach(k => { totais[k] = arredonda(totais[k]); });
+
+  const impPagosSnap = await db.collection('impostosPrevistos')
+    .where('uid', '==', uid).where('pago', '==', true).get();
+  const impPagosDoAno = impPagosSnap.docs
+    .map(d => d.data())
+    .filter(i => typeof i.dataPagamento === 'string' && i.dataPagamento.slice(0, 4) === String(ano));
+  const impostosPagosPorTributo = {};
+  impPagosDoAno.forEach(i => {
+    const nome = i.tributoNome || 'Outro';
+    impostosPagosPorTributo[nome] = arredonda((impostosPagosPorTributo[nome] || 0) + (i.valor || 0));
+  });
+  const impostosPagosTotal = arredonda(impPagosDoAno.reduce((s, i) => s + (i.valor || 0), 0));
+
+  const reservasSnap = await db.collection('reservasPJ').where('uid', '==', uid).get();
+  const reservasAtivas = reservasSnap.docs.filter(d => d.data().ativa !== false);
+  const movimentosPorReserva = await Promise.all(
+    reservasAtivas.map(d => d.ref.collection('movimentos').get())
+  );
+  let aportesNoAno = 0, retiradasNoAno = 0;
+  const porReserva = reservasAtivas.map((d, i) => {
+    const r = d.data();
+    const movsDoAno = movimentosPorReserva[i].docs
+      .map(m => m.data())
+      .filter(m => typeof m.data === 'string' && m.data.slice(0, 4) === String(ano));
+    const aportes   = movsDoAno.filter(m => m.tipo === 'aporte').reduce((s, m) => s + (m.valor || 0), 0);
+    const retiradas = movsDoAno.filter(m => m.tipo === 'retirada').reduce((s, m) => s + (m.valor || 0), 0);
+    aportesNoAno   += aportes;
+    retiradasNoAno += retiradas;
+    return {
+      nome: r.nome, tipo: r.tipo, saldoAtual: arredonda(r.saldoAtual || 0),
+      aportesNoAno: arredonda(aportes), retiradasNoAno: arredonda(retiradas),
+    };
+  });
+  const saldoFinalReservas = arredonda(reservasAtivas.reduce((s, d) => s + (d.data().saldoAtual || 0), 0));
+
+  return {
+    ano, meses, totais,
+    impostos: { total: impostosPagosTotal, porTributo: impostosPagosPorTributo },
+    reservas: {
+      saldoFinal: saldoFinalReservas,
+      aportesNoAno: arredonda(aportesNoAno),
+      retiradasNoAno: arredonda(retiradasNoAno),
+      porReserva,
+    },
+  };
+});
+
 // Ponto de Equilíbrio é sobre a CONFIGURAÇÃO atual (tributos + despesas
 // fixas), não sobre o histórico de um mês — por isso só usa tributosConfig e
 // despesasPJ tipo 'fixa' (a base estável do negócio), não notasEmitidas nem
@@ -8782,15 +9003,34 @@ exports.categorizarExtratoPJIA = onCall(
     if (!conteudo || typeof conteudo !== 'string') {
       throw new HttpsError('invalid-argument', 'conteudo é obrigatório (texto colado ou base64 do arquivo).');
     }
-    const TIPOS_CONTEUDO = new Set(['texto', 'pdf', 'imagem']);
+    const TIPOS_CONTEUDO = new Set(['texto', 'pdf', 'imagem', 'ofx']);
     if (!TIPOS_CONTEUDO.has(tipoConteudo)) {
-      throw new HttpsError('invalid-argument', 'tipoConteudo deve ser "texto", "pdf" ou "imagem".');
+      throw new HttpsError('invalid-argument', 'tipoConteudo deve ser "texto", "pdf", "imagem" ou "ofx".');
     }
     if (tipoConteudo === 'texto' && conteudo.length > 60_000) {
       throw new HttpsError('invalid-argument', 'Texto muito longo (máximo ~60.000 caracteres). Envie em partes menores.');
     }
-    if (tipoConteudo !== 'texto' && conteudo.length > 15_000_000) {
+    if (tipoConteudo === 'ofx' && conteudo.length > 5_000_000) {
+      throw new HttpsError('invalid-argument', 'Arquivo OFX muito grande (máximo ~5MB).');
+    }
+    if (tipoConteudo !== 'texto' && tipoConteudo !== 'ofx' && conteudo.length > 15_000_000) {
       throw new HttpsError('invalid-argument', 'Arquivo muito grande (máximo ~10MB).');
+    }
+
+    // OFX é texto puro (não base64) — vira uma tabela e segue pelo MESMO
+    // caminho de 'texto' daqui pra baixo, sem duplicar o resto da function.
+    let conteudoEfetivo = conteudo;
+    let tipoEfetivo = tipoConteudo;
+    if (tipoConteudo === 'ofx') {
+      const { texto, total } = _ofxParaTextoTabular(conteudo);
+      if (!total) {
+        throw new HttpsError('invalid-argument', 'Não encontrei nenhuma transação (tag <STMTTRN>) neste arquivo OFX. Confira se é mesmo um arquivo OFX válido exportado do banco.');
+      }
+      if (texto.length > 60_000) {
+        throw new HttpsError('invalid-argument', `Extrato OFX muito longo (${total} transações). Exporte um período menor do banco.`);
+      }
+      conteudoEfetivo = texto;
+      tipoEfetivo = 'texto';
     }
 
     const systemPrompt = `Você extrai e classifica transações de extratos bancários e faturas de cartão de crédito de uma EMPRESA brasileira (não pessoa física).
@@ -8807,11 +9047,11 @@ Regras obrigatórias:
 - Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só). Formato:
   {"itens": [{"tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "categoriaSugerida": "<texto ou null>", "categoriaEntradaSugerida": "aporte_socio"|"reembolso"|"outro"|null, "categoriaIncerta": true|false, "tipoIncerto": true|false}, ...]}`;
 
-    const contentBlock = tipoConteudo === 'texto'
-      ? { type: 'text', text: conteudo }
-      : tipoConteudo === 'pdf'
-        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: conteudo } }
-        : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: conteudo } };
+    const contentBlock = tipoEfetivo === 'texto'
+      ? { type: 'text', text: conteudoEfetivo }
+      : tipoEfetivo === 'pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: conteudoEfetivo } }
+        : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: conteudoEfetivo } };
 
     let respostaIA;
     try {
@@ -9093,6 +9333,99 @@ exports.notifDia1 = onSchedule(
       tag:    'lembrete-orcamento',
     }).catch(e => console.warn('[notifDia1] Push falhou:', e.message));
     await marcarEnviado('notifDia1');
+  }));
+
+/**
+ * Alerta semanal (toda segunda, 08h): caixa da empresa (PJ) abaixo da
+ * reserva mínima que a própria mentorada configurou em Reservas PJ
+ * (achado 27/08/2026, Flávia: "alertas" aprovado em escopo — primeiro
+ * alerta proativo do PJ, avisa antes que ela distribua/retire mais do
+ * que devia). Semanal (não diário) pra não virar spam — o saldo de caixa
+ * não muda tão rápido a ponto de precisar de aviso todo dia.
+ * Só considera contas com reservaMinimaCaixa configurada (> 0): quem não
+ * configurou não tem o que comparar.
+ */
+exports.notifCaixaBaixoPJ = onSchedule(
+  { schedule: '0 8 * * 1', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, ...SECRETS_PUSH] },
+  comMonitoramento('notifCaixaBaixoPJ', async () => {
+    if (await jaExecutouHoje('notifCaixaBaixoPJ')) return;
+
+    const contasSnap = await db.collection('contasPJ').get();
+    const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    for (const contaDoc of contasSnap.docs) {
+      const uid    = contaDoc.id;
+      const conta  = contaDoc.data();
+      const minimo = typeof conta.reservaMinimaCaixa === 'number' ? conta.reservaMinimaCaixa : 0;
+      if (minimo <= 0) continue;
+
+      try {
+        const mentoradaSnap = await db.collection('mentoradas').doc(uid).get();
+        if (!mentoradaSnap.exists) continue;
+        const mentorada = mentoradaSnap.data();
+        if (mentorada.status !== 'ativa' || !mentorada.email) continue;
+
+        const reservasSnap = await db.collection('reservasPJ')
+          .where('uid', '==', uid).where('ativa', '==', true).get();
+        const saldoAtual = reservasSnap.docs.reduce((s, r) => s + (r.data().saldoAtual || 0), 0);
+        if (saldoAtual >= minimo) continue;
+
+        await sendEmail({
+          to:      mentorada.email,
+          subject: 'Seu caixa está abaixo da reserva mínima',
+          html:    emailCaixaBaixoPJ(mentorada.nome || 'mentorada', saldoAtual, minimo),
+        }).catch(e => console.warn(`[notifCaixaBaixoPJ] e-mail falhou para ${uid}:`, e.message));
+
+        await sendPushToUid(uid, {
+          titulo: 'Caixa abaixo do mínimo',
+          corpo:  `Seu caixa está em ${brl(saldoAtual)}, abaixo da reserva mínima de ${brl(minimo)}.`,
+          url:    '/reservas-pj.html',
+          tag:    'caixa-baixo-pj',
+        }).catch(e => console.warn(`[notifCaixaBaixoPJ] push falhou para ${uid}:`, e.message));
+      } catch (err) {
+        console.warn(`[notifCaixaBaixoPJ] erro ao processar ${uid}:`, err.message);
+      }
+    }
+
+    await marcarEnviado('notifCaixaBaixoPJ');
+  }));
+
+/**
+ * Alerta diário (08h): contas a pagar e a receber (PJ) vencendo HOJE
+ * (achado 27/08/2026, Flávia: estender alertas pra incluir isso, por
+ * e-mail e por banner no dashboard — este é o e-mail; o banner é servido
+ * por getVencimentosHojePJ, chamado direto pelo frontend). Diário faz
+ * sentido aqui — diferente do caixa baixo, que muda devagar, vencimento é
+ * por natureza "hoje ou não hoje".
+ */
+exports.notifVencimentosDiaPJ = onSchedule(
+  { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
+  comMonitoramento('notifVencimentosDiaPJ', async () => {
+    if (await jaExecutouHoje('notifVencimentosDiaPJ')) return;
+
+    const contasSnap = await db.collection('contasPJ').get();
+    for (const contaDoc of contasSnap.docs) {
+      const uid = contaDoc.id;
+      try {
+        const mentoradaSnap = await db.collection('mentoradas').doc(uid).get();
+        if (!mentoradaSnap.exists) continue;
+        const mentorada = mentoradaSnap.data();
+        if (mentorada.status !== 'ativa' || !mentorada.email) continue;
+
+        const { contasAPagar, impostos, contasAReceber } = await _vencimentosHojePJ(uid);
+        if (!contasAPagar.length && !impostos.length && !contasAReceber.length) continue;
+
+        await sendEmail({
+          to:      mentorada.email,
+          subject: 'Vencimentos de hoje na sua empresa',
+          html:    emailVencimentosHojePJ(mentorada.nome || 'mentorada', contasAPagar, impostos, contasAReceber),
+        }).catch(e => console.warn(`[notifVencimentosDiaPJ] e-mail falhou para ${uid}:`, e.message));
+      } catch (err) {
+        console.warn(`[notifVencimentosDiaPJ] erro ao processar ${uid}:`, err.message);
+      }
+    }
+
+    await marcarEnviado('notifVencimentosDiaPJ');
   }));
 
 

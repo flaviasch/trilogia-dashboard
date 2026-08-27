@@ -1400,7 +1400,7 @@
           </div>
           <div style="text-align:center;margin:10px 0;color:var(--text-muted);font-size:12px;">— ou —</div>
           <div style="margin-bottom:18px;">
-            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, foto, CSV/TXT, .xlsx — qualquer formato que seu banco exportar)</label>
+            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Enviar arquivo (PDF, foto, CSV/TXT, .ofx, .xlsx — qualquer formato que seu banco exportar)</label>
             <input type="file" id="iaArquivoInput" style="display:none;">
             <div style="display:flex;align-items:center;gap:10px;">
               <button type="button" id="btnEscolherArquivo" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Escolher arquivo</button>
@@ -3052,14 +3052,6 @@
         document.body.style.width = '';
         window.scrollTo(0, _bodyScrollY);
       }
-      // Android, achado 26/08/2026: soltar overflow:hidden logo depois do
-      // teclado virtual fechar (ao salvar um lançamento, modal fecha e
-      // desbloqueia o body quase no mesmo instante) deixava elementos
-      // position:fixed (o FAB de lançamento rápido, bottom:140px) com o
-      // layout desatualizado — flutuava no meio da tela até trocar de
-      // página forçar um reflow real. Um scroll de 0px força esse reflow
-      // sem mexer na posição de rolagem de verdade.
-      requestAnimationFrame(() => window.scrollBy(0, 0));
     }
 
     function atualizarCategoriasSugeridas() {
@@ -5405,47 +5397,6 @@
           if (items.length) gruposAberta[c.id] = items;
         }
       });
-      // Despesas fixas de cartão AINDA NÃO lançadas também entram na fatura
-      // aberta, projetadas — mesma ideia da projeção virtual que despesa
-      // fixa sem cartão já tinha no Detalhe (diasFaltantesRecorrente), só
-      // que aqui olhando pra qual FATURA a ocorrência cairia, não pro mês
-      // calendário (achado 26/08/2026, Flávia: "nas faturas seguintes, as
-      // despesas fixas... já devem aparecer" — antes só apareciam depois
-      // de clicar "Lançar" uma por uma na aba Projeção). Só frequência
-      // mensal — semanal/quinzenal não têm um único "dia do mês" fixo pra
-      // testar contra sugerirFatura, ficam de fora por ora.
-      cartoesAtivos.forEach(c => {
-        const key = _openKey[c.id];
-        if (!key || !c.diaCorte) return;
-        const [keyAno, keyMes] = key.split('-').map(Number);
-        const jaNaFatura = gruposAberta[c.id] || [];
-        const virtuais = [];
-        (_recorrentes || [])
-          .filter(r => r.ativo && r.cartao && r.cartaoId === c.id && (r.tipo || 'despesa') === 'despesa' && (r.frequencia || 'mensal') === 'mensal')
-          .forEach(r => {
-            // Acha o mês-calendário cuja ocorrência mensal cairia nessa
-            // fatura — testa o próprio mês da fatura e até 2 meses antes
-            // (sugerirFatura empurra no máximo +2 a partir do mês da compra).
-            for (let back = 0; back <= 2; back++) {
-              let mCand = keyMes - back, aCand = keyAno;
-              while (mCand < 1) { mCand += 12; aCand -= 1; }
-              const diaTeste = Math.min(r.dia || 1, 28); // dia seguro em qualquer mês, só pra testar o mapeamento de fatura
-              const dataTeste = `${aCand}-${String(mCand).padStart(2, '0')}-${String(diaTeste).padStart(2, '0')}`;
-              if (sugerirFatura(dataTeste, c.diaCorte, c.diaVencimento || 1) !== key) continue;
-              diasFaltantesRecorrente(r, jaNaFatura.concat(virtuais), mCand, aCand).forEach(dia => {
-                if (_fixasPuladasServidor.includes(chaveFixaPulada(r.id, aCand, mCand, dia))) return;
-                virtuais.push({
-                  categoria: r.categoria, descricao: r.descricao || '', valor: r.valor,
-                  data: `${aCand}-${String(mCand).padStart(2, '0')}-${String(dia).padStart(2, '0')}`,
-                  tipo: 'despesa', cartao: true, cartaoId: c.id, fatura: key,
-                  virtual: true, recorrenteId: r.id,
-                });
-              });
-              break;
-            }
-          });
-        if (virtuais.length) gruposAberta[c.id] = jaNaFatura.concat(virtuais);
-      });
       // "YYYY-MM" → número comparável (ano*12+mes), pra saber se uma fatura já
       // é passada/atual (pode ter fechado) ou ainda nem começou a acumular —
       // achado 23/07/2026: uma fatura futura (ex: setembro, com assinaturas
@@ -5539,21 +5490,15 @@
           const isReceita = d.tipo === 'receita';
           const idxOriginal = (isReceita ? data.receitas : data.despesas).indexOf(d);
           const desc = d.descricao || d.categoria;
-          // Despesa fixa de cartão ainda não lançada — mostrada projetada na
-          // fatura (achado 26/08/2026, Flávia: "nas faturas seguintes, as
-          // despesas fixas... já devem aparecer", mesma projeção virtual que
-          // despesa fixa sem cartão já tinha no Detalhe). Sem botões de
-          // editar/excluir — não existe ainda de verdade, e o botão de
-          // "Lançar" fica na aba Projeção, não duplicado aqui.
-          const botoesAcao = d.virtual ? '' : idxOriginal < 0 ? '' : isReceita
+          const botoesAcao = idxOriginal < 0 ? '' : isReceita
             ? `<button class="btn-item" data-edit-rec="${idxOriginal}" title="Editar">${IC_E}</button>
                <button class="btn-item del" data-del-rec="${idxOriginal}" title="Excluir">${IC_D}</button>`
             : `<button class="btn-item" data-edit-desp="${idxOriginal}" title="Editar">${IC_E}</button>
                <button class="btn-item del" data-del-desp="${idxOriginal}" title="Excluir">${IC_D}</button>`;
           return `
-            <div class="item-row" style="border-radius:0;border:none;border-top:1px solid var(--border);${d.virtual ? 'opacity:.7;' : ''}">
+            <div class="item-row" style="border-radius:0;border:none;border-top:1px solid var(--border);">
               <div>
-                <div class="item-categoria">${escapeHtml(desc)}${isReceita ? ' <span style="font-size:10px;background:rgba(74,222,128,.13);color:#4ade80;border-radius:3px;padding:1px 5px;margin-left:4px;">↩ estorno</span>' : ''}${d.virtual ? ' <span style="font-size:10px;background:rgba(207,174,101,.13);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px;">previsto</span>' : ''}</div>
+                <div class="item-categoria">${escapeHtml(desc)}${isReceita ? ' <span style="font-size:10px;background:rgba(74,222,128,.13);color:#4ade80;border-radius:3px;padding:1px 5px;margin-left:4px;">↩ estorno</span>' : ''}</div>
                 ${d.data ? `<div class="item-fonte">${escapeHtml(formatData(d.data))}</div>` : ''}
               </div>
               <div></div>
@@ -8819,9 +8764,17 @@
         if (xlsxComoTexto != null) {
           conteudo     = xlsxComoTexto;
           tipoConteudo = 'texto';
+        } else if (arquivo && /\.ofx$/i.test(arquivo.name || '')) {
+          // OFX é estruturado (data/valor/sinal sem ambiguidade) — o backend
+          // faz o parse determinístico em código antes de mandar pra IA, em
+          // vez de pedir pra IA "ler" as tags XML/SGML como se fosse texto
+          // livre (achado 27/08/2026, Flávia: estender a importação por IA
+          // pra aceitar OFX também — ver _ofxParaTextoTabular em index.js).
+          conteudo     = await arquivo.text();
+          tipoConteudo = 'ofx';
         } else if (arquivo && arquivo.type !== 'application/pdf' && !arquivo.type.startsWith('image/')) {
           // Não é PDF nem imagem (CSV/TXT, ou qualquer outro formato que o
-          // banco exporte, ex: OFX/QIF/HTML — o seletor de arquivo agora
+          // banco exporte, ex: QIF/HTML — o seletor de arquivo agora
           // aceita qualquer extensão) — lê como texto puro, senão virava
           // base64 de "imagem" e a IA rejeitava com "Could not process
           // image" (achado 13/07/2026).

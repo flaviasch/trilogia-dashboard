@@ -782,6 +782,12 @@ export async function atualizarSaldoCaixaPJ(uid, saldo) {
 export async function getDRESimplificadoPJ(uid, mes, ano) {
   return callPJ('getDRESimplificadoPJ')({ uid, mes, ano });
 }
+export async function getRelatorioAnualPJ(uid, ano) {
+  return callPJ('getRelatorioAnualPJ')({ uid, ano });
+}
+export async function getVencimentosHojePJ(uid) {
+  return callPJ('getVencimentosHojePJ')({ uid });
+}
 export async function getPontoEquilibrioPJ(uid, mes, ano) {
   return callPJ('getPontoEquilibrioPJ')({ uid, mes, ano });
 }

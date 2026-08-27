@@ -100,6 +100,11 @@
     .import-aviso-duplicata { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.35); color: #d97706; font-size: 12px; padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; }
     .import-invest-fields { display: none; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
     .import-invest-fields.mostrar { display: grid; }
+
+    .venc-banner { align-items: center; gap: 12px; background: rgba(248,113,113,.10); border-bottom: 1px solid rgba(248,113,113,.3); padding: 10px 24px; font-size: 13px; color: #f87171; }
+    .venc-banner.hidden { display: none; }
+    .venc-banner:not(.hidden) { display: flex; }
+    .venc-banner button { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; margin-left: auto; }
   </style>
 <!-- MOBILE_NAVBAR_FIX -->
 <style>
@@ -140,6 +145,8 @@
     <span>👁 Visualizando como mentorada</span>
     <a href="admin.html">← Voltar ao admin</a>
   </div>
+
+  <div class="venc-banner hidden" id="vencBanner"></div>
 
   <main>
     <h1>Contas a Pagar</h1>
@@ -274,8 +281,8 @@
         </div>
         <div style="text-align:center;margin:8px 0;color:var(--text-muted);font-size:12px">— ou —</div>
         <div class="field-group">
-          <label>Enviar arquivo (PDF ou imagem)</label>
-          <input type="file" id="impArquivoInput" accept=".pdf,image/*" style="display:none">
+          <label>Enviar arquivo (PDF, imagem ou OFX)</label>
+          <input type="file" id="impArquivoInput" accept=".pdf,image/*,.ofx" style="display:none">
           <div style="display:flex;align-items:center;gap:10px">
             <button type="button" class="btn-acao-secundario" id="btnEscolherArquivoImp" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">Escolher arquivo</button>
             <span id="impArquivoNome" style="font-size:13px;color:var(--text-muted)">Nenhum arquivo selecionado</span>
@@ -307,8 +314,9 @@
       getImpostosPrevistos, marcarImpostoPago, deleteImpostoPrevisto,
       categorizarExtratoPJIA, confirmarRecebimento, saveOutraEntradaPJ, criarVendaAntigaParceladaPJ,
       getReservasPJ, registrarMovimentoReservaPJ,
+      getVencimentosHojePJ,
       msgErro, setViewAsUid, uidAtual,
-    } from './js/api.js?v=52';
+    } from './js/api.js?v=61';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { cacheGet, cacheSet } from './js/page-cache.js';
@@ -392,8 +400,33 @@
       renderPendentes();
       renderDespesas();
       renderImpostosDevidos();
+      renderVencimentosBanner();
       await contaPromise;
     });
+
+    // ─── Banner: vencimentos de hoje (27/08/2026) ──────────────────────────────
+    async function renderVencimentosBanner() {
+      const hojeISO = new Date().toISOString().slice(0, 10);
+      if (sessionStorage.getItem('vencBannerDispensado') === hojeISO) return;
+      let v;
+      try { v = await getVencimentosHojePJ(uidAtual()); } catch { return; }
+      const nPagar = (v.contasAPagar?.length || 0) + (v.impostos?.length || 0);
+      const nReceber = v.contasAReceber?.length || 0;
+      if (!nPagar && !nReceber) return;
+      const totalPagar = (v.contasAPagar || []).reduce((s, c) => s + (c.valor || 0), 0) + (v.impostos || []).reduce((s, i) => s + (i.valor || 0), 0);
+      const totalReceber = (v.contasAReceber || []).reduce((s, c) => s + (c.valorLiquido ?? c.valorBruto ?? 0), 0);
+      const partes = [];
+      if (nPagar) partes.push(`${nPagar} conta${nPagar > 1 ? 's' : ''} a pagar hoje (${brl(totalPagar)})`);
+      if (nReceber) partes.push(`${nReceber} recebimento${nReceber > 1 ? 's' : ''} previsto${nReceber > 1 ? 's' : ''} hoje (${brl(totalReceber)})`);
+      const el = document.getElementById('vencBanner');
+      if (!el) return;
+      el.innerHTML = `<span>⏰ Hoje: ${partes.join(' · ')}</span><button id="vencBannerFechar" title="Dispensar por hoje">✕</button>`;
+      el.classList.remove('hidden');
+      document.getElementById('vencBannerFechar').addEventListener('click', () => {
+        sessionStorage.setItem('vencBannerDispensado', hojeISO);
+        el.classList.add('hidden');
+      });
+    }
 
     // ─── Impostos devidos (movido de Impostos pra cá — achado 27/07/2026,
     // Flávia: faz mais sentido a confirmação de pagamento ficar junto de
@@ -717,7 +750,14 @@
       setLoading(btn, true, 'Categorizando…');
       try {
         let conteudo, tipoConteudo;
-        if (_arquivoImp) {
+        if (_arquivoImp && /\.ofx$/i.test(_arquivoImp.name || '')) {
+          // OFX é estruturado (data/valor/sinal sem ambiguidade) — o backend
+          // faz o parse determinístico em código antes de mandar pra IA
+          // (achado 27/08/2026, Flávia: estender a importação por IA pra
+          // aceitar OFX também — ver _ofxParaTextoTabular em index.js).
+          conteudo = await _arquivoImp.text();
+          tipoConteudo = 'ofx';
+        } else if (_arquivoImp) {
           const base64completo = await new Promise((resolve, reject) => {
             const r = new FileReader();
             r.onload = () => resolve(r.result);
