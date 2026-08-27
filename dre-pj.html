@@ -129,6 +129,7 @@
       </nav>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
+      <a href="orcamento.html" id="linkDashboardPF" style="display:none;font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">🏠 PF</a>
       <a href="ajuda-pj.html" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">❓ Ajuda</a>
       <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
       <button class="btn-logout" id="btnLogout">Sair</button>
@@ -193,7 +194,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, getDRESimplificadoPJ, getPontoEquilibrioPJ, salvarRetiradaMinimaPJ, getRelatorioAnualPJ, getVencimentosHojePJ, msgErro, setViewAsUid, uidAtual } from './js/api.js?v=61';
+    import { getContaPJ, getDRESimplificadoPJ, getPontoEquilibrioPJ, salvarRetiradaMinimaPJ, getRelatorioAnualPJ, getVencimentosHojePJ, getStatusContaPF, msgErro, setViewAsUid, uidAtual } from './js/api.js?v=55';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { cacheGet, cacheSet } from './js/page-cache.js';
 
@@ -260,8 +261,17 @@
 
       renderTudo();
       renderVencimentosBanner();
+      _checarAtalhoPF();
       await contaPromise;
     });
+
+    // ─── Atalho PJ→PF (27/08/2026) ─────────────────────────────────────────────
+    function _checarAtalhoPF() {
+      if (VIEW_AS_UID) return; // não faz sentido no modo admin visualizando
+      getStatusContaPF(uidAtual()).then(({ ativa }) => {
+        if (ativa) document.getElementById('linkDashboardPF').style.display = 'inline';
+      }).catch(() => {});
+    }
 
     // ─── Banner: vencimentos de hoje (27/08/2026) ──────────────────────────────
     async function renderVencimentosBanner() {

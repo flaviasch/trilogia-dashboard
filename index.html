@@ -689,6 +689,7 @@
     <span class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>Dashboard</span></span>
     <div class="navbar-right">
       <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
+      <a href="notas-pj.html" id="linkDashboardPJ" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">🏢 Dashboard PJ</a>
       <a href="clube.html" class="link-clube link-jornada-nav" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
       <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <span class="user-name" id="userDisplayName"></span>
@@ -929,7 +930,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor } from './js/api.js?v=54';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor, getContaPJ } from './js/api.js?v=55';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
     import { calcularAgregadosOrcamento } from './js/orcamento-calc.js';
@@ -1000,6 +1001,17 @@
 
       // Limpa sessão de viewAs quando acessando sem ?viewAs (ex: usuária voltou ao próprio dashboard)
       if (!VIEW_AS_UID) localStorage.removeItem('viewAsUid');
+
+      // Atalho PF→PJ (27/08/2026): só no próprio dashboard da usuária, não
+      // quando é admin visualizando como outra mentorada — evita disparar
+      // uma leitura extra irrelevante nesse fluxo à parte.
+      if (!VIEW_AS_UID) {
+        getContaPJ(user.uid).then(conta => {
+          if (conta && conta.ativo !== false) {
+            document.getElementById('linkDashboardPJ').style.display = 'inline';
+          }
+        }).catch(() => {});
+      }
 
       // Modo visualização: admin abrindo dashboard de uma mentorada
       if (VIEW_AS_UID && admin) {

@@ -695,6 +695,9 @@ export async function deleteImpostoPrevisto(uid, id) {
 export async function getContaPJ(uid) {
   return callPJ('getContaPJ')({ uid });
 }
+export async function getStatusContaPF(uid) {
+  return callPJ('getStatusContaPF')({ uid });
+}
 export async function salvarOnboardingPJ(uid, dados) {
   return callPJ('salvarOnboardingPJ')({ uid, ...dados });
 }

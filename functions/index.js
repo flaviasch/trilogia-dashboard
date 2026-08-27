@@ -7539,6 +7539,22 @@ exports.getContaPJ = onCall({ minInstances: 1 }, async (request) => {
 });
 
 /**
+ * Existência/status do lado PF pra este uid — usado pelo atalho recíproco
+ * PF↔PJ (achado 27/08/2026, Flávia: se a mentorada tem os dois ativos,
+ * mostra um atalho de um dashboard pro outro). Uma conta PJ avulsa (Kiwify
+ * "dashboard_pj") NÃO cria doc em `mentoradas` — por isso `ativa: false`
+ * quando o doc simplesmente não existe, em vez de lançar erro (diferente de
+ * getNivelAcesso, que lança not-found — aqui "não tem PF" é uma resposta
+ * válida, não uma exceção).
+ */
+exports.getStatusContaPF = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const snap = await db.collection('mentoradas').doc(uid).get();
+  return { ativa: snap.exists && snap.data().status === 'ativa' };
+});
+
+/**
  * Status de onboarding FUNCIONAL do Dashboard PJ (não confundir com o
  * onboarding de cadastro em onboarding-pj.html, que só grava nome/CNPJ/
  * regime). Usado por notas-pj.html pra montar o checklist de primeiros
