@@ -1201,13 +1201,12 @@ function _sugerirFatura(dataCompra, diaCorte, diaVencimento) {
   if (!diaVencimento || diaVencimento <= diaCorte) avancarMes();
   return `${ano}-${String(mes).padStart(2, '0')}`;
 }
-
-// minInstances:1 (27/08/2026) — getOrcamento é a função mais chamada do
-// dashboard (carregada em toda visita ao Orçamento, várias vezes por sessão).
-// Sem instância quente, a primeira chamada depois de um tempo ocioso paga
-// cold start (1-3s+) só pra "ligar" a função, antes de buscar qualquer dado.
-// Mesma lógica já aplicada em getDashboardHome, getContaPJ e getProLaborePJ.
-exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS, minInstances: 1 }, async (request) => {
+// minInstances:1 avaliado e revertido (27/08/2026) — custo real medido no
+// Billing das outras 3 funções com essa flag (getDashboardHome, getContaPJ,
+// getProLaborePJ): ~R$60/mês cada, ~R$180-190/mês as 3 juntas. Adicionar a
+// getOrcamento somaria mais ~R$55-65/mês recorrentes só pra eliminar cold
+// start ocasional. Flávia decidiu não vale o custo contínuo — revertido.
+exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   requireAuth(request);
   const { uid, mes, ano } = request.data;
   requireSelfOrAdmin(request, uid);
