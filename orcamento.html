@@ -3072,7 +3072,14 @@
           void fab.offsetHeight; // força o navegador a recalcular o layout aqui
           fab.style.display = displayOriginal;
         }
+        // achado 31/08/2026: reforça com a correção por geometria real do
+        // visualViewport (definida mais abaixo) — não depende de esperar o
+        // evento resize/scroll disparar sozinho.
+        window._reposicionarFab?.();
       });
+      // O teclado pode continuar fechando por mais ~200-300ms depois deste
+      // ponto — reaplica um pouco depois pra pegar o estado final também.
+      setTimeout(() => window._reposicionarFab?.(), 350);
     }
 
     function atualizarCategoriasSugeridas() {
@@ -9862,7 +9869,7 @@
             await saveOrcamento(instMes, instAno, itensMes);
             _invalPeriodo(instMes, instAno);
           }
-          _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden'); document.getElementById('fabSpeedDial').style.display = '';
+          _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden'); document.getElementById('fabSpeedDial').style.display = 'flex';
           registrarEvento('despesa_cartao_parcelada');
           const ultimoMesIdx = ((fatMes - 1 + nParcelas - 1) % 12);
           const ultimoAno    = fatAno + Math.floor((fatMes - 1 + nParcelas - 1) / 12);
@@ -9873,7 +9880,7 @@
           itensFatura.push({ categoria, descricao, tipo: 'despesa', valor, data, cartao: true, cartaoId, fatura, origem: 'manual' });
           await saveOrcamento(fatMes, fatAno, itensFatura);
           _invalPeriodo(fatMes, fatAno);
-          _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden'); document.getElementById('fabSpeedDial').style.display = '';
+          _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden'); document.getElementById('fabSpeedDial').style.display = 'flex';
           registrarEvento('despesa_cartao_lancada');
           mostrarToast(`💳 Salvo na fatura de ${MESES[fatMes-1]} ✓`, 'success');
         }
@@ -9908,7 +9915,7 @@
     document.getElementById('btnFecharCartaoDespesa')?.addEventListener('click', () => {
       _unlockBody();
       document.getElementById('modalCartaoDespesa').classList.add('hidden');
-      document.getElementById('fabSpeedDial').style.display = '';
+      document.getElementById('fabSpeedDial').style.display = 'flex';
     });
     // Clicar fora não fecha (achado 27/07/2026: nenhum modal deveria fechar
     // clicando fora) — este aqui tinha escapado daquele ajuste.
@@ -11650,6 +11657,32 @@
     // Expõe funções de modal para o FAB externo (script não-module)
     window._orcAbrirModal = abrirModal;
     window._orcAbrirCartao = (v) => _cartoesReady.then(() => abrirModalCartaoDespesa(null, v || null));
+
+    // Reposicionamento ativo do FAB (achado 31/08/2026, 4ª tentativa — as
+    // três anteriores — scroll de 0px, toggle de display dentro de
+    // _unlockBody(), e toggle de position via visualViewport.resize —
+    // continuaram falhando na prática, relatado 2x por Flávia). Mudança de
+    // abordagem: em vez de "forçar reflow e torcer pra corrigir sozinho",
+    // recalcula right/bottom em PIXELS a partir da geometria real do
+    // visualViewport toda vez que ela muda — mesmo que o navegador esteja
+    // ancorando position:fixed num viewport de layout desatualizado (mais
+    // largo/alto do que o visível), o valor explícito sobrescreve isso.
+    // Ouve resize E scroll do visualViewport (Android costuma disparar
+    // scroll durante a animação de fechar o teclado, antes do resize final).
+    function _reposicionarFab() {
+      const fab = document.getElementById('fabSpeedDial');
+      if (!fab || !window.visualViewport) return;
+      const vv = window.visualViewport;
+      const gapDireita = window.innerWidth  - (vv.offsetLeft + vv.width);
+      const gapBaixo   = window.innerHeight - (vv.offsetTop  + vv.height);
+      fab.style.right  = (20  + Math.max(0, gapDireita)) + 'px';
+      fab.style.bottom = (140 + Math.max(0, gapBaixo))   + 'px';
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', _reposicionarFab);
+      window.visualViewport.addEventListener('scroll', _reposicionarFab);
+    }
+    window._reposicionarFab = _reposicionarFab;
 
   </script>
 

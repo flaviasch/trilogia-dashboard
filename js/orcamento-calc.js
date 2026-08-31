@@ -279,9 +279,20 @@ export function calcularAgregadosOrcamento({
     const aberta = _openKeyPorCartao[cartaoId];
     return !aberta || _periodoNumCalc(fatura) < _periodoNumCalc(aberta);
   };
+  // Só entra quem a própria fatura vai debitar NO MÊS EM TELA (mesmo
+  // critério que o backfill de ajusteTotal logo abaixo já usava) — sem
+  // esse filtro, um cartão de corte tardio (ex: Bradesco, corte dia 30)
+  // tem seus itens gravados no mês da COMPRA já com a fatura apontando pro
+  // mês seguinte (débito); como o ciclo já fechou (_faturaJaAbriu), esses
+  // itens contavam em "Faturas a vencer" tanto no mês da compra quanto no
+  // mês do débito (que já os recebe certo, emprestados do backend) — a
+  // mesma fatura duplicada em dois meses. achado 31/08/2026, Flávia:
+  // fatura do Bradesco de setembro, já fechada, aparecendo pendente em
+  // agosto. Só afeta esta agregação (Faturas a vencer/pagas) — Detalhe,
+  // Planejamento etc. continuam vendo os itens normalmente.
   const gruposFechadaCaixa = {};
   data.despesas.forEach(d => {
-    if (d.cartao && d.fatura && !d._faturaAberta && _faturaJaAbriu(d.cartaoId, d.fatura)) {
+    if (d.cartao && d.fatura && !d._faturaAberta && _periodoNumCalc(d.fatura) === periodoTotal && _faturaJaAbriu(d.cartaoId, d.fatura)) {
       const key = `${d.cartaoId}_${d.fatura}`;
       gruposFechadaCaixa[key] = (gruposFechadaCaixa[key] || 0) + d.valor;
     }
@@ -289,7 +300,7 @@ export function calcularAgregadosOrcamento({
   // Estorno de uma compra vinculado à mesma fatura (achado 15/07/2026) —
   // desconta do total devido, igual já acontece na aba Faturas do frontend.
   (data.receitas || []).forEach(r => {
-    if (r.cartao && r.fatura && !r._faturaAberta && _faturaJaAbriu(r.cartaoId, r.fatura)) {
+    if (r.cartao && r.fatura && !r._faturaAberta && _periodoNumCalc(r.fatura) === periodoTotal && _faturaJaAbriu(r.cartaoId, r.fatura)) {
       const key = `${r.cartaoId}_${r.fatura}`;
       gruposFechadaCaixa[key] = (gruposFechadaCaixa[key] || 0) - r.valor;
     }

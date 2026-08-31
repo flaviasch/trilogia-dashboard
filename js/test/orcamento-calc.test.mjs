@@ -522,6 +522,35 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.ok('c1_2026-07' in r.gruposFechadaCaixa);
   });
 
+  await t.test('achado 31/08/2026: fatura JÁ FECHADA cujo débito é no mês SEGUINTE ao em tela não conta em "Faturas a vencer" do mês em tela — só do mês do débito', () => {
+    // Cenário real (Bradesco): diaCorte=30, diaVencimento=10 — corte tardio
+    // faz o item ficar gravado no mês da COMPRA (agosto) já com fatura
+    // apontando pro mês seguinte (setembro, mês do débito). HOJE=2026-08-31:
+    // dia(31)>corte(30) → +1 mês (setembro); vencimento(10)<=corte(30) →
+    // +1 mês extra (outubro). openKey = "2026-10", então a fatura de
+    // setembro já fechou de verdade (_faturaJaAbriu true) — mas seu débito
+    // é em setembro, não em agosto, então não deveria contar como "a
+    // vencer" na tela de agosto.
+    const agoraFimDeAgosto = new Date(2026, 7, 31); // 2026-08-31
+    const item = { categoria: 'Pets', valor: 400, data: '2026-08-28', cartao: true, cartaoId: 'brad', fatura: '2026-09' };
+    const cartoes = [{ id: 'brad', ativo: true, diaCorte: 30, diaVencimento: 10 }];
+
+    const dataAgosto = { periodo: { mes: 8, ano: 2026 }, saldoConta: 0, receitas: [], despesas: [item], aportes: [] };
+    const rAgosto = calcularAgregadosOrcamento({ data: dataAgosto, cartoes, agora: agoraFimDeAgosto });
+    assert.equal(rAgosto.totalFaturas, 0, 'fatura de setembro não deve aparecer como "a vencer" vendo agosto');
+    assert.ok(!('brad_2026-09' in rAgosto.gruposFechadaCaixa), 'não deveria entrar em gruposFechadaCaixa do mês errado');
+
+    // A mesma fatura, vista do mês certo (setembro, mês do débito, já
+    // chegado — "agora" também em setembro, senão o mês entra como
+    // projeção futura e nem passa pela distinção pendente/paga) continua
+    // contando normalmente — o fix não pode fazer o valor desaparecer.
+    const agoraJaEmSetembro = new Date(2026, 8, 5); // 2026-09-05
+    const dataSetembro = { periodo: { mes: 9, ano: 2026 }, saldoConta: 0, receitas: [], despesas: [item], aportes: [] };
+    const rSetembro = calcularAgregadosOrcamento({ data: dataSetembro, cartoes, agora: agoraJaEmSetembro });
+    assert.equal(rSetembro.totalFaturas, 400, 'vista de setembro (mês do débito), a fatura fechada continua contando normalmente');
+    assert.ok('brad_2026-09' in rSetembro.gruposFechadaCaixa);
+  });
+
   await t.test('achado 23/07/2026: backfill de faturaEstados só entra com ajusteTotal — sem isso, fatura do próprio mês some (não vira card fantasma de R$0)', () => {
     const data = periodo([]); // mês sem nenhum item de cartão, período 2026-07 (default do helper)
     const cartoes = [{ id: 'c1', ativo: true }];
