@@ -1202,7 +1202,12 @@ function _sugerirFatura(dataCompra, diaCorte, diaVencimento) {
   return `${ano}-${String(mes).padStart(2, '0')}`;
 }
 
-exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+// minInstances:1 (27/08/2026) — getOrcamento é a função mais chamada do
+// dashboard (carregada em toda visita ao Orçamento, várias vezes por sessão).
+// Sem instância quente, a primeira chamada depois de um tempo ocioso paga
+// cold start (1-3s+) só pra "ligar" a função, antes de buscar qualquer dado.
+// Mesma lógica já aplicada em getDashboardHome, getContaPJ e getProLaborePJ.
+exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS, minInstances: 1 }, async (request) => {
   requireAuth(request);
   const { uid, mes, ano } = request.data;
   requireSelfOrAdmin(request, uid);
