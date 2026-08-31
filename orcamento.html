@@ -562,6 +562,12 @@
     }
     .btn-item:hover { border-color: var(--border-gold); color: var(--white); }
     .btn-item.del:hover { border-color: rgba(248,113,113,0.5); color: var(--negative); }
+    /* Sem isso, btn.disabled=true (confirmarPendente etc.) não mudava nada
+       visualmente — o botão some/effects de hover continuavam, mas nenhum
+       feedback de "processando" aparecia (achado 31/08/2026, Flávia: "clico
+       e parece que nada acontece"). !important pra sobrepor a cor inline do
+       glifo (ex: style="color:var(--positive)" no botão de confirmar). */
+    .btn-item:disabled { opacity: .4; cursor: wait; color: var(--text-muted) !important; pointer-events: none; }
 
     /* ─── Botão adicionar na seção ──────────── */
     .btn-add-item {
