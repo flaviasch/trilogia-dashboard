@@ -3939,27 +3939,35 @@
       document.getElementById('modalReservasSub').textContent =
         `Aporte de ${brl(valor)} — distribua entre as reservas ativas (pode deixar zero).`;
 
-      const ativas = reservas.filter(r => r.aporte > 0 && r.acumulado < r.meta);
+      // Qualquer reserva ativa (ainda não completa) é uma opção válida pra
+      // receber aporte — não só as que têm "Aporte mensal" planejado
+      // (r.aporte > 0). Sem aporte definido, só não tem valor sugerido
+      // pré-preenchido; a usuária digita manualmente. achado 31/08/2026,
+      // Flávia: reserva recém-criada sem aporte mensal não aparecia como
+      // opção nenhuma, nem aqui nem depois (o resto não-alocado só pode ser
+      // vinculado a uma classe de ativo, nunca a uma reserva específica).
+      const ativas = reservas.filter(r => r.acumulado < r.meta);
       const listEl = document.getElementById('reservasAporteList');
 
       if (ativas.length === 0) {
         listEl.innerHTML = `<p style="color:var(--text-muted);font-size:13px;padding:12px 0">
-          Nenhuma reserva com aporte programado. Clique em Próximo para registrar só o patrimônio.</p>`;
+          Nenhuma reserva ativa. Clique em Próximo para registrar só o patrimônio.</p>`;
       } else {
         listEl.innerHTML = ativas.map(r => {
           const restante = r.meta - r.acumulado;
-          const sugerido = Math.min(r.aporte, restante);
+          const temAporte = r.aporte > 0;
+          const sugerido = temAporte ? Math.min(r.aporte, restante) : 0;
           return `
           <div class="reserva-aporte-row">
             <div class="reserva-aporte-info">
               <div class="reserva-aporte-nome">${r.nome}</div>
               <div class="reserva-aporte-plan">
-                planejado ${brl(r.aporte)} · faltam ${brl(restante)}
+                ${temAporte ? `planejado ${brl(r.aporte)} · ` : ''}faltam ${brl(restante)}
               </div>
             </div>
             <input type="text" inputmode="numeric" class="reserva-aporte-input"
                    data-reserva-id="${r.id}"
-                   placeholder="${Math.round(sugerido).toLocaleString('pt-BR')}"
+                   placeholder="${temAporte ? Math.round(sugerido).toLocaleString('pt-BR') : '0'}"
                    value="" />
           </div>`;
         }).join('');
