@@ -332,17 +332,29 @@ export function calcularAgregadosOrcamento({
     if (_periodoNumCalc(faturaKey) !== periodoTotal) return;
     if (cartoes.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixa[key] = 0;
   });
+  // Sempre calcula a distinção paga/a vencer, mesmo em mês futuro — uma
+  // fatura só entra em gruposFechadaCaixa quando o ciclo JÁ fechou de
+  // verdade (_faturaJaAbriu, aplicado acima), então mesmo vendo um mês
+  // futuro ela tem valor certo, não é projeção; sem isso, o card "Faturas a
+  // vencer" nunca aparecia pra uma fatura já fechada enquanto o mês dela
+  // ainda não tivesse virado o mês atual. achado 31/08/2026, Flávia: fatura
+  // do Bradesco de setembro (já fechada) devia aparecer como pendente
+  // mesmo vendo setembro antes de setembro chegar.
   let totalFaturas    = 0; // fatura fechada ainda não confirmada como paga ("a vencer")
   let totalCartaoPago = 0; // fatura fechada já confirmada (total ou parte paga)
-  if (!ehFuturo) {
-    Object.entries(gruposFechadaCaixa).forEach(([key, total]) => {
-      const fe = faturaEstados[key];
-      const totalAjustado = fe?.ajusteTotal ?? total;
-      if (fe?.estado === 'paga_total') totalCartaoPago += totalAjustado;
-      else if (fe?.estado === 'paga_parcial') totalCartaoPago += fe.valorPago || 0;
-      else totalFaturas += totalAjustado;
-    });
-  }
+  Object.entries(gruposFechadaCaixa).forEach(([key, total]) => {
+    const fe = faturaEstados[key];
+    const totalAjustado = fe?.ajusteTotal ?? total;
+    if (fe?.estado === 'paga_total') totalCartaoPago += totalAjustado;
+    else if (fe?.estado === 'paga_parcial') totalCartaoPago += fe.valorPago || 0;
+    else totalFaturas += totalAjustado;
+  });
+  // Em mês futuro, totalCartaoCaixa já soma TODO gruposFechadaCaixa (pago +
+  // a vencer) pra dentro de despesaCaixa — é a mesma soma de
+  // totalFaturas+totalCartaoPago, só que sem separar (projeção não
+  // distingue). Continua igual a antes: nenhuma mudança de valor aqui,
+  // só passou a existir a versão discriminada (totalFaturas/totalCartaoPago)
+  // em paralelo, pro card de pendências poder usar.
   const totalCartaoCaixa = ehFuturo
     ? Object.values(gruposFechadaCaixa).reduce((s, v) => s + v, 0)
     : totalCartaoPago;
@@ -415,7 +427,12 @@ export function calcularAgregadosOrcamento({
   // custar no total", diferente de despesaCaixa ("quanto já saiu da conta").
   const _mesKeyAtualComprometido = `${ano}-${String(mes).padStart(2, '0')}`;
   const totalComprometidoMes = data.despesas.filter(d => !d._faturaAberta || d.fatura === _mesKeyAtualComprometido).reduce((s, d) => s + d.valor, 0);
-  const despesaComprometida = despesaCaixa + totalPendente + totalFaturas + totalFixasVirtuais;
+  // Em mês futuro, totalFaturas já está embutido em despesaCaixa (via
+  // totalCartaoCaixa, que soma TODO gruposFechadaCaixa pra projeção) —
+  // somar de novo aqui duplicaria a mesma fatura fechada. Só soma em
+  // separado no mês atual/passado, onde despesaCaixa exclui a parte "a
+  // vencer" de propósito (só conta o que já foi pago).
+  const despesaComprometida = despesaCaixa + totalPendente + (ehFuturo ? 0 : totalFaturas) + totalFixasVirtuais;
   // Diferença entre o comprometido (soma direta de tudo lançado) e a
   // reconciliação de caixa (despesaCaixa + pendentes + faturas + fixas
   // virtuais) — idealmente ~0; se não for, indica algo não identificável

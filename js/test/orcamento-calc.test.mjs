@@ -551,6 +551,30 @@ test('calcularAgregadosOrcamento', async (t) => {
     assert.ok('brad_2026-09' in rSetembro.gruposFechadaCaixa);
   });
 
+  await t.test('achado 31/08/2026: fatura já fechada aparece em "Faturas a vencer" mesmo vendo o mês do débito ANTES dele chegar (mês futuro)', () => {
+    // Mesmo cenário acima, mas agora "hoje" ainda é agosto (31/08) e a
+    // usuária navega pra SETEMBRO pra conferir — setembro ainda é "mês
+    // futuro" pro relógio, mas a fatura do Bradesco já fechou de verdade
+    // (ciclo fechou dia 30/08) e tem valor certo, não é projeção. Antes
+    // desse fix, totalFaturas/totalCartaoPago só eram calculados fora de
+    // mês futuro — a fatura ficava invisível em AMBOS os meses até o
+    // calendário virar pra setembro.
+    const agoraFimDeAgosto = new Date(2026, 7, 31); // 2026-08-31 — igual ao teste acima
+    const item = { categoria: 'Pets', valor: 400, data: '2026-08-28', cartao: true, cartaoId: 'brad', fatura: '2026-09' };
+    const cartoes = [{ id: 'brad', ativo: true, diaCorte: 30, diaVencimento: 10 }];
+    const dataSetembroAntesDeChegar = { periodo: { mes: 9, ano: 2026 }, saldoConta: 0, receitas: [], despesas: [item], aportes: [] };
+
+    const r = calcularAgregadosOrcamento({ data: dataSetembroAntesDeChegar, cartoes, agora: agoraFimDeAgosto });
+    assert.equal(r.ehFuturo, true, 'pré-condição: setembro visto em 31/08 é mês futuro');
+    assert.equal(r.totalFaturas, 400, 'fatura já fechada deve contar como "a vencer" mesmo em mês futuro');
+    assert.ok('brad_2026-09' in r.gruposFechadaCaixa);
+    // despesaComprometida não pode contar a mesma fatura duas vezes — em mês
+    // futuro ela já está embutida em despesaCaixa (via totalCartaoCaixa,
+    // que soma toda gruposFechadaCaixa pra projeção).
+    assert.equal(r.despesaComprometida, r.despesaCaixa, 'sem mais nada no mês, comprometido deve bater exatamente com o caixa projetado — sem duplicar a fatura');
+    assert.equal(r.despesaCaixa, 400, 'a fatura fechada deve entrar no caixa projetado do mês futuro (comportamento já existente, inalterado)');
+  });
+
   await t.test('achado 23/07/2026: backfill de faturaEstados só entra com ajusteTotal — sem isso, fatura do próprio mês some (não vira card fantasma de R$0)', () => {
     const data = periodo([]); // mês sem nenhum item de cartão, período 2026-07 (default do helper)
     const cartoes = [{ id: 'c1', ativo: true }];
