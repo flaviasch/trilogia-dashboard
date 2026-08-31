@@ -8526,7 +8526,11 @@ async function _resolverReservaBaldePJ(uid, balde) {
   return ref.id;
 }
 
-exports.getProLaborePJ = onCall({ minInstances: 1 }, async (request) => {
+// minInstances:1 removido (31/08/2026) — dados de uso (Cloud Monitoring, 14
+// dias) mostraram tráfego praticamente nulo (3 picos isolados em 14 dias,
+// taxa média arredonda pra 0/s). Custava ~R$60/mês fixo pra evitar cold
+// start que afetaria só essas raras chamadas. Não compensa.
+exports.getProLaborePJ = onCall(async (request) => {
   const { uid } = request.data;
   requireSelfOrAdmin(request, uid);
 
