@@ -1335,6 +1335,15 @@ export async function anunciarModoClaroAgo2026() {
   return call('anunciarModoClaroAgo2026')({});
 }
 
+/**
+ * Reenvia o resumo mensal de agosto/2026 com Despesas/Sobra corrigidas —
+ * correção pontual (achado 01/09/2026), não faz parte do fluxo normal.
+ * Admin only.
+ */
+export async function corrigirRelatorioAgosto2026() {
+  return call('reemitirRelatorioMensal')({ mes: 8, ano: 2026 });
+}
+
 /** Dispara e-mail de balanço Jul/2026 — Detalhe, Planejamento e despesas fixas. Admin only. */
 export async function anunciarBalancoJul2026() {
   return call('anunciarBalancoJul2026')({});
