@@ -1,4 +1,4 @@
-// Trilogia Dashboard — Service Worker v21
+// Trilogia Dashboard — Service Worker v22
 // HTML:           sempre rede (no-store)
 // JS/CSS com ?v=: Cache First — URL versionada, muda só no ?v=
 // JS/CSS locais:  Network First → garante versão atual; fallback cache se offline
@@ -6,8 +6,19 @@
 // Push:           exibe notificação + abre dashboard ao clicar
 // v21: corrige crash no fetch de navegação (mode:'navigate' inválido no
 // construtor de Request) e protege clone() do Response com try/catch.
-
-const CACHE_NAME = 'trilogia-v21';
+// v22 (achado 31/08/2026, Flávia): a regra "?v= é imutável, Cache First" só é
+// segura se TODA página que importa um arquivo compartilhado usar o MESMO
+// ?v=. Nesse deploy, páginas PJ diferentes referenciavam api.js com ?v=
+// diferentes (v=54, v=55, v=57, v=58, v=59) — cada uma virou uma entrada de
+// cache separada, congelada no momento em que essa página específica foi
+// visitada pela primeira vez. Como o servidor (GitHub Pages) ignora a query
+// string e sempre serve o api.js atual, ?v= divergente não é garantia de
+// nada aqui — só existe pra indicar "algo mudou", mas com números diferentes
+// por página o SW não tinha como saber disso e manteve cada uma congelada
+// pra sempre. Bump força o navegador a descartar TODAS as entradas antigas
+// (ver 'activate' abaixo) e recomeçar do zero, sem depender de cada ?v=
+// bater exatamente entre todas as páginas.
+const CACHE_NAME = 'trilogia-v22';
 
 const ASSETS_TO_CACHE = [
   '/manifest.json',
