@@ -9423,6 +9423,94 @@ exports.notifDia1 = onSchedule(
   }));
 
 /**
+ * Reemissão pontual e manual do e-mail de resumo mensal — SÓ pra corrigir o
+ * mês afetado pelo bug de despesa/sobra achado em 01/09/2026 (ver
+ * notifDia1 acima). NÃO é agendada, NÃO roda sozinha — só existe pra
+ * Flávia chamar uma vez, via admin, pro mês específico já enviado errado.
+ * O fluxo normal (todo dia 1, mês corrente) continua 100% em notifDia1,
+ * sem nenhuma mudança de comportamento.
+ *
+ * @param {object} request.data — { mes, ano } do mês a reemitir (ex: mes:8, ano:2026)
+ * @returns {{ enviados: number, pulados: number, erros: Array<{uid, email, erro}> }}
+ */
+exports.reemitirRelatorioMensal = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const { mes, ano } = request.data || {};
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12)
+    throw new HttpsError('invalid-argument', 'mes deve ser inteiro entre 1 e 12.');
+  if (!Number.isInteger(ano) || ano < 2020 || ano > 2100)
+    throw new HttpsError('invalid-argument', 'ano deve ser inteiro entre 2020 e 2100.');
+
+  const nomeMesAlvo = nomeMesPt(mes, ano);
+  const notaCorrecao =
+    `Este e-mail substitui o resumo de ${nomeMesAlvo} enviado anteriormente. ` +
+    `Identificamos um erro pontual no cálculo de Despesas e Sobra do mês (Receita e Aporte já estavam corretos) ` +
+    `e os valores abaixo já vêm corrigidos. Pedimos desculpas pelo transtorno.`;
+
+  const mentoradas = await getAtivas();
+  let enviados = 0, pulados = 0;
+  const erros = [];
+
+  for (const m of mentoradas) {
+    if (!m.email) { pulados++; continue; }
+    try {
+      const itens = await _buscarItensOrcamento(m.id, mes, ano);
+      if (itens.length === 0) { pulados++; continue; }
+
+      const [cartoesSnap, faturaEstadosSnap, recorrentesSnap] = await Promise.all([
+        db.collection('mentoradas').doc(m.id).collection('cartoes').get(),
+        db.collection('mentoradas').doc(m.id).collection('faturaEstados').get(),
+        db.collection('mentoradas').doc(m.id).collection('recorrentes').get(),
+      ]);
+      const cartoes = cartoesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const faturaEstadosMap = {};
+      faturaEstadosSnap.forEach(d => { faturaEstadosMap[d.id] = d.data(); });
+      const recorrentes = recorrentesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const agregados = calcularAgregadosOrcamento({
+        data: {
+          periodo: { mes, ano },
+          saldoConta: 0,
+          receitas: itens.filter(i => i.tipo === 'receita'),
+          despesas: itens.filter(i => i.tipo === 'despesa'),
+          aportes: itens.filter(i => i.tipo === 'aporte'),
+          transferencias: itens.filter(i => i.tipo === 'transferencia'),
+        },
+        cartoes, faturaEstados: faturaEstadosMap, recorrentes,
+        fixasPuladas: [],
+        agora: new Date(),
+      });
+      const orc = {
+        receita: agregados.totalReceita,
+        despesa: agregados.despesaCaixa,
+        aporte:  agregados.totalAp,
+        sobra:   agregados.sobra,
+      };
+      if (orc.receita <= 0 && orc.despesa <= 0) { pulados++; continue; }
+
+      await sendEmail({
+        to:      m.email,
+        subject: `Correção: seu resumo financeiro de ${nomeMesAlvo}`,
+        html:    emailRelatorioMensal(
+          m.nome || 'mentorada',
+          nomeMesAlvo,
+          orc,
+          m.pl || 0,
+          m.totalReservas || 0,
+          notaCorrecao,
+        ),
+      });
+      enviados++;
+    } catch (err) {
+      erros.push({ uid: m.id, email: m.email, erro: err.message });
+      console.warn(`[reemitirRelatorioMensal] Erro pra ${m.id}:`, err.message);
+    }
+  }
+
+  return { enviados, pulados, erros };
+});
+
+/**
  * Alerta semanal (toda segunda, 08h): caixa da empresa (PJ) abaixo da
  * reserva mínima que a própria mentorada configurou em Reservas PJ
  * (achado 27/08/2026, Flávia: "alertas" aprovado em escopo — primeiro

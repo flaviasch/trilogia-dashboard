@@ -900,7 +900,10 @@ function emailComunicadoTecnico(nome) {
  * @param {number} pl       — patrimônio líquido atual
  * @param {number} totalReservas
  */
-function emailRelatorioMensal(nome, nomeMes, orc, pl, totalReservas) {
+// achado 01/09/2026, Flávia: 6º parâmetro opcional pra reemitir um relatório
+// já enviado com número errado, avisando a mentorada da correção pontual —
+// notifDia1 (fluxo normal, todo dia 1) nunca passa esse parâmetro.
+function emailRelatorioMensal(nome, nomeMes, orc, pl, totalReservas, notaCorrecao = null) {
   const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const pct = (v, t) => t > 0 ? ((v / t) * 100).toFixed(1) + '%' : '—';
 
@@ -920,6 +923,10 @@ function emailRelatorioMensal(nome, nomeMes, orc, pl, totalReservas) {
   return layout(`
     <h2 style="${S.h2}">Seu resumo de ${nomeMes}</h2>
     <p style="${S.p}">Olá, ${nome}! Aqui está como foi o seu mês financeiro.</p>
+    ${notaCorrecao ? `
+    <div style="background:#fef3c7;border-left:3px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+      <p style="margin:0;font-size:13px;color:#92400e;line-height:1.5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${notaCorrecao}</p>
+    </div>` : ''}
 
     <!-- Cards de orçamento -->
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
