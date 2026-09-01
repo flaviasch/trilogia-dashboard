@@ -40,6 +40,7 @@ const { SheetsClient }    = require('./lib/sheets');
 const { provisionar, deletePlanilha } = require('./lib/provisionar');
 const { MailerLiteClient } = require('./lib/mailerlite');
 const { ZApiClient }       = require('./lib/zapi');
+const { calcularAgregadosOrcamento } = require('./lib/orcamento-calc-shared');
 const {
   sendEmail,
   emailRenovacaoPerfil,
@@ -1206,11 +1207,17 @@ function _sugerirFatura(dataCompra, diaCorte, diaVencimento) {
 // getProLaborePJ): ~R$60/mês cada, ~R$180-190/mês as 3 juntas. Adicionar a
 // getOrcamento somaria mais ~R$55-65/mês recorrentes só pra eliminar cold
 // start ocasional. Flávia decidiu não vale o custo contínuo — revertido.
-exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
-  requireAuth(request);
-  const { uid, mes, ano } = request.data;
-  requireSelfOrAdmin(request, uid);
-
+/**
+ * Núcleo de getOrcamento — busca e reconcilia (entre meses, ciclo de fatura)
+ * os itens de orçamento de um mês. Extraído em 01/09/2026 do onCall pra ser
+ * reaproveitado por notifDia1 (e-mail de resumo mensal), que precisa dos
+ * MESMOS itens reconciliados que orcamento.html usa, sem duplicar essa
+ * lógica (achado 01/09/2026, Flávia: e-mail somava direto os itens brutos
+ * do Firestore, sem essa reconciliação nem a lógica de ciclo de fatura —
+ * Despesas/Sobra do e-mail divergiam ~R$10,5 mil do dashboard real).
+ * Comportamento idêntico ao que antes vivia direto dentro do onCall.
+ */
+async function _buscarItensOrcamento(uid, mes, ano) {
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
 
   // Mês anterior — fornece itens de fatura cujo vencimento cai neste mês
@@ -1344,6 +1351,13 @@ exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     }));
 
   return [...itensMes, ...itensPrev, ...itensNext, ...itensFaturaAberta];
+}
+
+exports.getOrcamento = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  requireAuth(request);
+  const { uid, mes, ano } = request.data;
+  requireSelfOrAdmin(request, uid);
+  return _buscarItensOrcamento(uid, mes, ano);
 });
 
 /**
@@ -9310,18 +9324,42 @@ exports.notifDia1 = onSchedule(
       if (!m.email) continue;
       const tarefas = [];
 
-      // Relatório do mês anterior — lê orçamento do Firestore
+      // Relatório do mês anterior — mesma reconciliação de itens (entre
+      // meses, ciclo de fatura) e mesmo cálculo de despesa/sobra que
+      // orcamento.html usa (getOrcamento + orcamento-calc-shared), pra não
+      // divergir do que a mentorada vê no dashboard (achado 01/09/2026).
       try {
-        const orcSnap = await db.collection('mentoradas').doc(m.id)
-          .collection('orcamento').doc(mesKeyPrev).get();
-        if (orcSnap.exists) {
-          const itens = orcSnap.data().itens || [];
+        const itens = await _buscarItensOrcamento(m.id, mesPrevNum, anoPrev);
+        if (itens.length > 0) {
+          const [cartoesSnap, faturaEstadosSnap, recorrentesSnap] = await Promise.all([
+            db.collection('mentoradas').doc(m.id).collection('cartoes').get(),
+            db.collection('mentoradas').doc(m.id).collection('faturaEstados').get(),
+            db.collection('mentoradas').doc(m.id).collection('recorrentes').get(),
+          ]);
+          const cartoes = cartoesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const faturaEstadosMap = {};
+          faturaEstadosSnap.forEach(d => { faturaEstadosMap[d.id] = d.data(); });
+          const recorrentes = recorrentesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+          const agregados = calcularAgregadosOrcamento({
+            data: {
+              periodo: { mes: mesPrevNum, ano: anoPrev },
+              saldoConta: 0, // achado 01/09/2026: sem histórico de saldo em conta acessível aqui — impacto tipicamente pequeno (poucos reais), documentado
+              receitas: itens.filter(i => i.tipo === 'receita'),
+              despesas: itens.filter(i => i.tipo === 'despesa'),
+              aportes: itens.filter(i => i.tipo === 'aporte'),
+              transferencias: itens.filter(i => i.tipo === 'transferencia'),
+            },
+            cartoes, faturaEstados: faturaEstadosMap, recorrentes,
+            fixasPuladas: [], // "puladas" só existe no localStorage do navegador da mentorada
+            agora,
+          });
           const orc = {
-            receita: itens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0),
-            despesa: itens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0),
-            aporte:  itens.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0),
+            receita: agregados.totalReceita,
+            despesa: agregados.despesaCaixa,
+            aporte:  agregados.totalAp,
+            sobra:   agregados.sobra,
           };
-          orc.sobra = orc.receita - orc.despesa;
           // Só envia se tiver ao menos receita ou despesa registrada
           if (orc.receita > 0 || orc.despesa > 0) {
             tarefas.push(sendEmail({
