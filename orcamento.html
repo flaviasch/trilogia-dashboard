@@ -8123,10 +8123,17 @@
       if (!el) return;
       const info = _divergenciaSaldoInicial;
       const aindaValido = info && currentData?.periodo?.mes === info.mes && currentData?.periodo?.ano === info.ano
-        && (_contaAtivaId || CONTA_PRINCIPAL_ID) === info.contaId;
+        && (info.consolidado ? !_contaAtivaId : (_contaAtivaId || CONTA_PRINCIPAL_ID) === info.contaId);
       if (!aindaValido) { el.style.display = 'none'; return; }
-      document.getElementById('saldoContaDivergenciaTexto').textContent =
-        `Saldo inicial salvo (${brl(info.valorSalvo)}) não bate mais com o final do mês anterior (${brl(info.valorEsperado)}).`;
+      if (info.consolidado) {
+        const nomes = info.divergentes.map(d => d.nome).join(', ');
+        document.getElementById('saldoContaDivergenciaTexto').textContent = info.divergentes.length === 1
+          ? `Saldo inicial salvo de "${nomes}" não bate mais com o final do mês anterior.`
+          : `Saldo inicial salvo de ${info.divergentes.length} contas (${nomes}) não bate mais com o final do mês anterior.`;
+      } else {
+        document.getElementById('saldoContaDivergenciaTexto').textContent =
+          `Saldo inicial salvo (${brl(info.valorSalvo)}) não bate mais com o final do mês anterior (${brl(info.valorEsperado)}).`;
+      }
       el.style.display = '';
     }
     async function checarDivergenciaSaldoInicial(data, contaAlvo, sessaoAnterior) {
@@ -8149,14 +8156,51 @@
         : null;
       _atualizarBannerDivergencia();
     }
+
+    // Mesma checagem de checarDivergenciaSaldoInicial, mas pra visão consolidada
+    // (soma de todas as contas) — a versão original só cobria conta única, de
+    // propósito, por falta de UI pra apontar qual conta divergia; agora aponta
+    // todas as que divergirem (achado 01/09/2026, Flávia: saldo inicial errado
+    // no consolidado sem nenhum aviso, mesma causa raiz, versão mais ampla).
+    async function checarDivergenciaSaldoInicialConsolidado(data, contas, sessaoAnterior) {
+      const { mes, ano } = data.periodo;
+      const agora = new Date();
+      const periodoTotal = ano * 12 + mes;
+      const atualTotal   = agora.getFullYear() * 12 + agora.getMonth() + 1;
+      if (periodoTotal !== atualTotal) { _divergenciaSaldoInicial = null; _atualizarBannerDivergencia(); return; }
+
+      let saldos = {};
+      try { saldos = await getSaldosConta(mes, ano); } catch (_) { return; }
+
+      const checagens = await Promise.all(contas.map(async (c) => {
+        if (!(c.id in saldos)) return null;
+        const valorSalvo = saldos[c.id];
+        const valorEsperado = await calcularCarryoverEsperado(mes, ano, c.id, sessaoAnterior);
+        return Math.abs(valorSalvo - valorEsperado) > 0.01
+          ? { contaId: c.id, nome: c.nome || 'Conta', valorSalvo, valorEsperado }
+          : null;
+      }));
+      const divergentes = checagens.filter(Boolean);
+      _divergenciaSaldoInicial = divergentes.length ? { mes, ano, consolidado: true, divergentes } : null;
+      _atualizarBannerDivergencia();
+    }
     document.getElementById('btnAtualizarSaldoDivergente')?.addEventListener('click', async () => {
       const info = _divergenciaSaldoInicial;
       if (!info) return;
-      await saveSaldoConta(info.mes, info.ano, info.contaId, info.valorEsperado).catch(() => {});
+      if (info.consolidado) {
+        await Promise.all(info.divergentes.map(d =>
+          saveSaldoConta(info.mes, info.ano, d.contaId, d.valorEsperado).catch(() => {})));
+      } else {
+        await saveSaldoConta(info.mes, info.ano, info.contaId, info.valorEsperado).catch(() => {});
+      }
       _divergenciaSaldoInicial = null;
       _atualizarBannerDivergencia();
       if (currentData.periodo.mes === info.mes && currentData.periodo.ano === info.ano) {
-        currentData.saldoConta = info.valorEsperado;
+        if (info.consolidado) {
+          await resolverSaldoContaAtiva(currentData);
+        } else {
+          currentData.saldoConta = info.valorEsperado;
+        }
         render(currentData);
       }
     });
@@ -8180,8 +8224,7 @@
         if (contasParaSomar.length === 1) {
           checarDivergenciaSaldoInicial(data, contasParaSomar[0].id, sessaoAnterior).catch(() => {});
         } else {
-          _divergenciaSaldoInicial = null;
-          _atualizarBannerDivergencia();
+          checarDivergenciaSaldoInicialConsolidado(data, contasParaSomar, sessaoAnterior).catch(() => {});
         }
       }
       return data.saldoConta !== valorAntes;
