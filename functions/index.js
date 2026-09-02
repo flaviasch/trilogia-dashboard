@@ -8757,7 +8757,6 @@ exports.getProLaborePJ = onCall(async (request) => {
 
   const trimestreBate = dados.trimestreAtual && dados.trimestreAtual.trimestre === trimestreAtualNum && dados.trimestreAtual.ano === anoAtualNum;
   const aprovado = trimestreBate && !!dados.trimestreAtual.aprovadoEm;
-  const precisaSugestao = !aprovado;
   // salarioVigente = o que está de fato TRAVADO (0 se ainda não aprovado —
   // usado só pra exibir "salário travado" com precisão). O excedente do mês
   // é outra conta: mesmo sem aprovação, o excedente real já precisa
@@ -8770,13 +8769,18 @@ exports.getProLaborePJ = onCall(async (request) => {
   // Sugestão de salário, DRE do mês atual e reservas não dependem uma da
   // outra — disparar em paralelo em vez de em série (achado de performance
   // 14/08/2026, mesma otimização aplicada em _calcularDRESimplificado).
-  const [sugestaoPendente, dreAtual, reservasSnap] = await Promise.all([
-    precisaSugestao ? _calcularSugestaoSalarioPJ(uid, trimestreAtualNum, anoAtualNum) : Promise.resolve(null),
+  // 02/09/2026, Flávia: a sugestão recalculada precisa continuar aparecendo
+  // mesmo DEPOIS de travar o salário do trimestre (referência de comparação
+  // contra o valor travado) — por isso passou a ser calculada sempre, não só
+  // enquanto está pendente de aprovação. Renomeado sugestaoPendente →
+  // sugestaoAtual pra refletir isso (não é mais "só até aprovar").
+  const [sugestaoAtual, dreAtual, reservasSnap] = await Promise.all([
+    _calcularSugestaoSalarioPJ(uid, trimestreAtualNum, anoAtualNum),
     _calcularDRESimplificado(uid, mesAtualNum, anoAtualNum),
     db.collection('reservasPJ').where('uid', '==', uid).where('ativa', '==', true).get(),
   ]);
 
-  const salarioParaExcedente = aprovado ? salarioVigente : (sugestaoPendente?.valor || 0);
+  const salarioParaExcedente = aprovado ? salarioVigente : (sugestaoAtual?.valor || 0);
   const excedenteMesAtual = Math.round((dreAtual.lucroLiquido - salarioParaExcedente) * 100) / 100;
   const reservasPorNome = {};
   reservasSnap.docs.forEach(d => { reservasPorNome[d.data().nome] = { id: d.id, ...d.data() }; });
@@ -8791,7 +8795,7 @@ exports.getProLaborePJ = onCall(async (request) => {
 
   return {
     trimestreAtual: dados.trimestreAtual || null,
-    sugestaoPendente,
+    sugestaoAtual,
     percentuaisBaldes: dados.percentuaisBaldes,
     saldoADistribuir: dados.saldoADistribuir || 0,
     excedenteMesAtual,

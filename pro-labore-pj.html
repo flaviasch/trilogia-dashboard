@@ -379,14 +379,19 @@
     // ── Card: Seu salário este trimestre ──
     function renderSalario(dados) {
       const el = document.getElementById('salarioConteudo');
-      const jaAprovado = dados.trimestreAtual && dados.trimestreAtual.aprovadoEm && !dados.sugestaoPendente;
+      const jaAprovado = !!dados.salarioAprovado;
 
       if (jaAprovado) {
         const t = dados.trimestreAtual;
         const nMeses = t.baseCalculo?.meses?.length || 0;
+        // 02/09/2026, Flávia: a sugestão recalculada (sugestaoAtual) continua
+        // aparecendo mesmo travado — referência pra comparar com o que foi
+        // aprovado, sem precisar destravar pra ver.
+        const sAtual = dados.sugestaoAtual;
         el.innerHTML = `
           <div class="card-valor">${brl(t.salarioTravado)}</div>
           <div class="card-composicao">Travado pro trimestre ${t.trimestre}/${t.ano} — só muda na próxima virada, a não ser que você edite.</div>
+          ${sAtual ? `<div class="card-sub" style="margin-top:8px">Sugestão atual, recalculada: ${brl(sAtual.valor || 0)}</div>` : ''}
           ${nMeses < 6 ? `<div class="selo" style="margin-top:10px">Baseado em ${nMeses} ${nMeses === 1 ? 'mês' : 'meses'} — vai ficar mais preciso com o tempo</div>` : ''}
           <button class="expander-toggle" id="btnExpanderSalario">Como cheguei nesse número</button>
           <div class="expander-conteudo" id="expanderSalario">${montarExpanderBaseCalculo(t.baseCalculo)}</div>
@@ -398,7 +403,7 @@
         return;
       }
 
-      const s = dados.sugestaoPendente;
+      const s = dados.sugestaoAtual;
       const nMeses = s?.baseCalculo?.meses?.length || 0;
       const trimestreLabel = `${Math.floor(new Date().getMonth() / 3) + 1}º trimestre`;
       el.innerHTML = `
