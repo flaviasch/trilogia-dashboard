@@ -9127,7 +9127,7 @@ Regras obrigatórias:
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 8192,
+          max_tokens: 16000,
           system: systemPrompt,
           messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: 'Extraia e classifique todas as transações deste documento.' }] }],
         }),
@@ -9137,16 +9137,28 @@ Regras obrigatórias:
         throw new Error(`Anthropic API retornou ${resp.status}: ${errBody.slice(0, 300)}`);
       }
       const json = await resp.json();
+      // achado 02/09/2026, Isabella: documento com muitas transações estourava
+      // o max_tokens (8192, metade do da versão PF) e a resposta vinha cortada
+      // no meio de uma string — JSON.parse falhava com "Unterminated string",
+      // erro cru vazado pro modal. stop_reason:'max_tokens' identifica esse
+      // caso especificamente, pra dar uma mensagem acionável (dividir o
+      // período) em vez do erro de parsing. max_tokens também subiu pra 16000
+      // (igual ao categorizarExtratoIA/PF) pra reduzir a chance de acontecer.
+      if (json?.stop_reason === 'max_tokens') {
+        throw new HttpsError('invalid-argument', 'Este documento tem transações demais para processar de uma vez. Envie um período menor (ex: quinzena a quinzena, em vez do mês inteiro).');
+      }
       const textoResposta = json?.content?.[0]?.text || '';
       // Remove eventuais cercas de markdown (```json ... ```) que o modelo às vezes inclui.
       const limpo = textoResposta.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
       respostaIA = JSON.parse(limpo);
     } catch (err) {
+      if (err instanceof HttpsError) throw err;
       const msgOriginal = err.message || '';
       if (/protegid[ao] por senha|password/i.test(msgOriginal)) {
         throw new HttpsError('invalid-argument', 'O arquivo parece estar protegido por senha. Remova a senha e tente novamente.');
       }
-      throw new HttpsError('internal', `Falha ao processar o documento com IA: ${msgOriginal.slice(0, 300)}`);
+      console.error(`[categorizarExtratoPJIA] Falha ao processar (uid=${uid}):`, msgOriginal.slice(0, 500));
+      throw new HttpsError('internal', 'Não consegui interpretar esse arquivo. Tente novamente ou envie um extrato mais claro.');
     }
 
     const itensBrutos = Array.isArray(respostaIA.itens) ? respostaIA.itens : [];
