@@ -163,6 +163,12 @@
         <button class="btn-acao-secundario" id="btnSalvarRetirada">Salvar</button>
       </div>
       <p style="font-size:11px;color:var(--text-muted);margin-top:8px">Esse valor vale como meta de retirada todo mês, até você mudar de novo — não é preciso redigitar mês a mês.</p>
+      <div class="pe-retirada-row" style="margin-top:10px">
+        <label for="peDespesasAjusteInput">Outras despesas fixas não cadastradas (R$/mês)</label>
+        <input type="number" id="peDespesasAjusteInput" min="0" step="0.01" placeholder="0">
+        <button class="btn-acao-secundario" id="btnSalvarDespesasAjuste">Salvar</button>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin-top:8px">Despesa importada de extrato vira lançamento avulso, não conta aqui automaticamente — use este campo pra cobrir o que ainda não foi marcado como Fixa em Contas a Pagar, ou veja as sugestões de conversão por lá.</p>
     </div>
 
     <div class="secao-titulo">DRE Simplificado do mês</div>
@@ -194,7 +200,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, getDRESimplificadoPJ, getPontoEquilibrioPJ, salvarRetiradaMinimaPJ, getRelatorioAnualPJ, getVencimentosHojePJ, getStatusContaPF, msgErro, setViewAsUid, uidAtual } from './js/api.js?v=55';
+    import { getContaPJ, getDRESimplificadoPJ, getPontoEquilibrioPJ, salvarRetiradaMinimaPJ, salvarDespesasFixasAjusteManualPJ, getRelatorioAnualPJ, getVencimentosHojePJ, getStatusContaPF, msgErro, setViewAsUid, uidAtual } from './js/api.js?v=56';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { cacheGet, cacheSet } from './js/page-cache.js';
 
@@ -309,16 +315,18 @@
       catch (err) { alert(msgErro(err)); return; }
 
       document.getElementById('peRetiradaInput').value = pe.retiradaMinima || '';
+      document.getElementById('peDespesasAjusteInput').value = pe.despesasFixasAjusteManual || '';
 
       const el = document.getElementById('peConteudo');
       if (pe.erro) {
         el.innerHTML = `<div class="pe-erro">⚠️ ${pe.erro}</div>`;
         return;
       }
+      const despesasFixasTotal = pe.despesasFixas + pe.despesasFixasAjusteManual;
       el.innerHTML = `
         <div class="pe-valor">${brl(pe.faturamentoMinimo)}</div>
         <div class="pe-composicao">
-          Despesas fixas ${brl(pe.despesasFixas)} + Tributos fixos ${brl(pe.tributosFixosMensais)} + Retirada ${brl(pe.retiradaMinima)}
+          Despesas fixas ${brl(despesasFixasTotal)}${pe.despesasFixasAjusteManual ? ` (${brl(pe.despesasFixas)} cadastradas + ${brl(pe.despesasFixasAjusteManual)} ajuste manual)` : ''} + Tributos fixos ${brl(pe.tributosFixosMensais)} + Retirada ${brl(pe.retiradaMinima)}
           , dividido por (1 − ${pe.somaPercentuais.toLocaleString('pt-BR')}% de tributos percentuais)
         </div>`;
     }
@@ -330,6 +338,21 @@
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {
         await salvarRetiradaMinimaPJ(uidAtual(), valor);
+        await renderPontoEquilibrio();
+      } catch (err) {
+        alert(msgErro(err));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+
+    document.getElementById('btnSalvarDespesasAjuste').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarDespesasAjuste');
+      const valor = parseFloat(document.getElementById('peDespesasAjusteInput').value) || 0;
+      if (valor < 0) { alert('Informe um valor não-negativo.'); return; }
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await salvarDespesasFixasAjusteManualPJ(uidAtual(), valor);
         await renderPontoEquilibrio();
       } catch (err) {
         alert(msgErro(err));

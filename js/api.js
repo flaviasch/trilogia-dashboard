@@ -835,6 +835,20 @@ export async function getPontoEquilibrioPJ(uid, mes, ano) {
 export async function salvarRetiradaMinimaPJ(uid, valor) {
   return callPJ('salvarRetiradaMinimaPJ')({ uid, valor });
 }
+export async function salvarDespesasFixasAjusteManualPJ(uid, valor) {
+  return callPJ('salvarDespesasFixasAjusteManualPJ')({ uid, valor });
+}
+
+// Sugestão de despesa recorrente → Fixa (02/09/2026)
+export async function getSugestoesDespesaFixaPJ(uid) {
+  return callPJ('getSugestoesDespesaFixaPJ')({ uid });
+}
+export async function converterDespesaParaFixaPJ(uid, despesaId) {
+  return callPJ('converterDespesaParaFixaPJ')({ uid, despesaId });
+}
+export async function dispensarSugestaoDespesaFixaPJ(uid, nomeNormalizado) {
+  return callPJ('dispensarSugestaoDespesaFixaPJ')({ uid, nomeNormalizado });
+}
 
 // Retirada Sugerida + 3 Reservas (28/07/2026, fatia final)
 export async function getIndicadoresReservasPJ(uid, mes, ano) {

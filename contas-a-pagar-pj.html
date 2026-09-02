@@ -206,6 +206,14 @@
       <div class="vazio" id="devidosVazio" style="display:none">Nada com vencimento neste mês. Configure os tributos em "Impostos".</div>
     </div>
 
+    <div id="blocoSugestoesFixa" style="display:none;margin-top:32px">
+      <div class="secao-header">
+        <span class="secao-titulo">Parecem despesas recorrentes</span>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:-6px 0 12px">Essas despesas foram lançadas em 2 ou mais meses com o mesmo nome — importadas de extrato, então não entram automaticamente no Ponto de Equilíbrio nem na projeção futura do Fluxo de Caixa. Marcar como Fixa resolve isso pra frente (o histórico já lançado não muda).</p>
+      <div id="listaSugestoesFixa"></div>
+    </div>
+
     <div class="secao-header">
       <span class="secao-titulo">Despesas cadastradas</span>
       <button class="btn-acao" id="btnAddDespesa">+ Adicionar despesa</button>
@@ -316,8 +324,9 @@
       categorizarExtratoPJIA, confirmarRecebimento, saveOutraEntradaPJ, criarVendaAntigaParceladaPJ,
       getReservasPJ, registrarMovimentoReservaPJ,
       getVencimentosHojePJ, getStatusContaPF,
+      getSugestoesDespesaFixaPJ, converterDespesaParaFixaPJ, dispensarSugestaoDespesaFixaPJ,
       msgErro, setViewAsUid, uidAtual,
-    } from './js/api.js?v=54';
+    } from './js/api.js?v=55';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { cacheGet, cacheSet } from './js/page-cache.js';
@@ -402,6 +411,7 @@
       renderPendentes();
       renderDespesas();
       renderImpostosDevidos();
+      renderSugestoesFixa();
       renderVencimentosBanner();
       _checarAtalhoPF();
       await contaPromise;
@@ -606,6 +616,52 @@
         setLoading(b, true, '');
         try { await deleteDespesaPJ(uidAtual(), b.dataset.despExcluir); toast('Despesa excluída.'); renderDespesas(); }
         catch (err) { toast(msgErro(err), 'error'); setLoading(b, false); }
+      }));
+    }
+
+    // ── Sugestões de despesa recorrente → Fixa (02/09/2026) ──
+    async function renderSugestoesFixa() {
+      let sugestoes;
+      try { sugestoes = await getSugestoesDespesaFixaPJ(uidAtual()); }
+      catch (err) { console.error('[contas-a-pagar-pj] Falha ao carregar sugestões:', err.message); return; }
+
+      const bloco = document.getElementById('blocoSugestoesFixa');
+      const el = document.getElementById('listaSugestoesFixa');
+      if (!sugestoes.length) { bloco.style.display = 'none'; return; }
+      bloco.style.display = '';
+
+      el.innerHTML = sugestoes.map(s => `
+        <div class="card-lista" style="padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-color:rgba(207,174,101,.3)">
+          <div>
+            <div style="font-weight:600">${s.nomeExemplo}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${brl(s.valorSugerido)}/mês · lançada em ${s.quantidadeMeses} meses · todo dia ${s.diaVencimentoSugerido}</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-acao-secundario" data-dispensar-sugestao="${s.nomeNormalizado}" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">Não é recorrente</button>
+            <button class="btn-acao" data-marcar-fixa="${s.despesaIdTemplate}" data-nome-sugestao="${s.nomeNormalizado}">Marcar como Fixa</button>
+          </div>
+        </div>`).join('');
+
+      el.querySelectorAll('[data-marcar-fixa]').forEach(b => b.addEventListener('click', async () => {
+        setLoading(b, true, '');
+        try {
+          await converterDespesaParaFixaPJ(uidAtual(), b.dataset.marcarFixa);
+          toast('Despesa marcada como fixa — vale a partir de agora.');
+          await Promise.all([renderDespesas(), renderSugestoesFixa()]);
+        } catch (err) {
+          toast(msgErro(err), 'error');
+          setLoading(b, false);
+        }
+      }));
+      el.querySelectorAll('[data-dispensar-sugestao]').forEach(b => b.addEventListener('click', async () => {
+        setLoading(b, true, '');
+        try {
+          await dispensarSugestaoDespesaFixaPJ(uidAtual(), b.dataset.dispensarSugestao);
+          await renderSugestoesFixa();
+        } catch (err) {
+          toast(msgErro(err), 'error');
+          setLoading(b, false);
+        }
       }));
     }
 

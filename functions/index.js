@@ -8370,16 +8370,30 @@ exports.getPontoEquilibrioPJ = onCall({}, async (request) => {
   }, 0);
 
   const contaSnap = await db.collection('contasPJ').doc(uid).get();
-  const retiradaMinima = (contaSnap.exists && typeof contaSnap.data().retiradaMinimaDesejada === 'number')
-    ? contaSnap.data().retiradaMinimaDesejada : 0;
+  const conta = contaSnap.exists ? contaSnap.data() : {};
+  const retiradaMinima = typeof conta.retiradaMinimaDesejada === 'number' ? conta.retiradaMinimaDesejada : 0;
+  // Ajuste manual (02/09/2026, Flávia): despesa importada via extrato/IA vira
+  // 'unica' (já paga — o extrato prova que o dinheiro já saiu), nunca 'fixa'
+  // automaticamente, então quem nunca recadastrou despesas recorrentes na
+  // aba Despesas via getSugestoesDespesaFixaPJ fica com despesasFixas
+  // zerado ou subestimado aqui. Este número soma direto ao cálculo, sem
+  // depender de cadastro nenhum — cobre o que a detecção de recorrência
+  // ainda não pegou.
+  const despesasFixasAjusteManual = typeof conta.despesasFixasAjusteManual === 'number' ? conta.despesasFixasAjusteManual : 0;
 
   const arredonda = v => Math.round(v * 100) / 100;
-  const base = { despesasFixas: arredonda(despesasFixas), tributosFixosMensais: arredonda(tributosFixosMensais), somaPercentuais: arredonda(somaPercentuais), retiradaMinima: arredonda(retiradaMinima) };
+  const base = {
+    despesasFixas: arredonda(despesasFixas),
+    despesasFixasAjusteManual: arredonda(despesasFixasAjusteManual),
+    tributosFixosMensais: arredonda(tributosFixosMensais),
+    somaPercentuais: arredonda(somaPercentuais),
+    retiradaMinima: arredonda(retiradaMinima),
+  };
 
   if (somaPercentuais >= 100) {
     return { ...base, faturamentoMinimo: null, erro: 'A soma dos tributos percentuais mensais configurados é maior ou igual a 100% — não dá pra calcular um faturamento mínimo viável com essa configuração. Revise os tributos em Impostos.' };
   }
-  const faturamentoMinimo = (despesasFixas + tributosFixosMensais + retiradaMinima) / (1 - somaPercentuais / 100);
+  const faturamentoMinimo = (despesasFixas + despesasFixasAjusteManual + tributosFixosMensais + retiradaMinima) / (1 - somaPercentuais / 100);
   return { ...base, faturamentoMinimo: arredonda(faturamentoMinimo), erro: null };
 });
 
@@ -8388,6 +8402,116 @@ exports.salvarRetiradaMinimaPJ = onCall({}, async (request) => {
   requireSelfOrAdmin(request, uid);
   if (typeof valor !== 'number' || valor < 0) throw new HttpsError('invalid-argument', 'valor deve ser um número não-negativo.');
   await db.collection('contasPJ').doc(uid).set({ retiradaMinimaDesejada: valor }, { merge: true });
+  return { ok: true };
+});
+
+exports.salvarDespesasFixasAjusteManualPJ = onCall({}, async (request) => {
+  const { uid, valor } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (typeof valor !== 'number' || valor < 0) throw new HttpsError('invalid-argument', 'valor deve ser um número não-negativo.');
+  await db.collection('contasPJ').doc(uid).set({ despesasFixasAjusteManual: valor }, { merge: true });
+  return { ok: true };
+});
+
+// ─── Sugestão de despesa recorrente → Fixa (02/09/2026) ───────────────────────
+// Despesa importada via extrato/IA (categorizarExtratoPJIA →
+// criarDespesaAvulsaJaPaga) sempre nasce tipo 'unica' e já paga — correto pro
+// Fluxo de Caixa (o extrato prova que o dinheiro já saiu naquela data), mas
+// isso deixa Ponto de Equilíbrio (e a projeção de meses FUTUROS do Fluxo de
+// Caixa) cegos pra despesas que na prática são recorrentes, porque só
+// tipo:'fixa' entra nesses cálculos. Em vez de pedir recadastro manual,
+// detecta o padrão (mesmo nome normalizado aparecendo em 2+ meses distintos,
+// nenhuma despesa 'fixa' já cadastrada com esse nome, sugestão ainda não
+// dispensada) e sugere converter a ocorrência MAIS RECENTE em 'fixa' — as
+// ocorrências antigas continuam intactas como histórico avulso (já
+// confirmadas, com seu próprio pagamento registrado), só a mais recente vira
+// a "semente" da despesa fixa daqui pra frente (mesInicio/anoInicio/
+// diaVencimento saem da própria data dela, então o mês dela mesma já bate
+// como primeira ocorrência — nada duplica).
+function _normalizarNomeDespesaPJ(nome) {
+  return String(nome || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+exports.getSugestoesDespesaFixaPJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const [despesasSnap, contaSnap] = await Promise.all([
+    db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get(),
+    db.collection('contasPJ').doc(uid).get(),
+  ]);
+
+  const dispensadas = new Set(
+    (contaSnap.exists && Array.isArray(contaSnap.data().sugestoesFixaDispensadas))
+      ? contaSnap.data().sugestoesFixaDispensadas : []
+  );
+
+  const nomesFixaExistentes = new Set();
+  const candidatosPorNome = {};
+  despesasSnap.docs.forEach(d => {
+    const desp = d.data();
+    const nomeNorm = _normalizarNomeDespesaPJ(desp.nome);
+    if (desp.tipo === 'fixa') { nomesFixaExistentes.add(nomeNorm); return; }
+    if (desp.tipo !== 'unica' || !desp.data) return;
+    (candidatosPorNome[nomeNorm] ||= []).push({ id: d.id, nome: desp.nome, valor: desp.valor || 0, data: desp.data });
+  });
+
+  const sugestoes = [];
+  for (const [nomeNorm, ocorrencias] of Object.entries(candidatosPorNome)) {
+    if (nomesFixaExistentes.has(nomeNorm) || dispensadas.has(nomeNorm)) continue;
+    const mesesDistintos = new Set(ocorrencias.map(o => o.data.slice(0, 7)));
+    if (mesesDistintos.size < 2) continue;
+
+    ocorrencias.sort((a, b) => a.data.localeCompare(b.data));
+    const maisRecente = ocorrencias[ocorrencias.length - 1];
+    const valorMedio = ocorrencias.reduce((s, o) => s + o.valor, 0) / ocorrencias.length;
+
+    sugestoes.push({
+      nomeNormalizado: nomeNorm,
+      nomeExemplo: maisRecente.nome,
+      despesaIdTemplate: maisRecente.id,
+      valorSugerido: Math.round(maisRecente.valor * 100) / 100,
+      valorMedio: Math.round(valorMedio * 100) / 100,
+      diaVencimentoSugerido: parseInt(maisRecente.data.slice(8, 10), 10),
+      quantidadeMeses: mesesDistintos.size,
+      ocorrencias: ocorrencias.map(o => ({ data: o.data, valor: o.valor })),
+    });
+  }
+
+  sugestoes.sort((a, b) => b.quantidadeMeses - a.quantidadeMeses || b.valorSugerido - a.valorSugerido);
+  return sugestoes;
+});
+
+exports.converterDespesaParaFixaPJ = onCall({}, async (request) => {
+  const { uid, despesaId } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!despesaId) throw new HttpsError('invalid-argument', 'despesaId é obrigatório.');
+  const ref  = db.collection('despesasPJ').doc(despesaId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Despesa não encontrada.');
+  const desp = snap.data();
+  if (desp.uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  if (desp.tipo !== 'unica' || !desp.data)
+    throw new HttpsError('failed-precondition', 'Só dá pra converter uma despesa do tipo Única com data definida.');
+
+  const [anoInicio, mesInicio, dia] = desp.data.split('-').map(Number);
+  await ref.update({
+    tipo: 'fixa',
+    diaVencimento: dia,
+    mesInicio, anoInicio,
+    mesesRestantes: null,
+  });
+  return { ok: true };
+});
+
+exports.dispensarSugestaoDespesaFixaPJ = onCall({}, async (request) => {
+  const { uid, nomeNormalizado } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!nomeNormalizado || typeof nomeNormalizado !== 'string')
+    throw new HttpsError('invalid-argument', 'nomeNormalizado é obrigatório.');
+  await db.collection('contasPJ').doc(uid).set({
+    sugestoesFixaDispensadas: admin.firestore.FieldValue.arrayUnion(nomeNormalizado),
+  }, { merge: true });
   return { ok: true };
 });
 
