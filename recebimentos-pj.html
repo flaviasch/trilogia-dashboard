@@ -100,16 +100,17 @@
     <div>
       <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
       <p class="empresa-nome" id="empresaNome">—</p>
-      <nav class="nav-pj">
-        <a href="notas-pj.html">Notas</a>
-        <a href="recebimentos-pj.html" class="ativo">Contas a Receber</a>
-        <a href="impostos-pj.html">Impostos</a>
-        <a href="contas-a-pagar-pj.html">Contas a Pagar</a>
-        <a href="cartoes-pj.html">Cartões</a>
-        <a href="dre-pj.html">DRE</a>
-        <a href="pro-labore-pj.html">Pró-labore</a>
-        <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
-        <a href="reservas-pj.html">Reservas</a>
+      <nav class="nav-pj" id="navPJ">
+        <a href="notas-pj.html" data-aba="notas">Notas</a>
+        <a href="recebimentos-pj.html" class="ativo" data-aba="recebimentos">Contas a Receber</a>
+        <a href="impostos-pj.html" data-aba="impostos">Impostos</a>
+        <a href="contas-a-pagar-pj.html" data-aba="contasAPagar">Contas a Pagar</a>
+        <a href="cartoes-pj.html" data-aba="cartoes">Cartões</a>
+        <a href="dre-pj.html" data-aba="dre">DRE</a>
+        <a href="pro-labore-pj.html" data-aba="proLabore">Pró-labore</a>
+        <a href="fluxo-caixa-pj.html" data-aba="fluxoCaixa">Fluxo de Caixa</a>
+        <a href="reservas-pj.html" data-aba="reservas">Reservas</a>
+        <a href="usuarios-pj.html" id="navUsuarios">Usuários</a>
       </nav>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
@@ -123,6 +124,10 @@
   <div class="view-as-banner" id="viewAsBanner">
     <span>👁 Visualizando como mentorada</span>
     <a href="admin.html">← Voltar ao admin</a>
+  </div>
+
+  <div class="view-as-banner" id="subUserBanner" style="background:rgba(96,165,250,0.12);border-bottom-color:rgba(96,165,250,0.3);color:#60a5fa">
+    <span>🔒 Acesso restrito a Contas a Receber</span>
   </div>
 
   <div class="venc-banner hidden" id="vencBanner"></div>
@@ -204,7 +209,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, getRecebimentosPendentesPJ, confirmarRecebimento, getVencimentosHojePJ, getStatusContaPF, msgErro, setViewAsUid, uidAtual } from './js/api.js?v=54';
+    import { getContaPJ, getRecebimentosPendentesPJ, confirmarRecebimento, getVencimentosHojePJ, getStatusContaPF, msgErro, setViewAsUid, uidAtual, ehUsuarioSecundarioPJ } from './js/api.js?v=55';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { toast, setLoading } from './js/ui.js';
     import { cacheGet, cacheSet } from './js/page-cache.js';
@@ -250,6 +255,7 @@
 
     document.getElementById('btnLogout').addEventListener('click', async () => {
       localStorage.removeItem('viewAsUid');
+      localStorage.removeItem('pjSubUserOwnerUid');
       await signOut(auth);
       window.location.href = 'login-pj.html';
     });
@@ -257,6 +263,17 @@
     onAuthStateChanged(auth, async (user) => {
       if (!user) { window.location.href = 'login-pj.html'; return; }
       currentUser = user;
+
+      // Usuário secundário (02/09/2026) — Fase 1 só libera Contas a Receber,
+      // então esconde o resto da navegação pra não deixar a pessoa cair numa
+      // aba sem permissão (o que hoje desloga automaticamente, ver call() em
+      // api.js). Ver requireContaPJAccess em functions/lib/auth.js.
+      if (ehUsuarioSecundarioPJ()) {
+        document.getElementById('subUserBanner').style.display = 'flex';
+        document.querySelectorAll('#navPJ a:not([href="recebimentos-pj.html"])').forEach(a => a.style.display = 'none');
+        const linkPF = document.getElementById('linkDashboardPF');
+        if (linkPF) linkPF.style.display = 'none';
+      }
 
       const _contaCacheKey = `conta_${uidAtual()}`;
       const _contaCached = cacheGet(_contaCacheKey);
@@ -284,7 +301,7 @@
 
     // ─── Atalho PJ→PF (27/08/2026) ─────────────────────────────────────────────
     function _checarAtalhoPF() {
-      if (VIEW_AS_UID) return;
+      if (VIEW_AS_UID || ehUsuarioSecundarioPJ()) return;
       getStatusContaPF(uidAtual()).then(({ ativa }) => {
         if (ativa) document.getElementById('linkDashboardPF').style.display = 'inline';
       }).catch(() => {});
@@ -292,6 +309,7 @@
 
     // ─── Banner: vencimentos de hoje (27/08/2026) ──────────────────────────────
     async function renderVencimentosBanner() {
+      if (ehUsuarioSecundarioPJ()) return;
       const hojeISO = new Date().toISOString().slice(0, 10);
       if (sessionStorage.getItem('vencBannerDispensado') === hojeISO) return;
       let v;

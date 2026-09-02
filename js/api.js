@@ -165,6 +165,14 @@ export function uidAtual() {
   // (cache antigo, nova aba, bfcache). localStorage persiste entre abas/navegações.
   const lsUid = localStorage.getItem('viewAsUid');
   if (lsUid) return lsUid;
+  // Usuário secundário do Dashboard PJ (02/09/2026) — chave própria, separada
+  // de 'viewAsUid' (que é exclusiva do "ver como" do admin, com seu próprio
+  // banner/lógica de "voltar ao admin"). Os dados sempre são os da titular
+  // (pjSubUserOwnerUid), mesmo a autenticação sendo de outra conta — a
+  // permissão de fato é sempre checada no servidor (requireContaPJAccess),
+  // nunca só por este valor estar presente no client.
+  const subOwnerUid = localStorage.getItem('pjSubUserOwnerUid');
+  if (subOwnerUid) return subOwnerUid;
   const user = auth.currentUser;
   if (!user) throw { code: 'unauthenticated', message: 'Usuária não está logada.' };
   return user.uid;
@@ -726,6 +734,36 @@ export async function exportarMeusDadosPJ(uid) {
 // Admin-only — exclusão de conta PJ (não apaga o Firebase Auth, ver functions/index.js).
 export async function excluirContaPJ(uid) {
   return adminCall('excluirContaPJ')({ uid });
+}
+
+// ─── Usuários secundários do Dashboard PJ (02/09/2026) ────────────────────────
+// Caso Isabela: a titular cadastra, dentro do próprio Dashboard PJ, usuários
+// com login/senha próprios e permissão granular por aba (ver
+// requireContaPJAccess em functions/lib/auth.js).
+
+/** true se o usuário logado é um usuário secundário PJ (não a titular) — lido
+ *  da flag salva em login-pj.html após checar minhasPermissoesPJ(). */
+export function ehUsuarioSecundarioPJ() {
+  return localStorage.getItem('pjSubUserOwnerUid') !== null;
+}
+
+/** Verifica as próprias permissões (chamável por qualquer usuário logado,
+ *  inclusive secundário — checa a claim pjOwnerUid e o doc no Firestore). */
+export async function minhasPermissoesPJ() {
+  return callPJ('minhasPermissoesPJ')({});
+}
+
+export async function criarUsuarioSecundarioPJ(uidTitular, nome, email, abasPermitidas) {
+  return callPJ('criarUsuarioSecundarioPJ')({ uidTitular, nome, email, abasPermitidas });
+}
+export async function listarUsuariosSecundariosPJ(uidTitular) {
+  return callPJ('listarUsuariosSecundariosPJ')({ uidTitular });
+}
+export async function editarUsuarioSecundarioPJ(uidTitular, subUid, dados) {
+  return callPJ('editarUsuarioSecundarioPJ')({ uidTitular, subUid, ...dados });
+}
+export async function excluirUsuarioSecundarioPJ(uidTitular, subUid) {
+  return callPJ('excluirUsuarioSecundarioPJ')({ uidTitular, subUid });
 }
 
 // ─── Dashboard PJ (fatia 2: Contas a Receber, Despesas, Fluxo de Caixa) ───────

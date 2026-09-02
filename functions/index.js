@@ -35,7 +35,7 @@ const sZapiClient = defineSecret('ZAPI_CLIENT_TOKEN');
 const sAnthropic  = defineSecret('ANTHROPIC_API_KEY'); // categorizarExtratoIA — substitui o Custom GPT do Raio-X
 const sSmokeToken = defineSecret('SMOKE_TEST_TOKEN'); // smokeTestAlerta — token compartilhado com scripts/smoke-test.js
 
-const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId } = require('./lib/auth');
+const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId, requireContaPJAccess } = require('./lib/auth');
 const { SheetsClient }    = require('./lib/sheets');
 const { provisionar, deletePlanilha } = require('./lib/provisionar');
 const { MailerLiteClient } = require('./lib/mailerlite');
@@ -65,6 +65,7 @@ const {
   emailJornadaDashboard,
   emailIR,
   emailReenvioAcesso,
+  emailConviteUsuarioSecundarioPJ,
   emailBoasVindas,
   emailExpiracaoProxima,
   emailCobrancasDia,
@@ -6621,7 +6622,7 @@ exports.gerarParcelasRecebimento = onCall({}, async (request) => {
 
 exports.confirmarRecebimento = onCall({}, async (request) => {
   const { uid, notaId, id, dataRecebimento, valorBruto, taxa } = request.data;
-  requireSelfOrAdmin(request, uid);
+  await requireContaPJAccess(db, request, uid, 'recebimentos');
   if (!notaId || !id) throw new HttpsError('invalid-argument', 'notaId e id são obrigatórios.');
   if (!dataRecebimento || !/^\d{4}-\d{2}-\d{2}$/.test(dataRecebimento))
     throw new HttpsError('invalid-argument', 'dataRecebimento deve estar no formato YYYY-MM-DD.');
@@ -7576,7 +7577,7 @@ exports.notifImpostosDia = onSchedule(
  */
 exports.getContaPJ = onCall({ minInstances: 1 }, async (request) => {
   const { uid } = request.data;
-  requireSelfOrAdmin(request, uid);
+  await requireContaPJAccess(db, request, uid);
   const snap = await db.collection('contasPJ').doc(uid).get();
   return snap.exists ? { id: snap.id, ...snap.data() } : null;
 });
@@ -7694,6 +7695,192 @@ exports.aceitarLGPDPJ = onCall({}, async (request) => {
     lgpdAceitePJ: true,
     lgpdAceiteDataPJ: admin.firestore.FieldValue.serverTimestamp(),
   });
+  return { ok: true };
+});
+
+// ─── Usuários secundários do Dashboard PJ (02/09/2026) ────────────────────────
+// Caso Isabela: quem cuida das contas a receber é a funcionária dela, não a
+// titular. A titular passa a poder cadastrar, dentro do próprio Dashboard PJ,
+// usuários secundários com login/senha próprios (mesmo Firebase Auth do
+// projeto) e permissão granular por aba — sem precisar compartilhar a
+// própria senha nem pedir pra Flávia fazer isso manualmente. Ver
+// requireContaPJAccess em lib/auth.js pra como a permissão é checada nas
+// functions de leitura/escrita de cada aba.
+//
+// Fase 1 cobre só a aba "recebimentos" (Contas a Receber) — as demais abas
+// entram depois, conforme validação com a Isabela.
+const ABAS_PJ_VALIDAS = [
+  'notas', 'recebimentos', 'impostos', 'contasAPagar', 'cartoes',
+  'dre', 'proLabore', 'fluxoCaixa', 'reservas',
+];
+
+function _validarAbasPermitidas(abas) {
+  if (!Array.isArray(abas) || abas.length === 0) {
+    throw new HttpsError('invalid-argument', 'abasPermitidas deve ter ao menos uma aba.');
+  }
+  const invalidas = abas.filter(a => !ABAS_PJ_VALIDAS.includes(a));
+  if (invalidas.length > 0) {
+    throw new HttpsError('invalid-argument', `Aba(s) inválida(s): ${invalidas.join(', ')}.`);
+  }
+}
+
+/**
+ * Cria um usuário secundário com acesso ao Dashboard PJ de `uidTitular`.
+ * Exclusivo para a titular da conta (ou admin). Cria conta no Firebase Auth
+ * (mesma base do projeto), grava a custom claim `pjOwnerUid` — quem é a
+ * titular, estável, só muda com refresh de token — e o doc de permissão em
+ * `contasPJ/{uidTitular}/usuariosSecundarios/{subUid}`, que é a fonte de
+ * verdade lida a cada chamada (ver requireContaPJAccess). Envia e-mail de
+ * convite com link pra definir senha.
+ */
+exports.criarUsuarioSecundarioPJ = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  const { uidTitular, nome, email, abasPermitidas } = request.data;
+  requireSelfOrAdmin(request, uidTitular);
+
+  if (!nome || typeof nome !== 'string' || !nome.trim())
+    throw new HttpsError('invalid-argument', 'nome é obrigatório.');
+  if (!email || typeof email !== 'string' || !email.includes('@'))
+    throw new HttpsError('invalid-argument', 'e-mail inválido.');
+  _validarAbasPermitidas(abasPermitidas);
+
+  const contaSnap = await db.collection('contasPJ').doc(uidTitular).get();
+  if (!contaSnap.exists) throw new HttpsError('not-found', 'Conta PJ não encontrada.');
+  const nomeEmpresa = contaSnap.data().nomeEmpresa || 'sua empresa';
+
+  const emailNorm = email.trim().toLowerCase();
+  let userRecord;
+  try {
+    userRecord = await admin.auth().createUser({
+      email: emailNorm,
+      displayName: nome.trim().slice(0, 150),
+      password: gerarSenhaTemporaria(),
+      emailVerified: false,
+    });
+  } catch (err) {
+    if (err.code === 'auth/email-already-exists') {
+      throw new HttpsError('already-exists', 'Já existe uma conta com esse e-mail.');
+    }
+    throw new HttpsError('internal', `Erro ao criar usuário: ${err.message}`);
+  }
+
+  await admin.auth().setCustomUserClaims(userRecord.uid, { pjOwnerUid: uidTitular });
+
+  await db.collection('contasPJ').doc(uidTitular)
+    .collection('usuariosSecundarios').doc(userRecord.uid)
+    .set({
+      nome: nome.trim().slice(0, 150),
+      email: emailNorm,
+      abasPermitidas,
+      ativo: true,
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+  try {
+    const link = await admin.auth().generatePasswordResetLink(emailNorm, {
+      url: 'https://dashboard.flaviaschusciman.com/login-pj.html',
+    });
+    await sendEmail({
+      to: emailNorm,
+      subject: `Você foi convidada para o Dashboard PJ — ${nomeEmpresa}`,
+      html: emailConviteUsuarioSecundarioPJ(nome.trim(), nomeEmpresa, link),
+    });
+  } catch (err) {
+    console.error(`[criarUsuarioSecundarioPJ] Falha ao enviar convite (uid=${userRecord.uid}):`, err.message);
+    // Não falha a criação — a titular pode reenviar depois; a conta já existe.
+  }
+
+  return { ok: true, uid: userRecord.uid };
+});
+
+/**
+ * Lista os usuários secundários da conta PJ de `uidTitular`.
+ */
+exports.listarUsuariosSecundariosPJ = onCall({}, async (request) => {
+  const { uidTitular } = request.data;
+  requireSelfOrAdmin(request, uidTitular);
+  const snap = await db.collection('contasPJ').doc(uidTitular)
+    .collection('usuariosSecundarios').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+/**
+ * Autoconsulta de permissões — chamável por qualquer usuário logado,
+ * inclusive um secundário verificando as próprias permissões (não precisa
+ * de acesso à conta da titular pra isso, diferente de
+ * listarUsuariosSecundariosPJ que é exclusivo da titular/admin). Usado por
+ * login-pj.html pra decidir destino após o login.
+ */
+exports.minhasPermissoesPJ = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const uidTitular = auth.token.pjOwnerUid;
+  if (!uidTitular) return { ehSecundario: false };
+
+  const snap = await db.collection('contasPJ').doc(uidTitular)
+    .collection('usuariosSecundarios').doc(auth.uid).get();
+  if (!snap.exists) return { ehSecundario: true, ativo: false, abasPermitidas: [], uidTitular };
+
+  const d = snap.data();
+  return {
+    ehSecundario: true,
+    ativo: d.ativo === true,
+    abasPermitidas: Array.isArray(d.abasPermitidas) ? d.abasPermitidas : [],
+    uidTitular,
+  };
+});
+
+/**
+ * Edita permissões (abas) e/ou ativa/desativa um usuário secundário.
+ * Desativar aqui bloqueia o acesso imediatamente (checado no Firestore a
+ * cada chamada) e também desabilita a conta no Firebase Auth, por segurança
+ * — mesmo padrão de definirAcessoPJ pra conta titular.
+ */
+exports.editarUsuarioSecundarioPJ = onCall({}, async (request) => {
+  const { uidTitular, subUid, abasPermitidas, ativo } = request.data;
+  requireSelfOrAdmin(request, uidTitular);
+  if (!subUid) throw new HttpsError('invalid-argument', 'subUid é obrigatório.');
+
+  const ref = db.collection('contasPJ').doc(uidTitular)
+    .collection('usuariosSecundarios').doc(subUid);
+  if (!(await ref.get()).exists) throw new HttpsError('not-found', 'Usuário secundário não encontrado.');
+
+  const dados = {};
+  if (abasPermitidas !== undefined) {
+    _validarAbasPermitidas(abasPermitidas);
+    dados.abasPermitidas = abasPermitidas;
+  }
+  if (ativo !== undefined) {
+    if (typeof ativo !== 'boolean') throw new HttpsError('invalid-argument', 'ativo deve ser true ou false.');
+    dados.ativo = ativo;
+  }
+  if (Object.keys(dados).length === 0)
+    throw new HttpsError('invalid-argument', 'Informe abasPermitidas e/ou ativo.');
+
+  await ref.update(dados);
+  if (ativo !== undefined) {
+    await admin.auth().updateUser(subUid, { disabled: !ativo }).catch(err => {
+      console.error(`[editarUsuarioSecundarioPJ] Falha ao (des)ativar Auth (subUid=${subUid}):`, err.message);
+    });
+  }
+  return { ok: true };
+});
+
+/**
+ * Remove um usuário secundário — apaga a conta do Firebase Auth e o doc de
+ * permissão. Irreversível (a titular pode recriar do zero se precisar).
+ */
+exports.excluirUsuarioSecundarioPJ = onCall({}, async (request) => {
+  const { uidTitular, subUid } = request.data;
+  requireSelfOrAdmin(request, uidTitular);
+  if (!subUid) throw new HttpsError('invalid-argument', 'subUid é obrigatório.');
+
+  const ref = db.collection('contasPJ').doc(uidTitular)
+    .collection('usuariosSecundarios').doc(subUid);
+  if (!(await ref.get()).exists) throw new HttpsError('not-found', 'Usuário secundário não encontrado.');
+
+  await admin.auth().deleteUser(subUid).catch(err => {
+    console.error(`[excluirUsuarioSecundarioPJ] Falha ao remover do Auth (subUid=${subUid}):`, err.message);
+  });
+  await ref.delete();
   return { ok: true };
 });
 
@@ -9176,7 +9363,7 @@ Regras obrigatórias:
 // da sub-aba "Recebimentos" de Financeiro no admin.html).
 exports.getRecebimentosPendentesPJ = onCall({}, async (request) => {
   const { uid, mes, ano } = request.data;
-  requireSelfOrAdmin(request, uid);
+  await requireContaPJAccess(db, request, uid, 'recebimentos');
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
   if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
   const prefixoMes = `${ano}-${String(mes).padStart(2, '0')}`;

@@ -229,7 +229,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getContaPJ, aceitarLGPDPJ } from './js/api.js?v=53';
+    import { getContaPJ, aceitarLGPDPJ, minhasPermissoesPJ } from './js/api.js?v=55';
     import {
       signInWithEmailAndPassword,
       signOut,
@@ -242,6 +242,28 @@
       if (jaRedirecionando) return;
       jaRedirecionando = true;
       try {
+        // Usuário secundário (02/09/2026, ex: funcionária que cuida das
+        // contas a receber) — identificado pela custom claim pjOwnerUid.
+        // Os dados sempre são os da titular (pjSubUserOwnerUid), nunca os
+        // do próprio uid de login. Checa ANTES de getContaPJ porque
+        // getContaPJ(user.uid) buscaria (erradamente) uma conta PJ própria
+        // do usuário secundário, que não existe.
+        const perm = await minhasPermissoesPJ();
+        if (perm.ehSecundario) {
+          if (!perm.ativo) {
+            await signOut(auth);
+            jaRedirecionando = false;
+            showError('Seu acesso foi desativado. Entre em contato com a titular da conta.');
+            return;
+          }
+          localStorage.setItem('pjSubUserOwnerUid', perm.uidTitular);
+          // Fase 1 do acesso multiusuário só cobre Contas a Receber —
+          // é a única aba com function gateada por requireContaPJAccess.
+          window.location.href = 'recebimentos-pj.html';
+          return;
+        }
+        localStorage.removeItem('pjSubUserOwnerUid');
+
         const conta = await getContaPJ(user.uid);
         // ativo controlado à parte do Auth (achado 26/07/2026: o Auth é
         // compartilhado com a conta PF, então não dá pra usar auth/user-disabled

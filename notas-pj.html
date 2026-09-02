@@ -118,16 +118,17 @@
     <div>
       <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
       <p class="empresa-nome" id="empresaNome">—</p>
-      <nav class="nav-pj">
-        <a href="notas-pj.html" class="ativo">Notas</a>
-        <a href="recebimentos-pj.html">Contas a Receber</a>
-        <a href="impostos-pj.html">Impostos</a>
-        <a href="contas-a-pagar-pj.html">Contas a Pagar</a>
-        <a href="cartoes-pj.html">Cartões</a>
-        <a href="dre-pj.html">DRE</a>
-        <a href="pro-labore-pj.html">Pró-labore</a>
-        <a href="fluxo-caixa-pj.html">Fluxo de Caixa</a>
-        <a href="reservas-pj.html">Reservas</a>
+      <nav class="nav-pj" id="navPJ">
+        <a href="notas-pj.html" class="ativo" data-aba="notas">Notas</a>
+        <a href="recebimentos-pj.html" data-aba="recebimentos">Contas a Receber</a>
+        <a href="impostos-pj.html" data-aba="impostos">Impostos</a>
+        <a href="contas-a-pagar-pj.html" data-aba="contasAPagar">Contas a Pagar</a>
+        <a href="cartoes-pj.html" data-aba="cartoes">Cartões</a>
+        <a href="dre-pj.html" data-aba="dre">DRE</a>
+        <a href="pro-labore-pj.html" data-aba="proLabore">Pró-labore</a>
+        <a href="fluxo-caixa-pj.html" data-aba="fluxoCaixa">Fluxo de Caixa</a>
+        <a href="reservas-pj.html" data-aba="reservas">Reservas</a>
+        <a href="usuarios-pj.html" id="navUsuarios">Usuários</a>
       </nav>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
@@ -376,8 +377,8 @@
       getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
       getRecebimentosNota, salvarRecebimento, gerarParcelasRecebimento, confirmarRecebimento, estornarRecebimento, deleteRecebimento,
       getVencimentosHojePJ, getStatusContaPF,
-      msgErro, setViewAsUid, uidAtual,
-    } from './js/api.js?v=57';
+      msgErro, setViewAsUid, uidAtual, ehUsuarioSecundarioPJ,
+    } from './js/api.js?v=58';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { cacheGet, cacheSet } from './js/page-cache.js';
 
@@ -434,6 +435,7 @@
 
     document.getElementById('btnLogout').addEventListener('click', async () => {
       localStorage.removeItem('viewAsUid');
+      localStorage.removeItem('pjSubUserOwnerUid');
       await signOut(auth);
       window.location.href = 'login-pj.html';
     });
@@ -441,6 +443,14 @@
     onAuthStateChanged(auth, async (user) => {
       if (!user) { window.location.href = 'login-pj.html'; return; }
       currentUser = user;
+
+      // Usuário secundário (02/09/2026) — Fase 1 só libera Contas a Receber;
+      // login-pj.html já redireciona pra lá direto, isto aqui é só rede de
+      // segurança caso a pessoa navegue pra esta URL manualmente.
+      if (ehUsuarioSecundarioPJ()) {
+        window.location.href = 'recebimentos-pj.html';
+        return;
+      }
 
       // Mostra nome da empresa do cache na hora (decisão de redirect nunca vem daqui, só da resposta fresca abaixo)
       const _contaCacheKey = `conta_${uidAtual()}`;
@@ -486,7 +496,7 @@
 
     // ─── Atalho PJ→PF (27/08/2026) ─────────────────────────────────────────────
     function _checarAtalhoPF() {
-      if (VIEW_AS_UID) return;
+      if (VIEW_AS_UID || ehUsuarioSecundarioPJ()) return;
       getStatusContaPF(uidAtual()).then(({ ativa }) => {
         if (ativa) document.getElementById('linkDashboardPF').style.display = 'inline';
       }).catch(() => {});
@@ -494,6 +504,7 @@
 
     // ─── Banner: vencimentos de hoje (27/08/2026) ──────────────────────────────
     async function renderVencimentosBanner() {
+      if (ehUsuarioSecundarioPJ()) return;
       const hojeISO = new Date().toISOString().slice(0, 10);
       if (sessionStorage.getItem('vencBannerDispensado') === hojeISO) return;
       let v;

@@ -328,6 +328,7 @@
 
     document.getElementById('btnLogout').addEventListener('click', async () => {
       localStorage.removeItem('viewAsUid');
+      localStorage.removeItem('pjSubUserOwnerUid');
       await signOut(auth);
       window.location.href = 'login-pj.html';
     });

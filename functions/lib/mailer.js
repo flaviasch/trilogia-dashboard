@@ -290,6 +290,32 @@ function emailReenvioAcesso(nome, linkSenha) {
 }
 
 /**
+ * E-mail: convite para usuário secundário do Dashboard PJ (02/09/2026,
+ * acesso multiusuário — ex: a funcionária que cuida das contas a receber).
+ * @param {string} nomeUsuario — nome da pessoa convidada
+ * @param {string} nomeEmpresa — nome da empresa (conta PJ titular)
+ * @param {string} linkSenha   — link gerado pelo Firebase para definir senha
+ */
+function emailConviteUsuarioSecundarioPJ(nomeUsuario, nomeEmpresa, linkSenha) {
+  return layout(`
+    <h2 style="${S.h2}">Você foi convidada para o Dashboard PJ</h2>
+    <p style="${S.p}">Olá, ${nomeUsuario}!</p>
+    <p style="${S.p}">
+      Você recebeu acesso ao Dashboard PJ de <strong>${nomeEmpresa}</strong>.
+      Clique no botão abaixo para definir sua senha e entrar na plataforma.
+    </p>
+    <a href="${linkSenha}" style="${S.btn}">
+      Definir minha senha
+    </a>
+    <p style="${S.pSmall}">
+      Seu acesso é restrito às áreas liberadas pela titular da conta.
+      Se você não esperava este e-mail, pode ignorá-lo com segurança.
+      O link expira em 24 horas.
+    </p>
+  `);
+}
+
+/**
  * E-mail: boas-vindas com link de criação de senha.
  * @param {string} nome      — nome da mentorada
  * @param {string} linkSenha — link gerado pelo Firebase para definir senha
@@ -1373,6 +1399,7 @@ module.exports = {
   emailComunicadoTecnico,
   emailIR,
   emailReenvioAcesso,
+  emailConviteUsuarioSecundarioPJ,
   emailBoasVindas,
   emailExpiracaoProxima,
   emailCobrancasDia,

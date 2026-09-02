@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard PJ — Usuários</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45; --navy-dark: #081e30;
+      --gold: #CFAE65; --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(var(--rgb-fg),0.1);
+      --text-muted: rgba(var(--rgb-fg),0.45);
+      --positive: #4ade80; --negative: #f87171;
+      --card-bg: rgba(var(--rgb-fg),0.03);
+  --rgb-fg: 255,255,255;
+}
+
+    [data-theme="light"] {
+  --rgb-fg: 13,43,69;
+  --navy-dark: #F8F1E7;
+  --navy: #FFFFFF;
+  --white: #0D2B45;
+  --card-bg: rgba(87,52,34,0.035);
+    }
+
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--navy);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
+    .empresa-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .nav-pj { display: flex; gap: 4px; flex-wrap: wrap; }
+    .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+    .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
+    .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    .view-as-banner { display: none; background: rgba(207,174,101,0.12); border-bottom: 1px solid rgba(207,174,101,0.3); padding: 10px 24px; font-size: 13px; color: var(--gold); gap: 12px; align-items: center; }
+    .view-as-banner a { color: var(--gold); margin-left: auto; }
+    main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+    .btn-novo { background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 10px 18px; font-weight: 700; cursor: pointer; font-size: 14px; margin-bottom: 20px; }
+    .secao-titulo { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    .card-lista { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .vazio { padding: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .td-fin { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .badge-ativo { background: rgba(74,222,128,.15); color: var(--positive); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-inativo { background: rgba(248,113,113,.15); color: var(--negative); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .btn-acao { background: none; border: 1px solid var(--border); color: var(--white); cursor: pointer; font-size: 12px; padding: 4px 10px; border-radius: 4px; white-space: nowrap; margin-left: 6px; }
+    .btn-acao.negative { border-color: rgba(248,113,113,.3); color: var(--negative); }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field-group label { font-size: 12px; color: rgba(var(--rgb-fg),.6); }
+    .field-group input { background: rgba(var(--rgb-fg),.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--white); width: 100%; }
+    .field-group.checkbox-row { flex-direction: row; align-items: center; gap: 8px; }
+    .field-group.checkbox-row label { font-size: 13px; color: var(--white); }
+    .field-nota { font-size: 11px; color: var(--text-muted); margin: -8px 0 14px; }
+    .modal-acoes { display: flex; gap: 10px; margin-top: 18px; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
+  </style>
+<!-- MOBILE_NAVBAR_FIX -->
+<style>
+@media (max-width: 640px) {
+  .navbar-right { flex-wrap: wrap; justify-content: flex-end; gap: 8px; row-gap: 6px; width: 100%; }
+  .navbar { flex-wrap: wrap; height: auto; min-height: 64px; padding: 10px 16px; }
+  #btnTheme { padding: 5px 8px; margin-right: 0 !important; font-size: 14px; }
+}
+</style>
+
+</head>
+<body>
+
+  <header>
+    <div>
+      <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
+      <p class="empresa-nome" id="empresaNome">—</p>
+      <nav class="nav-pj" id="navPJ">
+        <a href="notas-pj.html" data-aba="notas">Notas</a>
+        <a href="recebimentos-pj.html" data-aba="recebimentos">Contas a Receber</a>
+        <a href="impostos-pj.html" data-aba="impostos">Impostos</a>
+        <a href="contas-a-pagar-pj.html" data-aba="contasAPagar">Contas a Pagar</a>
+        <a href="cartoes-pj.html" data-aba="cartoes">Cartões</a>
+        <a href="dre-pj.html" data-aba="dre">DRE</a>
+        <a href="pro-labore-pj.html" data-aba="proLabore">Pró-labore</a>
+        <a href="fluxo-caixa-pj.html" data-aba="fluxoCaixa">Fluxo de Caixa</a>
+        <a href="reservas-pj.html" data-aba="reservas">Reservas</a>
+        <a href="usuarios-pj.html" class="ativo" id="navUsuarios">Usuários</a>
+      </nav>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="orcamento.html" id="linkDashboardPF" style="display:none;font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">🏠 PF</a>
+      <a href="ajuda-pj.html" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">❓ Ajuda</a>
+      <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </header>
+
+  <div class="view-as-banner" id="viewAsBanner">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html">← Voltar ao admin</a>
+  </div>
+
+  <main>
+    <h1>Usuários</h1>
+    <p class="subtitulo">Dê acesso ao Dashboard PJ para outras pessoas da sua equipe — cada uma com login próprio, vendo só o que você liberar.</p>
+
+    <button class="btn-novo" id="btnNovoUsuario">+ Novo usuário</button>
+
+    <div class="secao-titulo">Usuários com acesso</div>
+    <div class="card-lista">
+      <table>
+        <thead>
+          <tr>
+            <th class="td-fin">Nome</th>
+            <th class="td-fin">E-mail</th>
+            <th class="td-fin">Acesso</th>
+            <th class="td-fin">Status</th>
+            <th class="td-fin"></th>
+          </tr>
+        </thead>
+        <tbody id="tabelaUsuariosBody"></tbody>
+      </table>
+      <div class="vazio" id="usuariosVazio" style="display:none">Nenhum usuário secundário cadastrado ainda.</div>
+    </div>
+  </main>
+
+  <div class="modal-overlay hidden" id="modalUsuario">
+    <div class="modal-card">
+      <h3 id="modalUsuarioTitulo">Novo usuário</h3>
+      <input type="hidden" id="usuarioSubUid">
+      <div class="field-group">
+        <label for="usuarioNome">Nome</label>
+        <input type="text" id="usuarioNome" placeholder="Nome completo">
+      </div>
+      <div class="field-group">
+        <label for="usuarioEmail">E-mail</label>
+        <input type="email" id="usuarioEmail" placeholder="email@exemplo.com">
+      </div>
+      <div class="field-group checkbox-row">
+        <input type="checkbox" id="usuarioAbaRecebimentos" checked disabled>
+        <label for="usuarioAbaRecebimentos">Contas a Receber</label>
+      </div>
+      <p class="field-nota">Por enquanto o acesso é só para Contas a Receber — mais áreas serão liberadas em versões futuras.</p>
+      <div class="field-group checkbox-row" id="usuarioAtivoGroup" style="display:none">
+        <input type="checkbox" id="usuarioAtivo" checked>
+        <label for="usuarioAtivo">Acesso ativo</label>
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarUsuario">Cancelar</button>
+        <button class="btn-save" id="btnSalvarUsuario">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import {
+      getContaPJ, msgErro, setViewAsUid, uidAtual, ehUsuarioSecundarioPJ,
+      listarUsuariosSecundariosPJ, criarUsuarioSecundarioPJ, editarUsuarioSecundarioPJ, excluirUsuarioSecundarioPJ,
+    } from './js/api.js?v=58';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { toast, setLoading } from './js/ui.js';
+
+    // ─── ViewAs (admin visualizando dashboard PJ da mentorada) ────────────────
+    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','cartoes-pj.html','dre-pj.html','pro-labore-pj.html','fluxo-caixa-pj.html','reservas-pj.html','usuarios-pj.html','ajuda-pj.html'];
+    const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs')
+                     || localStorage.getItem('viewAsUid');
+    if (VIEW_AS_UID) {
+      setViewAsUid(VIEW_AS_UID);
+      localStorage.setItem('viewAsUid', VIEW_AS_UID);
+      const banner = document.getElementById('viewAsBanner');
+      if (banner) banner.style.display = 'flex';
+      const suffix = `?viewAs=${VIEW_AS_UID}`;
+      PAGINAS_PJ.forEach(page => {
+        document.querySelectorAll(`a[href="${page}"], a[href^="${page}?"]`).forEach(a => { a.href = page + suffix; });
+      });
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!href || href.includes('viewAs=') || href.startsWith('http') ||
+            href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('admin')) return;
+        if (!PAGINAS_PJ.some(p => href === p || href.startsWith(p + '#') || href.startsWith(p + '?'))) return;
+        e.preventDefault();
+        window.location.href = href + (href.includes('?') ? '&' : '?') + `viewAs=${VIEW_AS_UID}`;
+      }, true);
+    }
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      localStorage.removeItem('viewAsUid');
+      localStorage.removeItem('pjSubUserOwnerUid');
+      await signOut(auth);
+      window.location.href = 'login-pj.html';
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login-pj.html'; return; }
+
+      // Gestão de usuários secundários é exclusiva da titular — um usuário
+      // secundário que caia aqui (link direto, por exemplo) é mandado de
+      // volta pra Contas a Receber, a única aba liberada pra ele na Fase 1.
+      if (ehUsuarioSecundarioPJ()) {
+        window.location.href = 'recebimentos-pj.html';
+        return;
+      }
+
+      try {
+        const conta = await getContaPJ(uidAtual());
+        document.getElementById('empresaNome').textContent = conta ? conta.nomeEmpresa : '—';
+      } catch (err) {
+        console.error('[usuarios-pj] Falha ao carregar conta:', err.message);
+      }
+
+      renderUsuarios();
+    });
+
+    const ABA_LABEL = {
+      notas: 'Notas', recebimentos: 'Contas a Receber', impostos: 'Impostos',
+      contasAPagar: 'Contas a Pagar', cartoes: 'Cartões', dre: 'DRE',
+      proLabore: 'Pró-labore', fluxoCaixa: 'Fluxo de Caixa', reservas: 'Reservas',
+    };
+
+    let _usuariosCache = [];
+
+    async function renderUsuarios() {
+      let lista;
+      try { lista = await listarUsuariosSecundariosPJ(uidAtual()); }
+      catch (err) { toast(msgErro(err), 'error'); return; }
+      _usuariosCache = lista;
+
+      const tbody = document.getElementById('tabelaUsuariosBody');
+      if (!lista.length) {
+        document.getElementById('usuariosVazio').style.display = '';
+        tbody.innerHTML = '';
+        return;
+      }
+      document.getElementById('usuariosVazio').style.display = 'none';
+      tbody.innerHTML = lista.map(u => `
+        <tr>
+          <td class="td-fin">${u.nome || '—'}</td>
+          <td class="td-fin">${u.email || '—'}</td>
+          <td class="td-fin">${(u.abasPermitidas || []).map(a => ABA_LABEL[a] || a).join(', ') || '—'}</td>
+          <td class="td-fin">${u.ativo !== false ? '<span class="badge-ativo">Ativo</span>' : '<span class="badge-inativo">Inativo</span>'}</td>
+          <td class="td-fin" style="text-align:right;white-space:nowrap">
+            <button class="btn-acao" data-editar="${u.id}">${u.ativo !== false ? 'Desativar' : 'Ativar'}</button>
+            <button class="btn-acao negative" data-excluir="${u.id}">Excluir</button>
+          </td>
+        </tr>`).join('');
+
+      tbody.querySelectorAll('[data-editar]').forEach(b => b.addEventListener('click', () => alternarAtivo(b.dataset.editar)));
+      tbody.querySelectorAll('[data-excluir]').forEach(b => b.addEventListener('click', () => excluirUsuario(b.dataset.excluir)));
+    }
+
+    async function alternarAtivo(subUid) {
+      const u = _usuariosCache.find(x => x.id === subUid);
+      if (!u) return;
+      const novoAtivo = !(u.ativo !== false);
+      try {
+        await editarUsuarioSecundarioPJ(uidAtual(), subUid, { ativo: novoAtivo });
+        toast(novoAtivo ? 'Usuário reativado.' : 'Acesso desativado.');
+        await renderUsuarios();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      }
+    }
+
+    async function excluirUsuario(subUid) {
+      const u = _usuariosCache.find(x => x.id === subUid);
+      if (!u) return;
+      if (!confirm(`Remover o acesso de ${u.nome || u.email}? Essa ação não pode ser desfeita.`)) return;
+      try {
+        await excluirUsuarioSecundarioPJ(uidAtual(), subUid);
+        toast('Usuário removido.');
+        await renderUsuarios();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      }
+    }
+
+    // ─── Modal: novo usuário ────────────────────────────────────────────────
+    const modalUsuario = document.getElementById('modalUsuario');
+    document.getElementById('btnNovoUsuario').addEventListener('click', () => {
+      document.getElementById('modalUsuarioTitulo').textContent = 'Novo usuário';
+      document.getElementById('usuarioSubUid').value = '';
+      document.getElementById('usuarioNome').value = '';
+      document.getElementById('usuarioNome').disabled = false;
+      document.getElementById('usuarioEmail').value = '';
+      document.getElementById('usuarioEmail').disabled = false;
+      document.getElementById('usuarioAtivoGroup').style.display = 'none';
+      modalUsuario.classList.remove('hidden');
+    });
+    document.getElementById('btnCancelarUsuario').addEventListener('click', () => modalUsuario.classList.add('hidden'));
+
+    document.getElementById('btnSalvarUsuario').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSalvarUsuario');
+      const nome = document.getElementById('usuarioNome').value.trim();
+      const email = document.getElementById('usuarioEmail').value.trim();
+      if (!nome) { toast('Informe o nome.', 'warning'); return; }
+      if (!email || !email.includes('@')) { toast('Informe um e-mail válido.', 'warning'); return; }
+
+      setLoading(btn, true, 'Salvando…');
+      try {
+        await criarUsuarioSecundarioPJ(uidAtual(), nome, email, ['recebimentos']);
+        modalUsuario.classList.add('hidden');
+        toast('Usuário criado — um e-mail de convite foi enviado.');
+        await renderUsuarios();
+      } catch (err) {
+        toast(msgErro(err), 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+  </script>
+
+<script src="js/theme.js" defer></script>
+</body>
+</html>
