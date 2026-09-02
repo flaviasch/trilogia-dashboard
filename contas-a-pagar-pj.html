@@ -218,6 +218,7 @@
       <span class="secao-titulo">Despesas cadastradas</span>
       <button class="btn-acao" id="btnAddDespesa">+ Adicionar despesa</button>
     </div>
+    <p style="font-size:12px;color:var(--text-muted);margin:-6px 0 12px">Fixas e parceladas aparecem sempre. Despesas únicas só aparecem no mês em que foram lançadas — navegue pelos meses acima pra ver as anteriores.</p>
     <div class="card-lista" id="listaDespesas" style="padding:4px 20px"></div>
   </main>
 
@@ -581,11 +582,13 @@
       mesAtual--; if (mesAtual < 1) { mesAtual = 12; anoAtual--; }
       renderPendentes();
       renderImpostosDevidos();
+      renderDespesas();
     });
     document.getElementById('mesProximo').addEventListener('click', () => {
       mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
       renderPendentes();
       renderImpostosDevidos();
+      renderDespesas();
     });
 
     // ─── Despesas cadastradas (CRUD dos modelos) ───────────────────────────
@@ -593,12 +596,21 @@
       try { _despesasCache = await getDespesasPJ(uidAtual()); }
       catch (err) { _despesasCache = []; alert(msgErro(err)); return; }
 
+      // Despesa 'unica' importada de extrato só faz sentido no mês em que
+      // foi lançada (02/09/2026, Flávia: senão a lista cresce pra sempre,
+      // acumulando todo extrato já importado) — fixa e parcelada continuam
+      // sempre visíveis, são configuração vigente, não histórico avulso.
+      const prefixoMesAtual = `${anoAtual}-${String(mesAtual).padStart(2, '0')}`;
+      const despesasVisiveis = _despesasCache.filter(d =>
+        d.tipo !== 'unica' || (d.data && d.data.startsWith(prefixoMesAtual))
+      );
+
       const el = document.getElementById('listaDespesas');
-      if (!_despesasCache.length) {
-        el.innerHTML = `<p class="vazio">Nenhuma despesa cadastrada ainda.</p>`;
+      if (!despesasVisiveis.length) {
+        el.innerHTML = `<p class="vazio">${_despesasCache.length ? 'Nenhuma despesa única lançada neste mês.' : 'Nenhuma despesa cadastrada ainda.'}</p>`;
         return;
       }
-      el.innerHTML = _despesasCache.map(d => `
+      el.innerHTML = despesasVisiveis.map(d => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
           <div>
             <div style="font-size:14px;font-weight:600">${escapeHtml(d.nome)}${d.ativo === false ? ' <span style="color:var(--text-muted);font-weight:400">(inativa)</span>' : ''}</div>
