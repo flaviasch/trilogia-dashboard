@@ -6562,10 +6562,12 @@
       let linhaNaoPlan = '';
       if (naoPlanRelevante) {
         const planCellNP = naoPlan.temMeta
-          ? `<div class="plan-plan-wrap" style="flex-direction:column;align-items:flex-end;gap:0">
-               <span class="plan-valor-plan">${brl(naoPlan.folga)}</span>
-               ${naoPlan.sobreAlocado ? `<span style="font-size:10px;color:#f59e0b">categorias somam mais que o planejado</span>` : ''}
-             </div>`
+          ? (naoPlan.sobreAlocado
+              ? `<div class="plan-plan-wrap" style="flex-direction:column;align-items:flex-end;gap:2px">
+                   <span class="plan-valor-plan" style="color:var(--negative)">${brl(naoPlan.excedente)}</span>
+                   <span style="font-size:10px;color:#f59e0b">acima do planejado — reduza algum limite pra fechar a conta</span>
+                 </div>`
+              : `<span class="plan-valor-plan">${brl(naoPlan.folga)}</span>`)
           : `<button class="btn-edit-plan" style="opacity:1;width:auto;padding:0 8px" onclick="event.stopPropagation();abrirModalRendaPlan()" title="Definir renda">+ definir renda</button>`;
         linhaNaoPlan = `
           <tr class="plan-row">

@@ -482,7 +482,7 @@ export function calcularAgregadosOrcamento({
  * @param {{nome:string, limite:number}[]} [args.categorias]
  * @returns {{
  *   temMeta: boolean, totalPlanejado: number|null, somaLimites: number,
- *   folga: number|null, sobreAlocado: boolean,
+ *   folga: number|null, sobreAlocado: boolean, excedente: number,
  * }}
  */
 export function calcularNaoPlanejado({ renda = null, percentual = null, categorias = [] }) {
@@ -491,8 +491,13 @@ export function calcularNaoPlanejado({ renda = null, percentual = null, categori
   const somaLimites = (categorias || []).reduce((s, c) => s + (c.limite || 0), 0);
   const folga = temMeta ? Math.max(0, totalPlanejado - somaLimites) : null;
   const sobreAlocado = temMeta && somaLimites > totalPlanejado;
+  // Quanto os limites somados passam do planejado — só existe quando
+  // sobreAlocado; é o valor que precisa sair de algum limite pra fechar a
+  // conta (achado 03/09/2026, Flávia: a linha "Não planejado" mostrava R$ 0
+  // nesse caso, escondendo o tamanho real do estouro).
+  const excedente = sobreAlocado ? somaLimites - totalPlanejado : 0;
 
-  return { temMeta, totalPlanejado, somaLimites, folga, sobreAlocado };
+  return { temMeta, totalPlanejado, somaLimites, folga, sobreAlocado, excedente };
 }
 
 /**
