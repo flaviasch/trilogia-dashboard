@@ -1179,6 +1179,21 @@
       // gráfico de evolução seja poluído por ajustes pontuais no meio do mês.
     }
 
+    // Snapshot imediato roda em cada import (CSV/IA) e continua sem rodar em
+    // edição manual de valor (ativo/dívida) — de propósito, pra não poluir a
+    // tendência com estado no meio de uma revisão (ver comentários nos
+    // respectivos handlers). Exclusão de posição/dívida/bem é diferente:
+    // normalmente é uma CORREÇÃO (removendo algo errado/duplicado), não uma
+    // edição pontual — por isso reagenda o snapshot do mês corrente, com um
+    // atraso pra só gravar depois que a pessoa parar de mexer, não a cada
+    // clique (achado 03/09/2026, Flávia: exclusão de posição duplicada não
+    // atualizava o gráfico, ficava preso até o próximo dia 1/28).
+    let _snapshotDebounceTimer = null;
+    function agendarSnapshotHistorico() {
+      clearTimeout(_snapshotDebounceTimer);
+      _snapshotDebounceTimer = setTimeout(() => { snapshotHistorico(); }, 18000);
+    }
+
     /** Grava snapshot do mês atual em background. */
     async function snapshotHistorico() {
       const ta = ativos.reduce((s, a) => s + a.valor, 0);
@@ -1882,6 +1897,7 @@
       corretoraPosicoes = data.corretoraPosicoes || [];
       render(ativos, dividas);
       renderCorretoraPosicoes();
+      agendarSnapshotHistorico();
       toast('Posição excluída.', 'success');
     }
 
@@ -1898,14 +1914,30 @@
         const btnId = id === 'csvCorretora' ? 'btnImportCorretora' : 'btnImportIR';
         const btn   = document.getElementById(btnId);
 
-        // CSV de corretora também vira uma posição nomeada — pergunta o nome
-        // antes de processar o arquivo. CSV sempre cria posição nova (pra
-        // atualizar uma existente, usar a importação com IA ou excluir e
-        // reimportar).
+        // CSV de corretora também vira uma posição nomeada. Se já existe
+        // alguma posição cadastrada, pergunta se é atualização de uma delas
+        // ou uma posição nova de verdade — sem isso, todo CSV virava posição
+        // nova (mesmo pra atualizar a mesma corretora), dobrando o total
+        // (achado 03/09/2026, Flávia — mesmo problema já corrigido na
+        // importação com IA, que tem um seletor pra isso).
         let posicaoNomeCsv = null;
+        let posicaoIdCsv   = undefined;
         if (tipo === 'corretora') {
-          posicaoNomeCsv = (window.prompt('Nome dessa posição (ex: "XP - Flávia"):') || '').trim();
-          if (!posicaoNomeCsv) { e.target.value = ''; return; }
+          if (corretoraPosicoes.length) {
+            const opcoes = corretoraPosicoes.map((p, i) => `${i + 1}) ${p.nome} (${brl(p.total)})`).join('\n');
+            const escolha = (window.prompt(
+              `Esse CSV é pra atualizar uma posição existente, ou é uma posição nova?\n\n${opcoes}\n\nDigite o número da posição pra ATUALIZAR, ou deixe em branco pra criar uma posição NOVA.`
+            ) || '').trim();
+            const idx = parseInt(escolha, 10) - 1;
+            if (escolha && !isNaN(idx) && corretoraPosicoes[idx]) {
+              posicaoIdCsv   = corretoraPosicoes[idx].id;
+              posicaoNomeCsv = corretoraPosicoes[idx].nome;
+            }
+          }
+          if (!posicaoIdCsv) {
+            posicaoNomeCsv = (window.prompt('Nome dessa posição nova (ex: "XP - Flávia"):') || '').trim();
+            if (!posicaoNomeCsv) { e.target.value = ''; return; }
+          }
         }
 
         e.target.value = '';
@@ -1916,7 +1948,7 @@
         reader.onload = async (ev) => {
           try {
             const itens = parsearCsvPatrimonio(ev.target.result);
-            if (tipo === 'corretora') await salvarPosicaoCorretora(itens, posicaoNomeCsv);
+            if (tipo === 'corretora') await salvarPosicaoCorretora(itens, posicaoNomeCsv, posicaoIdCsv);
             else                      await salvarAtivosImportados(itens, tipo);
           } catch (err) {
             toast(`Erro ao importar CSV: ${msgErro(err)}`, 'error');
@@ -2122,6 +2154,7 @@
         toast('Venda registrada — patrimônio atualizado.', 'success');
         registrarEvento('venda_bem_registrada');
         await init(auth.currentUser);
+        agendarSnapshotHistorico();
       } catch (err) {
         toast(msgErro(err), 'error');
       } finally {
@@ -2266,6 +2299,7 @@
       try { await deleteDivida(id); }
       catch (err) { console.error('Erro ao excluir dívida:', err); toast(`Erro: ${msgErro(err)}`, 'error'); }
       render(ativos, dividas);
+      agendarSnapshotHistorico();
     }
 
     // ─── Fila de saves por dívida ─────────────
@@ -2503,9 +2537,21 @@
         posicaoSection.style.display = '';
         posicaoSelect.innerHTML = '<option value="">+ Nova posição</option>' +
           corretoraPosicoes.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nome)} (${brl(p.total)})</option>`).join('');
-        posicaoSelect.value = '';
-        posicaoNome.value = '';
-        posicaoNome.disabled = false;
+        // Com exatamente 1 posição já cadastrada, pré-seleciona ela em vez de
+        // deixar "+ Nova posição" como padrão — foi assim que uma posição
+        // duplicada entrou sem querer (achado 03/09/2026, Flávia): o padrão
+        // "nova" some despercebido e a reimportação vira uma segunda posição,
+        // dobrando o total. Com 2+ posições existentes, não dá pra adivinhar
+        // qual delas atualizar, então mantém "+ Nova posição" como padrão.
+        if (corretoraPosicoes.length === 1) {
+          posicaoSelect.value = corretoraPosicoes[0].id;
+          posicaoNome.value = corretoraPosicoes[0].nome;
+          posicaoNome.disabled = true;
+        } else {
+          posicaoSelect.value = '';
+          posicaoNome.value = '';
+          posicaoNome.disabled = false;
+        }
       } else {
         posicaoSection.style.display = 'none';
       }
@@ -2524,6 +2570,27 @@
         nomeInput.disabled = false;
       }
     });
+
+    // Estima o quanto uma posição recém-importada (ainda não salva) se parece
+    // com uma posição já existente, comparando valor por classe. 0 = nada em
+    // comum, 1 = idêntica. Usado só pra avisar antes de criar uma posição
+    // NOVA que pareça ser, na real, a mesma posição reimportada por engano
+    // (achado 03/09/2026, Flávia — ver comentário no seletor acima).
+    function _similaridadePosicao(itensNovos, posicaoExistente) {
+      const totalExistente = posicaoExistente.total || 0;
+      const mapaNovo = {};
+      let totalNovo = 0;
+      for (const it of itensNovos) {
+        mapaNovo[it.classe] = (mapaNovo[it.classe] || 0) + it.valor;
+        totalNovo += it.valor;
+      }
+      if (!totalNovo || !totalExistente) return 0;
+      let sobreposicao = 0;
+      for (const it of posicaoExistente.itens) {
+        sobreposicao += Math.min(mapaNovo[it.classe] || 0, it.valor);
+      }
+      return sobreposicao / Math.max(totalNovo, totalExistente);
+    }
 
     // Escapa HTML básico pra uso em atributo/innerHTML — usado pelas opções
     // do select de posição (nomes vêm de dado da própria usuária).
@@ -2600,6 +2667,22 @@
           // de baixa confiança antes de somar por classe e salvar.
           const itensAgregados = await revisarClassesFundos(itens);
           if (!itensAgregados) { toast('Importação cancelada.', 'info'); return; }
+
+          // Vai criar posição NOVA (não escolheu uma existente pra atualizar)
+          // — confere se não parece ser a mesma posição de novo, pra não
+          // dobrar o total sem querer.
+          if (!posicaoIdVal && corretoraPosicoes.length) {
+            const maisParecida = corretoraPosicoes
+              .map(p => ({ p, score: _similaridadePosicao(itensAgregados, p) }))
+              .sort((a, b) => b.score - a.score)[0];
+            if (maisParecida && maisParecida.score > 0.85) {
+              const confirma = window.confirm(
+                `Essa posição parece muito parecida com "${maisParecida.p.nome}" (${brl(maisParecida.p.total)}), que você já tem cadastrada.\n\nTem certeza que quer criar uma posição NOVA? Isso vai SOMAR os dois valores no total.\n\nSe é a mesma posição atualizada, cancele e escolha "${maisParecida.p.nome}" no campo acima.`
+              );
+              if (!confirma) { toast('Importação cancelada.', 'info'); return; }
+            }
+          }
+
           await salvarPosicaoCorretora(itensAgregados, posicaoNomeVal, posicaoIdVal);
         } else if (_patIaModo === 'ativos') {
           await salvarAtivosImportados(itens, _patIaTipoOrigem);
