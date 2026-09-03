@@ -1308,31 +1308,46 @@ function emailNovidadesAgo2026Completo(nome) {
     </td></tr>`;
 
   return layout(`
-    <h2 style="${S.h2}">Tudo que melhoramos em Agosto</h2>
+    <h2 style="${S.h2}">Agosto foi grande — veja tudo que melhoramos pra você</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
-      Mais um mês de ajustes direto do uso real do Dashboard. Veja o que chegou:
+      Mais um mês de melhorias direto do uso real do Dashboard. Separamos os destaques:
     </p>
 
     <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
 
-      ${secao('💳 Orçamento')}
-      ${item('⇄','Transferência entre contas','Registre transferências entre suas contas cadastradas — o saldo por conta se ajusta, o saldo consolidado não muda.')}
-      ${item('💳','Pague a fatura adiantado','Novo botão "Pagar adiantado" no card da fatura aberta. Quando ela fechar, o valor já pago é descontado automaticamente.')}
-      ${item('🗂️','Categorias do seu jeito','Agora dá pra criar categorias-mãe próprias, além das já existentes.')}
-      ${item('📅','Detalhe também por data','Além de ver por categoria, agora dá pra ver todos os lançamentos do mês organizados por data.')}
+      ${secao('🏢 Dashboard PJ chegou completo')}
+      ${item('📊','DRE e Ponto de Equilíbrio','Veja o resultado da empresa e a partir de quanto ela começa a dar lucro.')}
+      ${item('📥','Contas a Receber consolidada','Controle do que ainda vai entrar, por cliente e vencimento.')}
+      ${item('🏦','Reservas PJ','Aporte, resgate e retirada sugerida pras reservas da empresa.')}
+      ${item('❓','FAQ do Dashboard PJ','Tutorial e perguntas frequentes direto na área da empresa.')}
 
-      ${secao('🗺️ Minha Jornada')}
+      ${secao('🏢 E ficou ainda mais completo')}
+      ${item('💳','Cartão de crédito completo','Lance e controle os cartões da empresa, com o mesmo cuidado do Dashboard pessoal.')}
+      ${item('💰','Calculadora de Pró-labore com previsibilidade','Trave um salário fixo por trimestre e veja a sugestão recalculada sempre, mesmo depois de travado.')}
+      ${item('✅','Checklist de primeiros passos','5 passos guiados pra quem está começando a organizar a empresa no Dashboard.')}
+      ${item('📥','Conciliação por OFX, relatório anual e alertas','Importe o extrato do banco em OFX, gere o relatório anual em PDF e receba alertas de vencimento do dia.')}
+      ${item('👥','Acesso pra sua equipe','Agora dá pra criar um login separado pra sua funcionária acompanhar Contas a Receber, sem precisar da Flávia pra isso.')}
+
+      ${secao('📊 Orçamento e Planejamento')}
+      ${item('⇄','Transferência entre contas','Registre transferências entre suas contas cadastradas — o saldo por conta se ajusta, o saldo consolidado não muda.')}
+      ${item('💳','Pague a fatura adiantado','Botão "Pagar adiantado" no card da fatura aberta. Quando ela fechar, o valor já pago é descontado automaticamente.')}
+      ${item('🗂️','Categorias por categoria-mãe','As categorias do Planejamento ficam agrupadas pelas 12 categorias-mãe (ou as suas próprias), com o vínculo salvo uma vez só — não precisa refazer todo mês.')}
+      ${item('📅','Detalhe também por data','Além de ver por categoria, agora dá pra ver todos os lançamentos do mês organizados por data.')}
+      ${item('🎯','Fatura mais precisa','Dezenas de ajustes finos pra fatura aberta, fechada e a vencer contarem certinho em cada situação.')}
+
+      ${secao('🗺️ Sua Jornada')}
       ${item('🧭','Mapa da Liberdade Financeira no Dashboard','A calculadora que projeta sua liberdade financeira mês a mês agora está dentro da Jornada, sem precisar de arquivo separado.')}
       ${item('✅','Checklist antes de decidir','P.A.R.I.S. e Anti-Impulso viraram um checklist guiado direto na Jornada, pra usar antes de qualquer decisão de compra.')}
       ${item('🔥','Desafio dos 7 dias','O desafio da consciência financeira também já está disponível na Jornada.')}
+      ${item('🩺','Índice de Saúde Financeira (ISF)','Acompanhe sua evolução com a métrica oficial da Febraban, direto na sua Jornada.')}
 
-      ${secao('🏢 Dashboard PJ — cresceu')}
-      ${item('📊','DRE e Ponto de Equilíbrio','Veja o resultado da empresa e a partir de quanto ela começa a dar lucro.')}
-      ${item('📥','Contas a Receber','Controle consolidado do que ainda vai entrar, por cliente e vencimento.')}
-      ${item('🏦','Reservas PJ com retirada sugerida','Reservas da empresa com sugestão automática de quanto retirar.')}
-      ${item('❓','FAQ do Dashboard PJ','Tutorial e perguntas frequentes direto na área da empresa.')}
-      ${item('💰','Calculadora de Pró-labore','Defina um salário fixo por trimestre com previsibilidade, e distribua o excedente entre sazonalidade, emergência, reinvestimento e distribuição.')}
+      ${secao('🏦 Patrimônio')}
+      ${item('📈','Classificação de fundos mais precisa','Fundos conhecidos (como Kinea e Alaska) são reconhecidos automaticamente, com mais uma camada de checagem contra a base oficial CVM/Anbima.')}
+      ${item('🏠','Venda de bem não financeiro','Registre a venda de um bem (imóvel, veículo etc.) e o patrimônio se ajusta sozinho.')}
+
+      ${secao('🌗 E se você ainda não viu')}
+      ${item('☀️','Modo claro em todo o dashboard','Escolha entre tema claro e escuro no ícone do menu superior — sua escolha fica salva.')}
 
     </table>
 
@@ -1342,7 +1357,6 @@ function emailNovidadesAgo2026Completo(nome) {
     <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
   `);
 }
-
 function emailModoClaroAporteAgo2026(nome) {
   const item = (emoji, titulo, desc) =>
     `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">

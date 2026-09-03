@@ -1813,6 +1813,23 @@
         });
       }
 
+      // ⓪-k Tudo que melhoramos em Agosto — resumo do mês (achado 03/09/2026)
+      if (!localStorage.getItem('notif_completo_ago2026_v2')) {
+        notifs.unshift({ id: 'completo-ago2026-v2', type: 'novidades', key: 'notif_completo_ago2026_v2', icon: '🎊', _expansivel: true,
+          titulo: 'Agosto foi grande — veja tudo que melhoramos pra você',
+          desc: 'Dashboard PJ completo (DRE, Contas a Receber, Reservas, cartão, pró-labore), Mapa da Liberdade e Desafio dos 7 dias na Jornada, transferência entre contas, categorias por categoria-mãe e Índice de Saúde Financeira.',
+          cta: { label: 'Ver orçamento', href: 'orcamento.html' },
+          itens: [
+            { emoji: '🏢', titulo: 'Dashboard PJ chegou completo e evoluiu', desc: 'DRE, Ponto de Equilíbrio, Contas a Receber, Reservas e FAQ; depois ganhou cartão de crédito, calculadora de pró-labore, checklist de primeiros passos, conciliação por OFX, relatório anual em PDF, alertas de vencimento e, pra quem tem funcionária, um login separado só pra Contas a Receber.' },
+            { emoji: '🗺️', titulo: 'Novidades na sua Jornada', desc: 'Mapa da Liberdade Financeira, checklist P.A.R.I.S./Anti-Impulso antes de decidir, Desafio dos 7 dias e o Índice de Saúde Financeira.' },
+            { emoji: '📊', titulo: 'Orçamento mais completo', desc: 'Transferência entre contas, pagamento antecipado de fatura, categorias por categoria-mãe (ou as suas próprias) e Detalhe também por data.' },
+            { emoji: '💳', titulo: 'Cartão e faturas mais precisos', desc: 'Dezenas de ajustes finos pra fatura aberta, fechada e a vencer contarem certinho em cada situação.' },
+            { emoji: '🏦', titulo: 'Patrimônio mais preciso', desc: 'Classificação de fundos mais criteriosa (Kinea, Alaska e outros) e registro de venda de bens não financeiros.' },
+            { emoji: '🌗', titulo: 'Modo claro', desc: 'Se ainda não viu, dá pra trocar entre tema claro e escuro no ícone do menu.' },
+          ],
+        });
+      }
+
       // ① Perfil de investidor — ausente ou > 180 dias sem atualizar
       const perfilKey = `notif_perfil_${mesKey}`;
       if (!localStorage.getItem(perfilKey)) {
