@@ -5428,6 +5428,12 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         erroEl.style.display = 'block';
         return;
       }
+      // Item novo (sem id) dispara banner + e-mail pra todas as ativas no
+      // Clube assim que salvar — confirma antes, pra evitar disparo
+      // acidental (achado 04/09/2026, escolha da Flávia: "Pede confirmação").
+      if (!id && !confirm(`Publicar "${titulo}" já vai avisar (banner + e-mail) todas as mentoradas com Clube ativo. Confirma?`)) {
+        return;
+      }
       const btn = document.getElementById('btnSalvarItemClube');
       btn.disabled = true; btn.textContent = 'Salvando…';
       try {

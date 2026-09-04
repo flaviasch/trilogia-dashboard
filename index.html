@@ -1904,6 +1904,24 @@
         });
       }
 
+      // ⑤-b Conteúdo novo no Clube — só pra quem tem assinaturaClube ativa.
+      // Dispensável (mesma chave de dispensa por item, achado 04/09/2026,
+      // Flávia: "disparar banner e e-mail toda vez que eu colocar conteúdo
+      // novo no clube e somente para as ativas nele").
+      if (data.assinaturaClube && data.clubeNovidade) {
+        const cn = data.clubeNovidade;
+        const clubeKey = `notif_clube_${cn.itemId}`;
+        if (!localStorage.getItem(clubeKey)) {
+          const iconePorTipo = { gravacao: '🎬', documento: '📄', agenda: '🗓️' };
+          notifs.unshift({
+            id: 'clube-novidade', type: 'novidades', key: clubeKey, icon: iconePorTipo[cn.tipo] || '✨',
+            titulo: 'Novidade no Clube',
+            desc: cn.titulo + (cn.descricao ? ` — ${cn.descricao}` : ''),
+            cta: { label: 'Ver no Clube', href: 'clube.html' },
+          });
+        }
+      }
+
       // ⑥ Extrato pendente — retirada de reserva sem atualização da corretora
       if (localStorage.getItem('patrimonio_extrato_pendente') === '1') {
         notifs.push({

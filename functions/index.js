@@ -58,6 +58,7 @@ const {
   emailNovidadesJul2026Completo,
   emailNovidadesAgo2026Completo,
   emailModoClaroAporteAgo2026,
+  emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
   emailRaioXJul2026,
@@ -662,12 +663,13 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
   const mesAtual = agora.toISOString().slice(0, 7);
 
   // Lê doc principal + reservas + missão do mês + orçamento atual + planejamento em paralelo
-  const [docSnap, resSnap, missaoSnap, orcSnap, planSnap] = await Promise.all([
+  const [docSnap, resSnap, missaoSnap, orcSnap, planSnap, clubeAvisoSnap] = await Promise.all([
     db.collection('mentoradas').doc(uid).get(),
     db.collection('mentoradas').doc(uid).collection('reservas').get().catch(() => null),
     db.collection('config').doc('missaoMes').get().catch(() => null),
     db.collection('mentoradas').doc(uid).collection('orcamento').doc(mesAtual).get().catch(() => null),
     db.collection('mentoradas').doc(uid).collection('planejamento').doc(mesAtual).get().catch(() => null),
+    db.collection('config').doc('clubeUltimoAviso').get().catch(() => null),
   ]);
 
   if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
@@ -780,6 +782,10 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
       if (!d || d.mes !== mesAtual) return null;
       return { titulo: d.titulo || null, descricao: d.descricao || null };
     })(),
+    // Banner de conteúdo novo no Clube — só pra quem tem assinaturaClube
+    // ativa. O frontend dispensa por localStorage usando itemId como chave,
+    // mesmo padrão dos outros notif-cards (achado 04/09/2026).
+    clubeNovidade: (assinaturaClube && clubeAvisoSnap?.exists) ? clubeAvisoSnap.data() : null,
   };
 });
 
@@ -9621,6 +9627,16 @@ async function getAtivas() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// Mentoradas com assinatura ativa do Clube — subconjunto independente de
+// `status === 'ativa'` (uma mentorada pode ter só o Clube, ou o Clube junto
+// com o Dashboard). Usado pra notificar (banner + e-mail) só quem realmente
+// tem acesso ao conteúdo novo (achado 04/09/2026, Flávia: "somente para as
+// ativas nele").
+async function getAtivasClube() {
+  const snap = await db.collection('mentoradas').where('assinaturaClube', '==', true).get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // ─── NOTIFICAÇÕES AGENDADAS ───────────────────────────────────────────────────
 
 // SECRETS_EMAIL já definido no topo do arquivo
@@ -11552,6 +11568,33 @@ exports.marcarLicaoCasa = onCall({ secrets: [sNotion] }, async (request) => {
  * Retorna todos os itens publicados no Clube, ordenados por ordem asc, data desc.
  * Qualquer usuária logada com assinaturaClube: true pode chamar.
  */
+// Dispara banner (via getDashboardHome/clubeUltimoAviso) + e-mail pras
+// mentoradas com Clube ativo, toda vez que um item novo entra em
+// clubeContent. Roda em background (fire-and-forget) a partir de
+// saveClubeItem — não bloqueia a resposta do admin. Só dispara em criação,
+// nunca em edição de item existente (achado 04/09/2026, Flávia: "disparar
+// banner e e-mail toda vez que eu colocar conteúdo novo no clube e somente
+// para as ativas nele").
+async function notificarNovoConteudoClube(item) {
+  const mentoradas = await getAtivasClube();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: `Novidade no Clube: ${item.titulo}`,
+        html:    emailNovoConteudoClube(m.nome || 'mentorada', item),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[notificarNovoConteudoClube] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  console.log(`[notificarNovoConteudoClube] item=${item.id} enviados=${enviados} erros=${erros}`);
+}
+
 exports.getClubeContent = onCall({}, async (request) => {
   const auth = requireAuth(request);
 
@@ -11576,7 +11619,7 @@ exports.getClubeContent = onCall({}, async (request) => {
  * Cria ou atualiza um item em clubeContent. Somente admin.
  * Campos obrigatórios: tipo, titulo, url, data.
  */
-exports.saveClubeItem = onCall({}, async (request) => {
+exports.saveClubeItem = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
   requireAdmin(request);
   const { id, tipo, titulo, url, data, descricao, ordem } = request.data;
 
@@ -11602,6 +11645,17 @@ exports.saveClubeItem = onCall({}, async (request) => {
   } else {
     payload.criadoEm = admin.firestore.FieldValue.serverTimestamp();
     const ref = await db.collection('clubeContent').add(payload);
+
+    // Aviso automático de conteúdo novo — grava o "último aviso" pra
+    // getDashboardHome expor como banner (dispensável, mesmo padrão dos
+    // outros notif-cards da home) e dispara os e-mails em background.
+    db.collection('config').doc('clubeUltimoAviso').set({
+      itemId: ref.id, tipo, titulo, descricao: descricao || '', url,
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch(e => console.warn(`[saveClubeItem] Falha ao salvar clubeUltimoAviso: ${e.message}`));
+    notificarNovoConteudoClube({ id: ref.id, tipo, titulo, descricao: descricao || '', url })
+      .catch(e => console.error(`[saveClubeItem] Falha ao notificar novo conteúdo do Clube: ${e.message}`));
+
     return { ok: true, id: ref.id };
   }
 });
