@@ -8225,7 +8225,8 @@ async function _calcularDRESimplificado(uid, mes, ano) {
   // Receber — achado 31/07/2026) não contam como Receita Bruta do mês: a
   // venda já aconteceu no passado, contar de novo infla o Lucro Líquido do
   // mês errado.
-  const receitaBruta = notasSnap.docs.filter(d => !d.data().legado).reduce((s, d) => s + (d.data().valor || 0), 0);
+  const notasDoMes = notasSnap.docs.filter(d => !d.data().legado);
+  const receitaBruta = notasDoMes.reduce((s, d) => s + (d.data().valor || 0), 0);
 
   const impostos = impSnap.docs.reduce((s, d) => {
     const imp = d.data();
@@ -8241,7 +8242,26 @@ async function _calcularDRESimplificado(uid, mes, ano) {
     return oc ? s + (desp.valor || 0) : s;
   }, 0);
 
-  const lucroLiquido = receitaLiquida - despesasOperacionais;
+  // Despesas financeiras: taxa de cartão/adquirente e juros de atraso das
+  // vendas emitidas NESTE mês — competência da venda, não do recebimento
+  // (achado 07/09/2026, Flávia: "cruzar o valor da nota pelo valor
+  // efetivamente recebido e ajustar o DRE"; escolha dela: o ajuste entra no
+  // mês da venda, não no mês em que o recebimento foi confirmado). Cada
+  // recebimento já guarda valorBruto/taxa — confirmarRecebimento sobrescreve
+  // esses dois com o valor real quando ele difere do estimado, então esta
+  // soma já reflete automaticamente o real assim que confirmado, e o
+  // estimado enquanto ainda não recebeu. Isso reabre o resultado de um mês
+  // já "fechado" quando um recebimento atrasado é confirmado depois — é a
+  // consequência esperada da escolha por competência da venda.
+  const recebimentosPorNota = await Promise.all(
+    notasDoMes.map(d => d.ref.collection('recebimentos').get())
+  );
+  const despesasFinanceiras = recebimentosPorNota.reduce(
+    (s, snap) => s + snap.docs.reduce((s2, r) => s2 + (r.data().taxa || 0), 0),
+    0
+  );
+
+  const lucroLiquido = receitaLiquida - despesasOperacionais - despesasFinanceiras;
 
   const arredonda = v => Math.round(v * 100) / 100;
   return {
@@ -8249,6 +8269,7 @@ async function _calcularDRESimplificado(uid, mes, ano) {
     impostos: arredonda(impostos),
     receitaLiquida: arredonda(receitaLiquida),
     despesasOperacionais: arredonda(despesasOperacionais),
+    despesasFinanceiras: arredonda(despesasFinanceiras),
     lucroLiquido: arredonda(lucroLiquido),
   };
 }
@@ -8292,8 +8313,9 @@ exports.getRelatorioAnualPJ = onCall({}, async (request) => {
     impostos:              acc.impostos + m.impostos,
     receitaLiquida:        acc.receitaLiquida + m.receitaLiquida,
     despesasOperacionais:  acc.despesasOperacionais + m.despesasOperacionais,
+    despesasFinanceiras:   acc.despesasFinanceiras + m.despesasFinanceiras,
     lucroLiquido:          acc.lucroLiquido + m.lucroLiquido,
-  }), { receitaBruta: 0, impostos: 0, receitaLiquida: 0, despesasOperacionais: 0, lucroLiquido: 0 });
+  }), { receitaBruta: 0, impostos: 0, receitaLiquida: 0, despesasOperacionais: 0, despesasFinanceiras: 0, lucroLiquido: 0 });
   Object.keys(totais).forEach(k => { totais[k] = arredonda(totais[k]); });
 
   const impPagosSnap = await db.collection('impostosPrevistos')
@@ -8396,11 +8418,19 @@ exports.getPontoEquilibrioPJ = onCall({}, async (request) => {
     retiradaMinima: arredonda(retiradaMinima),
   };
 
-  if (somaPercentuais >= 100) {
-    return { ...base, faturamentoMinimo: null, erro: 'A soma dos tributos percentuais mensais configurados é maior ou igual a 100% — não dá pra calcular um faturamento mínimo viável com essa configuração. Revise os tributos em Impostos.' };
+  // Custo de cartão assumido (achado 07/09/2026, Flávia: "assumir que as
+  // vendas nunca serão à vista ou no pix, podem ser no cartão e
+  // parceladas" — sem integração com a maquininha/adquirente pra saber a
+  // taxa real por venda, assume-se um custo fixo de 10% do faturamento,
+  // tratado igual a um tributo percentual pra efeito do cálculo).
+  const CUSTO_CARTAO_PERCENTUAL_PJ = 10;
+  const percentualTotal = somaPercentuais + CUSTO_CARTAO_PERCENTUAL_PJ;
+
+  if (percentualTotal >= 100) {
+    return { ...base, custoCartaoPercentual: CUSTO_CARTAO_PERCENTUAL_PJ, faturamentoMinimo: null, erro: 'A soma dos tributos percentuais mensais configurados com o custo de cartão assumido (10%) é maior ou igual a 100% — não dá pra calcular um faturamento mínimo viável com essa configuração. Revise os tributos em Impostos.' };
   }
-  const faturamentoMinimo = (despesasFixas + despesasFixasAjusteManual + tributosFixosMensais + retiradaMinima) / (1 - somaPercentuais / 100);
-  return { ...base, faturamentoMinimo: arredonda(faturamentoMinimo), erro: null };
+  const faturamentoMinimo = (despesasFixas + despesasFixasAjusteManual + tributosFixosMensais + retiradaMinima) / (1 - percentualTotal / 100);
+  return { ...base, custoCartaoPercentual: CUSTO_CARTAO_PERCENTUAL_PJ, faturamentoMinimo: arredonda(faturamentoMinimo), erro: null };
 });
 
 exports.salvarRetiradaMinimaPJ = onCall({}, async (request) => {

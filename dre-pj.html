@@ -324,11 +324,15 @@
         return;
       }
       const despesasFixasTotal = pe.despesasFixas + pe.despesasFixasAjusteManual;
+      const custoCartaoPct = pe.custoCartaoPercentual || 0;
       el.innerHTML = `
         <div class="pe-valor">${brl(pe.faturamentoMinimo)}</div>
         <div class="pe-composicao">
           Despesas fixas ${brl(despesasFixasTotal)}${pe.despesasFixasAjusteManual ? ` (${brl(pe.despesasFixas)} cadastradas + ${brl(pe.despesasFixasAjusteManual)} ajuste manual)` : ''} + Tributos fixos ${brl(pe.tributosFixosMensais)} + Retirada ${brl(pe.retiradaMinima)}
-          , dividido por (1 − ${pe.somaPercentuais.toLocaleString('pt-BR')}% de tributos percentuais)
+          , dividido por (1 − ${pe.somaPercentuais.toLocaleString('pt-BR')}% de tributos percentuais − ${custoCartaoPct.toLocaleString('pt-BR')}% de custo de cartão assumido)
+        </div>
+        <div class="pe-composicao" style="margin-top:4px">
+          Considera que as vendas são sempre no cartão (nunca à vista/pix), com um custo de ${custoCartaoPct.toLocaleString('pt-BR')}% do faturamento pra taxas e antecipação/parcelamento.
         </div>`;
     }
 
@@ -384,6 +388,10 @@
         <div class="dre-linha">
           <span><span class="dre-op">−</span>Despesas Operacionais</span>
           <span class="dre-valor saida">${brl(dre.despesasOperacionais)}</span>
+        </div>
+        <div class="dre-linha">
+          <span><span class="dre-op">−</span>Despesas Financeiras <span style="font-size:10px;color:var(--text-muted)">(taxa de cartão/adquirente e juros das vendas deste mês)</span></span>
+          <span class="dre-valor saida">${brl(dre.despesasFinanceiras)}</span>
         </div>
         <div class="dre-linha total ${dre.lucroLiquido >= 0 ? 'positivo' : 'negativo'}">
           <span>= Lucro Líquido do período</span>
