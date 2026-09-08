@@ -873,11 +873,35 @@
       .plan-table td:nth-child(4) { display: none; }
       /* Planejado + realizado ficam lado a lado em células compactas */
       .plan-table th,
-      .plan-table td { padding: 11px 8px; font-size: 13px; }
+      .plan-table td { padding: 11px 6px; font-size: 13px; }
       .plan-table th:first-child,
       .plan-table td:first-child { padding-left: 14px; }
       .plan-table th:last-child,
-      .plan-table td:last-child { padding-right: 14px; }
+      .plan-table td:last-child { padding-right: 10px; }
+      /* Larguras fixas por coluna — sem isso o navegador dava o espaço que
+         cada coluna "pedia" (nome da categoria, "R$ X.XXX", etc.) e só depois
+         via se sobrava algo pra Status; quase nunca sobrava, cortando a
+         coluna inteira sem dar pra rolar pro lado (achado 08/09/2026,
+         confirmado 2x pela Flávia mesmo após reduzir o botão "+ subcategoria").
+         Com table-layout:fixed cada coluna recebe uma fatia garantida da
+         largura da tela — texto longo quebra linha em vez de estourar. */
+      .plan-table { table-layout: fixed; }
+      .plan-table th:nth-child(1), .plan-table td:nth-child(1) { width: 44%; }
+      .plan-table th:nth-child(2), .plan-table td:nth-child(2) { width: 23%; }
+      .plan-table th:nth-child(3), .plan-table td:nth-child(3) { width: 23%; }
+      .plan-table th:nth-child(5), .plan-table td:nth-child(5) { width: 10%; padding-right: 6px !important; }
+      /* Valor + ícones de editar (✎/Aa/+) quebram linha se não couberem
+         lado a lado na largura fixa da coluna, em vez de vazar pra fora dela. */
+      .plan-table .plan-plan-wrap { flex-wrap: wrap; justify-content: flex-end; row-gap: 2px; }
+      .plan-table .plan-status { font-size: 13px; }
+      /* Cabeçalho ("Categoria"/"Planejado"/"Realizado"/"Status") também
+         precisa encolher — nas larguras fixas acima, o texto maiúsculo com
+         letter-spacing largo (regra padrão do .plan-thead) não cabia e
+         vazava por cima da coluna vizinha (achado ao testar esta correção,
+         08/09/2026). */
+      .plan-thead th { font-size: 8px; letter-spacing: 0; padding: 10px 4px 8px; }
+      .plan-thead th:first-child { padding-left: 14px; }
+      .plan-thead th:last-child { padding-right: 6px !important; }
       /* "+ subcategoria" vira só "+" (mesmo tamanho dos outros ícones de
          ação) — o texto sozinho já empurrava a coluna Status pra fora da
          tela, sem dar pra rolar pro lado pra ver ela (achado 08/09/2026,
