@@ -2111,7 +2111,7 @@
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
              getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ,
-             msgErro } from './js/api.js?v=61';
+             msgErro } from './js/api.js?v=62';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -3180,32 +3180,101 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 
     // ─── CRM Notion ──────────────────────────
     const LABEL_EVENTO = {
-      csv_importado:            '📥 CSV orçamento',
-      aporte_registrado:        '💰 Aporte',
-      patrimonio_atualizado:    '🏦 Patrimônio',
-      reserva_salva:            '🎯 Reserva salva',
-      perfil_atualizado:        '📋 Perfil',
-      planejamento_configurado: '📊 Planejamento',
-      fixa_cadastrada:          '🔄 Fixa',
-      cartao_cadastrado:        '💳 Cartão',
-      ir_importado:             '📄 IR importado',
-      corretora_importada:      '📈 Corretora importada',
-      divida_cadastrada:        '⚠️ Dívida cadastrada',
-      reserva_retirada:         '↩️ Retirada',
-      aba_anual_aberta:         '📅 Aba anual',
+      csv_importado:              '📥 CSV orçamento',
+      aporte_registrado:          '💰 Aporte',
+      patrimonio_atualizado:      '🏦 Patrimônio',
+      reserva_salva:              '🎯 Reserva salva',
+      perfil_atualizado:          '📋 Perfil',
+      planejamento_configurado:   '📊 Planejamento',
+      fixa_cadastrada:            '🔄 Fixa',
+      cartao_cadastrado:          '💳 Cartão',
+      extrato_ia_importado:       '🤖 Extrato via IA',
+      ir_importado:               '📄 IR importado',
+      corretora_importada:        '📈 Corretora importada',
+      divida_cadastrada:          '⚠️ Dívida cadastrada',
+      divida_pagamento_confirmado:'✔️ Dívida — pagamento',
+      reserva_retirada:           '↩️ Retirada',
+      aba_anual_aberta:           '📅 Aba anual',
+      despesa_cartao_lancada:     '💳 Despesa no cartão',
+      despesa_cartao_parcelada:   '💳 Parcelamento no cartão',
+      parcelamento_criado:        '📆 Parcelamento',
+      fixa_receita_cadastrada:    '🔄 Receita fixa',
+      venda_bem_registrada:       '💰 Venda de bem',
     };
+
+    // Etapas-chave do fluxo: se qualquer uma nunca aconteceu, é ponto de
+    // abandono (item 5.4 do plano). Ordem = ordem esperada na jornada.
+    const ETAPAS_CHAVE = [
+      ['perfil_atualizado',        'Perfil de investidor'],
+      ['csv_importado',            'Importou orçamento (CSV)'],
+      ['extrato_ia_importado',     'Importou orçamento (IA)'],
+      ['planejamento_configurado', 'Configurou limites'],
+      ['aporte_registrado',        'Registrou aporte'],
+      ['reserva_salva',            'Criou reserva'],
+      ['ir_importado',             'Importou IR'],
+      ['corretora_importada',      'Importou corretora'],
+    ];
+
+    // O registrarEvento (functions/index.js) grava os contadores como campos
+    // achatados com ponto no nome — "eventos.aporte_registrado" — em vez de um
+    // mapa aninhado "eventos: { aporte_registrado }" (set + merge trata a
+    // chave com ponto literalmente). O painel lia só o mapa aninhado, então
+    // aparecia "Sem dados ainda" pra todo mundo. Aqui normaliza os dois
+    // formatos, recuperando todo o histórico já gravado (achado 07/09/2026,
+    // item 5.4). Se o backend passar a gravar aninhado, este código continua
+    // funcionando com os dois.
+    function normalizarEventos(doc) {
+      const ev = {};
+      if (!doc) return ev;
+      if (doc.eventos && typeof doc.eventos === 'object') {
+        for (const [k, v] of Object.entries(doc.eventos)) ev[k] = (ev[k] || 0) + Number(v || 0);
+      }
+      for (const [k, v] of Object.entries(doc)) {
+        if (k.startsWith('eventos.') && typeof v === 'number') {
+          const nome = k.slice(8);
+          ev[nome] = (ev[nome] || 0) + v;
+        }
+      }
+      return ev;
+    }
 
     async function carregarAnalytics(uid) {
       const el = document.getElementById('detAnalytics');
       if (!el) return;
       try {
-        const { geral } = await getAnalytics(uid);
-        if (!geral?.eventos) { el.textContent = 'Sem dados ainda.'; return; }
-        const itens = Object.entries(geral.eventos)
+        const { geral, meses } = await getAnalytics(uid);
+        const ev = normalizarEventos(geral);
+        const totalEventos = Object.values(ev).reduce((s, v) => s + v, 0);
+        if (totalEventos === 0) { el.innerHTML = '<span style="color:var(--text-muted)">Sem eventos registrados ainda.</span>'; return; }
+
+        const usadas = Object.entries(ev)
+          .filter(([, v]) => v > 0)
           .sort((a, b) => b[1] - a[1])
           .map(([k, v]) => `${LABEL_EVENTO[k] || k} ×${v}`)
           .join(' · ');
-        el.textContent = itens || 'Sem dados ainda.';
+
+        const faltando = ETAPAS_CHAVE
+          .filter(([k]) => !(ev[k] > 0))
+          .map(([, label]) => label);
+
+        // Colapsa etapas equivalentes (importou orçamento por qualquer via)
+        const importouOrcamento = ev.csv_importado > 0 || ev.extrato_ia_importado > 0;
+        const faltandoLimpo = faltando.filter(l => !(importouOrcamento && /Importou orçamento/.test(l)));
+
+        const mesesTxt = (meses || [])
+          .map(m => {
+            const mev = normalizarEventos(m);
+            const n = Object.values(mev).reduce((s, v) => s + v, 0);
+            return n > 0 ? `${m.mes}: ${n}` : null;
+          })
+          .filter(Boolean)
+          .join('  ·  ');
+
+        el.innerHTML = `
+          <span>${usadas}</span>
+          ${faltandoLimpo.length ? `<br><span style="color:#f59e0b">Nunca fez: ${faltandoLimpo.join(', ')}</span>` : '<br><span style="color:var(--positive)">✓ passou por todas as etapas-chave</span>'}
+          ${mesesTxt ? `<br><span style="color:var(--text-muted);font-size:10px">Eventos/mês — ${mesesTxt}</span>` : ''}
+        `;
       } catch (e) {
         el.textContent = '—';
       }

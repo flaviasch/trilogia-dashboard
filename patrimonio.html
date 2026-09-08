@@ -872,7 +872,7 @@
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
       categorizarPatrimonioIA, venderBemPatrimonio,
-    } from './js/api.js?v=48';
+    } from './js/api.js?v=62';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
     // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se
@@ -2042,6 +2042,10 @@
       await gravarAtivos();
       setLoading(btnSaveAtivo, false);
       toast('Ativo salvo!', 'success');
+      // Cadastro manual também conta como uso do Patrimônio (item 5.4 — antes
+      // só o import de CSV/IA disparava evento, então quem preenchia na mão
+      // aparecia como "nunca mexeu no patrimônio").
+      registrarEvento('patrimonio_atualizado');
       // Sem snapshot aqui de propósito: edição manual pontual de um ativo não
       // deve virar um ponto no gráfico de evolução — só CSV/aporte/retirada.
     });

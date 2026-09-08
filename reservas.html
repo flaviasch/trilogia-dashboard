@@ -794,7 +794,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid, registrarEvento, msgErro, getNivelAcesso } from './js/api.js?v=47';
+    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid, registrarEvento, msgErro, getNivelAcesso } from './js/api.js?v=62';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { cacheGet, cacheSet } from './js/page-cache.js';
     import { isAdmin } from './js/admin-guard.js';
@@ -1706,7 +1706,9 @@
         try {
           await saveReserva(reserva);
           toast('Reserva salva!', 'success');
-          registrarEvento('reserva_salva');
+          // Só conta quando é reserva nova — editar uma existente não é "criou
+          // reserva" pro funil do item 5.4.
+          if (!editandoId) registrarEvento('reserva_salva');
         } catch (err) {
           const ls = localStorage.getItem('viewAsUid');
           const dbg = `[va=${VIEW_AS_UID ?? 'null'} | ls=${ls ?? 'null'}]`;

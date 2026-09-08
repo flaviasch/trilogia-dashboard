@@ -4549,8 +4549,16 @@ exports.registrarAcesso = onCall({}, async (request) => {
 
 /**
  * Registra um evento de uso de feature (analytics de engajamento).
- * Espera: { evento } — string, ex: 'csv_importado', 'aporte_registrado', etc.
- * Incrementa contador acumulado + mensal no doc analytics/geral e analytics/YYYY-MM.
+ * Espera: { evento, uid? } — evento é string ('csv_importado', etc.).
+ * `uid` é o alvo real da ação (api.js manda uidAtual()): se vier e for
+ * diferente do usuário autenticado, é admin "vendo como" / sub-usuário PJ —
+ * NÃO registra, porque o dado 5.4 tem que refletir só o que a titular faz
+ * sozinha (decisão Flávia 08/09/2026). Sem `uid` (clientes antigos) grava
+ * como antes, no auth.uid.
+ * Incrementa contador acumulado + mensal em analytics/geral e analytics/YYYY-MM,
+ * no mapa aninhado `eventos.<nome>` (o formato antigo gravava campo achatado
+ * "eventos.<nome>" por causa do set()+merge com chave pontuada — achado
+ * 08/09/2026; getAnalytics normaliza os dois).
  */
 const EVENTOS_VALIDOS = new Set([
   'csv_importado', 'aporte_registrado', 'patrimonio_atualizado',
@@ -4564,8 +4572,11 @@ const EVENTOS_VALIDOS = new Set([
 
 exports.registrarEvento = onCall({}, async (request) => {
   const auth = requireAuth(request);
-  const { evento } = request.data;
+  const { evento, uid: uidAlvo } = request.data;
   if (!evento || !EVENTOS_VALIDOS.has(evento)) return { ok: true }; // ignora silenciosamente
+
+  // Admin "vendo como", sub-usuário PJ, etc.: uidAlvo != auth.uid → não conta.
+  if (uidAlvo && uidAlvo !== auth.uid) return { ok: true };
 
   const uid    = auth.uid;
   const mesKey = new Date().toISOString().slice(0, 7); // YYYY-MM
@@ -4574,14 +4585,14 @@ exports.registrarEvento = onCall({}, async (request) => {
 
   const base = db.collection('mentoradas').doc(uid).collection('analytics');
   await Promise.allSettled([
-    // Acumulado total
+    // Acumulado total — mapa aninhado eventos.<nome>
     base.doc('geral').set({
-      [`eventos.${evento}`]: inc,
+      eventos: { [evento]: inc },
       ultimoEventoEm: ts,
     }, { merge: true }),
     // Breakdown mensal
     base.doc(mesKey).set({
-      [`eventos.${evento}`]: inc,
+      eventos: { [evento]: inc },
       mes: mesKey,
       ultimoEventoEm: ts,
     }, { merge: true }),
@@ -9667,6 +9678,38 @@ async function getAtivasClube() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// Lê os contadores de evento de engajamento de uma mentorada (item 5.4), já
+// normalizados (soma o formato achatado antigo com o aninhado novo — ver
+// registrarEvento / _normalizarAnalytics). Usado pelas notificações pra não
+// lembrar quem já fez a ação.
+//   - acumulado: analytics/geral
+//   - do mês:    analytics/{mesKey} (só se mesKey passado)
+//   - doAno:     soma de analytics/{ano}-* (só se anoKey passado; p/ IR anual)
+async function lerEngajamento(uid, { mesKey, anoKey } = {}) {
+  const base = db.collection('mentoradas').doc(uid).collection('analytics');
+  const eventosDe = (snap) => {
+    if (!snap || !snap.exists) return {};
+    const n = _normalizarAnalytics(snap.data());
+    return (n && n.eventos) || {};
+  };
+  const [geralSnap, todosSnap] = await Promise.all([
+    base.doc('geral').get(),
+    (mesKey || anoKey) ? base.get() : Promise.resolve(null),
+  ]);
+  const acumulado = eventosDe(geralSnap);
+  let doMes = {}, doAno = {};
+  if (todosSnap) {
+    for (const d of todosSnap.docs) {
+      if (mesKey && d.id === mesKey) doMes = eventosDe(d);
+      if (anoKey && d.id.startsWith(`${anoKey}-`)) {
+        const ev = eventosDe(d);
+        for (const [k, v] of Object.entries(ev)) doAno[k] = (doAno[k] || 0) + v;
+      }
+    }
+  }
+  return { acumulado, doMes, doAno };
+}
+
 // ─── NOTIFICAÇÕES AGENDADAS ───────────────────────────────────────────────────
 
 // SECRETS_EMAIL já definido no topo do arquivo
@@ -10405,24 +10448,43 @@ exports.notifDia28 = onSchedule(
     const nomeProxMes = nomeMesPt(proxMes, proxAno);
 
     const mentoradas = await getAtivas();
+    const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+    let pulouAporte = 0;
 
     for (const m of mentoradas) {
       if (!m.email) continue;
-      // Lembrete de aporte do mês atual
-      await sendEmail({
-        to:      m.email,
-        subject: `Efetive o aporte de ${nomesMes}`,
-        html:    emailLembreteAporte(m.nome || 'mentorada', nomesMes),
-      }).catch(err => console.error(`Erro ao enviar aporte para ${m.email}:`, err));
-      // Lembrete de planejamento do próximo mês
+
+      // Lembrete de aporte — só pra quem ainda NÃO registrou aporte neste mês
+      // (item 5.4: parar de mandar "efetive o aporte" pra quem já efetivou
+      // constrói confiança; quem já fez recebe só o de planejamento).
+      let jaAportou = false;
+      try {
+        const eng = await lerEngajamento(m.id, { mesKey });
+        jaAportou = (eng.doMes.aporte_registrado || 0) > 0;
+      } catch (e) {
+        console.warn(`[notifDia28] engajamento ${m.id} falhou, envia por precaução:`, e.message);
+      }
+      if (jaAportou) {
+        pulouAporte++;
+      } else {
+        await sendEmail({
+          to:      m.email,
+          subject: `Efetive o aporte de ${nomesMes}`,
+          html:    emailLembreteAporte(m.nome || 'mentorada', nomesMes),
+        }).catch(err => console.error(`Erro ao enviar aporte para ${m.email}:`, err));
+      }
+
+      // Lembrete de planejamento do próximo mês (todas)
       await sendEmail({
         to:      m.email,
         subject: `Configure o planejamento de ${nomeProxMes}`,
         html:    emailLembretePlanejamento(m.nome || 'mentorada', nomeProxMes),
       }).catch(err => console.error(`Erro ao enviar planejamento para ${m.email}:`, err));
     }
+    console.log(`[notifDia28] aporte: ${mentoradas.length - pulouAporte} enviados, ${pulouAporte} pulados (já aportaram em ${mesKey})`);
 
-    // Push: lembrete de aporte
+    // Push: lembrete de aporte (broadcast — segmentar push exigiria refatorar
+    // sendPushToAtivas; e-mail já é o canal principal do lembrete)
     await sendPushToAtivas({
       titulo: `Aporte de ${nomesMes}`,
       corpo:  'Faltam 3 dias para o fim do mês. Já transferiu para seus investimentos?',
@@ -10501,21 +10563,35 @@ exports.notifRetencao = onSchedule(
 
 /**
  * notifMaioIR — todo dia 5 de maio, 08h (Sao_Paulo)
- *   • Lembrete de importação da declaração de IR
+ *   • Lembrete de importação da declaração de IR — só pra quem AINDA NÃO
+ *     importou o IR neste ano (item 5.4: 0/8 alunas importaram IR; quem já
+ *     fez a atualização do ano não precisa do lembrete).
  */
 exports.notifMaioIR = onSchedule(
   { schedule: '0 8 5 5 *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
   async () => {
     if (await jaExecutouHoje('notifMaioIR')) return;
     const mentoradas = await getAtivas();
+    const anoKey = String(new Date().getFullYear());
+    let pulados = 0;
 
     for (const m of mentoradas) {
+      if (!m.email) continue;
+      let jaImportouIRnoAno = false;
+      try {
+        const eng = await lerEngajamento(m.id, { anoKey });
+        jaImportouIRnoAno = (eng.doAno.ir_importado || 0) > 0;
+      } catch (e) {
+        console.warn(`[notifMaioIR] engajamento ${m.id} falhou, envia por precaução:`, e.message);
+      }
+      if (jaImportouIRnoAno) { pulados++; continue; }
       await sendEmail({
         to:      m.email,
         subject: 'Atualize seu patrimônio com a declaração de IR',
         html:    emailIR(m.nome || 'mentorada'),
       }).catch(err => console.error(`Erro ao enviar IR para ${m.email}:`, err));
     }
+    console.log(`[notifMaioIR] ${mentoradas.length - pulados} enviados, ${pulados} pulados (já importaram IR em ${anoKey})`);
     await marcarEnviado('notifMaioIR');
   },
 );
@@ -11715,6 +11791,25 @@ exports.deleteClubeItem = onCall({}, async (request) => {
  * Retorna os dados de engajamento de uma mentorada (acumulado + últimos 3 meses).
  * Exclusivo para admin.
  */
+// Junta o formato antigo (campo achatado "eventos.<nome>") com o novo (mapa
+// aninhado eventos:{}) num único mapa eventos. Ver registrarEvento.
+function _normalizarAnalytics(data) {
+  if (!data) return data;
+  const eventos = { ...(data.eventos && typeof data.eventos === 'object' ? data.eventos : {}) };
+  const out = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (k === 'eventos') continue;
+    if (k.startsWith('eventos.') && typeof v === 'number') {
+      const nome = k.slice(8);
+      eventos[nome] = (eventos[nome] || 0) + v;
+    } else {
+      out[k] = v;
+    }
+  }
+  out.eventos = eventos;
+  return out;
+}
+
 exports.getAnalytics = onCall({}, async (request) => {
   requireAdmin(request);
   const { uid } = request.data;
@@ -11727,10 +11822,10 @@ exports.getAnalytics = onCall({}, async (request) => {
   ]);
 
   return {
-    geral:  geralSnap.exists ? geralSnap.data() : null,
+    geral:  geralSnap.exists ? _normalizarAnalytics(geralSnap.data()) : null,
     meses:  mesesSnap.docs
       .filter(d => d.id !== 'geral')
-      .map(d => ({ mes: d.id, ...d.data() })),
+      .map(d => _normalizarAnalytics({ mes: d.id, ...d.data() })),
   };
 });
 

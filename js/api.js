@@ -1698,8 +1698,14 @@ export async function getComunicadosStatus() {
 // ─── ANALYTICS ───────────────────────────────────────────────────────────────
 
 export function registrarEvento(evento) {
-  // Fire-and-forget — nunca bloqueia a UI
-  call('registrarEvento')({ evento }).catch(() => {});
+  // Fire-and-forget — nunca bloqueia a UI.
+  // Manda o uid alvo da ação (uidAtual cai no viewAs/sub-usuário se ativo). O
+  // backend usa isso pra NÃO contar quando o admin está "vendo como" uma
+  // mentorada — os eventos de engajamento têm que refletir só o que a titular
+  // faz sozinha (item 5.4).
+  let uid;
+  try { uid = uidAtual(); } catch { uid = undefined; }
+  call('registrarEvento')({ evento, uid }).catch(() => {});
 }
 
 export async function getAnalytics(uid) {
