@@ -878,6 +878,12 @@
       .plan-table td:first-child { padding-left: 14px; }
       .plan-table th:last-child,
       .plan-table td:last-child { padding-right: 14px; }
+      /* "+ subcategoria" vira só "+" (mesmo tamanho dos outros ícones de
+         ação) — o texto sozinho já empurrava a coluna Status pra fora da
+         tela, sem dar pra rolar pro lado pra ver ela (achado 08/09/2026,
+         Flávia: tabela cortada no app, Status sumia por completo). */
+      .btn-add-subcat-txt { display: none; }
+      .btn-add-subcat { width: 22px !important; padding: 0 !important; margin-left: 4px !important; }
       /* Barra de ações do planejamento: empilha */
       .plan-acoes { flex-direction: column; align-items: flex-start; gap: 8px; }
       .btn-copiar-mes { width: 100%; justify-content: center; }
@@ -6505,7 +6511,7 @@
             <span class="plan-mae-chev" id="chev-${idGrupo}" style="display:inline-block;width:12px">›</span>
             ${escapeHtml(nomeGrupo)}
             <span style="font-weight:400;color:var(--text-muted);font-size:12px">(${itens.length})</span>
-            <button class="btn-edit-plan" style="width:auto;padding:0 6px;margin-left:6px" onclick="event.stopPropagation(); novaSubcategoria('${escapeHtml(nomeGrupo)}')" title="Adicionar subcategoria em ${escapeHtml(nomeGrupo)}">+ subcategoria</button>
+            <button class="btn-edit-plan btn-add-subcat" style="width:auto;padding:0 6px;margin-left:6px" onclick="event.stopPropagation(); novaSubcategoria('${escapeHtml(nomeGrupo)}')" title="Adicionar subcategoria em ${escapeHtml(nomeGrupo)}">+<span class="btn-add-subcat-txt"> subcategoria</span></button>
           </td>
           <td>${somaLimite > 0 ? `<span style="color:var(--text-muted)">${brl(somaLimite)}</span>` : `<span style="color:var(--text-muted);font-size:12px">—</span>`}</td>
           <td><span style="font-weight:600">${brl(somaReal)}</span></td>
