@@ -1932,6 +1932,25 @@
         });
       }
 
+      // ⑦ Patrimônio vazio — maior ponto de abandono do item 5.4 (0/8 alunas
+      // reais importaram Patrimônio/IR/corretora até 09/2026). O passo 2 do
+      // onboarding já cobre isso, mas some assim que a etapa é marcada
+      // concluída (inclusive pelo escape "não tenho ativos ainda"), e quem já
+      // passou do onboarding não vê mais nenhum lembrete. Só mostra pra quem
+      // já está engajada (tem orçamento lançado) mas nunca colocou nada em
+      // Patrimônio de verdade — reaparece 1x/mês até deixar de estar vazio.
+      const patrimVazioKey = `notif_patrim_vazio_${mesKey}`;
+      const temAtivosReal  = (data.patrimonio?.ativos || 0) > 0;
+      const temOrcLancado  = (data.orcamento?.receita || 0) > 0;
+      if (!temAtivosReal && temOrcLancado && !localStorage.getItem(patrimVazioKey)) {
+        notifs.push({
+          id: 'patrimonio-vazio', type: 'perfil', key: patrimVazioKey, icon: '🏦',
+          titulo: 'Seu patrimônio ainda está vazio',
+          desc: 'Sem isso, o dashboard não sabe seu patrimônio líquido real nem consegue comparar sua carteira sugerida com a atual. Leva poucos minutos: cole o texto ou envie foto/PDF da sua posição da corretora (ou da declaração de IR) e a IA organiza pra você.',
+          cta: { label: 'Importar patrimônio', href: 'patrimonio.html' },
+        });
+      }
+
       const box = document.getElementById('notificacoesBox');
       if (!box || notifs.length === 0) { box && (box.innerHTML = ''); return; }
 
