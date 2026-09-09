@@ -50,6 +50,7 @@ const {
   emailLembretePlanejamento,
   emailOnboardingParado,
   emailCaixaBaixoPJ,
+  emailAniversarioDia,
   emailVencimentosHojePJ,
   emailNovidades,
   emailNovidadesJun2026,
@@ -6029,6 +6030,39 @@ exports.notifCobrancasDia = onSchedule(
     html:    emailCobrancasDia(cobrancas),
   });
   await marcarEnviado('notifCobrancasDia');
+});
+
+/**
+ * Notificação diária de aniversariantes do dia — ativas E inativas (pedido
+ * Flávia 09/09/2026, mesmo tratamento do notifCobrancasDia). Enviada pra
+ * Flávia às 8h. Sem filtro de status: quem não é mais ativa continua
+ * merecendo o lembrete de aniversário.
+ */
+exports.notifAniversarioDia = onSchedule(
+  { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: ['GMAIL_APP_PASSWORD'] },
+  async () => {
+  if (await jaExecutouHoje('notifAniversarioDia')) return;
+
+  const agora = new Date();
+  const mes = agora.getMonth() + 1, dia = agora.getDate();
+
+  const snap = await db.collection('mentoradas').get();
+  const aniversariantes = snap.docs
+    .map(d => ({ uid: d.id, ...d.data() }))
+    .filter(m => m.dataNascimento)
+    .filter(m => {
+      const [, mNasc, dNasc] = String(m.dataNascimento).slice(0, 10).split('-').map(Number);
+      return mNasc === mes && dNasc === dia;
+    });
+
+  if (!aniversariantes.length) return;
+
+  await sendEmail({
+    to:      ADMIN_EMAIL,
+    subject: `🎂 Aniversário hoje — ${aniversariantes.map(m => m.nome).join(', ')}`,
+    html:    emailAniversarioDia(aniversariantes),
+  });
+  await marcarEnviado('notifAniversarioDia');
 });
 
 // ─── IMPOSTOS PREVISTOS (admin.html) ──────────────────────────────────────────

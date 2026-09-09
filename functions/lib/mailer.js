@@ -210,6 +210,40 @@ function emailOnboardingParado(nome) {
 }
 
 /**
+ * E-mail: aniversariantes do dia (ativas e inativas — pedido Flávia 09/09/2026,
+ * mesmo tratamento do emailCobrancasDia, mas sem filtro de status).
+ * @param {Array} aniversariantes — [{ nome, status, telefone }]
+ */
+function emailAniversarioDia(aniversariantes) {
+  const linha = (m) => `
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;color:#111827;font-size:13px;">
+        ${m.nome}${m.status === 'inativa' ? ' <span style="color:#9ca3af;font-size:11px">(inativa)</span>' : ''}
+      </td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;color:#4b5563;font-size:13px;">
+        ${m.telefone ? `<a href="https://wa.me/55${m.telefone}" style="color:#0D2B45;font-weight:600;">Chamar no WhatsApp</a>` : '—'}
+      </td>
+    </tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">🎂 Aniversário hoje</h2>
+    <p style="${S.p}">
+      ${aniversariantes.length === 1 ? '1 mentorada faz' : `${aniversariantes.length} mentoradas fazem`}
+      aniversário hoje.
+    </p>
+    <table style="width:100%;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+      <thead>
+        <tr style="background:#f3f4f6;">
+          <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Nome</th>
+          <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Contato</th>
+        </tr>
+      </thead>
+      <tbody>${aniversariantes.map(linha).join('')}</tbody>
+    </table>
+  `);
+}
+
+/**
  * E-mail: alerta de caixa da empresa (PJ) abaixo da reserva mínima configurada.
  * @param {string} nome        — nome da mentorada
  * @param {number} saldoAtual  — soma do saldoAtual das reservas PJ ativas
@@ -1462,6 +1496,7 @@ module.exports = {
   emailOnboardingParado,
   emailLembretePlanejamento,
   emailCaixaBaixoPJ,
+  emailAniversarioDia,
   emailVencimentosHojePJ,
   emailNovidades,
   emailNovidadesJun2026,

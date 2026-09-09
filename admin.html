@@ -542,6 +542,16 @@
     }
     .notif-fechar:hover { color: var(--white); }
 
+    /* ─── Banner de aniversariantes ──────────── */
+    #notifBannerAniversario {
+      display: none;
+      background: rgba(207,174,101,0.1); border-top: 3px solid var(--gold);
+      border-bottom: 1px solid rgba(207,174,101,0.2);
+      padding: 14px 32px; gap: 14px;
+      align-items: flex-start;
+    }
+    #notifBannerAniversario.visivel { display: flex; }
+
     /* ─── Contratos no detalhe ───────────────── */
     .contrato-card {
       background: var(--navy); border: 1px solid var(--border);
@@ -756,6 +766,16 @@
       <div class="notif-lista" id="notifLista"></div>
     </div>
     <button class="notif-fechar" id="notifFechar" title="Fechar">×</button>
+  </div>
+
+  <!-- Banner de aniversariantes (ativas e inativas) -->
+  <div id="notifBannerAniversario">
+    <div class="notif-icon">🎂</div>
+    <div class="notif-corpo">
+      <div class="notif-titulo" id="notifTituloAniversario"></div>
+      <div class="notif-lista" id="notifListaAniversario"></div>
+    </div>
+    <button class="notif-fechar" id="notifFecharAniversario" title="Fechar">×</button>
   </div>
 
   <div class="loading-overlay" id="loadingOverlay">
@@ -2728,6 +2748,10 @@
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
 
+      // Aniversariantes (hoje + próximos 7 dias) — não depende de cobranças,
+      // já roda com a lista de mentoradas que acabou de carregar.
+      try { mostrarNotifAniversarios(mentoradas); } catch (err) { console.error('[admin] Erro no banner de aniversário:', err); }
+
       // Carrega cobranças do mês atual + mês anterior (para detectar atrasos)
       const agora = new Date();
       const mesAtual = agora.getMonth() + 1;
@@ -2903,6 +2927,74 @@
 
     document.getElementById('notifFechar').addEventListener('click', () => {
       document.getElementById('notifBanner').classList.remove('visivel');
+    });
+
+    // ─── Banner de aniversariantes (ativas e inativas) ───────────────────────────
+    // Pedido Flávia 09/09/2026: mesmo tratamento do banner de cobranças, mas pra
+    // aniversário — hoje + próximos 7 dias, sem filtrar por status (vale pra quem
+    // já não é mais ativa também).
+    function proximoAniversario(dataNascimento, hoje) {
+      const [, mes, dia] = dataNascimento.slice(0, 10).split('-').map(Number);
+      let prox = new Date(hoje.getFullYear(), mes - 1, dia);
+      if (prox < hoje) prox = new Date(hoje.getFullYear() + 1, mes - 1, dia);
+      return prox;
+    }
+
+    function mostrarNotifAniversarios(lista) {
+      const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+      const comData = lista.filter(m => m.dataNascimento);
+
+      const hojeMes = hoje.getMonth() + 1, hojeDia = hoje.getDate();
+      const aniversariantesHoje = comData.filter(m => {
+        const [, mes, dia] = m.dataNascimento.slice(0, 10).split('-').map(Number);
+        return mes === hojeMes && dia === hojeDia;
+      });
+      const idsHoje = new Set(aniversariantesHoje.map(m => m.uid || m.id));
+      const aniversariantesSemana = comData
+        .filter(m => !idsHoje.has(m.uid || m.id))
+        .map(m => ({ m, prox: proximoAniversario(m.dataNascimento, hoje) }))
+        .filter(({ prox }) => Math.round((prox - hoje) / 86_400_000) <= 7)
+        .sort((a, b) => a.prox - b.prox)
+        .map(({ m }) => m);
+
+      if (!aniversariantesHoje.length && !aniversariantesSemana.length) return;
+
+      const tagInativa = (m) => m.status === 'inativa'
+        ? ' <span style="opacity:.6;font-size:11px">(inativa)</span>' : '';
+      const linha = (m, sub) => `
+        <div style="padding-left:12px;cursor:pointer;border-radius:4px;padding:3px 8px 3px 12px;transition:background .15s"
+              onmouseover="this.style.background='rgba(207,174,101,.08)'" onmouseout="this.style.background=''"
+              onclick="abrirDetalhe('${m.uid || m.id}')">
+          · <strong style="color:var(--gold)">${m.nome}</strong>${sub ? ` — ${sub}` : ''}${tagInativa(m)}
+          <span style="opacity:.5;font-size:11px">→ ver</span>
+        </div>`;
+
+      let html = '';
+      if (aniversariantesHoje.length) {
+        html += `<div style="font-weight:700;color:var(--gold);margin-bottom:4px">
+          🎂 ${aniversariantesHoje.length} aniversário${aniversariantesHoje.length > 1 ? 's' : ''} hoje!
+        </div>`;
+        html += aniversariantesHoje.map(m => linha(m, '')).join('');
+      }
+      if (aniversariantesSemana.length) {
+        if (aniversariantesHoje.length) html += '<div style="margin-top:10px"></div>';
+        html += `<div style="font-weight:700;color:var(--text-secondary);margin-bottom:4px">
+          📅 ${aniversariantesSemana.length} aniversário${aniversariantesSemana.length > 1 ? 's' : ''} nos próximos 7 dias
+        </div>`;
+        html += aniversariantesSemana.map(m => {
+          const prox = proximoAniversario(m.dataNascimento, hoje);
+          const diaMes = `${String(prox.getDate()).padStart(2, '0')}/${String(prox.getMonth() + 1).padStart(2, '0')}`;
+          return linha(m, diaMes);
+        }).join('');
+      }
+
+      document.getElementById('notifTituloAniversario').innerHTML = '';
+      document.getElementById('notifListaAniversario').innerHTML = html;
+      document.getElementById('notifBannerAniversario').classList.add('visivel');
+    }
+
+    document.getElementById('notifFecharAniversario').addEventListener('click', () => {
+      document.getElementById('notifBannerAniversario').classList.remove('visivel');
     });
 
     function renderMentoradas() {
