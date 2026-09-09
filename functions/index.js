@@ -48,6 +48,7 @@ const {
   emailLembreteOrcamento,
   emailLembreteAporte,
   emailLembretePlanejamento,
+  emailOnboardingParado,
   emailCaixaBaixoPJ,
   emailVencimentosHojePJ,
   emailNovidades,
@@ -10559,6 +10560,51 @@ exports.notifRetencao = onSchedule(
         console.log(`[retencao] ${tarefas.length} e-mail(s) enviados para ${maskEmail(email)} (dia ${diasEmAlerta} de alerta)`);
       }
     }
+  }));
+
+/**
+ * notifOnboardingParado — diariamente às 09h (Sao_Paulo)
+ * Item 5.4 (achado 09/09/2026): quem entra 1x no Dashboard e nunca mais
+ * volta não é alcançado por nenhum lembrete existente (todos exigem já
+ * estar usando o produto — orçamento do mês, aporte, etc). Dispara UM e-mail
+ * pessoal, uma única vez por conta, 7 dias após a criação, oferecendo ajuda
+ * direta da Flávia — pra quem ficou com totalAcessos <= 1 nesse intervalo.
+ * Idempotente via campo onboardingParadoEmailEnviado (nunca reenvia).
+ */
+exports.notifOnboardingParado = onSchedule(
+  { schedule: '0 9 * * *', timeZone: 'America/Sao_Paulo', secrets: SECRETS_EMAIL },
+  comMonitoramento('notifOnboardingParado', async () => {
+    if (await jaExecutouHoje('notifOnboardingParado')) return;
+
+    const DIAS_GATILHO = 7;
+    const agora = new Date();
+    const mentoradas = await getAtivas();
+    let enviados = 0, elegiveisSemCriadoEm = 0;
+
+    for (const m of mentoradas) {
+      if (!m.email) continue;
+      if (m.onboardingParadoEmailEnviado) continue;
+      if ((m.totalAcessos || 0) > 1) continue;
+      if (!m.criadoEm) { elegiveisSemCriadoEm++; continue; } // conta legada, sem timestamp — não dá pra calcular com segurança, pula
+
+      const diasDesdeCriacao = Math.floor((agora - m.criadoEm.toDate()) / 86_400_000);
+      if (diasDesdeCriacao < DIAS_GATILHO) continue;
+
+      try {
+        await sendEmail({
+          to:      m.email,
+          subject: 'Posso te ajudar a configurar o Dashboard?',
+          html:    emailOnboardingParado(m.nome || 'mentorada'),
+        });
+        await db.collection('mentoradas').doc(m.id).update({ onboardingParadoEmailEnviado: true });
+        enviados++;
+      } catch (err) {
+        console.error(`[notifOnboardingParado] Falha ao enviar para ${maskEmail(m.email)}:`, err.message);
+      }
+    }
+
+    console.log(`[notifOnboardingParado] ${enviados} enviado(s)${elegiveisSemCriadoEm ? `, ${elegiveisSemCriadoEm} pulada(s) por falta de criadoEm` : ''}.`);
+    await marcarEnviado('notifOnboardingParado');
   }));
 
 /**

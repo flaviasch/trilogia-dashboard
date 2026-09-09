@@ -177,6 +177,39 @@ function emailLembreteAporte(nome, nomeMes) {
 }
 
 /**
+ * E-mail: onboarding parado — entrou 1x no Dashboard e nunca mais voltou.
+ * Disparado uma única vez, 7 dias após a criação da conta, pra quem tem
+ * totalAcessos <= 1 (achado 09/09/2026, item 5.4: Giovanni e Elivânia
+ * entraram 1x e sumiram — checklist dentro do app não ajuda quem não abre
+ * o app de novo). Tom pessoal — oferece ajuda direta da Flávia, não só um
+ * link genérico (decisão da Flávia 09/09/2026).
+ * @param {string} nome — nome da mentorada
+ */
+function emailOnboardingParado(nome) {
+  const primeiroNome = (nome || 'mentorada').split(' ')[0];
+  return layout(`
+    <h2 style="${S.h2}">Posso te ajudar a configurar o Dashboard?</h2>
+    <p style="${S.p}">Olá, ${primeiroNome}!</p>
+    <p style="${S.p}">
+      Vi que você acessou o Trilogia Dashboard, mas ainda não terminou de configurar
+      as informações iniciais (perfil de investidor, patrimônio, reservas ou orçamento).
+      Isso é normal — às vezes só falta alguém explicar rapidinho por onde começar.
+    </p>
+    <p style="${S.p}">
+      Se travou em algum passo, me chama que eu te ajudo pessoalmente — é rapidinho.
+    </p>
+    <a href="https://wa.me/5511995658658?text=${encodeURIComponent(`Oi, Flávia! Travei um pouco na configuração inicial do Dashboard, pode me ajudar?`)}" style="${S.btn}">
+      Falar com a Flávia no WhatsApp
+    </a>
+    <p style="${S.pSmall}">
+      Prefere continuar sozinha? Você pode responder este e-mail também, ou entrar
+      direto no <a href="https://dashboard.flaviaschusciman.com/index.html" style="color:#CFAE65;">Dashboard</a>
+      quando quiser retomar de onde parou.
+    </p>
+  `);
+}
+
+/**
  * E-mail: alerta de caixa da empresa (PJ) abaixo da reserva mínima configurada.
  * @param {string} nome        — nome da mentorada
  * @param {number} saldoAtual  — soma do saldoAtual das reservas PJ ativas
@@ -1426,6 +1459,7 @@ module.exports = {
   emailSemPerfil,
   emailLembreteOrcamento,
   emailLembreteAporte,
+  emailOnboardingParado,
   emailLembretePlanejamento,
   emailCaixaBaixoPJ,
   emailVencimentosHojePJ,
