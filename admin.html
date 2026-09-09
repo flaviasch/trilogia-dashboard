@@ -990,6 +990,40 @@
             </div>
           </div>
         </div>
+
+        <!-- Contato — WhatsApp (situações como o e-mail de onboarding parado,
+             que hoje só tem link genérico pro WhatsApp da Flávia) e data de
+             nascimento (lembrete de aniversário). Pedido Flávia 09/09/2026:
+             precisa valer pra ativas E inativas — por isso fica na mesma
+             tela de detalhe de sempre, sem gate nenhum por status. -->
+        <div class="detalhe-card">
+          <div class="card-header-row">
+            <div class="detalhe-card-label">Contato</div>
+            <button class="btn-edit-inline" id="btnEditContato">Editar</button>
+          </div>
+          <!-- exibição -->
+          <div id="contatoDisplay" style="display:flex;gap:20px;flex-wrap:wrap">
+            <div class="detalhe-card-pair">
+              <span class="label">WhatsApp</span>
+              <span class="valor" id="detWhatsapp">—</span>
+            </div>
+            <div class="detalhe-card-pair">
+              <span class="label">Aniversário</span>
+              <span class="valor" id="detNascimento">—</span>
+            </div>
+          </div>
+          <!-- edição inline -->
+          <div id="contatoEdit" style="display:none">
+            <div class="inline-edit-fields">
+              <input type="tel" id="editWhatsapp" placeholder="(11) 99999-9999" />
+              <input type="date" id="editNascimento" />
+            </div>
+            <div class="inline-edit-actions">
+              <button class="btn-cancel-small" id="btnCancelContato">Cancelar</button>
+              <button class="btn-save-small"   id="btnSalvarContato">Salvar</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Contratos -->
@@ -2599,6 +2633,29 @@
       return { texto: fmt, cls: 'expiracao-ok', sub: `${dias} dias restantes` };
     }
 
+    /** Formata telefone salvo (só dígitos) como "(11) 99999-9999" pra exibição. */
+    function formatarTelefoneExibicao(tel) {
+      if (!tel) return '';
+      const d = String(tel).replace(/\D/g, '');
+      if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+      if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+      return tel; // formato inesperado (ex: DDI incluso) — mostra como veio
+    }
+
+    /** Formata data de nascimento (YYYY-MM-DD) como "DD/MM" + quantos dias faltam pro próximo aniversário. */
+    function formatarNascimentoExibicao(dataNasc) {
+      if (!dataNasc) return '';
+      const [ano, mes, dia] = String(dataNasc).slice(0, 10).split('-').map(Number);
+      if (!ano || !mes || !dia) return '';
+      const fmt  = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}`;
+      const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+      let prox = new Date(hoje.getFullYear(), mes - 1, dia);
+      if (prox < hoje) prox = new Date(hoje.getFullYear() + 1, mes - 1, dia);
+      const dias = Math.round((prox - hoje) / 86_400_000);
+      if (dias === 0) return `${fmt} 🎂 Hoje!`;
+      return `${fmt} (em ${dias} dia${dias === 1 ? '' : 's'})`;
+    }
+
     /** Retorna dias desde o último acesso, ou Infinity se nunca acessou. */
     function diasSemAcesso(ts) {
       if (!ts) return Infinity;
@@ -3813,6 +3870,17 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       document.getElementById('expDisplay').style.display = '';
       document.getElementById('expEdit').style.display    = 'none';
 
+      // Contato — exibição
+      setText('detWhatsapp',   formatarTelefoneExibicao(m.telefone) || '—');
+      setText('detNascimento', formatarNascimentoExibicao(m.dataNascimento) || '—');
+      // pré-preenche campos de edição
+      document.getElementById('editWhatsapp').value   = m.telefone || '';
+      document.getElementById('editNascimento').value = m.dataNascimento
+        ? String(m.dataNascimento).slice(0, 10) : '';
+      // garante modo exibição
+      document.getElementById('contatoDisplay').style.display = '';
+      document.getElementById('contatoEdit').style.display    = 'none';
+
       // Alertas — mesma fonte de verdade da lista (motivosAlerta), pra nunca
       // divergir entre "quantos alertas essa mentorada tem" na lista e aqui.
       const alertas = motivosAlerta(m);
@@ -3992,6 +4060,42 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
         setText('detValorMensal', m.valorMensal ? brl(m.valorMensal) + '/mês' : '—');
         document.getElementById('prodDisplay').style.display = '';
         document.getElementById('prodEdit').style.display    = 'none';
+      } catch (err) {
+        alert(`Erro ao salvar: ${err.message}`);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+
+    // ─── Edição inline: Contato (WhatsApp + aniversário) ──────────────────────────
+    // Pedido Flávia 09/09/2026: WhatsApp pra alcançar mentorada em situações como
+    // o e-mail de onboarding parado; aniversário pra lembrete de aniversário.
+    document.getElementById('btnEditContato').addEventListener('click', () => {
+      document.getElementById('contatoDisplay').style.display = 'none';
+      document.getElementById('contatoEdit').style.display    = '';
+    });
+    document.getElementById('btnCancelContato').addEventListener('click', () => {
+      document.getElementById('contatoDisplay').style.display = '';
+      document.getElementById('contatoEdit').style.display    = 'none';
+    });
+    document.getElementById('btnSalvarContato').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const uid = mentoradaEmDetalhe.uid || mentoradaEmDetalhe.id;
+      const btn = document.getElementById('btnSalvarContato');
+      // Normaliza pra só dígitos — mesmo formato já lido em outros pontos do
+      // backend (ex: link https://wa.me/55<telefone>).
+      const telefone       = document.getElementById('editWhatsapp').value.replace(/\D/g, '') || null;
+      const dataNascimento = document.getElementById('editNascimento').value || null;
+      btn.disabled = true; btn.textContent = 'Salvando…';
+      try {
+        await updateMentorada(uid, { telefone, dataNascimento });
+        Object.assign(mentoradaEmDetalhe, { telefone, dataNascimento });
+        const idx = mentoradas.findIndex(m => (m.uid || m.id) === uid);
+        if (idx >= 0) Object.assign(mentoradas[idx], { telefone, dataNascimento });
+        setText('detWhatsapp',   formatarTelefoneExibicao(telefone) || '—');
+        setText('detNascimento', formatarNascimentoExibicao(dataNascimento) || '—');
+        document.getElementById('contatoDisplay').style.display = '';
+        document.getElementById('contatoEdit').style.display    = 'none';
       } catch (err) {
         alert(`Erro ao salvar: ${err.message}`);
       } finally {

@@ -4244,6 +4244,7 @@ exports.updateMentorada = onCall({ secrets: [sGmail] }, async (request) => {
     'produto', 'valorMensal', 'formaPagamento', 'dataExpiracao',
     'mentoriaEncerrada', 'assinaturaDashboard', 'assinaturaClube',
     'notionLicoesPendentes', 'nome', 'email',
+    'telefone', 'dataNascimento',
   ];
   const atualizacao = {};
   for (const [k, v] of Object.entries(campos || {})) {
