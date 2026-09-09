@@ -443,6 +443,24 @@
 
   <script>window.sentryOnLoad=function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0,allowUrls:['dashboard.flaviaschusciman.com','localhost'],ignoreErrors:['Script error.','Script error','Non-Error promise rejection captured']});};</script>
   <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
+<!-- FAB_FADE_ON_SCROLL -->
+<style>
+  /* Botões flutuantes (+ lançar, ? suporte) encolhem e ficam translucidos
+     enquanto a tela rola, voltando ao normal quando para — evita cobrir
+     conteúdo por baixo (achado 09/09/2026, Flávia: cobriam a coluna Status
+     do Planejamento). Não afeta clique normal, só via .is-scrolling
+     (removida ~350ms após o último evento de scroll). */
+  .suporte-btn, #fabLancar, #fabOptions button {
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  body.is-scrolling .suporte-btn,
+  body.is-scrolling #fabLancar,
+  body.is-scrolling #fabOptions button {
+    opacity: .35;
+    transform: scale(.8);
+    pointer-events: none;
+  }
+</style>
 </head>
 <body>
 
@@ -2358,5 +2376,16 @@
   </script>
 
 <script src="js/theme.js" defer></script>
+<!-- FAB_FADE_ON_SCROLL -->
+<script>
+  (function () {
+    var t;
+    window.addEventListener('scroll', function () {
+      document.body.classList.add('is-scrolling');
+      clearTimeout(t);
+      t = setTimeout(function () { document.body.classList.remove('is-scrolling'); }, 350);
+    }, { passive: true });
+  })();
+</script>
 </body>
 </html>
