@@ -6088,6 +6088,31 @@ exports.notifAniversarioDia = onSchedule(
 // ser sobrescrito nas próximas regerações — mesma lógica pra qualquer linha já
 // marcada como paga, nunca mexe de novo.
 
+/**
+ * A competência (mes/ano) cai dentro da vigência do tributo?
+ * (achado 10/09/2026, Flávia: vai trocar o regime da empresa na virada do
+ * exercício — Presumido→Simples a partir de janeiro do ano seguinte, e o
+ * inverso pode acontecer depois. `ativo` sozinho não tinha noção de tempo:
+ * editar uma nota de um mês antigo DEPOIS da troca recalculava aquele mês
+ * com as alíquotas novas, corrompendo o histórico. Cada tributo agora tem
+ * vigência — início (ausente = desde sempre) e fim (ausente/null = sem
+ * previsão de encerrar). Tributo legado sem nenhum campo de vigência =
+ * sempre vigente, nada trava.) `ativo` continua existindo, como pausa
+ * manual independente de data.
+ */
+function _tributoVigenteEm(trib, mes, ano) {
+  const comp = ano * 12 + (mes - 1);
+  if (trib.vigenciaInicioAno) {
+    const ini = trib.vigenciaInicioAno * 12 + ((trib.vigenciaInicioMes || 1) - 1);
+    if (comp < ini) return false;
+  }
+  if (trib.vigenciaFimAno) {
+    const fim = trib.vigenciaFimAno * 12 + ((trib.vigenciaFimMes || 12) - 1);
+    if (comp > fim) return false;
+  }
+  return true;
+}
+
 /** Converte competência (mes/ano) + regra (dia, defasagem) em data de vencimento ISO. */
 function _competenciaParaVencimento(mes, ano, dia, defasagemMeses) {
   let m = mes + (defasagemMeses || 0);
@@ -6133,8 +6158,20 @@ function _vencimentoTrimestral(ultimoMesTrimestre, ano) {
 async function _regerarImpostosPrevistos(uid, mes, ano) {
   const tributosSnap = await db.collection('tributosConfig')
     .where('uid', '==', uid).where('ativo', '==', true).get();
-  const tributos = tributosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-  if (!tributos.length) return;
+  const todosAtivos = tributosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Só entra no cálculo desta competência o tributo cuja vigência cobre o
+  // mês/ano DA NOTA (achado 10/09/2026, ver _tributoVigenteEm) — nunca a
+  // configuração de hoje. É isso que protege o histórico quando a Flávia
+  // troca de regime e depois edita/corrige uma nota de um mês antigo.
+  const tributos = todosAtivos.filter(t => _tributoVigenteEm(t, mes, ano));
+  // ids de tributos ativos que NÃO valem nesta competência — usados só pra
+  // limpar linha 'auto' fantasma (ex: alguém encurtou a vigência à mão de um
+  // mês que já tinha provisão gerada). No fluxo normal de troca por exercício
+  // isso nunca dispara: janeiro futuro não tem nota nem linha ainda.
+  const idsNaoVigentes = new Set(
+    todosAtivos.filter(t => !_tributoVigenteEm(t, mes, ano)).map(t => t.id)
+  );
+  if (!tributos.length && !idsNaoVigentes.size) return;
 
   // Linha mensal — TODO tributo (mensal ou trimestral) continua gerando sua
   // provisão de referência sobre a nota do próprio mês, sem mudança nenhuma
@@ -6155,6 +6192,15 @@ async function _regerarImpostosPrevistos(uid, mes, ano) {
   existentesSnap.docs.forEach(d => { existentesPorTributo[d.data().tributoId] = { id: d.id, ...d.data() }; });
 
   const batch = db.batch();
+  // Limpa linha 'auto' de tributo que deixou de valer nesta competência (ver
+  // idsNaoVigentes acima) — só as ainda não pagas e sem ajuste manual; linha
+  // de trimestre acumulado (tem `.trimestre`) é gerida em _regerarProvisaoTrimestral.
+  existentesSnap.docs.forEach(d => {
+    const l = d.data();
+    if (idsNaoVigentes.has(l.tributoId) && l.origem === 'auto' && !l.pago && !l.trimestre) {
+      batch.delete(d.ref);
+    }
+  });
   // Anual (ex: TFE) não tem "competência" mensal — não depende de notas, não
   // entra nesse loop (ver _regerarTributoAnual, disparado só quando o
   // tributo é salvo/editado, achado 25/07/2026: TFE é valor fixo pago 1x por
@@ -6256,6 +6302,10 @@ async function _regerarProvisaoTrimestral(uid, trimestrais, trimestre, ano) {
 // tributo, sempre pro ano corrente (achado 25/07/2026, Flávia: TFE é anual,
 // periodicidade não suportava isso ainda).
 async function _regerarTributoAnual(uid, trib, ano) {
+  // Vigência: não gera a guia anual de um ano fora do período em que o
+  // tributo vale (ex: TFE do regime antigo não deve aparecer no ano em que
+  // a empresa já migrou pro regime novo — achado 10/09/2026).
+  if (!_tributoVigenteEm(trib, trib.mesVencimento, ano)) return;
   const vencimento = _competenciaParaVencimento(trib.mesVencimento, ano, trib.diaVencimento, 0);
   const existentesSnap = await db.collection('impostosPrevistos')
     .where('uid', '==', uid).where('tributoId', '==', trib.id).where('ano', '==', ano).get();
@@ -6281,7 +6331,8 @@ exports.getTributosConfig = onCall({}, async (request) => {
 });
 
 exports.saveTributoConfig = onCall({}, async (request) => {
-  const { uid, id, nome, tipo, percentual, valorFixo, diaVencimento, defasagemMeses, mesVencimento, ativo, periodicidade } = request.data;
+  const { uid, id, nome, tipo, percentual, valorFixo, diaVencimento, defasagemMeses, mesVencimento, ativo, periodicidade,
+          vigenciaInicioMes, vigenciaInicioAno, vigenciaFimMes, vigenciaFimAno } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!nome || typeof nome !== 'string' || !nome.trim())
     throw new HttpsError('invalid-argument', 'nome é obrigatório.');
@@ -6309,6 +6360,22 @@ exports.saveTributoConfig = onCall({}, async (request) => {
   if (periodicidade === 'anual' && (!Number.isInteger(mesVenc) || mesVenc < 1 || mesVenc > 12))
     throw new HttpsError('invalid-argument', 'mesVencimento deve ser um inteiro entre 1 e 12.');
 
+  // Vigência (achado 10/09/2026, ver _tributoVigenteEm). Início e fim são
+  // opcionais e independentes — ausência de início = "vigente desde sempre"
+  // (tributo legado nunca trava), ausência de fim = "sem previsão de encerrar".
+  // Aceita só o par completo mês+ano; par incompleto vira null (ignora).
+  const _parVigencia = (m, a) => {
+    const mm = Number(m), aa = Number(a);
+    if (!Number.isInteger(mm) || !Number.isInteger(aa)) return { mes: null, ano: null };
+    if (mm < 1 || mm > 12) throw new HttpsError('invalid-argument', 'mês de vigência deve ser 1-12.');
+    if (aa < 2020 || aa > 2100) throw new HttpsError('invalid-argument', 'ano de vigência deve ser 2020-2100.');
+    return { mes: mm, ano: aa };
+  };
+  const vi = _parVigencia(vigenciaInicioMes, vigenciaInicioAno);
+  const vf = _parVigencia(vigenciaFimMes, vigenciaFimAno);
+  if (vi.ano && vf.ano && (vf.ano * 12 + vf.mes) < (vi.ano * 12 + vi.mes))
+    throw new HttpsError('invalid-argument', 'fim da vigência não pode ser antes do início.');
+
   const dados = {
     nome: nome.trim().slice(0, 100),
     tipo,
@@ -6319,6 +6386,10 @@ exports.saveTributoConfig = onCall({}, async (request) => {
     periodicidade,
     mesVencimento: periodicidade === 'anual' ? mesVenc : null,
     ativo: ativo !== false,
+    vigenciaInicioMes: vi.mes,
+    vigenciaInicioAno: vi.ano,
+    vigenciaFimMes: vf.mes,
+    vigenciaFimAno: vf.ano,
   };
 
   let tributoId = id;
@@ -6337,7 +6408,15 @@ exports.saveTributoConfig = onCall({}, async (request) => {
   }
 
   if (periodicidade === 'anual' && dados.ativo) {
-    await _regerarTributoAnual(uid, { ...dados, id: tributoId }, new Date().getFullYear());
+    // Gera a guia do ano corrente e também a do 1º ano de vigência quando ele
+    // é futuro (ex: TFE do regime novo cadastrada agora, valendo a partir do
+    // ano que vem) — _regerarTributoAnual ignora anos fora da vigência.
+    const anoAtual = new Date().getFullYear();
+    const anosAlvo = new Set([anoAtual]);
+    if (dados.vigenciaInicioAno && dados.vigenciaInicioAno > anoAtual) anosAlvo.add(dados.vigenciaInicioAno);
+    for (const a of anosAlvo) {
+      await _regerarTributoAnual(uid, { ...dados, id: tributoId }, a);
+    }
   }
 
   return { id: tributoId, ok: true };
@@ -6368,6 +6447,64 @@ exports.deleteTributoConfig = onCall({}, async (request) => {
     await batch.commit();
   }
   return { ok: true, linhasOrfasRemovidas: orfasSnap.size };
+});
+
+/**
+ * Troca de regime de tributação (achado 10/09/2026, Flávia: vai migrar a
+ * empresa de Lucro Presumido pra Simples Nacional na virada do exercício, e
+ * o inverso pode acontecer depois). Fluxo guiado da tela "Configurar
+ * tributos" (admin.html e impostos-pj.html): a usuária escolhe o ANO em que
+ * o regime novo passa a valer (sempre 1º de janeiro — mudança de exercício)
+ * e marca quais tributos vigentes hoje devem encerrar. Aqui só fechamos a
+ * vigência dos marcados (vigenciaFim = dezembro do ano anterior); o cadastro
+ * dos tributos do regime novo é feito depois, pelo formulário normal, com
+ * vigenciaInicio pré-preenchido em janeiro do ano escolhido.
+ *
+ * Não recalcula nada: meses passados continuam com a provisão já
+ * materializada em impostosPrevistos, e janeiro do ano novo (que ainda não
+ * tem nota) materializa sozinho quando a primeira nota for lançada, já
+ * pegando os tributos novos por vigência. Reversão usa esta mesma função.
+ */
+exports.trocarRegimeTributarioPJ = onCall({}, async (request) => {
+  const { uid, anoNovoRegime, novoRegime, tributoIdsEncerrar } = request.data;
+  requireSelfOrAdmin(request, uid);
+
+  const anoNovo = Number(anoNovoRegime);
+  const anoAtual = new Date().getFullYear();
+  if (!Number.isInteger(anoNovo) || anoNovo < anoAtual || anoNovo > 2100)
+    throw new HttpsError('invalid-argument', 'anoNovoRegime deve ser o ano atual ou um ano futuro.');
+  if (!['mei', 'simples', 'presumido'].includes(novoRegime))
+    throw new HttpsError('invalid-argument', "novoRegime deve ser 'mei', 'simples' ou 'presumido'.");
+  const ids = Array.isArray(tributoIdsEncerrar) ? tributoIdsEncerrar.filter(x => typeof x === 'string' && x) : [];
+
+  const anoFim = anoNovo - 1;
+  const encerrados = [];
+  if (ids.length) {
+    const snaps = await Promise.all(ids.map(id => db.collection('tributosConfig').doc(id).get()));
+    const batch = db.batch();
+    snaps.forEach((s, i) => {
+      if (!s.exists) throw new HttpsError('not-found', `Tributo ${ids[i]} não encontrado.`);
+      if (s.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+      batch.update(s.ref, { vigenciaFimMes: 12, vigenciaFimAno: anoFim });
+      encerrados.push(ids[i]);
+    });
+    await batch.commit();
+  }
+
+  // Espelha o regime vigente em contasPJ (campo informativo — usado pela
+  // sugestão de tributos por regime e pelos rótulos). Só se o doc existir:
+  // a conta da própria Flávia no admin pode nunca ter passado pelo
+  // onboarding-pj, e não é hora de criar um doc parcial.
+  const contaRef = db.collection('contasPJ').doc(uid);
+  if ((await contaRef.get()).exists) {
+    await contaRef.set({
+      regime: novoRegime,
+      regimeHistorico: admin.firestore.FieldValue.arrayUnion({ regime: novoRegime, desdeAno: anoNovo }),
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+
+  return { ok: true, encerrados, vigenciaInicioNovo: { mes: 1, ano: anoNovo } };
 });
 
 exports.getNotasEmitidas = onCall({}, async (request) => {
@@ -8426,18 +8563,25 @@ exports.getRelatorioAnualPJ = onCall({}, async (request) => {
 // e sim "dado o que está configurado hoje, quanto preciso faturar por mês".
 // Só tributos periodicidade:'mensal' entram — trimestral/anual ficam de fora
 // (simplificação assumida: indicador direcional, não contábil exato).
+// Vigência (10/09/2026): usa o regime vigente HOJE, não o do mês/ano do
+// request (esse par só resolve ocorrência de despesa fixa). Se a Flávia já
+// deixou o regime novo cadastrado com vigência futura, o Ponto de Equilíbrio
+// continua mostrando o regime atual até a virada — só muda quando de fato virar.
 exports.getPontoEquilibrioPJ = onCall({}, async (request) => {
   const { uid, mes, ano } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
   if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
 
+  const _hoje = new Date();
+  const _mesHoje = _hoje.getMonth() + 1, _anoHoje = _hoje.getFullYear();
   const tribSnap = await db.collection('tributosConfig')
     .where('uid', '==', uid).where('ativo', '==', true).where('periodicidade', '==', 'mensal').get();
   let somaPercentuais = 0;
   let tributosFixosMensais = 0;
   tribSnap.docs.forEach(d => {
     const t = d.data();
+    if (!_tributoVigenteEm(t, _mesHoje, _anoHoje)) return;
     if (t.tipo === 'percentual') somaPercentuais += (t.percentual || 0);
     else tributosFixosMensais += (t.valorFixo || 0);
   });

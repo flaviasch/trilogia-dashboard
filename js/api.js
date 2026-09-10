@@ -674,6 +674,11 @@ export async function saveTributoConfig(uid, dados) {
 export async function deleteTributoConfig(uid, id) {
   return adminCall('deleteTributoConfig')({ uid, id });
 }
+/** Troca de regime de tributação: fecha a vigência dos tributos marcados em
+ *  12/(anoNovoRegime-1). dados = { anoNovoRegime, novoRegime, tributoIdsEncerrar }. */
+export async function trocarRegimeTributarioPJ(uid, dados) {
+  return adminCall('trocarRegimeTributarioPJ')({ uid, ...dados });
+}
 export async function getNotasEmitidas(uid, mes, ano) {
   return adminCall('getNotasEmitidas')({ uid, mes, ano });
 }

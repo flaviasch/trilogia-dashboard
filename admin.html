@@ -1374,9 +1374,40 @@
               </select>
             </div>
           </div>
+          <div class="field-group" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+            <div>
+              <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Vigência — início (mês)</label>
+              <select id="tribVigInicioMes">
+                <option value="">—</option>
+                <option value="1">Jan</option><option value="2">Fev</option><option value="3">Mar</option>
+                <option value="4">Abr</option><option value="5">Mai</option><option value="6">Jun</option>
+                <option value="7">Jul</option><option value="8">Ago</option><option value="9">Set</option>
+                <option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">ano</label>
+              <input type="number" id="tribVigInicioAno" min="2020" max="2100" placeholder="—">
+            </div>
+            <div>
+              <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Vigência — fim (mês)</label>
+              <select id="tribVigFimMes">
+                <option value="">—</option>
+                <option value="1">Jan</option><option value="2">Fev</option><option value="3">Mar</option>
+                <option value="4">Abr</option><option value="5">Mai</option><option value="6">Jun</option>
+                <option value="7">Jul</option><option value="8">Ago</option><option value="9">Set</option>
+                <option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">ano</label>
+              <input type="number" id="tribVigFimAno" min="2020" max="2100" placeholder="—">
+            </div>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted);margin:-4px 0 12px">Em branco = vale desde sempre / sem data pra encerrar. Pra migrar de regime de uma vez, use "Trocar de regime" no rodapé.</p>
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:pointer;margin-bottom:14px">
             <input type="checkbox" id="tribAtivo" checked style="width:16px;height:16px">
-            Ativo (gera provisionamento automático)
+            Ativo (pausa manual, independente da vigência)
           </label>
           <div class="modal-actions">
             <button class="btn-cancel" id="btnCancelarTributo">Cancelar</button>
@@ -1384,8 +1415,35 @@
           </div>
         </div>
 
-        <div class="modal-actions" style="margin-top:16px">
-          <button class="btn-cancel" id="btnFecharModalTributos">Fechar</button>
+        <!-- Wizard: Trocar de regime -->
+        <div id="wizardRegime" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <h3 style="margin:0 0 6px;font-size:15px">Trocar de regime de tributação</h3>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">A troca vale sempre a partir de 1º de janeiro. Os tributos encerrados param de contar nas notas a partir dessa data; meses já fechados não mudam.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+              <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Vale a partir de janeiro de</label>
+              <select id="wzAno"></select>
+            </div>
+            <div>
+              <label style="font-size:12px;color:rgba(var(--rgb-fg),.6);display:block;margin-bottom:6px">Novo regime</label>
+              <select id="wzRegime">
+                <option value="simples">Simples Nacional</option>
+                <option value="presumido">Lucro Presumido</option>
+                <option value="mei">MEI</option>
+              </select>
+            </div>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">Encerrar em 31/12/<span id="wzAnoFim">—</span> (desmarque o que quiser manter):</p>
+          <div id="wzListaEncerrar" style="max-height:200px;overflow-y:auto;margin-bottom:14px"></div>
+          <div class="modal-actions">
+            <button class="btn-cancel" id="wzCancelar">Cancelar</button>
+            <button class="btn-save" id="wzConfirmar">Confirmar troca</button>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top:16px;flex-direction:column;gap:8px">
+          <button class="btn-edit-inline" id="btnAbrirWizardRegime" style="width:100%">🔁 Trocar de regime de tributação</button>
+          <button class="btn-cancel" id="btnFecharModalTributos" style="width:100%">Fechar</button>
         </div>
       </div>
     </div>
@@ -2161,11 +2219,11 @@
              getAdmins, addAdmin, removeAdmin, getBackupStatus,
              enviarPushManual, saveMissaoMes, getComunicadosStatus,
              editarVencimento,
-             getTributosConfig, saveTributoConfig, deleteTributoConfig,
+             getTributosConfig, saveTributoConfig, deleteTributoConfig, trocarRegimeTributarioPJ,
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
              getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ,
-             msgErro } from './js/api.js?v=62';
+             msgErro } from './js/api.js?v=63';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -4841,6 +4899,28 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
 
     // ── Modal: Configurar tributos ──
     const modalTributos = document.getElementById('modalTributos');
+    const _p2trib = n => String(n).padStart(2, '0');
+    // Texto de vigência de um tributo (achado 10/09/2026 — troca de regime).
+    function _vigenciaTxt(t) {
+      const hoje = new Date();
+      const compHoje = hoje.getFullYear() * 12 + hoje.getMonth();
+      const partes = [];
+      if (t.vigenciaInicioAno) {
+        const ini = t.vigenciaInicioAno * 12 + (t.vigenciaInicioMes - 1);
+        partes.push(ini > compHoje
+          ? `começa em ${_p2trib(t.vigenciaInicioMes)}/${t.vigenciaInicioAno} (futuro)`
+          : `vigente desde ${_p2trib(t.vigenciaInicioMes)}/${t.vigenciaInicioAno}`);
+      }
+      if (t.vigenciaFimAno) partes.push(`vigente até ${_p2trib(t.vigenciaFimMes)}/${t.vigenciaFimAno}`);
+      return partes.length ? ' · ' + partes.join(' · ') : '';
+    }
+    function _vigenteHoje(t) {
+      const hoje = new Date();
+      const c = hoje.getFullYear() * 12 + hoje.getMonth();
+      if (t.vigenciaInicioAno && c < t.vigenciaInicioAno * 12 + (t.vigenciaInicioMes - 1)) return false;
+      if (t.vigenciaFimAno && c > t.vigenciaFimAno * 12 + (t.vigenciaFimMes - 1)) return false;
+      return true;
+    }
     function renderListaTributosConfig() {
       const el = document.getElementById('listaTributosConfig');
       if (!_tributosCache.length) {
@@ -4850,13 +4930,13 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       el.innerHTML = _tributosCache.map(t => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
           <div>
-            <div style="font-size:14px;font-weight:600">${t.nome}${t.ativo ? '' : ' <span style="color:var(--text-muted);font-weight:400">(inativo)</span>'}${t.periodicidade === 'trimestral' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">trimestral</span>' : ''}${t.periodicidade === 'anual' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">anual</span>' : ''}</div>
+            <div style="font-size:14px;font-weight:600">${t.nome}${t.ativo ? '' : ' <span style="color:var(--text-muted);font-weight:400">(pausado)</span>'}${t.periodicidade === 'trimestral' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">trimestral</span>' : ''}${t.periodicidade === 'anual' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">anual</span>' : ''}</div>
             <div style="font-size:12px;color:var(--text-muted)">
               ${t.tipo === 'percentual' ? `${t.percentual}% sobre a nota` : `Valor fixo (padrão ${brl(t.valorFixo)})`}
               ${t.periodicidade === 'anual'
                 ? ` · vence todo dia ${t.diaVencimento}/${MESES_NOME[t.mesVencimento - 1]}`
                 : ` · vence dia ${t.diaVencimento}, ${t.defasagemMeses > 0 ? `${t.defasagemMeses} mês(es) depois` : t.defasagemMeses < 0 ? `${Math.abs(t.defasagemMeses)} mês(es) antes` : 'no mesmo mês'}`}
-              ${t.periodicidade === 'trimestral' ? ' · + provisão trimestral acumulada (3 meses)' : ''}
+              ${t.periodicidade === 'trimestral' ? ' · + provisão trimestral acumulada (3 meses)' : ''}${_vigenciaTxt(t)}
             </div>
           </div>
           <div style="display:flex;gap:8px">
@@ -4877,10 +4957,71 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       catch (e) { _tributosCache = []; alert(msgErro(e)); }
       renderListaTributosConfig();
       document.getElementById('formTributo').style.display = 'none';
+      fecharWizardRegime();
       modalTributos.classList.remove('hidden');
     }
     document.getElementById('btnConfigurarTributos').addEventListener('click', abrirModalTributos);
     document.getElementById('btnFecharModalTributos').addEventListener('click', () => modalTributos.classList.add('hidden'));
+
+    // ── Wizard: Trocar de regime de tributação (mesma função de backend do impostos-pj) ──
+    const REGIME_LABEL_TRIB = { mei: 'MEI', simples: 'Simples Nacional', presumido: 'Lucro Presumido' };
+    const wizardRegime = document.getElementById('wizardRegime');
+    function fecharWizardRegime() {
+      wizardRegime.style.display = 'none';
+      document.getElementById('listaTributosConfig').style.display = '';
+      document.getElementById('btnAddTributo').style.display = '';
+      document.getElementById('btnAbrirWizardRegime').style.display = '';
+    }
+    function abrirWizardRegime() {
+      document.getElementById('formTributo').style.display = 'none';
+      document.getElementById('listaTributosConfig').style.display = 'none';
+      document.getElementById('btnAddTributo').style.display = 'none';
+      document.getElementById('btnAbrirWizardRegime').style.display = 'none';
+      const selAno = document.getElementById('wzAno');
+      const base = new Date().getFullYear();
+      selAno.innerHTML = [base + 1, base + 2, base].map(a => `<option value="${a}">${a}</option>`).join('');
+      selAno.value = base + 1;
+      renderWizardChecklist();
+      wizardRegime.style.display = '';
+    }
+    function renderWizardChecklist() {
+      document.getElementById('wzAnoFim').textContent = Number(document.getElementById('wzAno').value) - 1;
+      const vig = _tributosCache.filter(t => t.ativo !== false && _vigenteHoje(t));
+      const el = document.getElementById('wzListaEncerrar');
+      if (!vig.length) {
+        el.innerHTML = `<p style="font-size:13px;color:var(--text-muted)">Nenhum tributo vigente hoje pra encerrar — cadastre os do regime novo direto.</p>`;
+        return;
+      }
+      el.innerHTML = vig.map(t => `
+        <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer">
+          <input type="checkbox" data-wz-trib="${t.id}" checked style="width:15px;height:15px">
+          <span>${t.nome} <span style="color:var(--text-muted)">— ${t.tipo === 'percentual' ? `${t.percentual}%` : brl(t.valorFixo)}</span></span>
+        </label>`).join('');
+    }
+    document.getElementById('btnAbrirWizardRegime').addEventListener('click', abrirWizardRegime);
+    document.getElementById('wzAno').addEventListener('change', renderWizardChecklist);
+    document.getElementById('wzCancelar').addEventListener('click', fecharWizardRegime);
+    document.getElementById('wzConfirmar').addEventListener('click', async () => {
+      const btn = document.getElementById('wzConfirmar');
+      const anoNovoRegime = Number(document.getElementById('wzAno').value);
+      const novoRegime = document.getElementById('wzRegime').value;
+      const tributoIdsEncerrar = [...document.querySelectorAll('#wzListaEncerrar [data-wz-trib]:checked')].map(c => c.dataset.wzTrib);
+      if (!confirm(`Encerrar ${tributoIdsEncerrar.length} tributo(s) em 31/12/${anoNovoRegime - 1} e migrar para ${REGIME_LABEL_TRIB[novoRegime]} a partir de 01/${anoNovoRegime}?`)) return;
+      btn.disabled = true; btn.textContent = 'Aplicando…';
+      try {
+        await trocarRegimeTributarioPJ(user.uid, { anoNovoRegime, novoRegime, tributoIdsEncerrar });
+        _tributosCache = await getTributosConfig(user.uid);
+        renderListaTributosConfig();
+        fecharWizardRegime();
+        abrirFormTributo();
+        document.getElementById('tribVigInicioMes').value = 1;
+        document.getElementById('tribVigInicioAno').value = anoNovoRegime;
+      } catch (e) {
+        alert(msgErro(e));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Confirmar troca';
+      }
+    });
 
     function abrirFormTributo(trib = null) {
       document.getElementById('tribId').value = trib?.id || '';
@@ -4893,6 +5034,10 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       document.getElementById('tribPeriodicidade').value = trib?.periodicidade || 'mensal';
       document.getElementById('tribMesVencimento').value = trib?.mesVencimento ?? 1;
       document.getElementById('tribAtivo').checked = trib ? trib.ativo !== false : true;
+      document.getElementById('tribVigInicioMes').value = trib?.vigenciaInicioMes ?? '';
+      document.getElementById('tribVigInicioAno').value = trib?.vigenciaInicioAno ?? '';
+      document.getElementById('tribVigFimMes').value = trib?.vigenciaFimMes ?? '';
+      document.getElementById('tribVigFimAno').value = trib?.vigenciaFimAno ?? '';
       atualizarCamposPeriodicidade();
       atualizarCamposTipoTributo();
       document.getElementById('formTributo').style.display = '';
@@ -4931,6 +5076,13 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       const periodicidade = document.getElementById('tribPeriodicidade').value;
       const mesVencimento = parseInt(document.getElementById('tribMesVencimento').value, 10);
       const ativo = document.getElementById('tribAtivo').checked;
+      const _numTrib = v => { const n = parseInt(v, 10); return Number.isInteger(n) ? n : undefined; };
+      const vigenciaInicioMes = _numTrib(document.getElementById('tribVigInicioMes').value);
+      const vigenciaInicioAno = _numTrib(document.getElementById('tribVigInicioAno').value);
+      const vigenciaFimMes = _numTrib(document.getElementById('tribVigFimMes').value);
+      const vigenciaFimAno = _numTrib(document.getElementById('tribVigFimAno').value);
+      if (!!vigenciaInicioMes !== !!vigenciaInicioAno) { alert('Vigência de início: preencha mês e ano, ou deixe os dois em branco.'); return; }
+      if (!!vigenciaFimMes !== !!vigenciaFimAno) { alert('Vigência de fim: preencha mês e ano, ou deixe os dois em branco.'); return; }
 
       if (!nome) { alert('Informe o nome do tributo.'); return; }
       if (periodicidade === 'anual' && tipo !== 'fixo') { alert('Tributo anual só pode ser valor fixo.'); return; }
@@ -4948,6 +5100,7 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
           diaVencimento, defasagemMeses, periodicidade,
           mesVencimento: periodicidade === 'anual' ? mesVencimento : undefined,
           ativo,
+          vigenciaInicioMes, vigenciaInicioAno, vigenciaFimMes, vigenciaFimAno,
         });
         await abrirModalTributos();
       } catch (e) {
