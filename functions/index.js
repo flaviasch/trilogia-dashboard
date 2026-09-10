@@ -2796,10 +2796,15 @@ exports.saveCategoriasMes = onCall(async (request) => {
     }
   }
 
+  // merge:true — o mesmo documento guarda `renda`/`percentual` (gravados por
+  // savePlanejamentoMeta). Sem merge, salvar qualquer limite de categoria
+  // apagava a renda/% que a usuária tinha acabado de definir (achado
+  // 10/09/2026, Flávia: "defini renda e %, naveguei de mês, voltei e o
+  // valor se perde").
   await ref.set({
     categorias,
     atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  }, { merge: true });
   return { ok: true };
 });
 
@@ -2852,7 +2857,8 @@ exports.upsertCategoriaLimite = onCall(async (request) => {
     } else {
       novas = atuais.filter(c => _normCat(c.nome) !== _normCat(nome));
     }
-    tx.set(ref, { categorias: novas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    // merge:true — preserva `renda`/`percentual` do mesmo doc (achado 10/09/2026).
+    tx.set(ref, { categorias: novas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     return novas;
   });
 
@@ -2893,7 +2899,7 @@ exports.renomearCategoriaLimite = onCall(async (request) => {
     // Mesmo nome normalizado (só mudou acento/caixa) — renomeia sem mesclar.
     if (_normCat(nomeNovoLimpo) === _normCat(nomeAntigo)) {
       const novas = atuais.map((c, i) => i === idxAntiga ? { ...c, nome: nomeNovoLimpo } : c);
-      tx.set(ref, { categorias: novas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+      tx.set(ref, { categorias: novas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
       return { categorias: novas, mesclou: false };
     }
 
@@ -2913,7 +2919,7 @@ exports.renomearCategoriaLimite = onCall(async (request) => {
         .filter((c, i) => i !== idxAntiga)
         .map((c, i) => _normCat(c.nome) === _normCat(nomeNovoLimpo) ? { ...c, limite: limiteSomado } : c);
     }
-    tx.set(ref, { categorias: novas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    tx.set(ref, { categorias: novas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     return { categorias: novas, mesclou, nomeDestino };
   });
 
