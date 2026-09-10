@@ -294,6 +294,11 @@
         </div>
       </div>
 
+      <details id="histRegime" style="margin-top:14px;display:none">
+        <summary style="font-size:13px;color:var(--text-muted);cursor:pointer">Histórico de trocas de regime</summary>
+        <div id="histRegimeLista" style="margin-top:10px"></div>
+      </details>
+
       <div class="modal-acoes" style="margin-top:16px;flex-direction:column;gap:8px">
         <button class="btn-acao-secundario" id="btnAbrirWizardRegime" style="width:100%">🔁 Trocar de regime de tributação</button>
         <button class="btn-cancel" id="btnFecharModalTributos" style="width:100%">Fechar</button>
@@ -305,12 +310,12 @@
     import { auth } from './js/firebase-config.js';
     import {
       getContaPJ,
-      getTributosConfig, saveTributoConfig, deleteTributoConfig, trocarRegimeTributarioPJ,
+      getTributosConfig, saveTributoConfig, deleteTributoConfig, trocarRegimeTributarioPJ, getTrocasRegimePJ,
       getNotasEmitidas,
       getImpostosPrevistos,
       getVencimentosHojePJ, getStatusContaPF,
       msgErro, setViewAsUid, uidAtual,
-    } from './js/api.js?v=63';
+    } from './js/api.js?v=64';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { cacheGet, cacheSet } from './js/page-cache.js';
 
@@ -334,7 +339,7 @@
           ? `começa em ${_p2(t.vigenciaInicioMes)}/${t.vigenciaInicioAno} (futuro)`
           : `vigente desde ${_p2(t.vigenciaInicioMes)}/${t.vigenciaInicioAno}`);
       }
-      if (t.vigenciaFimAno) partes.push(`vigente até ${_p2(t.vigenciaFimMes)}/${t.vigenciaFimAno}`);
+      if (t.vigenciaFimAno) partes.push(`vigente até ${_p2(t.vigenciaFimMes)}/${t.vigenciaFimAno}${t.vigenciaFimMotivo ? ' (troca de regime)' : ''}`);
       return partes.length ? ' · ' + partes.join(' · ') : '';
     }
     // Tributo está vigente na data de hoje? (pré-marcação do wizard de troca de regime)
@@ -600,10 +605,31 @@
       }));
     }
 
+    const REGIME_LABEL_HIST = { mei: 'MEI', simples: 'Simples Nacional', presumido: 'Lucro Presumido' };
+    async function renderHistRegime() {
+      const det = document.getElementById('histRegime');
+      const el = document.getElementById('histRegimeLista');
+      let trocas = [];
+      try { trocas = await getTrocasRegimePJ(uidAtual()); } catch (_) { trocas = []; }
+      if (!trocas.length) { det.style.display = 'none'; return; }
+      det.style.display = '';
+      el.innerHTML = trocas.map(tr => {
+        const d = tr.executadoEm ? fmtData(tr.executadoEm.slice(0, 10)) : '—';
+        const de = tr.regimeAnterior ? REGIME_LABEL_HIST[tr.regimeAnterior] || tr.regimeAnterior : 'não registrado';
+        const para = REGIME_LABEL_HIST[tr.regimeNovo] || tr.regimeNovo;
+        const nomes = tr.tributosEncerrados.map(t => t.nome).join(', ') || 'nenhum';
+        return `<div style="font-size:12px;color:var(--text-muted);padding:6px 0;border-bottom:1px solid var(--border)">
+          <strong style="color:var(--text)">${de} → ${para}</strong> a partir de 01/${tr.anoNovoRegime}
+          <br>solicitada em ${d}${tr.executadoPorAdmin ? ' (pelo suporte)' : ''} · encerrados: ${nomes}
+        </div>`;
+      }).join('');
+    }
+
     async function abrirModalTributos() {
       try { _tributosCache = await getTributosConfig(uidAtual()); }
       catch (err) { _tributosCache = []; alert(msgErro(err)); }
       renderListaTributos();
+      renderHistRegime();
       document.getElementById('formTributo').style.display = 'none';
       fecharWizardRegime();
       modalTributos.classList.remove('hidden');
@@ -669,6 +695,7 @@
         if (contaAtual) contaAtual.regime = novoRegime;
         _tributosCache = await getTributosConfig(uidAtual());
         renderListaTributos();
+        renderHistRegime();
         fecharWizardRegime();
         // Leva direto pro cadastro dos tributos do regime novo, com sugestão
         // do regime quando existir, já com vigência de início preenchida.

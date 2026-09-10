@@ -1441,6 +1441,11 @@
           </div>
         </div>
 
+        <details id="histRegime" style="margin-top:14px;display:none">
+          <summary style="font-size:13px;color:var(--text-muted);cursor:pointer">Histórico de trocas de regime</summary>
+          <div id="histRegimeLista" style="margin-top:10px"></div>
+        </details>
+
         <div class="modal-actions" style="margin-top:16px;flex-direction:column;gap:8px">
           <button class="btn-edit-inline" id="btnAbrirWizardRegime" style="width:100%">🔁 Trocar de regime de tributação</button>
           <button class="btn-cancel" id="btnFecharModalTributos" style="width:100%">Fechar</button>
@@ -2219,11 +2224,11 @@
              getAdmins, addAdmin, removeAdmin, getBackupStatus,
              enviarPushManual, saveMissaoMes, getComunicadosStatus,
              editarVencimento,
-             getTributosConfig, saveTributoConfig, deleteTributoConfig, trocarRegimeTributarioPJ,
+             getTributosConfig, saveTributoConfig, deleteTributoConfig, trocarRegimeTributarioPJ, getTrocasRegimePJ,
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
              getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ,
-             msgErro } from './js/api.js?v=63';
+             msgErro } from './js/api.js?v=64';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -4911,7 +4916,7 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
           ? `começa em ${_p2trib(t.vigenciaInicioMes)}/${t.vigenciaInicioAno} (futuro)`
           : `vigente desde ${_p2trib(t.vigenciaInicioMes)}/${t.vigenciaInicioAno}`);
       }
-      if (t.vigenciaFimAno) partes.push(`vigente até ${_p2trib(t.vigenciaFimMes)}/${t.vigenciaFimAno}`);
+      if (t.vigenciaFimAno) partes.push(`vigente até ${_p2trib(t.vigenciaFimMes)}/${t.vigenciaFimAno}${t.vigenciaFimMotivo ? ' (troca de regime)' : ''}`);
       return partes.length ? ' · ' + partes.join(' · ') : '';
     }
     function _vigenteHoje(t) {
@@ -4956,6 +4961,7 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       try { _tributosCache = await getTributosConfig(user.uid); }
       catch (e) { _tributosCache = []; alert(msgErro(e)); }
       renderListaTributosConfig();
+      renderHistRegime();
       document.getElementById('formTributo').style.display = 'none';
       fecharWizardRegime();
       modalTributos.classList.remove('hidden');
@@ -4965,6 +4971,24 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
 
     // ── Wizard: Trocar de regime de tributação (mesma função de backend do impostos-pj) ──
     const REGIME_LABEL_TRIB = { mei: 'MEI', simples: 'Simples Nacional', presumido: 'Lucro Presumido' };
+    async function renderHistRegime() {
+      const det = document.getElementById('histRegime');
+      const el = document.getElementById('histRegimeLista');
+      let trocas = [];
+      try { trocas = await getTrocasRegimePJ(user.uid); } catch (_) { trocas = []; }
+      if (!trocas.length) { det.style.display = 'none'; return; }
+      det.style.display = '';
+      el.innerHTML = trocas.map(tr => {
+        const dt = tr.executadoEm ? new Date(tr.executadoEm).toLocaleDateString('pt-BR') : '—';
+        const de = tr.regimeAnterior ? (REGIME_LABEL_TRIB[tr.regimeAnterior] || tr.regimeAnterior) : 'não registrado';
+        const para = REGIME_LABEL_TRIB[tr.regimeNovo] || tr.regimeNovo;
+        const nomes = tr.tributosEncerrados.map(t => t.nome).join(', ') || 'nenhum';
+        return `<div style="font-size:12px;color:var(--text-muted);padding:6px 0;border-bottom:1px solid var(--border)">
+          <strong style="color:var(--text)">${de} → ${para}</strong> a partir de 01/${tr.anoNovoRegime}
+          <br>solicitada em ${dt} · encerrados: ${nomes}
+        </div>`;
+      }).join('');
+    }
     const wizardRegime = document.getElementById('wizardRegime');
     function fecharWizardRegime() {
       wizardRegime.style.display = 'none';
@@ -5012,6 +5036,7 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
         await trocarRegimeTributarioPJ(user.uid, { anoNovoRegime, novoRegime, tributoIdsEncerrar });
         _tributosCache = await getTributosConfig(user.uid);
         renderListaTributosConfig();
+        renderHistRegime();
         fecharWizardRegime();
         abrirFormTributo();
         document.getElementById('tribVigInicioMes').value = 1;

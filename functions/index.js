@@ -6478,6 +6478,8 @@ exports.trocarRegimeTributarioPJ = onCall({}, async (request) => {
   const ids = Array.isArray(tributoIdsEncerrar) ? tributoIdsEncerrar.filter(x => typeof x === 'string' && x) : [];
 
   const anoFim = anoNovo - 1;
+  const _hojeMoto = new Date();
+  const motivoVigenciaFim = `Troca de regime (${String(_hojeMoto.getMonth() + 1).padStart(2, '0')}/${_hojeMoto.getFullYear()})`;
   const encerrados = [];
   if (ids.length) {
     const snaps = await Promise.all(ids.map(id => db.collection('tributosConfig').doc(id).get()));
@@ -6485,8 +6487,12 @@ exports.trocarRegimeTributarioPJ = onCall({}, async (request) => {
     snaps.forEach((s, i) => {
       if (!s.exists) throw new HttpsError('not-found', `Tributo ${ids[i]} não encontrado.`);
       if (s.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
-      batch.update(s.ref, { vigenciaFimMes: 12, vigenciaFimAno: anoFim });
-      encerrados.push(ids[i]);
+      const d = s.data();
+      batch.update(s.ref, { vigenciaFimMes: 12, vigenciaFimAno: anoFim, vigenciaFimMotivo: motivoVigenciaFim });
+      encerrados.push({
+        id: ids[i], nome: d.nome,
+        tipo: d.tipo, percentual: d.percentual ?? null, valorFixo: d.valorFixo ?? null,
+      });
     });
     await batch.commit();
   }
@@ -6496,7 +6502,9 @@ exports.trocarRegimeTributarioPJ = onCall({}, async (request) => {
   // a conta da própria Flávia no admin pode nunca ter passado pelo
   // onboarding-pj, e não é hora de criar um doc parcial.
   const contaRef = db.collection('contasPJ').doc(uid);
-  if ((await contaRef.get()).exists) {
+  const contaSnap = await contaRef.get();
+  const regimeAnterior = contaSnap.exists ? (contaSnap.data().regime || null) : null;
+  if (contaSnap.exists) {
     await contaRef.set({
       regime: novoRegime,
       regimeHistorico: admin.firestore.FieldValue.arrayUnion({ regime: novoRegime, desdeAno: anoNovo }),
@@ -6504,7 +6512,47 @@ exports.trocarRegimeTributarioPJ = onCall({}, async (request) => {
     }, { merge: true });
   }
 
-  return { ok: true, encerrados, vigenciaInicioNovo: { mes: 1, ano: anoNovo } };
+  // Registro de auditoria — independente de contasPJ existir. Sem isso a troca
+  // não deixava rastro nenhum (achado 10/09/2026, Flávia: "não fica nenhum
+  // registro de que essa mudança foi solicitada"). TTL de 5 anos, mesmo
+  // padrão de mentoradas_deletadas / contasPJ_deletadas.
+  const expireAt = new Date();
+  expireAt.setFullYear(expireAt.getFullYear() + 5);
+  await db.collection('trocasRegimePJ').add({
+    uid,
+    executadoPor: request.auth?.uid || null,
+    executadoPorAdmin: request.auth?.token?.admin === true && request.auth.uid !== uid,
+    executadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    regimeAnterior,
+    regimeNovo: novoRegime,
+    anoNovoRegime: anoNovo,
+    vigenciaFimEncerrados: { mes: 12, ano: anoFim },
+    tributosEncerrados: encerrados,
+    expireAt,
+  });
+
+  return { ok: true, encerrados: encerrados.map(e => e.id), vigenciaInicioNovo: { mes: 1, ano: anoNovo } };
+});
+
+/** Histórico de trocas de regime da conta PJ, mais recente primeiro. */
+exports.getTrocasRegimePJ = onCall({}, async (request) => {
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  const snap = await db.collection('trocasRegimePJ').where('uid', '==', uid).get();
+  return snap.docs
+    .map(d => {
+      const x = d.data();
+      return {
+        id: d.id,
+        executadoEm: x.executadoEm?.toDate ? x.executadoEm.toDate().toISOString() : null,
+        executadoPorAdmin: !!x.executadoPorAdmin,
+        regimeAnterior: x.regimeAnterior || null,
+        regimeNovo: x.regimeNovo,
+        anoNovoRegime: x.anoNovoRegime,
+        tributosEncerrados: Array.isArray(x.tributosEncerrados) ? x.tributosEncerrados : [],
+      };
+    })
+    .sort((a, b) => (b.executadoEm || '').localeCompare(a.executadoEm || ''));
 });
 
 exports.getNotasEmitidas = onCall({}, async (request) => {

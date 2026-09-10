@@ -679,6 +679,10 @@ export async function deleteTributoConfig(uid, id) {
 export async function trocarRegimeTributarioPJ(uid, dados) {
   return adminCall('trocarRegimeTributarioPJ')({ uid, ...dados });
 }
+/** Histórico de trocas de regime da conta PJ (auditoria), mais recente primeiro. */
+export async function getTrocasRegimePJ(uid) {
+  return adminCall('getTrocasRegimePJ')({ uid });
+}
 export async function getNotasEmitidas(uid, mes, ano) {
   return adminCall('getNotasEmitidas')({ uid, mes, ano });
 }
