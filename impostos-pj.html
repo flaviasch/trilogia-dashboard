@@ -614,7 +614,7 @@
     // ── Wizard: Trocar de regime de tributação ──
     // Gate inicial (regra de deploy: feature nasce restrita ao teste). Adicione
     // o e-mail da Luiza aqui e, após validar, troque por `true` pra liberar geral.
-    const REGIME_WIZARD_ALLOWLIST = ['flaviasch@gmail.com'];
+    const REGIME_WIZARD_ALLOWLIST = ['flaviasch@gmail.com', 'flaschusciman@gmail.com'];
     function podeTrocarRegime() {
       return REGIME_WIZARD_ALLOWLIST.includes((currentUser?.email || '').toLowerCase());
     }
