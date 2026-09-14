@@ -7071,7 +7071,7 @@
         ),
         getScoreHistorico({}).catch(() => []),
         Promise.all(
-          janela.map(({ mes: m, ano: a }) => getCategoriasMes(m, a).catch(() => ({ categorias: [] })))
+          janela.map(({ mes: m, ano: a }) => getCategoriasMes(m, a).catch(() => []))
         ),
       ]);
 
@@ -7155,13 +7155,18 @@
       // ── Por categoria — Real × Previsto, últimos 12 meses ──────────────────
       // Réplica da visão "Resumo_Real"/"Resumo_Previsto" da planilha original do
       // Raio-X (categoria × mês), agora com toggle em vez de duas abas separadas.
+      // getCategoriasMes (js/api.js) já devolve o array de categorias direto,
+      // não { categorias: [...] } — planejamentos[i] É o array. Ler
+      // planejamentos[i].categorias (undefined num array) fazia o Previsto
+      // cair sempre em [] → R$ 0 em toda categoria/mês, mesmo com limites
+      // reais salvos (achado 14/09/2026, Flávia: "aba previsto não tem nada").
       const categoriasTodas = new Set();
       resultados.forEach(r => Object.keys(r.porCategoria || {}).forEach(c => categoriasTodas.add(c)));
-      planejamentos.forEach(p => (p.categorias || []).forEach(c => categoriasTodas.add(c.nome)));
+      planejamentos.forEach(cats => (cats || []).forEach(c => categoriasTodas.add(c.nome)));
 
       const linhasCategoria = Array.from(categoriasTodas).map(cat => {
         const real12     = resultados.map(r => r.porCategoria?.[cat] || 0);
-        const previsto12 = planejamentos.map(p => (p.categorias || []).find(c => normCat(c.nome) === normCat(cat))?.limite || 0);
+        const previsto12 = planejamentos.map(cats => (cats || []).find(c => normCat(c.nome) === normCat(cat))?.limite || 0);
         return {
           categoria: cat,
           real12, previsto12,
