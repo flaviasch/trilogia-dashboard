@@ -954,13 +954,21 @@
     .tab-btn:hover:not(.active) { color: var(--text-secondary); }
     .tab-pane { display: none; }
     .tab-pane.active { display: block; }
+    /* Aviso "disponível só no computador" da aba Análise — escondido por
+       padrão (desktop já mostra a tabela real); a media query abaixo troca
+       pra display:block só no mobile. Regra base PRECISA vir antes da media
+       query no arquivo — CSS resolve empate de especificidade pela ordem, e
+       a de baixo (condicional) tem que vencer a de cima (sempre ativa). */
+    .anual-so-mobile-aviso { display: none; }
     @media (max-width: 640px) {
       .tab-btn { font-size: 11px; padding: 8px 4px; }
-      /* Aba Análise (12 meses × categorias, tabela densa) fica só no
-         computador — pedido Flávia 14/09/2026: mesmo com coluna travada e
-         agrupamento por categoria-mãe, prefere reservar essa visão pro PC em
-         vez de tentar caber no celular. */
-      #tabBtnAnual { display: none; }
+      /* Aba Análise: KPIs e gráfico continuam no mobile (já funcionam bem);
+         só a tabela "Por categoria" (12 meses × dezenas de categorias) fica
+         reservada pro computador — decisão revista em 14/09/2026: a
+         primeira versão escondia a aba inteira, mas isso também tirava do
+         mobile os KPIs/gráfico que não tinham problema nenhum. */
+      .anual-desktop-only-bloco { display: none; }
+      .anual-so-mobile-aviso { display: block; }
     }
 
     /* ─── Seção colapsável ───────────────────── */
@@ -7256,7 +7264,7 @@
         const linhasPrevisto = gerarLinhasTabela('previsto12', 'totalPrevisto', 'Previsto');
 
         categoriaAnualHTML = `
-          <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:24px;">
+          <div class="anual-desktop-only-bloco" style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:24px;">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;flex-wrap:wrap;gap:10px;">
               <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Por categoria — últimos 12 meses <span style="font-weight:400;text-transform:none;letter-spacing:normal;">· toque numa categoria-mãe pra ver as subcategorias</span></div>
               <div style="display:flex;gap:6px;">
@@ -7277,6 +7285,10 @@
                 <tbody id="tbodyCategoriaPrevisto" style="display:none;">${linhasPrevisto}</tbody>
               </table>
             </div>
+          </div>
+          <div class="anual-so-mobile-aviso" style="background:var(--navy);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:24px;text-align:center;">
+            <div style="font-size:22px;margin-bottom:8px;">🖥️</div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;">A tabela "Por categoria" (12 meses × todas as categorias) fica disponível só no computador — mais fácil de ler com tantas colunas.</div>
           </div>`;
       }
 
@@ -7318,6 +7330,7 @@
         <div class="grafico-card" style="margin-bottom:24px;">
           <div class="grafico-header">
             <h2 class="grafico-title">Receita × Despesa × Sobra — últimos 12 meses</h2>
+            <span class="anual-so-mobile-aviso" style="font-size:11px;color:var(--text-muted);font-weight:400;">🖥️ A análise detalhada por categoria fica disponível no computador</span>
           </div>
           <div class="grafico-canvas-wrap"><canvas id="graficoAnualCanvas"></canvas></div>
           <div class="grafico-legenda">
