@@ -1058,6 +1058,20 @@
     .notif-info-box-title { font-size: 13px; font-weight: 600; color: var(--gold); margin-bottom: 3px; }
     .notif-info-box-text { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
 
+    /* ─── Aba Análise — coluna Categoria travada ── */
+    /* "Por categoria — últimos 12 meses" rola só nos meses; a 1ª coluna fica
+       fixa à esquerda, senão perde a referência de qual linha é qual assim
+       que rola pra ver os meses mais recentes (achado 09-14/09/2026, Flávia).
+       Precisa de background sólido explícito — célula sticky por cima de
+       outras colunas que passam rolando por baixo, senão vaza conteúdo. */
+    /* rgba(...,.03/.02) do resto da tabela é transparente por design — sobre
+       a célula sticky isso deixaria o texto dos meses vazando por trás
+       enquanto rola. Usa var(--navy) sólido aqui (diferença visual do tom é
+       imperceptível, .02-.03 de opacidade) só pra garantir opacidade real. */
+    .anual-sticky-th, .anual-sticky-td { position: sticky; left: 0; background: var(--navy); }
+    .anual-sticky-th { z-index: 2; }
+    .anual-sticky-td { z-index: 1; }
+
     /* ─── Aba Gráficos ───────────────────────── */
     .graficos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
     @media (max-width: 640px) { .graficos-grid { grid-template-columns: 1fr; } }
@@ -7180,20 +7194,66 @@
       if (linhasCategoria.length > 0) {
         const cabecalhoMeses = resultados.map(r => `<th style="padding:9px 10px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;">${rotuloMes(r)}</th>`).join('');
 
-        const gerarLinhasTabela = (campo, totalCampo) => linhasCategoria.map(l => `
-          <tr style="border-top:1px solid var(--border)">
-            <td style="padding:9px 12px;font-weight:500;color:var(--white);white-space:nowrap;">${escapeHtml(l.categoria)}</td>
-            ${l[campo].map(v => `<td style="padding:9px 10px;text-align:right;color:var(--text-secondary);font-size:12px;">${v > 0 ? brl(v) : '—'}</td>`).join('')}
-            <td style="padding:9px 12px;text-align:right;font-weight:700;color:var(--gold);">${brl(l[totalCampo])}</td>
-          </tr>`).join('');
+        // Agrupa por categoria-mãe (mesmo critério do Planejamento —
+        // categoriaParaMaeResolvida) e deixa expansível: a lista tinha 25+
+        // categorias soltas, difícil de ler mesmo com a coluna travada
+        // (achado 14/09/2026, Flávia). Grupo ordenado pelo maior gasto Real
+        // primeiro — é uma visão de análise, não de cadastro, então o que
+        // pesa mais no bolso vem no topo, não a ordem fixa das 13 mães.
+        const nMeses = resultados.length;
+        function agruparPorMae(campo, totalCampo) {
+          const grupos = {}; // idGrupo -> { nomeGrupo, itens }
+          linhasCategoria.forEach(l => {
+            const mae = categoriaParaMaeResolvida(l.categoria, categoriasMes);
+            const idGrupo = mae ? _slugMae(mae) : 'soltas';
+            const nomeGrupo = mae || 'Categorias soltas';
+            (grupos[idGrupo] ||= { nomeGrupo, itens: [] }).itens.push(l);
+          });
+          return Object.entries(grupos).map(([idGrupo, g]) => {
+            const somas = new Array(nMeses).fill(0);
+            g.itens.forEach(l => l[campo].forEach((v, i) => { somas[i] += v; }));
+            return { idGrupo, nomeGrupo: g.nomeGrupo, itens: g.itens, somas, totalGrupo: g.itens.reduce((s, l) => s + l[totalCampo], 0) };
+          }).sort((a, b) => b.totalGrupo - a.totalGrupo);
+        }
 
-        const linhasReal     = gerarLinhasTabela('real12', 'totalReal');
-        const linhasPrevisto = gerarLinhasTabela('previsto12', 'totalPrevisto');
+        const gerarLinhasTabela = (campo, totalCampo, tbodyId) => agruparPorMae(campo, totalCampo).map(g => {
+          // Grupo com 1 categoria só: mostra direto, sem cabeçalho/chevron —
+          // não faz sentido "expandir" um grupo de um item.
+          if (g.itens.length === 1) {
+            const l = g.itens[0];
+            return `<tr style="border-top:1px solid var(--border)">
+              <td class="anual-sticky-td" style="padding:9px 12px;font-weight:500;color:var(--white);white-space:nowrap;">${escapeHtml(l.categoria)}</td>
+              ${l[campo].map(v => `<td style="padding:9px 10px;text-align:right;color:var(--text-secondary);font-size:12px;">${v > 0 ? brl(v) : '—'}</td>`).join('')}
+              <td style="padding:9px 12px;text-align:right;font-weight:700;color:var(--gold);">${brl(l[totalCampo])}</td>
+            </tr>`;
+          }
+          const chevId = `chev-anual-${tbodyId}-${g.idGrupo}`;
+          const headerRow = `<tr style="border-top:1px solid var(--border);cursor:pointer;background:rgba(var(--rgb-fg),.02);" onclick="window._toggleAnualMae('${tbodyId}','${g.idGrupo}')">
+            <td class="anual-sticky-td" style="padding:9px 12px;font-weight:600;color:var(--white);white-space:nowrap;">
+              <span id="${chevId}" style="display:inline-block;width:12px;color:var(--text-muted);">›</span>
+              ${escapeHtml(g.nomeGrupo)}
+              <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(${g.itens.length})</span>
+            </td>
+            ${g.somas.map(v => `<td style="padding:9px 10px;text-align:right;color:var(--text-secondary);font-size:12px;">${v > 0 ? brl(v) : '—'}</td>`).join('')}
+            <td style="padding:9px 12px;text-align:right;font-weight:700;color:var(--gold);">${brl(g.totalGrupo)}</td>
+          </tr>`;
+          const subRows = g.itens
+            .sort((a, b) => b[totalCampo] - a[totalCampo])
+            .map(l => `<tr data-mae-de="${g.idGrupo}" style="display:none;border-top:1px solid var(--border)">
+              <td class="anual-sticky-td" style="padding:9px 12px 9px 32px;font-weight:400;color:var(--text-secondary);white-space:nowrap;">${escapeHtml(l.categoria)}</td>
+              ${l[campo].map(v => `<td style="padding:9px 10px;text-align:right;color:var(--text-secondary);font-size:12px;">${v > 0 ? brl(v) : '—'}</td>`).join('')}
+              <td style="padding:9px 12px;text-align:right;font-weight:600;color:var(--text-secondary);">${brl(l[totalCampo])}</td>
+            </tr>`).join('');
+          return headerRow + subRows;
+        }).join('');
+
+        const linhasReal     = gerarLinhasTabela('real12', 'totalReal', 'Real');
+        const linhasPrevisto = gerarLinhasTabela('previsto12', 'totalPrevisto', 'Previsto');
 
         categoriaAnualHTML = `
           <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:24px;">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;flex-wrap:wrap;gap:10px;">
-              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Por categoria — últimos 12 meses</div>
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);">Por categoria — últimos 12 meses <span style="font-weight:400;text-transform:none;letter-spacing:normal;">· toque numa categoria-mãe pra ver as subcategorias</span></div>
               <div style="display:flex;gap:6px;">
                 <button id="btnCategoriaReal" onclick="window._toggleCategoriaAnual('real')"
                   style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;">Real</button>
@@ -7204,7 +7264,7 @@
             <div style="overflow-x:auto;">
               <table style="width:100%;border-collapse:collapse;">
                 <thead><tr style="background:rgba(var(--rgb-fg),.03);">
-                  <th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;">Categoria</th>
+                  <th class="anual-sticky-th" style="padding:9px 12px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;">Categoria</th>
                   ${cabecalhoMeses}
                   <th style="padding:9px 12px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;">Total</th>
                 </tr></thead>
@@ -7356,6 +7416,20 @@
       btnPrevisto.style.background = ehReal ? 'transparent' : 'var(--gold)';
       btnPrevisto.style.color      = ehReal ? 'var(--text-secondary)' : 'var(--navy)';
       btnPrevisto.style.border     = ehReal ? '1px solid var(--border)' : 'none';
+    };
+
+    // Expande/recolhe um grupo de categoria-mãe na tabela "Por categoria" da
+    // aba Análise. tbodyId = 'Real' | 'Previsto' — cada tabela guarda seu
+    // próprio estado de aberto/fechado, já que só uma fica visível por vez.
+    window._toggleAnualMae = function(tbodyId, idGrupo) {
+      const chev = document.getElementById(`chev-anual-${tbodyId}-${idGrupo}`);
+      const tbody = document.getElementById(`tbodyCategoria${tbodyId}`);
+      if (!chev || !tbody) return;
+      const vaiAbrir = chev.textContent.trim() === '›';
+      tbody.querySelectorAll(`tr[data-mae-de="${idGrupo}"]`).forEach(tr => {
+        tr.style.display = vaiAbrir ? '' : 'none';
+      });
+      chev.textContent = vaiAbrir ? '⌄' : '›';
     };
 
     // ─── Modal de limite de categoria ────────────────────────────────────────
