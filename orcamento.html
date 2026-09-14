@@ -956,6 +956,11 @@
     .tab-pane.active { display: block; }
     @media (max-width: 640px) {
       .tab-btn { font-size: 11px; padding: 8px 4px; }
+      /* Aba Análise (12 meses × categorias, tabela densa) fica só no
+         computador — pedido Flávia 14/09/2026: mesmo com coluna travada e
+         agrupamento por categoria-mãe, prefere reservar essa visão pro PC em
+         vez de tentar caber no celular. */
+      #tabBtnAnual { display: none; }
     }
 
     /* ─── Seção colapsável ───────────────────── */
