@@ -60,6 +60,7 @@ const {
   emailNovidadesJul2026Completo,
   emailNovidadesAgo2026Completo,
   emailModoClaroAporteAgo2026,
+  emailDiaDoCliente,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
@@ -10469,6 +10470,39 @@ exports.anunciarModoClaroAgo2026 = onCall({ secrets: SECRETS_EMAIL }, async (req
   }
   await db.collection('config').doc('comunicados').set(
     { modoClaroAgo2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+/**
+ * Dia do Cliente (15/09) — mensagem de agradecimento sem venda nenhuma.
+ * Pedido Flávia 15/09/2026: pra ATIVAS E INATIVAS (diferente das outras
+ * anunciar*, que só vão pra ativas) — quem já foi mentorada também merece
+ * o carinho, não só quem paga hoje. Por isso usa a coleção direto, sem
+ * getAtivas().
+ */
+exports.anunciarDiaDoCliente2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const snap = await db.collection('mentoradas').get();
+  const mentoradas = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Feliz Dia do Cliente! 🎉',
+        html:    emailDiaDoCliente(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarDiaDoCliente2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { diaDoCliente2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };

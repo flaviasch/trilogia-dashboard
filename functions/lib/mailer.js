@@ -1424,6 +1424,30 @@ function emailNovidadesAgo2026Completo(nome) {
     <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
   `);
 }
+/**
+ * E-mail: Dia do Cliente (15/09) — mensagem de agradecimento, sem venda ou
+ * novidade nenhuma. Pedido Flávia 15/09/2026: pra ativas E inativas — quem
+ * já foi mentorada também merece o carinho, não só quem paga hoje.
+ */
+function emailDiaDoCliente(nome) {
+  const primeiroNome = (nome || 'você').split(' ')[0];
+  return layout(`
+    <h2 style="${S.h2}">Feliz Dia do Cliente, ${primeiroNome}! 🎉</h2>
+    <p style="${S.p}">
+      Hoje é dia de parar um minuto e agradecer: obrigada por confiar em mim com uma
+      parte tão pessoal da sua vida, o seu dinheiro. Cada decisão que você tomou
+      junto comigo, cada planilha revisada, cada aporte registrado, fez parte de
+      alguma coisa maior do que números: foi você construindo mais liberdade pra
+      sua própria vida.
+    </p>
+    <p style="${S.p}">
+      Seja você que está comigo desde o começo ou que já seguiu seu caminho, minha
+      gratidão é a mesma. Você faz parte da história da Trilogia Financeira.
+    </p>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
 function emailModoClaroAporteAgo2026(nome) {
   const item = (emoji, titulo, desc) =>
     `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
@@ -1506,6 +1530,7 @@ module.exports = {
   emailNovidadesJul2026Completo,
   emailNovidadesAgo2026Completo,
   emailModoClaroAporteAgo2026,
+  emailDiaDoCliente,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,

@@ -1700,6 +1700,19 @@
 
       const notifs = [];
 
+      // ⓪-z Dia do Cliente (15/09) — banner só no dia, some sozinho depois.
+      // Pedido Flávia 15/09/2026: parabenizar as mentoradas, sem venda nenhuma.
+      const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+      const diaDoClienteKey = 'notif_dia_do_cliente_2026';
+      if (hojeStr === '2026-09-15' && !localStorage.getItem(diaDoClienteKey)) {
+        notifs.unshift({
+          id: 'dia-do-cliente', type: 'novidades', key: diaDoClienteKey, icon: '🎉',
+          titulo: 'Feliz Dia do Cliente!',
+          desc: 'Hoje é dia de agradecer: obrigada por confiar em mim com uma parte tão pessoal da sua vida, o seu dinheiro. Cada decisão que você tomou junto comigo faz parte de alguma coisa maior do que números.',
+          cta: { label: 'Ver seu progresso', href: 'index.html' },
+        });
+      }
+
       // ⓪ Novidades Fase 2 — banner comemorativo (aparece uma vez)
       const novidadesKey = 'notif_novidades_fase2_orcamento';
       if (!localStorage.getItem(novidadesKey)) {
