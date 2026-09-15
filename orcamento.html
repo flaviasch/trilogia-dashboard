@@ -5712,6 +5712,7 @@
       }
 
       // ── Constroí cards de faturas ABERTAS ─────────────────────────────────────
+      let totalGeralAbertas = 0; // soma de todas as faturas abertas — linha totalizadora (pedido Flávia 15/09/2026)
       const cardsAbertas = todosIds.map(cartaoId => {
         const cartaoObj   = _cartoes.find(c => c.id === cartaoId);
         const nomeCartao  = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
@@ -5751,6 +5752,7 @@
         // (ver totalDisplay abaixo). Mesmo mecanismo, agora nas duas.
         const abertaEstadoKey = abertaKey ? `${cartaoId}_${abertaKey}` : '';
         const totalAberta = _faturaEstados[abertaEstadoKey]?.ajusteTotal ?? totalCalculadoAberta;
+        totalGeralAbertas += totalAberta;
 
         const fechaStr = (() => {
           if (!diaCorte || !cAno) return '';
@@ -5844,6 +5846,7 @@
         _avulsosAvisadosSessao.add(estadoKey);
         _revisarAvulsoDuplicidade(avulso);
       });
+      let totalGeralFechadas = 0; // soma de todas as faturas fechadas a pagar — linha totalizadora (pedido Flávia 15/09/2026)
       const cardsFechadas = idsFechadas.map(estadoKey => {
         const [cartaoId, fechadaKey] = estadoKey.split('_');
         const cartaoObj    = _cartoes.find(c => c.id === cartaoId);
@@ -5861,6 +5864,7 @@
           ? totalCalcItens
           : (fatEstado.valorPago || 0) + (fatEstado.rollover || 0);
         const totalDisplay = fatEstado.ajusteTotal ?? totalCalc;
+        totalGeralFechadas += totalDisplay;
         const vctoStr      = _vctoLabel(cartaoObj?.diaVencimento, cartaoObj?.diaCorte, fMes, fAno);
 
         const statusBadge = (() => {
@@ -5958,13 +5962,27 @@
             Fechadas ${nFechadas > 0 ? `<span style="font-size:10px;background:#f87171;color:#fff;border-radius:10px;padding:1px 6px;margin-left:2px;">${nFechadas}</span>` : ''}
           </button>
         </div>
-        <div id="fatAbertasContent"  style="${_fatTabAtiva !== 'abertas'  ? 'display:none;' : ''}">${cardsAbertas  || '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Nenhuma fatura aberta</div>'}</div>
+        <div id="fatAbertasContent"  style="${_fatTabAtiva !== 'abertas'  ? 'display:none;' : ''}">${cardsAbertas
+            ? `${cardsAbertas}
+              <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;padding:2px 16px;">
+                <div class="total-row" style="border-top:none;margin-top:0;">
+                  <span class="total-label">Total das abertas</span>
+                  <span class="total-value despesa">${brl(totalGeralAbertas)}</span>
+                </div>
+              </div>`
+            : '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Nenhuma fatura aberta</div>'}</div>
         <div id="fatFechadasContent" style="${_fatTabAtiva !== 'fechadas' ? 'display:none;' : ''}">
           ${cardsFechadas
             ? `<div style="display:flex;align-items:center;gap:8px;padding:2px 4px 12px;color:var(--text-muted);font-size:12px;">
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="8"/><line x1="8" y1="11" x2="8.01" y2="11"/></svg>
                 Confirme o pagamento das faturas abaixo quando realizá-lo
-              </div>${cardsFechadas}`
+              </div>${cardsFechadas}
+              <div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;padding:2px 16px;">
+                <div class="total-row" style="border-top:none;margin-top:0;">
+                  <span class="total-label">Total a pagar</span>
+                  <span class="total-value despesa">${brl(totalGeralFechadas)}</span>
+                </div>
+              </div>`
             : '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Nenhuma fatura a pagar este mês 🎉</div>'}
         </div>`;
 
