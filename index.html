@@ -1709,7 +1709,9 @@
           id: 'dia-do-cliente', type: 'novidades', key: diaDoClienteKey, icon: '🎉',
           titulo: 'Feliz Dia do Cliente!',
           desc: 'Hoje é dia de agradecer: obrigada por confiar em mim com uma parte tão pessoal da sua vida, o seu dinheiro. Cada decisão que você tomou junto comigo faz parte de alguma coisa maior do que números.',
-          cta: { label: 'Ver seu progresso', href: 'index.html' },
+          // Sem cta de propósito: mensagem de agradecimento puro, não tem
+          // ação nenhuma pra levar (achado 15/09/2026, Flávia: "Ver seu
+          // progresso" levava pra mesma página em que já estava).
         });
       }
 
@@ -2002,7 +2004,7 @@
           <div class="notif-body">
             <div class="notif-titulo">${n.titulo}</div>
             <div class="notif-desc">${n.desc}</div>
-            <a href="${n.cta.href}" class="notif-cta">${n.cta.label} →</a>
+            ${n.cta ? `<a href="${n.cta.href}" class="notif-cta">${n.cta.label} →</a>` : ''}
             ${itensHtml}
           </div>
           <button class="notif-dismiss" onclick="window._dispensarNotif(this)"
