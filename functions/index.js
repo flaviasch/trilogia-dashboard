@@ -10242,6 +10242,11 @@ exports.reemitirRelatorioMensal = onCall({ secrets: SECRETS_EMAIL }, async (requ
     }
   }
 
+  await db.collection('config').doc('comunicados').set(
+    { correcaoAgo2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros: erros.length } },
+    { merge: true }
+  );
+
   return { enviados, pulados, erros };
 });
 
