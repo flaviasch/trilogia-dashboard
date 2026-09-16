@@ -214,6 +214,43 @@ function emailOnboardingParado(nome) {
  * mesmo tratamento do emailCobrancasDia, mas sem filtro de status).
  * @param {Array} aniversariantes — [{ nome, status, telefone }]
  */
+/**
+ * E-mail de aniversário para a própria mentorada — ativa (ou em alerta,
+ * ainda acompanhada). Sem CTA: é um contato afetivo, não comercial.
+ * @param {string} nome
+ */
+function emailAniversarioAtiva(nome) {
+  return layout(`
+    <h2 style="${S.h2}">Feliz aniversário, ${nome}! 🎂</h2>
+    <p style="${S.p}">${nome}, hoje é seu dia, e eu queria parar pra desejar um feliz aniversário de verdade.</p>
+    <p style="${S.p}">
+      Acompanhar sua trajetória financeira esse ano tem sido bom de ver. Que o ano que
+      começa hoje venha com mais clareza, mais decisões alinhadas com o que você quer
+      construir, e menos peso no que já não serve mais.
+    </p>
+    <p style="${S.p}">Um abraço grande,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
+/**
+ * E-mail de aniversário para quem não está mais em acompanhamento ativo.
+ * Gancho de reativação é sobre o método (evoluir os pilares do plano), não
+ * sobre a relação ("voltar") — decisão de 16/09/2026.
+ * @param {string} nome
+ */
+function emailAniversarioInativa(nome) {
+  return layout(`
+    <h2 style="${S.h2}">Feliz aniversário, ${nome}</h2>
+    <p style="${S.p}">${nome}, feliz aniversário. Mesmo com um tempo sem falar, queria marcar essa data com você.</p>
+    <p style="${S.p}">
+      Espero que esse ano traga boas decisões e mais tranquilidade financeira. E se um
+      dia fizer sentido continuar evoluindo os pilares do seu plano, Domínio, Crescimento
+      Patrimonial, Liberdade Financeira, a porta está aberta, sem pressa nenhuma.
+    </p>
+    <p style="${S.p}">Um abraço,<br><strong style="color:#0D2B45;">Flávia Schuscimann, CFP®</strong></p>
+  `);
+}
+
 function emailAniversarioDia(aniversariantes) {
   const linha = (m) => `
     <tr>
@@ -1521,6 +1558,8 @@ module.exports = {
   emailLembretePlanejamento,
   emailCaixaBaixoPJ,
   emailAniversarioDia,
+  emailAniversarioAtiva,
+  emailAniversarioInativa,
   emailVencimentosHojePJ,
   emailNovidades,
   emailNovidadesJun2026,

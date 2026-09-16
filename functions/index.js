@@ -51,6 +51,8 @@ const {
   emailOnboardingParado,
   emailCaixaBaixoPJ,
   emailAniversarioDia,
+  emailAniversarioAtiva,
+  emailAniversarioInativa,
   emailVencimentosHojePJ,
   emailNovidades,
   emailNovidadesJun2026,
@@ -682,7 +684,12 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
 
   const { nome, inicio, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
           assinaturaClube, assinaturaDashboard, mentoriaEncerrada, nivelAcesso,
-          pl, sobra, totalReservas, scoreMes, scoreChave, sheetId, dataExpiracao } = docSnap.data();
+          pl, sobra, totalReservas, scoreMes, scoreChave, sheetId, dataExpiracao,
+          dataNascimento } = docSnap.data();
+  const aniversarioHoje = !!dataNascimento && (() => {
+    const [, mNasc, dNasc] = String(dataNascimento).slice(0, 10).split('-').map(Number);
+    return mNasc === (agora.getMonth() + 1) && dNasc === agora.getDate();
+  })();
 
   // Controle de acesso
   const isAdminUser = request.auth?.token?.admin === true;
@@ -780,6 +787,7 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
     assinaturaDashboard: assinaturaDashboard || false,
     nivelAcesso:        nivelAcesso       || null, // 'raio-x' → frontend esconde Patrimônio/Reservas/Perfil
     temMentoria:        temMentoria, // false → frontend esconde Minha Jornada (achado 16/09/2026)
+    aniversarioHoje:    aniversarioHoje, // true → frontend mostra banner de parabéns (achado 16/09/2026)
     mes,
     ano,
     orcamento:       { receita: receitaMes, despesa: despesaMes, sobra: sobraMes, aporte: aporteMes, mes, ano },
@@ -6074,8 +6082,20 @@ exports.notifCobrancasDia = onSchedule(
  * Flávia às 8h. Sem filtro de status: quem não é mais ativa continua
  * merecendo o lembrete de aniversário.
  */
+/**
+ * Texto de WhatsApp de aniversário. Mesma regra de conteúdo dos e-mails
+ * (emailAniversarioAtiva/Inativa em mailer.js): inativa leva o gancho de
+ * evoluir os pilares do plano, sem falar em "voltar".
+ */
+function mensagemWhatsappAniversario(nome, inativa) {
+  if (inativa) {
+    return `Feliz aniversário, ${nome}! 🎂 Lembrei de você hoje. Desejo um ano de clareza e boas decisões pra sua vida financeira. E se um dia fizer sentido evoluir os pilares do seu plano, a porta continua aberta. Abraço da Flávia.`;
+  }
+  return `Feliz aniversário, ${nome}! 🎉 Passando só pra desejar um ano novo de muita clareza e liberdade pra você. Abraço grande da Flávia.`;
+}
+
 exports.notifAniversarioDia = onSchedule(
-  { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: ['GMAIL_APP_PASSWORD'] },
+  { schedule: '0 8 * * *', timeZone: 'America/Sao_Paulo', secrets: ['GMAIL_APP_PASSWORD', sZapiId, sZapiToken, sZapiClient] },
   async () => {
   if (await jaExecutouHoje('notifAniversarioDia')) return;
 
@@ -6093,11 +6113,45 @@ exports.notifAniversarioDia = onSchedule(
 
   if (!aniversariantes.length) return;
 
+  // 1) Aviso interno pra Flávia — inalterado.
   await sendEmail({
     to:      ADMIN_EMAIL,
     subject: `🎂 Aniversário hoje — ${aniversariantes.map(m => m.nome).join(', ')}`,
     html:    emailAniversarioDia(aniversariantes),
   });
+
+  // 2) Parabéns pra cada aniversariante (achado/pedido 16/09/2026) — e-mail
+  //    sempre que houver endereço; WhatsApp só se houver telefone e a
+  //    instância Z-API estiver conectada. Texto muda por status: 'inativa'
+  //    leva o gancho de evoluir os pilares do plano; qualquer outro status
+  //    (ativa, alerta) usa a versão de quem já está acompanhando.
+  const zapiId     = sZapiId.value();
+  const zapiToken  = sZapiToken.value();
+  const zapiClient = sZapiClient.value();
+  let zapi = null;
+  if (zapiId && zapiToken) {
+    const candidato = new ZApiClient(zapiId, zapiToken, zapiClient);
+    const conectado = await candidato.verificarConexao().catch(() => false);
+    if (conectado) zapi = candidato;
+    else console.warn('[notifAniversarioDia] Z-API desconectada — pulando WhatsApp, e-mails seguem normalmente.');
+  }
+
+  for (const m of aniversariantes) {
+    const nome      = m.nome || 'você';
+    const ehInativa = m.status === 'inativa';
+
+    if (m.email) {
+      const html = ehInativa ? emailAniversarioInativa(nome) : emailAniversarioAtiva(nome);
+      await sendEmail({ to: m.email, subject: `Feliz aniversário, ${nome}! 🎂`, html })
+        .catch(err => console.error(`[notifAniversarioDia] Falha ao enviar e-mail de aniversário (uid=${m.uid}):`, err.message));
+    }
+
+    if (zapi && m.telefone) {
+      await zapi.enviarTexto(m.telefone, mensagemWhatsappAniversario(nome, ehInativa))
+        .catch(err => console.error(`[notifAniversarioDia] Falha ao enviar WhatsApp de aniversário (uid=${m.uid}):`, err.message));
+    }
+  }
+
   await marcarEnviado('notifAniversarioDia');
 });
 

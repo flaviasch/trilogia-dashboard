@@ -730,6 +730,11 @@
   <div id="erroBanner" style="display:none; background:rgba(248,113,113,0.12); border-bottom:1px solid rgba(248,113,113,0.3); padding:12px 32px; font-size:13px; color:#f87171;">
     Não foi possível carregar seus dados. Verifique sua conexão e <a href="" style="color:#f87171;text-decoration:underline;" onclick="location.reload();return false;">tente novamente</a>.
   </div>
+  <!-- Banner de aniversário (achado/pedido 16/09/2026) -->
+  <div id="aniversarioBanner" style="display:none; background:rgba(207,174,101,0.12); border-bottom:1px solid rgba(207,174,101,0.3); padding:10px 32px; font-size:13px; color:#CFAE65; gap:12px; align-items:center;">
+    <span>🎂 Feliz aniversário! Que seu novo ano venha com mais clareza financeira.</span>
+    <button onclick="dispensarAniversarioBanner()" style="margin-left:auto; background:none; border:none; color:#CFAE65; cursor:pointer; font-size:16px; line-height:1;">×</button>
+  </div>
   <!-- Aviso leve (planilha inacessível, mas dados do Firestore estão ok) -->
   <div id="avisoSheet" style="display:none; background:rgba(251,191,36,0.08); border-bottom:1px solid rgba(251,191,36,0.2); padding:10px 32px; font-size:13px; color:rgba(251,191,36,0.85);">
     Alguns dados da planilha estão temporariamente indisponíveis. Orçamento, patrimônio e reservas podem estar em branco.
@@ -966,6 +971,11 @@
     window.msgErro = msgErro;
     window.toast = toast;
     window.setLoading = setLoading;
+    window.dispensarAniversarioBanner = function() {
+      localStorage.setItem('aniversarioBannerDispensado', new Date().toISOString().slice(0, 10));
+      const banner = document.getElementById('aniversarioBanner');
+      if (banner) banner.style.display = 'none';
+    };
 
     let _ultimosSteps = []; // último cálculo de checkOnboarding, usado pelo modal "Por que essa ordem?"
 
@@ -1498,6 +1508,16 @@
         if (linkTop) linkTop.style.display = 'none';
         const linkBottom = document.getElementById('linkJornada');
         if (linkBottom) linkBottom.style.display = 'none';
+      }
+
+      // Banner de aniversário — dispensável por localStorage pelo resto do dia
+      // (mesmo padrão dos outros notif-cards, achado 04/09/2026).
+      if (data.aniversarioHoje) {
+        const hojeISO = new Date().toISOString().slice(0, 10);
+        if (localStorage.getItem('aniversarioBannerDispensado') !== hojeISO) {
+          const banner = document.getElementById('aniversarioBanner');
+          if (banner) banner.style.display = 'flex';
+        }
       }
     }
 
