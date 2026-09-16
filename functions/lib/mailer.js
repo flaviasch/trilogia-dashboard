@@ -1568,6 +1568,11 @@ function emailModoCasal2026(nome) {
       e-mail da pessoa e envie o convite. Se ela ainda não tem conta no
       Dashboard, uma é criada na hora, sem custo.
     </p>
+    <p style="${S.p}">
+      Por enquanto essa visão consolidada é só de leitura. A partir de
+      01/10, os dois vão poder lançar dados e fazer a gestão financeira
+      juntos, direto pelo Dashboard.
+    </p>
     <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">Ver dashboard</a>
     <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
   `);
