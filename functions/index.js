@@ -32,6 +32,7 @@ const sMailerLiteReserva  = defineSecret('MAILERLITE_GRUPO_RESERVA_RENDE');
 const sZapiId             = defineSecret('ZAPI_INSTANCE_ID');
 const sZapiToken  = defineSecret('ZAPI_TOKEN');
 const sZapiClient = defineSecret('ZAPI_CLIENT_TOKEN');
+const sZapiWebhookTokenCRM = defineSecret('ZAPI_WEBHOOK_TOKEN_CRM'); // zapiWebhookCRM
 const sAnthropic  = defineSecret('ANTHROPIC_API_KEY'); // categorizarExtratoIA — substitui o Custom GPT do Raio-X
 const sSmokeToken = defineSecret('SMOKE_TEST_TOKEN'); // smokeTestAlerta — token compartilhado com scripts/smoke-test.js
 
@@ -12490,6 +12491,127 @@ exports.backupFirestore = onSchedule(
     const result = await res.json();
     console.log(`[backupFirestore] Export iniciado para ${bucket}:`, result.name);
   })
+);
+
+// ─── WHATSAPP CRM (zapiWebhookCRM) ─────────────────────────────────────────────
+// Ver dashboard/WHATSAPP_SPEC.md. Instância A (mesma da esteira pós-venda, já
+// conectada) recebe mensagem de lead/desconhecido. Fluxo B (lead conhecido,
+// bate por telefone em leads.whatsapp): grava em leads/{id}/mensagens,
+// promove Lead Frio → Engajado automaticamente (única promoção automática do
+// pipeline). Fluxo C (desconhecido): não vira lead sozinho — cai em
+// mensagens_nao_triadas, fila de triagem manual no Pipeline. Retomado em
+// 16/09/2026 (pedido Flávia) — só a parte de CRM; o Fluxo A (mentorada
+// lançar orçamento por WhatsApp) depende do número/instância B, ainda não
+// provisionados (seção 0 da spec). getMensagensLead/enviarMensagemLead/
+// marcarMensagensLidas/getMensagensNaoTriadas/converterParaLead/
+// descartarMensagemNaoTriada + UI no admin.html seguem como próximo passo,
+// depois de confirmar que as mensagens estão chegando (ordem sugerida na spec).
+exports.zapiWebhookCRM = onRequest(
+  { cors: false, secrets: [sZapiWebhookTokenCRM, 'GMAIL_APP_PASSWORD'] },
+  async (req, res) => {
+    if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+    const tokenEsperado = sZapiWebhookTokenCRM.value();
+    if (!tokenEsperado || req.query.token !== tokenEsperado) {
+      console.warn('[zapiWebhookCRM] Token inválido ou ausente.');
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    try {
+      const body = req.body || {};
+      if (body.fromMe === true)  { res.status(200).send('ignored: fromMe');  return; }
+      if (body.isGroup === true) { res.status(200).send('ignored: group');   return; }
+      const texto = body.text?.message;
+      if (!texto) { res.status(200).send('ignored: no text'); return; }
+
+      // Idempotência — mesmo princípio do kiwifyWebhook, mas por messageId em
+      // vez de HMAC (Z-API não assina os webhooks recebidos).
+      const messageId = body.messageId || body.id || null;
+      if (messageId) {
+        const eventoRef = db.collection('zapiEventosProcessados').doc(String(messageId));
+        const eventoSnap = await eventoRef.get();
+        if (eventoSnap.exists) { res.status(200).send('ok: duplicate'); return; }
+        await eventoRef.set({
+          processadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          origem: 'crm',
+        });
+      }
+
+      const telefoneRemetente = normalizarTelefone(body.phone || body.from || '');
+      if (!telefoneRemetente) { res.status(200).send('ignored: no phone'); return; }
+
+      try {
+        await checkRateLimit(telefoneRemetente, 'zapiWebhookCRM', 20, 60 * 1000);
+      } catch (e) {
+        console.warn(`[zapiWebhookCRM] Rate limit atingido para ${telefoneRemetente}.`);
+        res.status(200).send('ok: rate-limited');
+        return;
+      }
+
+      // Fluxo B — bate com um lead existente por telefone
+      const leadsSnap = await db.collection('leads')
+        .where('whatsapp', '==', telefoneRemetente)
+        .limit(1)
+        .get();
+
+      if (!leadsSnap.empty) {
+        const leadDoc = leadsSnap.docs[0];
+        await leadDoc.ref.collection('mensagens').add({
+          direcao: 'recebida',
+          texto,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          lida: false,
+          zapiMessageId: messageId || null,
+        });
+
+        const atualizacao = {
+          ultimoContato: admin.firestore.FieldValue.serverTimestamp(),
+          ultimaMensagemEm: admin.firestore.FieldValue.serverTimestamp(),
+          mensagensNaoLidas: admin.firestore.FieldValue.increment(1),
+        };
+        if (leadDoc.data().estagio === 'Lead Frio') atualizacao.estagio = 'Engajado';
+        await leadDoc.ref.update(atualizacao);
+
+        res.status(200).send('ok: fluxo-b');
+        return;
+      }
+
+      // Fluxo C — número desconhecido: não vira lead sozinho, cai na fila de
+      // triagem. Atualiza o pendente existente (mesmo telefone) em vez de
+      // duplicar, se a pessoa mandar mais de uma mensagem antes de ser triada.
+      const pendenteSnap = await db.collection('mensagens_nao_triadas')
+        .where('telefone', '==', telefoneRemetente)
+        .where('status', '==', 'pendente')
+        .limit(1)
+        .get();
+
+      if (!pendenteSnap.empty) {
+        await pendenteSnap.docs[0].ref.update({ texto, zapiMessageId: messageId || null });
+      } else {
+        const expireAt = new Date();
+        expireAt.setDate(expireAt.getDate() + 30);
+        await db.collection('mensagens_nao_triadas').add({
+          telefone: telefoneRemetente,
+          texto,
+          zapiMessageId: messageId || null,
+          status: 'pendente',
+          criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          resolvidoEm: null,
+          leadIdGerado: null,
+          expireAt,
+        });
+      }
+
+      res.status(200).send('ok: fluxo-c');
+    } catch (err) {
+      console.error('[zapiWebhookCRM] Erro:', err.message);
+      await alertarErro('zapiWebhookCRM', err).catch(() => {});
+      // 200 de propósito — evita que a Z-API reenvie em loop por um bug
+      // nosso; o alerta por e-mail já avisa a Flávia.
+      res.status(200).send('error-logged');
+    }
+  }
 );
 
 /**

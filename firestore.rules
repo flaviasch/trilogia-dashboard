@@ -19,6 +19,17 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.token.admin == true;
     }
 
+    // Mensagens de WhatsApp dentro de um lead (zapiWebhookCRM) — mesmo acesso do lead.
+    match /leads/{id}/mensagens/{msgId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Fila de triagem de WhatsApp de números desconhecidos (zapiWebhookCRM,
+    // Fluxo C) — somente admin.
+    match /mensagens_nao_triadas/{id} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+
     // Orçamento mensal — somente Cloud Functions
     match /mentoradas/{uid}/orcamento/{mesAno} {
       allow read, write: if false;
