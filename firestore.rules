@@ -30,6 +30,16 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.token.admin == true;
     }
 
+    // Modo Casal (MODO_CASAL_SPEC.md) — vínculo entre duas contas e conta de
+    // parceiro sem billing. Só Cloud Functions leem/escrevem, mesmo padrão
+    // de mentoradas/contasPJ.
+    match /casais/{casalId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+    match /contasParceiro/{uid} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+
     // Orçamento mensal — somente Cloud Functions
     match /mentoradas/{uid}/orcamento/{mesAno} {
       allow read, write: if false;

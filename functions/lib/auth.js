@@ -99,4 +99,27 @@ async function requireContaPJAccess(db, request, uidTitular, aba) {
   throw new HttpsError('permission-denied', 'Acesso negado.');
 }
 
-module.exports = { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId, requireContaPJAccess };
+/**
+ * Garante acesso a um vinculo de casal ativo (ver MODO_CASAL_SPEC.md) —
+ * libera se o uid da requisicao e uidA ou uidB do doc `casais/{casalId}`
+ * com status 'ativo', ou e admin. Usado pelas functions de leitura
+ * consolidada (Fatia 2 do Modo Casal).
+ *
+ * @param {FirebaseFirestore.Firestore} db
+ * @param {import('firebase-functions/v2/https').CallableRequest} request
+ * @param {string} casalId
+ */
+async function requireSelfOrPartner(db, request, casalId) {
+  const auth = requireAuth(request);
+  if (auth.token.admin === true) return auth;
+
+  const casalSnap = await db.collection('casais').doc(casalId).get();
+  if (!casalSnap.exists) throw new HttpsError('not-found', 'Vinculo nao encontrado.');
+  const { uidA, uidB, status } = casalSnap.data();
+  if (status !== 'ativo' || (auth.uid !== uidA && auth.uid !== uidB)) {
+    throw new HttpsError('permission-denied', 'Acesso negado.');
+  }
+  return auth;
+}
+
+module.exports = { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId, requireContaPJAccess, requireSelfOrPartner };

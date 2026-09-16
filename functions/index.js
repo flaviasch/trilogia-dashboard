@@ -73,6 +73,9 @@ const {
   emailIR,
   emailReenvioAcesso,
   emailConviteUsuarioSecundarioPJ,
+  emailConviteParceiro,
+  emailVinculoAceito,
+  emailVinculoRecusado,
   emailBoasVindas,
   emailExpiracaoProxima,
   emailCobrancasDia,
@@ -12618,6 +12621,292 @@ exports.zapiWebhookCRM = onRequest(
     }
   }
 );
+
+// ─── MODO CASAL (vínculo de contas) ────────────────────────────────────────────
+// Ver dashboard/MODO_CASAL_SPEC.md. Fatia 1 (16/09/2026): mecânica de vínculo
+// — convite, aceite, recusa, desvínculo. Sem consolidação de dado ainda
+// (getDashboardCasal e afins ficam pra Fatia 2). Reaproveita o mesmo padrão
+// de createMentorada pra criar a conta do parceiro (Auth + Sheet), numa
+// coleção própria sem billing (contasParceiro), mesmo princípio de contasPJ.
+
+/**
+ * Retorna o estado do vínculo de casal do uid autenticado, seja ele
+ * mentorada (uidA) ou parceiro (uidB/contasParceiro). Usado por index.html
+ * (card de vínculo, do lado da mentorada) e vinculo.html (tela do parceiro).
+ */
+exports.getStatusVinculo = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const uid = auth.uid;
+
+  const [mentoradaSnap, parceiroSnap] = await Promise.all([
+    db.collection('mentoradas').doc(uid).get(),
+    db.collection('contasParceiro').doc(uid).get(),
+  ]);
+
+  let papel = null;
+  let casalId = null;
+  if (mentoradaSnap.exists) {
+    papel = 'mentorada';
+    casalId = mentoradaSnap.data().casalId || null;
+  } else if (parceiroSnap.exists) {
+    papel = 'parceiro';
+    casalId = parceiroSnap.data().casalId || null;
+  }
+
+  if (!casalId) return { papel, casalId: null, casalStatus: null, outroNome: null, souQuemConvidou: false };
+
+  const casalSnap = await db.collection('casais').doc(casalId).get();
+  if (!casalSnap.exists) return { papel, casalId: null, casalStatus: null, outroNome: null, souQuemConvidou: false };
+
+  const { uidA, uidB, status } = casalSnap.data();
+  const uidOutro = uid === uidA ? uidB : uidA;
+  const [snapOutroMentorada, snapOutroParceiro] = await Promise.all([
+    db.collection('mentoradas').doc(uidOutro).get(),
+    db.collection('contasParceiro').doc(uidOutro).get(),
+  ]);
+  const outroNome = snapOutroMentorada.exists
+    ? snapOutroMentorada.data().nome
+    : (snapOutroParceiro.exists ? snapOutroParceiro.data().nome : null);
+
+  return { papel, casalId, casalStatus: status, outroNome, souQuemConvidou: uid === uidA };
+});
+
+/**
+ * Mentorada convida o parceiro a vincular as contas. Cria a conta do
+ * parceiro (Auth + contasParceiro + planilha própria) se o e-mail ainda não
+ * existir, e abre o vínculo em `casais/{casalId}` como 'pendente' — nenhum
+ * dado é consolidado até o parceiro aceitar (aceitarVinculo).
+ */
+exports.convidarParceiro = onCall({ secrets: SECRETS_ALL }, async (request) => {
+  const auth = requireAuth(request);
+  const uid = auth.uid;
+
+  const { nomeParceiro, emailParceiro } = request.data || {};
+  if (!nomeParceiro || !emailParceiro) {
+    throw new HttpsError('invalid-argument', 'nomeParceiro e emailParceiro são obrigatórios.');
+  }
+  const emailNorm = String(emailParceiro).trim().toLowerCase();
+  if (!emailNorm.includes('@')) throw new HttpsError('invalid-argument', 'E-mail do parceiro inválido.');
+
+  const mentoradaSnap = await db.collection('mentoradas').doc(uid).get();
+  if (!mentoradaSnap.exists) throw new HttpsError('permission-denied', 'Só mentoradas podem convidar um parceiro.');
+  const mentoradaData = mentoradaSnap.data();
+  if (mentoradaData.casalId) {
+    throw new HttpsError('already-exists', 'Você já tem um vínculo de casal em curso ou ativo.');
+  }
+  if (emailNorm === String(mentoradaData.email || '').toLowerCase()) {
+    throw new HttpsError('invalid-argument', 'O e-mail do parceiro não pode ser o mesmo da sua conta.');
+  }
+
+  let userRecord = null;
+  try {
+    userRecord = await admin.auth().getUserByEmail(emailNorm);
+  } catch (err) {
+    if (err.code !== 'auth/user-not-found') {
+      throw new HttpsError('internal', `Erro ao verificar e-mail: ${err.message}`);
+    }
+  }
+
+  let uidParceiro;
+  let contaNova = false;
+  let linkSenha = null;
+
+  if (userRecord) {
+    uidParceiro = userRecord.uid;
+    const parceiroSnap = await db.collection('contasParceiro').doc(uidParceiro).get();
+    if (!parceiroSnap.exists) {
+      throw new HttpsError('failed-precondition', 'Esse e-mail já tem uma conta no Dashboard que não é de parceiro. Fale com o suporte.');
+    }
+    if (parceiroSnap.data().casalId) {
+      throw new HttpsError('already-exists', 'Esse e-mail já está vinculado a outro casal.');
+    }
+  } else {
+    try {
+      userRecord = await admin.auth().createUser({
+        email: emailNorm,
+        displayName: nomeParceiro,
+        password: gerarSenhaTemporaria(),
+        emailVerified: false,
+      });
+    } catch (err) {
+      if (err.code === 'auth/email-already-exists') {
+        throw new HttpsError('already-exists', 'Já existe uma conta com esse e-mail.');
+      }
+      throw new HttpsError('internal', `Erro ao criar conta do parceiro: ${err.message}`);
+    }
+    uidParceiro = userRecord.uid;
+    contaNova = true;
+
+    let sheetId = null;
+    try {
+      sheetId = await provisionar(nomeParceiro, DRIVE_FOLDER_ID);
+    } catch (err) {
+      console.error(`[convidarParceiro] Falha ao criar planilha para ${emailNorm}:`, err.message);
+      alertarErro('convidarParceiro (Drive OAuth2)', new Error(
+        `Falha ao criar planilha do parceiro para ${emailNorm}: ${err.message}`
+      )).catch(() => {});
+    }
+
+    await db.collection('contasParceiro').doc(uidParceiro).set({
+      nome: nomeParceiro,
+      email: emailNorm,
+      casalId: null,
+      criadoPor: uid,
+      status: 'convidado',
+      sheetId: sheetId || null,
+      lgpdAceite: false,
+      lgpdAceiteEm: null,
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    try {
+      linkSenha = await admin.auth().generatePasswordResetLink(emailNorm, {
+        url: 'https://dashboard.flaviaschusciman.com/login.html',
+      });
+    } catch (err) {
+      console.error(`[convidarParceiro] Falha ao gerar link de senha para ${emailNorm}:`, err.message);
+    }
+  }
+
+  const casalRef = db.collection('casais').doc();
+  await casalRef.set({
+    uidA: uid,
+    uidB: uidParceiro,
+    status: 'pendente',
+    criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    aceitoEm: null,
+  });
+
+  await db.collection('mentoradas').doc(uid).update({ casalId: casalRef.id });
+  await db.collection('contasParceiro').doc(uidParceiro).update({ casalId: casalRef.id });
+
+  try {
+    await sendEmail({
+      to: emailNorm,
+      subject: contaNova
+        ? `${mentoradaData.nome} te convidou pro Dashboard Trilogia Financeira`
+        : `${mentoradaData.nome} quer vincular as contas no Dashboard Trilogia Financeira`,
+      html: emailConviteParceiro(nomeParceiro, mentoradaData.nome, contaNova, linkSenha),
+    });
+  } catch (err) {
+    console.error(`[convidarParceiro] Falha ao enviar e-mail de convite para ${emailNorm}:`, err.message);
+  }
+
+  return { casalId: casalRef.id, uidParceiro, contaNova };
+});
+
+/**
+ * Parceiro aceita o vínculo. Só o próprio uidB do casal pode chamar.
+ */
+exports.aceitarVinculo = onCall({ secrets: [sGmail] }, async (request) => {
+  const auth = requireAuth(request);
+  const { casalId } = request.data || {};
+  if (!casalId) throw new HttpsError('invalid-argument', 'casalId é obrigatório.');
+
+  const casalRef = db.collection('casais').doc(casalId);
+  const casalSnap = await casalRef.get();
+  if (!casalSnap.exists) throw new HttpsError('not-found', 'Vínculo não encontrado.');
+  const { uidA, uidB, status } = casalSnap.data();
+  if (auth.uid !== uidB) throw new HttpsError('permission-denied', 'Só quem foi convidado pode aceitar este vínculo.');
+  if (status !== 'pendente') throw new HttpsError('failed-precondition', 'Este vínculo já foi respondido.');
+
+  const agora = admin.firestore.FieldValue.serverTimestamp();
+  await Promise.all([
+    casalRef.update({ status: 'ativo', aceitoEm: agora }),
+    db.collection('contasParceiro').doc(uidB).update({ status: 'ativo' }),
+  ]);
+
+  const [mentoradaSnap, parceiroSnap] = await Promise.all([
+    db.collection('mentoradas').doc(uidA).get(),
+    db.collection('contasParceiro').doc(uidB).get(),
+  ]);
+  const nomeMentorada  = mentoradaSnap.exists ? mentoradaSnap.data().nome  : 'mentorada';
+  const emailMentorada = mentoradaSnap.exists ? mentoradaSnap.data().email : null;
+  const nomeParceiro   = parceiroSnap.exists  ? parceiroSnap.data().nome  : 'seu parceiro';
+
+  if (emailMentorada) {
+    sendEmail({
+      to: emailMentorada,
+      subject: `${nomeParceiro} aceitou o vínculo`,
+      html: emailVinculoAceito(nomeMentorada, nomeParceiro),
+    }).catch(err => console.error('[aceitarVinculo] Falha ao enviar e-mail:', err.message));
+  }
+
+  return { ok: true };
+});
+
+/**
+ * Parceiro recusa o vínculo. Só o próprio uidB do casal pode chamar. Não
+ * apaga a conta do parceiro — ela fica sem casalId, pronta pra um convite
+ * futuro (dele mesmo ou de outra mentorada).
+ */
+exports.recusarVinculo = onCall({ secrets: [sGmail] }, async (request) => {
+  const auth = requireAuth(request);
+  const { casalId } = request.data || {};
+  if (!casalId) throw new HttpsError('invalid-argument', 'casalId é obrigatório.');
+
+  const casalRef = db.collection('casais').doc(casalId);
+  const casalSnap = await casalRef.get();
+  if (!casalSnap.exists) throw new HttpsError('not-found', 'Vínculo não encontrado.');
+  const { uidA, uidB, status } = casalSnap.data();
+  if (auth.uid !== uidB) throw new HttpsError('permission-denied', 'Só quem foi convidado pode recusar este vínculo.');
+  if (status !== 'pendente') throw new HttpsError('failed-precondition', 'Este vínculo já foi respondido.');
+
+  await Promise.all([
+    casalRef.update({ status: 'recusado' }),
+    db.collection('mentoradas').doc(uidA).update({ casalId: admin.firestore.FieldValue.delete() }),
+    db.collection('contasParceiro').doc(uidB).update({ casalId: admin.firestore.FieldValue.delete() }),
+  ]);
+
+  const [mentoradaSnap, parceiroSnap] = await Promise.all([
+    db.collection('mentoradas').doc(uidA).get(),
+    db.collection('contasParceiro').doc(uidB).get(),
+  ]);
+  const nomeMentorada  = mentoradaSnap.exists ? mentoradaSnap.data().nome  : 'mentorada';
+  const emailMentorada = mentoradaSnap.exists ? mentoradaSnap.data().email : null;
+  const nomeParceiro   = parceiroSnap.exists  ? parceiroSnap.data().nome  : 'seu parceiro';
+
+  if (emailMentorada) {
+    sendEmail({
+      to: emailMentorada,
+      subject: `${nomeParceiro} recusou o convite de vínculo`,
+      html: emailVinculoRecusado(nomeMentorada, nomeParceiro),
+    }).catch(err => console.error('[recusarVinculo] Falha ao enviar e-mail:', err.message));
+  }
+
+  return { ok: true };
+});
+
+/**
+ * Desfaz um vínculo de casal, pendente ou ativo. Qualquer um dos dois lados
+ * pode chamar, a qualquer momento, sem aprovação do outro — ou admin, a
+ * pedido de suporte (MODO_CASAL_SPEC.md, seção 10.1), com botão dedicado em
+ * admin.html. Não apaga dado de ninguém, só para de consolidar.
+ */
+exports.desvincular = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const { casalId } = request.data || {};
+  if (!casalId) throw new HttpsError('invalid-argument', 'casalId é obrigatório.');
+
+  const casalRef = db.collection('casais').doc(casalId);
+  const casalSnap = await casalRef.get();
+  if (!casalSnap.exists) throw new HttpsError('not-found', 'Vínculo não encontrado.');
+  const { uidA, uidB, status } = casalSnap.data();
+
+  const isAdmin = auth.token.admin === true;
+  if (!isAdmin && auth.uid !== uidA && auth.uid !== uidB) {
+    throw new HttpsError('permission-denied', 'Acesso negado.');
+  }
+  if (status === 'desvinculado') return { ok: true };
+
+  await Promise.all([
+    casalRef.update({ status: 'desvinculado' }),
+    db.collection('mentoradas').doc(uidA).update({ casalId: admin.firestore.FieldValue.delete() }).catch(() => {}),
+    db.collection('contasParceiro').doc(uidB).update({ casalId: admin.firestore.FieldValue.delete() }).catch(() => {}),
+  ]);
+
+  return { ok: true };
+});
 
 /**
  * healthCheck — endpoint público para smoke tests pós-deploy.
