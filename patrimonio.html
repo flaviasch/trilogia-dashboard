@@ -737,15 +737,15 @@
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
             <div>
               <div style="font-size:11px;color:var(--text-muted);">Ativos (casal)</div>
-              <div id="casalTotalAtivos" style="font-size:16px;font-weight:600;">—</div>
+              <div id="casalTotalAtivos" style="font-size:16px;font-weight:600;">-</div>
             </div>
             <div>
               <div style="font-size:11px;color:var(--text-muted);">Dívidas (casal)</div>
-              <div id="casalTotalDividas" style="font-size:16px;font-weight:600;">—</div>
+              <div id="casalTotalDividas" style="font-size:16px;font-weight:600;">-</div>
             </div>
             <div>
               <div style="font-size:11px;color:var(--text-muted);">Patrimônio líquido (casal)</div>
-              <div id="casalTotalPL" style="font-size:16px;font-weight:600;">—</div>
+              <div id="casalTotalPL" style="font-size:16px;font-weight:600;">-</div>
             </div>
           </div>
           <div id="patrimonioCasalLista"></div>
@@ -918,7 +918,7 @@
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
       categorizarPatrimonioIA, venderBemPatrimonio,
       getStatusVinculo, getPatrimonioCasal,
-    } from './js/api.js?v=62';
+    } from './js/api.js?v=66';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
     // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se

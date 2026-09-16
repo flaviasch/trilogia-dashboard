@@ -953,22 +953,22 @@
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
                 <div>
                   <div style="font-size:11px;color:var(--text-secondary);">Receita (casal)</div>
-                  <div id="casalReceita" style="font-size:16px;font-weight:600;">—</div>
+                  <div id="casalReceita" style="font-size:16px;font-weight:600;">-</div>
                 </div>
                 <div>
                   <div style="font-size:11px;color:var(--text-secondary);">Despesa (casal)</div>
-                  <div id="casalDespesa" style="font-size:16px;font-weight:600;">—</div>
+                  <div id="casalDespesa" style="font-size:16px;font-weight:600;">-</div>
                 </div>
                 <div>
                   <div style="font-size:11px;color:var(--text-secondary);">Patrimônio líquido (casal)</div>
-                  <div id="casalPL" style="font-size:16px;font-weight:600;">—</div>
+                  <div id="casalPL" style="font-size:16px;font-weight:600;">-</div>
                 </div>
                 <div>
                   <div style="font-size:11px;color:var(--text-secondary);">Reservas (casal)</div>
-                  <div id="casalReservas" style="font-size:16px;font-weight:600;">—</div>
+                  <div id="casalReservas" style="font-size:16px;font-weight:600;">-</div>
                 </div>
               </div>
-              <div id="casalAvisoSemDados" style="display:none;font-size:12px;color:var(--text-secondary);margin-top:4px;">Seu parceiro ainda não lançou dados próprios — os números acima são só os seus, por enquanto.</div>
+              <div id="casalAvisoSemDados" style="display:none;font-size:12px;color:var(--text-secondary);margin-top:4px;">Seu parceiro ainda não lançou dados próprios. Os números acima são só os seus, por enquanto.</div>
             </div>
             <div id="painelCasalErro" style="display:none;font-size:12px;color:#f87171;"></div>
           </div>
@@ -1008,7 +1008,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor, getContaPJ, getStatusVinculo, convidarParceiro, desvincular, getDashboardCasal } from './js/api.js?v=62';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor, getContaPJ, getStatusVinculo, convidarParceiro, desvincular, getDashboardCasal } from './js/api.js?v=66';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
     import { calcularAgregadosOrcamento } from './js/orcamento-calc.js';

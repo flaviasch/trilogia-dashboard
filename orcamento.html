@@ -2052,15 +2052,15 @@
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
             <div>
               <div style="font-size:11px;color:var(--text-muted);">Receita (casal)</div>
-              <div id="casalOrcReceita" style="font-size:16px;font-weight:600;">—</div>
+              <div id="casalOrcReceita" style="font-size:16px;font-weight:600;">-</div>
             </div>
             <div>
               <div style="font-size:11px;color:var(--text-muted);">Despesa (casal)</div>
-              <div id="casalOrcDespesa" style="font-size:16px;font-weight:600;">—</div>
+              <div id="casalOrcDespesa" style="font-size:16px;font-weight:600;">-</div>
             </div>
             <div>
               <div style="font-size:11px;color:var(--text-muted);">Sobra (casal)</div>
-              <div id="casalOrcSobra" style="font-size:16px;font-weight:600;">—</div>
+              <div id="casalOrcSobra" style="font-size:16px;font-weight:600;">-</div>
             </div>
           </div>
           <div id="orcamentoCasalLista"></div>
@@ -2735,7 +2735,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor, getStatusVinculo, getOrcamentoCasal } from './js/api.js?v=62';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor, getStatusVinculo, getOrcamentoCasal } from './js/api.js?v=66';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
