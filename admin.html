@@ -1123,6 +1123,7 @@
         <button class="btn-acao" id="btnFecharMentoria" style="border-color:rgba(207,174,101,0.4);color:var(--gold);display:none">Fechar mentoria</button>
         <button class="btn-acao" id="btnMarcarEncerrada" style="border-color:rgba(207,174,101,0.2);color:var(--text-muted);font-size:12px;display:none">Já encerrada</button>
         <button class="btn-acao" id="btnReabrirMentoria" style="border-color:rgba(74,222,128,0.3);color:#4ade80;font-size:12px;display:none">↩ Reabrir mentoria</button>
+        <button class="btn-acao" id="btnDesvincularCasal" style="border-color:rgba(207,174,101,0.4);color:var(--gold);display:none">Desvincular casal</button>
         <button class="btn-acao danger" id="btnBloquear">Bloquear acesso</button>
         <button class="btn-acao danger" id="btnDeletar" style="margin-left:auto">Apagar mentorada</button>
       </div>
@@ -2221,7 +2222,7 @@
   <script type="module">
     import { exigirAdmin, logout, refreshAdmin } from './js/admin-guard.js';
     import { auth } from './js/firebase-config.js';
-    import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada,
+    import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada, desvincularAdmin,
              createContrato, getContratos, pagarParcela, editarPagamento, estornarPagamento, cancelarCobranca, cancelarContrato, editarContrato, getCobrancas,
              criarPlanilha, getNotionCRM, getMinhaJornada, getMateriaisJornadaAdmin, salvarMaterialJornadaAdmin,
              getClubeContent, saveClubeItem, deleteClubeItem,
@@ -4119,6 +4120,8 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       if (btnBlq)  btnBlq.style.display  = (inativa || isAdmin) ? 'none' : '';
       if (btnReat) btnReat.style.display  = (inativa && !isAdmin) ? '' : 'none';
       if (btnDel)  btnDel.style.display   = isAdmin ? 'none' : '';
+      const btnDesvCasal = document.getElementById('btnDesvincularCasal');
+      if (btnDesvCasal) btnDesvCasal.style.display = m.casalId ? '' : 'none';
 
       // Toggle Clube
       const btnClube = document.getElementById('btnToggleClube');
@@ -4462,6 +4465,27 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
         alert(`Erro: ${err.message}`);
       } finally {
         btn.disabled = false;
+      }
+    });
+
+    document.getElementById('btnDesvincularCasal').addEventListener('click', async () => {
+      if (!mentoradaEmDetalhe) return;
+      const casalId = mentoradaEmDetalhe.casalId;
+      if (!casalId) return;
+      if (!confirm(`Desvincular o casal de ${mentoradaEmDetalhe.nome}?\n\nNenhum dado é apagado — só a consolidação entre as duas contas para de acontecer. Pode ser refeito depois com um novo convite.`)) return;
+
+      const btn = document.getElementById('btnDesvincularCasal');
+      btn.disabled = true;
+      btn.textContent = 'Desvinculando…';
+      try {
+        await desvincularAdmin(casalId);
+        mentoradaEmDetalhe.casalId = null;
+        btn.style.display = 'none';
+      } catch (err) {
+        alert(`Erro ao desvincular: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Desvincular casal';
       }
     });
 

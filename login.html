@@ -246,6 +246,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
+    import { getStatusVinculo } from './js/api.js?v=62';
     import {
       signInWithEmailAndPassword,
       onAuthStateChanged
@@ -254,8 +255,25 @@
     // Evita redirect automático quando estamos mostrando o modal de escolha de modo
     let skipRedirect = false;
 
+    // Modo Casal (MODO_CASAL_SPEC.md): parceiro (contasParceiro, sem doc em
+    // mentoradas) vai pra tela de vínculo em vez do dashboard normal — ainda
+    // não tem telas próprias (Fatia 1). Falha silenciosa cai no fluxo de
+    // sempre, pra não travar login de ninguém por causa desse detalhe.
+    async function redirecionarPosLogin() {
+      try {
+        const status = await getStatusVinculo();
+        if (status?.papel === 'parceiro') {
+          window.location.href = 'vinculo.html';
+          return;
+        }
+      } catch (err) {
+        console.warn('[login] Falha ao checar vínculo de casal:', err.message);
+      }
+      window.location.href = 'index.html';
+    }
+
     onAuthStateChanged(auth, (user) => {
-      if (user && !skipRedirect) window.location.href = 'index.html';
+      if (user && !skipRedirect) redirecionarPosLogin();
     });
 
     const btnLogin = document.getElementById('btnLogin');
@@ -298,7 +316,7 @@
           document.getElementById('modalModo').classList.add('visible');
         } else {
           skipRedirect = false;
-          window.location.href = 'index.html';
+          redirecionarPosLogin();
         }
       } catch (err) {
         skipRedirect = false;

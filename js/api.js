@@ -249,6 +249,33 @@ export async function getNivelAcesso() {
   return call('getNivelAcesso')({ uid: uidAtual() });
 }
 
+// ─── Modo Casal (MODO_CASAL_SPEC.md) ──────────────────────────────────────────
+
+/** Estado do vínculo de casal do uid logado — mentorada (uidA) ou parceiro (uidB). */
+export async function getStatusVinculo() {
+  return call('getStatusVinculo')({});
+}
+
+/** Convida o parceiro pra vincular as contas. */
+export async function convidarParceiro(nomeParceiro, emailParceiro) {
+  return call('convidarParceiro')({ nomeParceiro, emailParceiro });
+}
+
+/** Parceiro aceita o vínculo de casal. */
+export async function aceitarVinculo(casalId) {
+  return call('aceitarVinculo')({ casalId });
+}
+
+/** Parceiro recusa o vínculo de casal. */
+export async function recusarVinculo(casalId) {
+  return call('recusarVinculo')({ casalId });
+}
+
+/** Desfaz o vínculo de casal — qualquer um dos dois lados, a qualquer momento. */
+export async function desvincular(casalId) {
+  return call('desvincular')({ casalId });
+}
+
 /**
  * Envia extrato/fatura para categorização via IA (substitui o Agente Raio-X do ChatGPT).
  * @param {string} conteudo — texto colado, ou base64 (sem prefixo data:) de PDF/imagem
@@ -538,6 +565,11 @@ export async function reativarMentorada(uid) {
 
 export async function deletarMentorada(uid) {
   return adminCall('deletarMentorada')({ uid });
+}
+
+/** Admin: desfaz o vínculo de casal de uma mentorada (suporte). */
+export async function desvincularAdmin(casalId) {
+  return adminCall('desvincular')({ casalId });
 }
 
 /** Reenvía o link de definição de senha para a mentorada (admin only). */

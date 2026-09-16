@@ -921,6 +921,29 @@
       <div id="reservasList" class="reservas-list"></div>
     </div>
 
+    <!-- Vínculo de Casal (MODO_CASAL_SPEC.md) -->
+    <div id="cardVinculoCasal" style="display:none;background:var(--navy);border:1px solid var(--border);border-radius:16px;padding:20px 24px;margin-bottom:24px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:12px;">Vínculo de Casal</div>
+
+      <div id="vinculoFormConvite">
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">
+          Convide seu parceiro ou parceira pra vincular as contas e acompanhar as finanças juntos. Cada um mantém a própria conta e o próprio histórico.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+          <input type="text" id="vinculoNomeParceiro" placeholder="Nome" style="flex:1;min-width:140px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:inherit;font-size:13px;">
+          <input type="email" id="vinculoEmailParceiro" placeholder="E-mail" style="flex:1;min-width:180px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:inherit;font-size:13px;">
+        </div>
+        <button id="btnEnviarConviteCasal" style="background:var(--gold);color:var(--navy);border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">Enviar convite</button>
+        <div id="vinculoConviteMsg" style="font-size:12px;color:#f87171;margin-top:8px;"></div>
+      </div>
+
+      <div id="vinculoStatusBox" style="display:none;">
+        <div id="vinculoStatusLabel" style="font-size:14px;font-weight:600;margin-bottom:2px;"></div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">Com: <span id="vinculoStatusNome"></span></div>
+        <button id="btnDesvincularCasalHome" style="background:transparent;border:1px solid rgba(248,113,113,0.4);color:#f87171;border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;">Desvincular</button>
+      </div>
+    </div>
+
   </main>
 
   <!-- Bottom nav (mobile) -->
@@ -953,7 +976,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor, getContaPJ } from './js/api.js?v=62';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor, getContaPJ, getStatusVinculo, convidarParceiro, desvincular } from './js/api.js?v=62';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
     import { calcularAgregadosOrcamento } from './js/orcamento-calc.js';
@@ -1022,7 +1045,74 @@
     const ADMIN_MASTER_EMAIL = 'flaviasch@gmail.com';
     const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs');
 
-    async function init(user) {
+    // ─── Vínculo de Casal (MODO_CASAL_SPEC.md) ────────────────────────────────────
+let _casalIdAtual = null;
+
+function renderVinculoCard(status) {
+  if (!status || status.papel !== 'mentorada') return;
+  const card = document.getElementById('cardVinculoCasal');
+  if (!card) return;
+  card.style.display = '';
+  const formBox   = document.getElementById('vinculoFormConvite');
+  const statusBox = document.getElementById('vinculoStatusBox');
+
+  if (!status.casalId) {
+    _casalIdAtual = null;
+    formBox.style.display   = '';
+    statusBox.style.display = 'none';
+    return;
+  }
+
+  _casalIdAtual = status.casalId;
+  formBox.style.display   = 'none';
+  statusBox.style.display = '';
+  document.getElementById('vinculoStatusLabel').textContent =
+    status.casalStatus === 'ativo' ? 'Vinculada' : 'Convite enviado — aguardando aceite';
+  document.getElementById('vinculoStatusNome').textContent = status.outroNome || '—';
+  document.getElementById('btnDesvincularCasalHome').textContent =
+    status.casalStatus === 'ativo' ? 'Desvincular' : 'Cancelar convite';
+}
+
+document.getElementById('btnEnviarConviteCasal')?.addEventListener('click', async () => {
+  const nome  = document.getElementById('vinculoNomeParceiro').value.trim();
+  const email = document.getElementById('vinculoEmailParceiro').value.trim();
+  const msgEl = document.getElementById('vinculoConviteMsg');
+  msgEl.textContent = '';
+  if (!nome || !email) { msgEl.textContent = 'Preencha nome e e-mail.'; return; }
+
+  const btn = document.getElementById('btnEnviarConviteCasal');
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+  try {
+    await convidarParceiro(nome, email);
+    const status = await getStatusVinculo();
+    renderVinculoCard(status);
+  } catch (err) {
+    msgEl.textContent = msgErro(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enviar convite';
+  }
+});
+
+document.getElementById('btnDesvincularCasalHome')?.addEventListener('click', async () => {
+  if (!_casalIdAtual) return;
+  if (!confirm('Desvincular o casal? Nenhum dado é apagado — só a consolidação entre as duas contas para de acontecer.')) return;
+
+  const btn = document.getElementById('btnDesvincularCasalHome');
+  btn.disabled = true;
+  try {
+    await desvincular(_casalIdAtual);
+    const status = await getStatusVinculo();
+    renderVinculoCard(status);
+  } catch (err) {
+    alert(msgErro(err));
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function init(user) {
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
       let admin = await isAdmin();
       if (admin) document.getElementById('linkAdmin').style.display = 'inline';
@@ -1039,6 +1129,13 @@
             document.getElementById('linkDashboardPJ').style.display = 'inline';
           }
         }).catch(() => {});
+      }
+
+      // Vínculo de Casal — carregado à parte do getDashboardHome, sem
+      // bloquear o resto da home. Só faz sentido na própria conta (não em
+      // viewAs, onde o token é do admin, não da mentorada visualizada).
+      if (!VIEW_AS_UID) {
+        getStatusVinculo().then(renderVinculoCard).catch(() => {});
       }
 
       // Modo visualização: admin abrindo dashboard de uma mentorada
