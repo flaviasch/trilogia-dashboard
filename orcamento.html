@@ -2042,6 +2042,33 @@
       <div id="anualContent"></div>
     </div>
 
+    <!-- Orçamento do Casal (Fatia 2, leitura) -->
+    <div id="cardOrcamentoCasal" style="display:none;background:var(--navy);border:1px solid var(--border);border-radius:16px;padding:20px 24px;margin-top:24px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:12px;">Orçamento do Casal (visão consolidada, mês atual)</div>
+      <button id="btnVerOrcamentoCasal" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;color:inherit;">Ver orçamento do casal</button>
+      <div id="orcamentoCasalPainel" style="display:none;margin-top:16px;">
+        <div id="orcamentoCasalCarregando" style="font-size:12px;color:var(--text-muted);">Carregando…</div>
+        <div id="orcamentoCasalDados" style="display:none;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);">Receita (casal)</div>
+              <div id="casalOrcReceita" style="font-size:16px;font-weight:600;">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);">Despesa (casal)</div>
+              <div id="casalOrcDespesa" style="font-size:16px;font-weight:600;">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);">Sobra (casal)</div>
+              <div id="casalOrcSobra" style="font-size:16px;font-weight:600;">—</div>
+            </div>
+          </div>
+          <div id="orcamentoCasalLista"></div>
+        </div>
+        <div id="orcamentoCasalErro" style="display:none;font-size:12px;color:#f87171;"></div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Modal: fixas detectadas no CSV -->
@@ -2708,7 +2735,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor } from './js/api.js?v=62';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor, getStatusVinculo, getOrcamentoCasal } from './js/api.js?v=62';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -2770,6 +2797,10 @@
       if (localStorage.getItem('nivelAcesso') === 'raio-x') {
         document.querySelectorAll('.nivel-completo').forEach(el => el.style.display = 'none');
       }
+      // Orcamento do Casal (Fatia 2) -- carregado a parte, sem bloquear o resto da pagina.
+      if (!_isViewAs) {
+        getStatusVinculo().then(renderCasalOrcamentoCard).catch(() => {});
+      }
       init(user);
     });
 
@@ -2779,6 +2810,57 @@
       localStorage.removeItem('viewAsUid');
       await signOut(auth);
       window.location.href = 'login.html';
+    });
+
+    // --- Orcamento do Casal (Fatia 2, leitura) ---
+    let _casalIdOrcamento = null;
+    const brlCasalOrcamento = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+    function renderCasalOrcamentoCard(status) {
+      const card = document.getElementById('cardOrcamentoCasal');
+      if (!card) return;
+      if (status?.casalStatus === 'ativo') {
+        card.style.display = '';
+        _casalIdOrcamento = status.casalId;
+      } else {
+        card.style.display = 'none';
+        _casalIdOrcamento = null;
+      }
+    }
+
+    document.getElementById('btnVerOrcamentoCasal')?.addEventListener('click', async () => {
+      if (!_casalIdOrcamento) return;
+      const painel     = document.getElementById('orcamentoCasalPainel');
+      const carregando = document.getElementById('orcamentoCasalCarregando');
+      const dadosBox    = document.getElementById('orcamentoCasalDados');
+      const erroBox      = document.getElementById('orcamentoCasalErro');
+      painel.style.display     = '';
+      carregando.style.display = '';
+      dadosBox.style.display   = 'none';
+      erroBox.style.display    = 'none';
+      try {
+        const agora = new Date();
+        const itens = await getOrcamentoCasal(_casalIdOrcamento, agora.getMonth() + 1, agora.getFullYear());
+        carregando.style.display = 'none';
+        dadosBox.style.display   = '';
+        const receita = itens.filter(i => i.tipo === 'receita').reduce((s, i) => s + (i.valor || 0), 0);
+        const despesa = itens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + (i.valor || 0), 0);
+        document.getElementById('casalOrcReceita').textContent = brlCasalOrcamento(receita);
+        document.getElementById('casalOrcDespesa').textContent = brlCasalOrcamento(despesa);
+        document.getElementById('casalOrcSobra').textContent   = brlCasalOrcamento(receita - despesa);
+
+        const linha = (i) => `
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;${i.tipo === 'despesa' ? 'color:#f87171;' : ''}">
+            <span>${i.categoria || i.descricao || 'Item'} <span style="color:var(--text-muted);font-size:11px;">(${i._deQuem === 'eu' ? 'voce' : 'parceiro'})</span></span>
+            <span>${brlCasalOrcamento(i.valor)}</span>
+          </div>`;
+        document.getElementById('orcamentoCasalLista').innerHTML =
+          itens.map(linha).join('') || '<div style="font-size:13px;color:var(--text-muted);">Nenhum item este mes.</div>';
+      } catch (err) {
+        carregando.style.display = 'none';
+        erroBox.style.display    = '';
+        erroBox.textContent      = msgErro(err);
+      }
     });
 
     // ─── Helpers ─────────────────────────────

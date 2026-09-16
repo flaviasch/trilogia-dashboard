@@ -36,7 +36,7 @@ const sZapiWebhookTokenCRM = defineSecret('ZAPI_WEBHOOK_TOKEN_CRM'); // zapiWebh
 const sAnthropic  = defineSecret('ANTHROPIC_API_KEY'); // categorizarExtratoIA — substitui o Custom GPT do Raio-X
 const sSmokeToken = defineSecret('SMOKE_TEST_TOKEN'); // smokeTestAlerta — token compartilhado com scripts/smoke-test.js
 
-const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId, requireContaPJAccess } = require('./lib/auth');
+const { requireAuth, requireAdmin, requireSelfOrAdmin, getSheetId, requireContaPJAccess, requireSelfOrPartner } = require('./lib/auth');
 const { SheetsClient }    = require('./lib/sheets');
 const { provisionar, deletePlanilha } = require('./lib/provisionar');
 const { MailerLiteClient } = require('./lib/mailerlite');
@@ -505,11 +505,7 @@ exports.getNivelAcesso = onCall({}, async (request) => {
   return { nivelAcesso: docSnap.data().nivelAcesso || null, temMentoria };
 });
 
-exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
-  const auth = requireAuth(request);
-  const uid  = request.data?.uid || auth.uid;
-  requireSelfOrAdmin(request, uid);
-
+async function _buscarDashboard(uid, { callerUid, isAdmin }) {
   // Lê o doc Firestore para obter sheetId, inicio e perfil (fallback)
   const docSnap = await db.collection('mentoradas').doc(uid).get();
   if (!docSnap.exists) {
@@ -525,9 +521,8 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   // — assinaturaDashboard: false → não tem dashboard
   // — assinaturaDashboard: undefined + assinaturaClube: true  → Clube-only (sem dashboard)
   // — assinaturaDashboard: undefined + assinaturaClube falsy  → usuária legada, mantém acesso
-  const isAdminUser = request.auth?.token?.admin === true;
   const clubeOnly   = assinaturaClube === true && assinaturaDashboard !== true;
-  const temDashboard = isAdminUser || !clubeOnly;
+  const temDashboard = isAdmin || !clubeOnly;
 
   // Resposta mínima para membros apenas do Clube (sem dashboard)
   const respostaApenasClube = {
@@ -623,7 +618,7 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   // Cacheia snapshot financeiro + registra acesso no Firestore para o painel admin.
   // Executa em background — não bloqueia a resposta para a aluna.
   // Acesso só é registrado quando a mentorada carrega o próprio dashboard (não quando admin visualiza).
-  const acessoFields = uid === auth.uid ? {
+  const acessoFields = uid === callerUid ? {
     ultimoAcesso:    admin.firestore.FieldValue.serverTimestamp(),
     totalAcessos:    admin.firestore.FieldValue.increment(1),
     acessosMes:      ultimoAcessoMes === mesAtual
@@ -654,6 +649,13 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     scoreMes:        scoreMes        ?? null,
     scoreChave:      scoreChave      ?? null,
   };
+}
+
+exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const uid  = request.data?.uid || auth.uid;
+  requireSelfOrAdmin(request, uid);
+  return _buscarDashboard(uid, { callerUid: auth.uid, isAdmin: request.auth?.token?.admin === true });
 });
 
 /**
@@ -3302,11 +3304,7 @@ exports.saveCategorias = onCall(async (request) => {
 
 // ─── PATRIMÔNIO (patrimonio.html) ─────────────────────────────────────────────
 
-exports.getPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
-  const auth = requireAuth(request);
-  const { uid } = request.data;
-  requireSelfOrAdmin(request, uid);
-
+async function _buscarPatrimonioInterno(uid) {
   // ── Firestore first ───────────────────────────────────────────────────────
   const docSnap = await db.collection('mentoradas').doc(uid)
     .collection('patrimonio').doc('dados').get();
@@ -3327,6 +3325,13 @@ exports.getPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
     .set({ ir, corretora, dividas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() })
     .catch(e => console.warn('[getPatrimonio] Falha ao migrar:', e.message));
   return { ativos: consolidarAtivos(ir, corretora), dividas, corretoraPosicoes: agruparPosicoesCorretora(corretora) };
+}
+
+exports.getPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  return _buscarPatrimonioInterno(uid);
 });
 
 /**
@@ -3981,11 +3986,7 @@ exports.deleteDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 
 // ─── RESERVAS (reservas.html) ─────────────────────────────────────────────────
 
-exports.getReservas = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
-  const auth = requireAuth(request);
-  const { uid } = request.data;
-  requireSelfOrAdmin(request, uid);
-
+async function _buscarReservasInterno(uid) {
   // ── Firestore first ───────────────────────────────────────────────────────
   const snap = await db.collection('mentoradas').doc(uid)
     .collection('reservas').orderBy('criadoEm', 'asc').get();
@@ -4006,6 +4007,13 @@ exports.getReservas = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   });
   batch.commit().catch(e => console.warn('[getReservas] Falha ao migrar:', e.message));
   return reservas;
+}
+
+exports.getReservas = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const auth = requireAuth(request);
+  const { uid } = request.data;
+  requireSelfOrAdmin(request, uid);
+  return _buscarReservasInterno(uid);
 });
 
 exports.saveReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
@@ -12906,6 +12914,93 @@ exports.desvincular = onCall({}, async (request) => {
   ]);
 
   return { ok: true };
+});
+
+// ─── MODO CASAL — Fatia 2 (leitura consolidada) ────────────────────────────
+// Wrappers finos por cima da lógica interna de getDashboard/getOrcamento/
+// getPatrimonio/getReservas — chama pros dois uids do casal em paralelo e
+// soma. Nenhuma function existente muda de comportamento no caminho normal
+// (self). Se um dos lados ainda não tem dado (ex: parceiro que ainda não
+// usa as telas — Fatia 4), esse lado entra como zero/vazio em vez de
+// derrubar a consolidação inteira.
+
+async function _resolverCasalAtivo(request, casalId) {
+  const auth = await requireSelfOrPartner(db, request, casalId);
+  const casalSnap = await db.collection('casais').doc(casalId).get();
+  if (!casalSnap.exists) throw new HttpsError('not-found', 'Vínculo não encontrado.');
+  const { uidA, uidB, status } = casalSnap.data();
+  if (status !== 'ativo') throw new HttpsError('failed-precondition', 'Vínculo não está ativo.');
+  return { auth, uidA, uidB };
+}
+
+exports.getDashboardCasal = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const { casalId } = request.data || {};
+  if (!casalId) throw new HttpsError('invalid-argument', 'casalId é obrigatório.');
+  const { auth, uidA, uidB } = await _resolverCasalAtivo(request, casalId);
+
+  const opts = { callerUid: auth.uid, isAdmin: auth.token.admin === true };
+  const [ladoA, ladoB] = await Promise.all([
+    _buscarDashboard(uidA, opts).catch(() => null),
+    _buscarDashboard(uidB, opts).catch(() => null),
+  ]);
+
+  const receita = (ladoA?.orcamento.receita || 0) + (ladoB?.orcamento.receita || 0);
+  const despesa = (ladoA?.orcamento.despesa || 0) + (ladoB?.orcamento.despesa || 0);
+  const ativos  = (ladoA?.patrimonio.ativos || 0) + (ladoB?.patrimonio.ativos || 0);
+  const dividas = (ladoA?.patrimonio.dividas || 0) + (ladoB?.patrimonio.dividas || 0);
+  const totalReservas =
+    (ladoA?.reservas || []).reduce((s, r) => s + (r.acumulado || 0), 0) +
+    (ladoB?.reservas || []).reduce((s, r) => s + (r.acumulado || 0), 0);
+
+  return {
+    orcamento:  { receita, despesa, sobra: receita - despesa },
+    patrimonio: { ativos, dividas, pl: ativos - dividas },
+    totalReservas,
+    parceiroSemDados: !ladoB,
+  };
+});
+
+exports.getOrcamentoCasal = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const { casalId, mes, ano } = request.data || {};
+  if (!casalId) throw new HttpsError('invalid-argument', 'casalId é obrigatório.');
+  const { auth, uidA, uidB } = await _resolverCasalAtivo(request, casalId);
+
+  const [itensA, itensB] = await Promise.all([
+    _buscarItensOrcamento(uidA, mes, ano).catch(() => []),
+    _buscarItensOrcamento(uidB, mes, ano).catch(() => []),
+  ]);
+  const marcar = (uid) => (item) => ({ ...item, _deQuem: uid === auth.uid ? 'eu' : 'parceiro' });
+  return [...itensA.map(marcar(uidA)), ...itensB.map(marcar(uidB))];
+});
+
+exports.getPatrimonioCasal = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const { casalId } = request.data || {};
+  if (!casalId) throw new HttpsError('invalid-argument', 'casalId é obrigatório.');
+  const { auth, uidA, uidB } = await _resolverCasalAtivo(request, casalId);
+
+  const vazio = { ativos: [], dividas: [], corretoraPosicoes: [] };
+  const [ladoA, ladoB] = await Promise.all([
+    _buscarPatrimonioInterno(uidA).catch(() => vazio),
+    _buscarPatrimonioInterno(uidB).catch(() => vazio),
+  ]);
+  const marcar = (uid) => (item) => ({ ...item, _deQuem: uid === auth.uid ? 'eu' : 'parceiro' });
+  return {
+    ativos:  [...ladoA.ativos.map(marcar(uidA)),  ...ladoB.ativos.map(marcar(uidB))],
+    dividas: [...ladoA.dividas.map(marcar(uidA)), ...ladoB.dividas.map(marcar(uidB))],
+  };
+});
+
+exports.getReservasCasal = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  const { casalId } = request.data || {};
+  if (!casalId) throw new HttpsError('invalid-argument', 'casalId é obrigatório.');
+  const { auth, uidA, uidB } = await _resolverCasalAtivo(request, casalId);
+
+  const [resA, resB] = await Promise.all([
+    _buscarReservasInterno(uidA).catch(() => []),
+    _buscarReservasInterno(uidB).catch(() => []),
+  ]);
+  const marcar = (uid) => (r) => ({ ...r, _deQuem: uid === auth.uid ? 'eu' : 'parceiro' });
+  return [...resA.map(marcar(uidA)), ...resB.map(marcar(uidB))];
 });
 
 /**

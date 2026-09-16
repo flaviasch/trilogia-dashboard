@@ -577,6 +577,18 @@
     <!-- Lista de reservas -->
     <div id="reservasList"></div>
 
+    <!-- Reservas do Casal (Fatia 2, leitura) -->
+    <div id="cardReservasCasal" style="display:none;background:var(--navy);border:1px solid var(--border);border-radius:16px;padding:20px 24px;margin-top:24px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-secondary);margin-bottom:12px;">Reservas do Casal (visão consolidada)</div>
+      <button id="btnVerReservasCasal" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;color:inherit;">Ver reservas do casal</button>
+      <div id="reservasCasalPainel" style="display:none;margin-top:16px;">
+        <div id="reservasCasalCarregando" style="font-size:12px;color:var(--text-secondary);">Carregando…</div>
+        <div id="reservasCasalLista" style="display:none;"></div>
+        <div id="reservasCasalTotal" style="display:none;font-weight:600;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:13px;"></div>
+        <div id="reservasCasalErro" style="display:none;font-size:12px;color:#f87171;"></div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Modal nova/editar reserva -->
@@ -812,7 +824,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid, registrarEvento, msgErro, getNivelAcesso } from './js/api.js?v=62';
+    import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid, registrarEvento, msgErro, getNivelAcesso, getStatusVinculo, getReservasCasal } from './js/api.js?v=62';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { cacheGet, cacheSet } from './js/page-cache.js';
     import { isAdmin } from './js/admin-guard.js';
@@ -870,6 +882,10 @@
           if (nivelAcesso === 'raio-x') { window.location.replace('orcamento.html'); return; }
         }).catch(() => {});
       }
+      // Reservas do Casal (Fatia 2) -- carregado a parte, sem bloquear o resto da pagina.
+      if (!_isViewAs) {
+        getStatusVinculo().then(renderCasalReservasCard).catch(() => {});
+      }
       init(user);
     });
 
@@ -878,6 +894,54 @@
       if (uid) localStorage.removeItem(`dash_v1_${uid}`);
       localStorage.removeItem('viewAsUid');
       await signOut(auth); window.location.href = 'login.html';
+    });
+
+    // --- Reservas do Casal (Fatia 2, leitura) ---
+    let _casalIdReservas = null;
+    const brlCasalReservas = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+    function renderCasalReservasCard(status) {
+      const card = document.getElementById('cardReservasCasal');
+      if (!card) return;
+      if (status?.casalStatus === 'ativo') {
+        card.style.display = '';
+        _casalIdReservas = status.casalId;
+      } else {
+        card.style.display = 'none';
+        _casalIdReservas = null;
+      }
+    }
+
+    document.getElementById('btnVerReservasCasal')?.addEventListener('click', async () => {
+      if (!_casalIdReservas) return;
+      const painel     = document.getElementById('reservasCasalPainel');
+      const carregando = document.getElementById('reservasCasalCarregando');
+      const lista       = document.getElementById('reservasCasalLista');
+      const totalBox     = document.getElementById('reservasCasalTotal');
+      const erroBox       = document.getElementById('reservasCasalErro');
+      painel.style.display     = '';
+      carregando.style.display = '';
+      lista.style.display      = 'none';
+      totalBox.style.display   = 'none';
+      erroBox.style.display    = 'none';
+      try {
+        const itens = await getReservasCasal(_casalIdReservas);
+        carregando.style.display = 'none';
+        lista.style.display      = '';
+        totalBox.style.display   = '';
+        lista.innerHTML = itens.map(r => `
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+            <span>${r.nome || 'Reserva'} <span style="color:var(--text-secondary);font-size:11px;">(${r._deQuem === 'eu' ? 'voce' : 'parceiro'})</span></span>
+            <span>${brlCasalReservas(r.acumulado)}</span>
+          </div>
+        `).join('') || '<div style="font-size:13px;color:var(--text-secondary);">Nenhuma reserva encontrada.</div>';
+        const total = itens.reduce((s, r) => s + (r.acumulado || 0), 0);
+        totalBox.textContent = `Total do casal: ${brlCasalReservas(total)}`;
+      } catch (err) {
+        carregando.style.display = 'none';
+        erroBox.style.display    = '';
+        erroBox.textContent      = msgErro(err);
+      }
     });
 
     // ─── Helpers ────────────────────────────

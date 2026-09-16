@@ -276,6 +276,26 @@ export async function desvincular(casalId) {
   return call('desvincular')({ casalId });
 }
 
+/** Dashboard consolidado do casal — soma receita/despesa/pl/reservas dos dois uids. */
+export async function getDashboardCasal(casalId) {
+  return call('getDashboardCasal')({ casalId });
+}
+
+/** Itens de orçamento consolidados do casal (marcados com _deQuem: 'eu'|'parceiro'). */
+export async function getOrcamentoCasal(casalId, mes, ano) {
+  return call('getOrcamentoCasal')({ casalId, mes, ano });
+}
+
+/** Ativos e dívidas consolidados do casal (marcados com _deQuem: 'eu'|'parceiro'). */
+export async function getPatrimonioCasal(casalId) {
+  return call('getPatrimonioCasal')({ casalId });
+}
+
+/** Reservas consolidadas do casal (marcadas com _deQuem: 'eu'|'parceiro'). */
+export async function getReservasCasal(casalId) {
+  return call('getReservasCasal')({ casalId });
+}
+
 /**
  * Envia extrato/fatura para categorização via IA (substitui o Agente Raio-X do ChatGPT).
  * @param {string} conteudo — texto colado, ou base64 (sem prefixo data:) de PDF/imagem

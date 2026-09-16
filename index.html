@@ -941,6 +941,38 @@
         <div id="vinculoStatusLabel" style="font-size:14px;font-weight:600;margin-bottom:2px;"></div>
         <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">Com: <span id="vinculoStatusNome"></span></div>
         <button id="btnDesvincularCasalHome" style="background:transparent;border:1px solid rgba(248,113,113,0.4);color:#f87171;border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;">Desvincular</button>
+
+        <div id="casalToggleWrap" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+          <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;">
+            <button id="btnVerEu" style="padding:6px 16px;font-size:12px;border:none;cursor:pointer;background:var(--gold);color:var(--navy);font-weight:600;">Eu</button>
+            <button id="btnVerCasal" style="padding:6px 16px;font-size:12px;border:none;cursor:pointer;background:transparent;color:inherit;font-weight:600;">Casal</button>
+          </div>
+          <div id="painelCasalConsolidado" style="display:none;">
+            <div id="painelCasalCarregando" style="font-size:12px;color:var(--text-secondary);">Carregando…</div>
+            <div id="painelCasalDados" style="display:none;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                <div>
+                  <div style="font-size:11px;color:var(--text-secondary);">Receita (casal)</div>
+                  <div id="casalReceita" style="font-size:16px;font-weight:600;">—</div>
+                </div>
+                <div>
+                  <div style="font-size:11px;color:var(--text-secondary);">Despesa (casal)</div>
+                  <div id="casalDespesa" style="font-size:16px;font-weight:600;">—</div>
+                </div>
+                <div>
+                  <div style="font-size:11px;color:var(--text-secondary);">Patrimônio líquido (casal)</div>
+                  <div id="casalPL" style="font-size:16px;font-weight:600;">—</div>
+                </div>
+                <div>
+                  <div style="font-size:11px;color:var(--text-secondary);">Reservas (casal)</div>
+                  <div id="casalReservas" style="font-size:16px;font-weight:600;">—</div>
+                </div>
+              </div>
+              <div id="casalAvisoSemDados" style="display:none;font-size:12px;color:var(--text-secondary);margin-top:4px;">Seu parceiro ainda não lançou dados próprios — os números acima são só os seus, por enquanto.</div>
+            </div>
+            <div id="painelCasalErro" style="display:none;font-size:12px;color:#f87171;"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -976,7 +1008,7 @@
 
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor, getContaPJ, getStatusVinculo, convidarParceiro, desvincular } from './js/api.js?v=62';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor, getContaPJ, getStatusVinculo, convidarParceiro, desvincular, getDashboardCasal } from './js/api.js?v=62';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
     import { calcularAgregadosOrcamento } from './js/orcamento-calc.js';
@@ -1071,7 +1103,59 @@ function renderVinculoCard(status) {
   document.getElementById('vinculoStatusNome').textContent = status.outroNome || '-';
   document.getElementById('btnDesvincularCasalHome').textContent =
     status.casalStatus === 'ativo' ? 'Desvincular' : 'Cancelar convite';
+
+  const toggleWrap = document.getElementById('casalToggleWrap');
+  if (toggleWrap) toggleWrap.style.display = status.casalStatus === 'ativo' ? '' : 'none';
+  resetToggleCasal();
 }
+
+/** Toggle Eu/Casal (Fatia 2) — volta pra visão "Eu" (padrão) e esconde o painel consolidado. */
+function resetToggleCasal() {
+  const btnEu = document.getElementById('btnVerEu');
+  const btnCasal = document.getElementById('btnVerCasal');
+  if (btnEu)    { btnEu.style.background = 'var(--gold)'; btnEu.style.color = 'var(--navy)'; }
+  if (btnCasal) { btnCasal.style.background = 'transparent'; btnCasal.style.color = 'inherit'; }
+  const painel = document.getElementById('painelCasalConsolidado');
+  if (painel) painel.style.display = 'none';
+}
+
+const brlCasal = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+document.getElementById('btnVerEu')?.addEventListener('click', () => {
+  resetToggleCasal();
+});
+
+document.getElementById('btnVerCasal')?.addEventListener('click', async () => {
+  if (!_casalIdAtual) return;
+  const btnEu = document.getElementById('btnVerEu');
+  const btnCasal = document.getElementById('btnVerCasal');
+  btnCasal.style.background = 'var(--gold)'; btnCasal.style.color = 'var(--navy)';
+  btnEu.style.background = 'transparent'; btnEu.style.color = 'inherit';
+
+  const painel      = document.getElementById('painelCasalConsolidado');
+  const carregando  = document.getElementById('painelCasalCarregando');
+  const dadosBox    = document.getElementById('painelCasalDados');
+  const erroBox      = document.getElementById('painelCasalErro');
+  painel.style.display     = '';
+  carregando.style.display = '';
+  dadosBox.style.display   = 'none';
+  erroBox.style.display    = 'none';
+
+  try {
+    const casal = await getDashboardCasal(_casalIdAtual);
+    carregando.style.display = 'none';
+    dadosBox.style.display   = '';
+    document.getElementById('casalReceita').textContent  = brlCasal(casal.orcamento.receita);
+    document.getElementById('casalDespesa').textContent  = brlCasal(casal.orcamento.despesa);
+    document.getElementById('casalPL').textContent       = brlCasal(casal.patrimonio.pl);
+    document.getElementById('casalReservas').textContent = brlCasal(casal.totalReservas);
+    document.getElementById('casalAvisoSemDados').style.display = casal.parceiroSemDados ? '' : 'none';
+  } catch (err) {
+    carregando.style.display = 'none';
+    erroBox.style.display    = '';
+    erroBox.textContent      = msgErro(err);
+  }
+});
 
 document.getElementById('btnEnviarConviteCasal')?.addEventListener('click', async () => {
   const nome  = document.getElementById('vinculoNomeParceiro').value.trim();

@@ -727,6 +727,33 @@
       </div>
     </div>
 
+    <!-- Patrimônio do Casal (Fatia 2, leitura) -->
+    <div id="cardPatrimonioCasal" style="display:none;background:var(--navy);border:1px solid var(--border);border-radius:16px;padding:20px 24px;margin-top:24px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:12px;">Patrimônio do Casal (visão consolidada)</div>
+      <button id="btnVerPatrimonioCasal" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;color:inherit;">Ver patrimônio do casal</button>
+      <div id="patrimonioCasalPainel" style="display:none;margin-top:16px;">
+        <div id="patrimonioCasalCarregando" style="font-size:12px;color:var(--text-muted);">Carregando…</div>
+        <div id="patrimonioCasalDados" style="display:none;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);">Ativos (casal)</div>
+              <div id="casalTotalAtivos" style="font-size:16px;font-weight:600;">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);">Dívidas (casal)</div>
+              <div id="casalTotalDividas" style="font-size:16px;font-weight:600;">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);">Patrimônio líquido (casal)</div>
+              <div id="casalTotalPL" style="font-size:16px;font-weight:600;">—</div>
+            </div>
+          </div>
+          <div id="patrimonioCasalLista"></div>
+        </div>
+        <div id="patrimonioCasalErro" style="display:none;font-size:12px;color:#f87171;"></div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Modal ativo -->
@@ -890,6 +917,7 @@
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
       getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
       categorizarPatrimonioIA, venderBemPatrimonio,
+      getStatusVinculo, getPatrimonioCasal,
     } from './js/api.js?v=62';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
@@ -977,6 +1005,10 @@
           if (nivelAcesso === 'raio-x') { window.location.replace('orcamento.html'); return; }
         }).catch(() => {}); // falha na checagem não deve travar a página para quem tem acesso normal
       }
+      // Patrimonio do Casal (Fatia 2) -- carregado a parte, sem bloquear o resto da pagina.
+      if (!_isViewAs) {
+        getStatusVinculo().then(renderCasalPatrimonioCard).catch(() => {});
+      }
       init(user);
     });
 
@@ -986,6 +1018,61 @@
       localStorage.removeItem('viewAsUid');
       await signOut(auth);
       window.location.href = 'login.html';
+    });
+
+    // --- Patrimonio do Casal (Fatia 2, leitura) ---
+    let _casalIdPatrimonio = null;
+    const brlCasalPatrimonio = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+    function renderCasalPatrimonioCard(status) {
+      const card = document.getElementById('cardPatrimonioCasal');
+      if (!card) return;
+      if (status?.casalStatus === 'ativo') {
+        card.style.display = '';
+        _casalIdPatrimonio = status.casalId;
+      } else {
+        card.style.display = 'none';
+        _casalIdPatrimonio = null;
+      }
+    }
+
+    document.getElementById('btnVerPatrimonioCasal')?.addEventListener('click', async () => {
+      if (!_casalIdPatrimonio) return;
+      const painel     = document.getElementById('patrimonioCasalPainel');
+      const carregando = document.getElementById('patrimonioCasalCarregando');
+      const dadosBox    = document.getElementById('patrimonioCasalDados');
+      const erroBox      = document.getElementById('patrimonioCasalErro');
+      painel.style.display     = '';
+      carregando.style.display = '';
+      dadosBox.style.display   = 'none';
+      erroBox.style.display    = 'none';
+      try {
+        const casal = await getPatrimonioCasal(_casalIdPatrimonio);
+        carregando.style.display = 'none';
+        dadosBox.style.display   = '';
+        const totalAtivos  = casal.ativos.reduce((s, a) => s + (a.valor || 0), 0);
+        const totalDividas = casal.dividas.reduce((s, d) => s + (d.saldo || 0), 0);
+        document.getElementById('casalTotalAtivos').textContent  = brlCasalPatrimonio(totalAtivos);
+        document.getElementById('casalTotalDividas').textContent = brlCasalPatrimonio(totalDividas);
+        document.getElementById('casalTotalPL').textContent      = brlCasalPatrimonio(totalAtivos - totalDividas);
+
+        const linhaAtivo = (a) => `
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+            <span>${a.classe || 'Ativo'} <span style="color:var(--text-muted);font-size:11px;">(${a._deQuem === 'eu' ? 'voce' : 'parceiro'})</span></span>
+            <span>${brlCasalPatrimonio(a.valor)}</span>
+          </div>`;
+        const linhaDivida = (d) => `
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:#f87171;">
+            <span>${d.nome || 'Divida'} <span style="color:var(--text-muted);font-size:11px;">(${d._deQuem === 'eu' ? 'voce' : 'parceiro'})</span></span>
+            <span>${brlCasalPatrimonio(d.saldo)}</span>
+          </div>`;
+        document.getElementById('patrimonioCasalLista').innerHTML =
+          casal.ativos.map(linhaAtivo).join('') + casal.dividas.map(linhaDivida).join('');
+      } catch (err) {
+        carregando.style.display = 'none';
+        erroBox.style.display    = '';
+        erroBox.textContent      = msgErro(err);
+      }
     });
 
 
