@@ -49,6 +49,16 @@ function requireSelfOrAdmin(request, uidAlvo) {
 async function getSheetId(db, uid) {
   const doc = await db.collection('mentoradas').doc(uid).get();
   if (!doc.exists) {
+    // Modo Casal: uid pode ser de um parceiro (contasParceiro), sem doc em
+    // mentoradas. Ver dashboard/MODO_CASAL_SPEC.md.
+    const parceiroDoc = await db.collection('contasParceiro').doc(uid).get();
+    if (parceiroDoc.exists) {
+      const sheetIdParceiro = parceiroDoc.data().sheetId;
+      if (!sheetIdParceiro) {
+        throw new HttpsError('failed-precondition', 'Planilha ainda não configurada para esta conta.');
+      }
+      return sheetIdParceiro;
+    }
     throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
   }
   const sheetId = doc.data().sheetId;

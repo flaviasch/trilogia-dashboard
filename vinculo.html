@@ -171,7 +171,17 @@
         <button class="btn" id="btnAceitar">Aceitar vínculo</button>
         <button class="btn-secundario" id="btnRecusar">Recusar</button>
       </div>
+      <div id="acoesLgpd" style="display:none">
+        <label style="display:flex; align-items:flex-start; gap:10px; font-size:13px; color:rgba(var(--rgb-fg),0.65); line-height:1.6; margin-bottom:16px; cursor:pointer;">
+          <input type="checkbox" id="chkLgpdParceiro" style="margin-top:3px; flex-shrink:0;">
+          <span>Li e aceito os termos de uso e privacidade do Dashboard Trilogia Financeira para os dados que eu mesmo(a) lançar aqui.</span>
+        </label>
+        <button class="btn" id="btnAceitarLgpd" disabled>Aceitar e continuar</button>
+      </div>
       <div id="acoesAtivo" style="display:none">
+        <a href="orcamento.html" class="btn" style="display:block; text-align:center; text-decoration:none;">Meu orçamento</a>
+        <a href="patrimonio.html" class="btn-secundario" style="display:block; text-align:center; text-decoration:none;">Meu patrimônio</a>
+        <a href="reservas.html" class="btn-secundario" style="display:block; text-align:center; text-decoration:none;">Minhas reservas</a>
         <button class="btn-perigo" id="btnDesvincular">Desvincular</button>
       </div>
     </div>
@@ -184,7 +194,7 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { exigirAuth, logout } from './js/admin-guard.js';
-    import { getStatusVinculo, aceitarVinculo, recusarVinculo, desvincular, msgErro } from './js/api.js?v=66';
+    import { getStatusVinculo, aceitarVinculo, recusarVinculo, desvincular, aceitarLGPDParceiro, msgErro } from './js/api.js?v=66';
 
     document.getElementById('linkSair').addEventListener('click', (e) => { e.preventDefault(); logout(); });
 
@@ -194,7 +204,10 @@
     const elTexto = document.getElementById('texto');
     const elMsg = document.getElementById('msg');
     const elAcoesConvite = document.getElementById('acoesConvite');
+    const elAcoesLgpd = document.getElementById('acoesLgpd');
     const elAcoesAtivo = document.getElementById('acoesAtivo');
+    const elChkLgpd = document.getElementById('chkLgpdParceiro');
+    const elBtnAceitarLgpd = document.getElementById('btnAceitarLgpd');
 
     function showMsg(text, type) {
       elMsg.textContent = text;
@@ -207,6 +220,7 @@
       elLoading.style.display = 'none';
       elConteudo.style.display = '';
       elAcoesConvite.style.display = 'none';
+      elAcoesLgpd.style.display = 'none';
       elAcoesAtivo.style.display = 'none';
       _casalId = status?.casalId || null;
 
@@ -230,8 +244,15 @@
       }
 
       if (status.casalStatus === 'ativo') {
+        if (!status.lgpdAceite) {
+          elTitulo.textContent = 'Antes de começar';
+          elTexto.textContent = `Sua conta está vinculada com ${status.outroNome || 'sua mentorada'}. Pra lançar seus próprios dados de orçamento, patrimônio e reservas, precisamos do seu aceite aos termos de uso e privacidade.`;
+          elAcoesLgpd.style.display = '';
+          return;
+        }
         elTitulo.textContent = 'Vínculo ativo';
-        elTexto.textContent = `Sua conta está vinculada com ${status.outroNome || 'sua mentorada'}. As telas de orçamento, patrimônio e reservas para você lançar seus próprios dados ainda estão em construção. Assim que estiverem prontas, você vai poder usá-las por aqui.`;
+        elTexto.textContent = `Sua conta está vinculada com ${status.outroNome || 'sua mentorada'}. Use os links abaixo para lançar seus próprios dados de orçamento, patrimônio e reservas.`;
+        try { localStorage.setItem('lgpd_aceite', '1'); } catch (e) {}
         elAcoesAtivo.style.display = '';
         return;
       }
@@ -239,6 +260,24 @@
       elTitulo.textContent = 'Nenhum convite pendente';
       elTexto.textContent = 'Não encontramos nenhum vínculo de casal em andamento para esta conta no momento.';
     }
+
+    elChkLgpd.addEventListener('change', () => {
+      elBtnAceitarLgpd.disabled = !elChkLgpd.checked;
+    });
+
+    elBtnAceitarLgpd.addEventListener('click', async () => {
+      elBtnAceitarLgpd.disabled = true;
+      elBtnAceitarLgpd.textContent = 'Salvando…';
+      try {
+        await aceitarLGPDParceiro();
+        const status = await getStatusVinculo();
+        render(status);
+      } catch (err) {
+        showMsg(msgErro(err), 'error');
+        elBtnAceitarLgpd.disabled = false;
+        elBtnAceitarLgpd.textContent = 'Aceitar e continuar';
+      }
+    });
 
     document.getElementById('btnAceitar').addEventListener('click', async () => {
       if (!_casalId) return;

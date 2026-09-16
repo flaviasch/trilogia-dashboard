@@ -501,16 +501,80 @@ exports.getNivelAcesso = onCall({}, async (request) => {
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
   const docSnap = await db.collection('mentoradas').doc(uid).get();
-  if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
+  if (!docSnap.exists) {
+    // Modo Casal: uid pode ser de um parceiro (contasParceiro).
+    const parceiroSnap = await db.collection('contasParceiro').doc(uid).get();
+    if (parceiroSnap.exists) return { nivelAcesso: null, temMentoria: true };
+    throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
+  }
   const temMentoria = await _temContratoMentoria(uid);
   return { nivelAcesso: docSnap.data().nivelAcesso || null, temMentoria };
 });
+
+/**
+ * Versão enxuta do dashboard para uma conta de parceiro (contasParceiro) —
+ * sem billing/Clube/score, só orçamento+patrimônio+reservas+perfil do mês
+ * atual, direto do Firestore (sem fallback Sheets nem cache de snapshot).
+ * Ver dashboard/MODO_CASAL_SPEC.md.
+ */
+async function _buscarDashboardParceiro(uid) {
+  const parceiroSnap = await db.collection('contasParceiro').doc(uid).get();
+  if (!parceiroSnap.exists) {
+    throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
+  }
+  const { nome, lgpdAceite } = parceiroSnap.data();
+
+  const agora = new Date();
+  const mes = agora.getMonth() + 1;
+  const ano = agora.getFullYear();
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+
+  const [orcSnap, patSnap, resSnap, perfilSnap] = await Promise.all([
+    db.collection('mentoradas').doc(uid).collection('orcamento').doc(mesKey).get().catch(() => null),
+    db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados').get().catch(() => null),
+    db.collection('mentoradas').doc(uid).collection('reservas').get().catch(() => null),
+    db.collection('mentoradas').doc(uid).collection('perfil').doc('dados').get().catch(() => null),
+  ]);
+
+  const orcamento = orcSnap?.exists ? (orcSnap.data().itens || []) : [];
+  const ir        = patSnap?.exists ? (patSnap.data().ir        || []) : [];
+  const corretora = patSnap?.exists ? (patSnap.data().corretora || []) : [];
+  const dividas   = patSnap?.exists ? (patSnap.data().dividas   || []) : [];
+  const reservas  = (resSnap && !resSnap.empty) ? resSnap.docs.map(d => ({ ...d.data(), id: d.id })) : [];
+  const perfil    = perfilSnap?.exists ? perfilSnap.data() : { perfil: null, dataAtualizacao: null };
+
+  const ativosConsolidados = consolidarAtivos(ir, corretora);
+  const totalAtivos   = ativosConsolidados.reduce((s, a) => s + a.valor, 0);
+  const totalDividas  = dividas.reduce((s, d) => s + d.saldo, 0);
+  const receita       = orcamento.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
+  const despesa        = orcamento.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
+  const aporte        = orcamento.filter(i => i.tipo === 'aporte').reduce((s, i) => s + i.valor, 0);
+  const pl            = totalAtivos - totalDividas;
+  const sobra         = receita - despesa;
+  const totalReservas = reservas.reduce((s, r) => s + (r.acumulado || 0), 0);
+
+  return {
+    nome:            nome || null,
+    orcamento:      { receita, despesa, sobra, aporte, mes, ano },
+    patrimonio:     { ativos: totalAtivos, dividas: totalDividas, pl },
+    reservas,
+    perfil,
+    inicio:          null,
+    lgpdAceite:      lgpdAceite || false,
+    assinaturaClube: false,
+    nivelAcesso:     null,
+    sheetError:      false,
+    scoreMes:        null,
+    scoreChave:      null,
+  };
+}
 
 async function _buscarDashboard(uid, { callerUid, isAdmin }) {
   // Lê o doc Firestore para obter sheetId, inicio e perfil (fallback)
   const docSnap = await db.collection('mentoradas').doc(uid).get();
   if (!docSnap.exists) {
-    throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
+    // Modo Casal: uid pode ser de um parceiro (contasParceiro), sem billing.
+    return _buscarDashboardParceiro(uid);
   }
   const { sheetId, inicio, nome, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
           assinaturaClube, assinaturaDashboard, nivelAcesso,
@@ -4669,6 +4733,22 @@ exports.aceitarLGPD = onCall({}, async (request) => {
   await db.collection('mentoradas').doc(auth.uid).update({
     lgpdAceite:     true,
     lgpdAceiteData: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true };
+});
+
+/**
+ * Registra aceite do termo LGPD por uma conta de parceiro (Modo Casal) —
+ * consentimento próprio, não reabre o LGPD geral da mentorada.
+ * Ver dashboard/MODO_CASAL_SPEC.md, seção 7.
+ */
+exports.aceitarLGPDParceiro = onCall({}, async (request) => {
+  const auth = requireAuth(request);
+  const ref = db.collection('contasParceiro').doc(auth.uid);
+  if (!(await ref.get()).exists) throw new HttpsError('not-found', 'Conta de parceiro não encontrada.');
+  await ref.update({
+    lgpdAceite:   true,
+    lgpdAceiteEm: admin.firestore.FieldValue.serverTimestamp(),
   });
   return { ok: true };
 });
@@ -12685,18 +12765,20 @@ exports.getStatusVinculo = onCall({}, async (request) => {
 
   let papel = null;
   let casalId = null;
+  let lgpdAceite = null;
   if (mentoradaSnap.exists) {
     papel = 'mentorada';
     casalId = mentoradaSnap.data().casalId || null;
   } else if (parceiroSnap.exists) {
     papel = 'parceiro';
     casalId = parceiroSnap.data().casalId || null;
+    lgpdAceite = parceiroSnap.data().lgpdAceite || false;
   }
 
-  if (!casalId) return { papel, casalId: null, casalStatus: null, outroNome: null, souQuemConvidou: false };
+  if (!casalId) return { papel, casalId: null, casalStatus: null, outroNome: null, souQuemConvidou: false, lgpdAceite };
 
   const casalSnap = await db.collection('casais').doc(casalId).get();
-  if (!casalSnap.exists) return { papel, casalId: null, casalStatus: null, outroNome: null, souQuemConvidou: false };
+  if (!casalSnap.exists) return { papel, casalId: null, casalStatus: null, outroNome: null, souQuemConvidou: false, lgpdAceite };
 
   const { uidA, uidB, status } = casalSnap.data();
   const uidOutro = uid === uidA ? uidB : uidA;
@@ -12708,7 +12790,7 @@ exports.getStatusVinculo = onCall({}, async (request) => {
     ? snapOutroMentorada.data().nome
     : (snapOutroParceiro.exists ? snapOutroParceiro.data().nome : null);
 
-  return { papel, casalId, casalStatus: status, outroNome, souQuemConvidou: uid === uidA };
+  return { papel, casalId, casalStatus: status, outroNome, souQuemConvidou: uid === uidA, lgpdAceite };
 });
 
 /**

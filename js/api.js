@@ -276,6 +276,11 @@ export async function desvincular(casalId) {
   return call('desvincular')({ casalId });
 }
 
+/** Aceite do termo LGPD pelo parceiro — consentimento próprio, não reabre o LGPD geral. */
+export async function aceitarLGPDParceiro() {
+  return call('aceitarLGPDParceiro')({});
+}
+
 /** Dashboard consolidado do casal — soma receita/despesa/pl/reservas dos dois uids. */
 export async function getDashboardCasal(casalId) {
   return call('getDashboardCasal')({ casalId });
