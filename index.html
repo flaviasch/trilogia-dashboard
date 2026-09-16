@@ -709,7 +709,7 @@
       <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
       <a href="notas-pj.html" id="linkDashboardPJ" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">🏢 Dashboard PJ</a>
       <a href="clube.html" class="link-clube link-jornada-nav" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">★ Clube</a>
-      <a href="jornada.html" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
+      <a href="jornada.html" id="linkJornadaTop" class="link-jornada-nav" style="color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; opacity:.85;">Minha Jornada</a>
       <span class="user-name" id="userDisplayName"></span>
       <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
       <button class="btn-logout" id="btnLogout">Sair</button>
@@ -1490,6 +1490,14 @@
         document.querySelectorAll('.nivel-completo').forEach(el => el.style.display = 'none');
       } else {
         localStorage.removeItem('nivelAcesso');
+      }
+
+      // Ferramentas da Jornada: só quem já passou pela mentoria (achado 16/09/2026).
+      if (data.temMentoria === false) {
+        const linkTop = document.getElementById('linkJornadaTop');
+        if (linkTop) linkTop.style.display = 'none';
+        const linkBottom = document.getElementById('linkJornada');
+        if (linkBottom) linkBottom.style.display = 'none';
       }
     }
 

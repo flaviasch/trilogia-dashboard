@@ -495,7 +495,8 @@ exports.getNivelAcesso = onCall({}, async (request) => {
   requireSelfOrAdmin(request, uid);
   const docSnap = await db.collection('mentoradas').doc(uid).get();
   if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
-  return { nivelAcesso: docSnap.data().nivelAcesso || null };
+  const temMentoria = await _temContratoMentoria(uid);
+  return { nivelAcesso: docSnap.data().nivelAcesso || null, temMentoria };
 });
 
 exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
@@ -666,14 +667,16 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
   const mesAtual = agora.toISOString().slice(0, 7);
 
   // Lê doc principal + reservas + missão do mês + orçamento atual + planejamento em paralelo
-  const [docSnap, resSnap, missaoSnap, orcSnap, planSnap, clubeAvisoSnap] = await Promise.all([
+  const [docSnap, resSnap, missaoSnap, orcSnap, planSnap, clubeAvisoSnap, contratosMentoriaSnap] = await Promise.all([
     db.collection('mentoradas').doc(uid).get(),
     db.collection('mentoradas').doc(uid).collection('reservas').get().catch(() => null),
     db.collection('config').doc('missaoMes').get().catch(() => null),
     db.collection('mentoradas').doc(uid).collection('orcamento').doc(mesAtual).get().catch(() => null),
     db.collection('mentoradas').doc(uid).collection('planejamento').doc(mesAtual).get().catch(() => null),
     db.collection('config').doc('clubeUltimoAviso').get().catch(() => null),
+    db.collection('mentoradas').doc(uid).collection('contratos').where('produto', 'in', ['mentoria', 'private']).limit(1).get().catch(() => null),
   ]);
+  const temMentoria = !!(contratosMentoriaSnap && !contratosMentoriaSnap.empty);
 
   if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
 
@@ -776,6 +779,7 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
     mentoriaEncerrada:  mentoriaEncerrada || false,
     assinaturaDashboard: assinaturaDashboard || false,
     nivelAcesso:        nivelAcesso       || null, // 'raio-x' → frontend esconde Patrimônio/Reservas/Perfil
+    temMentoria:        temMentoria, // false → frontend esconde Minha Jornada (achado 16/09/2026)
     mes,
     ano,
     orcamento:       { receita: receitaMes, despesa: despesaMes, sobra: sobraMes, aporte: aporteMes, mes, ano },
@@ -791,6 +795,27 @@ exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
     clubeNovidade: (assinaturaClube && clubeAvisoSnap?.exists) ? clubeAvisoSnap.data() : null,
   };
 });
+
+// ─── GATE DE ACESSO — Ferramentas da Jornada (só quem passou pela mentoria) ───
+// Achado 16/09/2026 (Flávia): quem assina só o produto 'dashboard' (nunca fez
+// mentoria) conseguia acessar as ferramentas de jornada.html normalmente — nada
+// checava isso, nem client-side nem nas Cloud Functions. 'inicio' NÃO serve pra
+// essa checagem (createMentorada e o webhook Kiwify default pra hoje() em toda
+// conta nova, mentoria ou não). Sinal correto: existir contrato com produto
+// 'mentoria' ou 'private' em mentoradas/{uid}/contratos, qualquer status.
+async function _temContratoMentoria(uid) {
+  const snap = await db.collection('mentoradas').doc(uid).collection('contratos')
+    .where('produto', 'in', ['mentoria', 'private']).limit(1).get();
+  return !snap.empty;
+}
+
+async function _exigeAcessoMentoria(uid, isAdminUser) {
+  if (isAdminUser) return;
+  const ok = await _temContratoMentoria(uid);
+  if (!ok) {
+    throw new HttpsError('permission-denied', 'Ferramentas da Jornada disponíveis apenas para quem passou pela mentoria.');
+  }
+}
 
 // ─── MATERIAIS DA JORNADA (jornada.html — seção "Ferramentas da sua Jornada") ──
 // Ver dashboard/MATERIAIS_JORNADA_SPEC.md para o desenho completo.
@@ -809,6 +834,7 @@ exports.getMateriaisJornada = onCall(async (request) => {
   const auth = requireAuth(request);
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
+  await _exigeAcessoMentoria(uid, request.auth?.token?.admin === true);
 
   const snap = await db.collection('mentoradas').doc(uid).collection('materiaisJornada').get();
   const materiais = {};
@@ -820,6 +846,7 @@ exports.salvarMaterialJornada = onCall(async (request) => {
   const auth = requireAuth(request);
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
+  await _exigeAcessoMentoria(uid, request.auth?.token?.admin === true);
 
   const { ferramentaId, respostas, status } = request.data || {};
   if (!ferramentaId || !_FERRAMENTAS_JORNADA_VALIDAS.has(ferramentaId)) {
@@ -846,6 +873,7 @@ exports.registrarDecisaoFinanceira = onCall(async (request) => {
   const auth = requireAuth(request);
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
+  await _exigeAcessoMentoria(uid, request.auth?.token?.admin === true);
 
   const { descricaoCompra, paris, antiImpulso, decisao } = request.data || {};
   if (!descricaoCompra || typeof descricaoCompra !== 'string') {
@@ -873,6 +901,7 @@ exports.getDecisoesFinanceiras = onCall(async (request) => {
   const auth = requireAuth(request);
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
+  await _exigeAcessoMentoria(uid, request.auth?.token?.admin === true);
 
   const snap = await db.collection('mentoradas').doc(uid).collection('decisoesFinanceiras')
     .orderBy('criadoEm', 'desc').limit(50).get();
@@ -11761,6 +11790,7 @@ exports.getMinhaJornada = onCall({ secrets: [sNotion] }, async (request) => {
 
   const docSnap = await db.collection('mentoradas').doc(uid).get();
   if (!docSnap.exists) throw new HttpsError('not-found', 'Mentorada não encontrada.');
+  await _exigeAcessoMentoria(uid, request.auth?.token?.admin === true);
 
   const { nome, notionPageId: cachedPageId, notionSyncedAt } = docSnap.data();
 

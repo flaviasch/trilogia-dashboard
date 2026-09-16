@@ -922,8 +922,10 @@
 
       // Raio-X (degustação): Jornada não faz parte do acesso liberado — redireciona.
       if (!_va) {
-        getNivelAcesso().then(({ nivelAcesso }) => {
+        getNivelAcesso().then(({ nivelAcesso, temMentoria }) => {
           if (nivelAcesso === 'raio-x') { window.location.replace('orcamento.html'); return; }
+          // Ferramentas da Jornada: só quem já passou pela mentoria (achado 16/09/2026).
+          if (!temMentoria) { window.location.replace('index.html'); return; }
         }).catch(() => {});
       }
       if (_va) {
