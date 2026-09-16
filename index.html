@@ -1909,6 +1909,16 @@ async function init(user) {
 
       const notifs = [];
 
+      // ⓪-l Modo Casal (16/09/2026) — vínculo de contas entre parceiros.
+      if (!localStorage.getItem('notif_modo_casal_set2026')) {
+        notifs.unshift({
+          id: 'modo-casal-set2026', type: 'novidades', key: 'notif_modo_casal_set2026', icon: '💞',
+          titulo: 'Chegou o Modo Casal',
+          desc: 'Vincule sua conta com a do seu parceiro ou parceira e acompanhem juntos as finanças. Cada um mantém a própria conta e histórico, só a visão consolidada é compartilhada, e só depois que o convite for aceito.',
+          cta: { label: 'Ver Vínculo de Casal', href: 'index.html' },
+        });
+      }
+
       // ⓪-z Dia do Cliente (15/09) — banner só no dia, some sozinho depois.
       // Pedido Flávia 15/09/2026: parabenizar as mentoradas, sem venda nenhuma.
       const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;

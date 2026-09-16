@@ -1548,6 +1548,31 @@ function emailDiaDoCliente(nome) {
   `);
 }
 
+/**
+ * E-mail: anúncio do Modo Casal (16/09/2026) — vínculo de contas entre
+ * parceiros, com visão consolidada de leitura. Só pra ativas.
+ */
+function emailModoCasal2026(nome) {
+  const primeiroNome = (nome || 'você').split(' ')[0];
+  return layout(`
+    <h2 style="${S.h2}">Chegou o Modo Casal no Dashboard</h2>
+    <p style="${S.p}">Olá, ${primeiroNome}!</p>
+    <p style="${S.p}">
+      Se você organiza as finanças em dupla, agora dá pra vincular sua conta
+      com a do seu parceiro ou parceira direto no Dashboard. Cada um mantém
+      a própria conta, a própria planilha e o próprio histórico. Só a visão
+      consolidada é compartilhada, e só depois que o convite for aceito.
+    </p>
+    <p style="${S.p}">
+      Na sua tela inicial, procure o card "Vínculo de Casal": informe nome e
+      e-mail da pessoa e envie o convite. Se ela ainda não tem conta no
+      Dashboard, uma é criada na hora, sem custo.
+    </p>
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">Ver dashboard</a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
 function emailModoClaroAporteAgo2026(nome) {
   const item = (emoji, titulo, desc) =>
     `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
@@ -1636,6 +1661,7 @@ module.exports = {
   emailNovidadesAgo2026Completo,
   emailModoClaroAporteAgo2026,
   emailDiaDoCliente,
+  emailModoCasal2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,

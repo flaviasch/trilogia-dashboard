@@ -1453,6 +1453,11 @@ export async function anunciarDiaDoCliente2026() {
   return call('anunciarDiaDoCliente2026')({});
 }
 
+/** Dispara e-mail sobre o Modo Casal (16/09/2026) pra ativas. Admin only. */
+export async function anunciarModoCasal2026() {
+  return call('anunciarModoCasal2026')({});
+}
+
 /**
  * Reenvia o resumo mensal de agosto/2026 com Despesas/Sobra corrigidas —
  * correção pontual (achado 01/09/2026), não faz parte do fluxo normal.

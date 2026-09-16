@@ -64,6 +64,7 @@ const {
   emailNovidadesAgo2026Completo,
   emailModoClaroAporteAgo2026,
   emailDiaDoCliente,
+  emailModoCasal2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
@@ -10603,6 +10604,37 @@ exports.anunciarDiaDoCliente2026 = onCall({ secrets: SECRETS_EMAIL }, async (req
   }
   await db.collection('config').doc('comunicados').set(
     { diaDoCliente2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+/**
+ * Modo Casal (16/09/2026) — anuncia o vínculo de contas entre casais,
+ * lançado em duas fatias: mecânica de vínculo (convite/aceite/recusa/
+ * desvínculo) e leitura consolidada (dashboard/orçamento/patrimônio/
+ * reservas somados). Só pra ativas, igual às outras anunciar*.
+ */
+exports.anunciarModoCasal2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Chegou o Modo Casal no Dashboard',
+        html:    emailModoCasal2026(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarModoCasal2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { modoCasal2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };
