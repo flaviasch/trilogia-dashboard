@@ -224,14 +224,14 @@
 
       if (status.casalStatus === 'pendente') {
         elTitulo.textContent = `${status.outroNome || 'Alguém'} te convidou`;
-        elTexto.textContent = `${status.outroNome || 'Sua mentorada'} quer vincular as contas de vocês no Dashboard Trilogia Financeira, para acompanharem juntos o orçamento, patrimônio e reservas. Cada um mantém a própria conta e o próprio histórico — nada é compartilhado até você aceitar.`;
+        elTexto.textContent = `${status.outroNome || 'Sua mentorada'} quer vincular as contas de vocês no Dashboard Trilogia Financeira, para acompanharem juntos o orçamento, patrimônio e reservas. Cada um mantém a própria conta e o próprio histórico, nada é compartilhado até você aceitar.`;
         elAcoesConvite.style.display = '';
         return;
       }
 
       if (status.casalStatus === 'ativo') {
         elTitulo.textContent = 'Vínculo ativo';
-        elTexto.textContent = `Sua conta está vinculada com ${status.outroNome || 'sua mentorada'}. As telas de orçamento, patrimônio e reservas para você lançar seus próprios dados ainda estão em construção — assim que estiverem prontas, você vai poder usá-las por aqui.`;
+        elTexto.textContent = `Sua conta está vinculada com ${status.outroNome || 'sua mentorada'}. As telas de orçamento, patrimônio e reservas para você lançar seus próprios dados ainda estão em construção. Assim que estiverem prontas, você vai poder usá-las por aqui.`;
         elAcoesAtivo.style.display = '';
         return;
       }

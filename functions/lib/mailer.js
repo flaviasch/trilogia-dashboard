@@ -390,14 +390,14 @@ function emailConviteParceiro(nomeParceiro, nomeMentorada, contaNova, linkSenha)
       ${nomeMentorada} quer vincular as contas de vocês no Dashboard Trilogia
       Financeira, para acompanharem juntos o orçamento, patrimônio e reservas
       do casal. Cada um mantém a própria conta, a própria planilha e o
-      próprio histórico — só a visão consolidada passa a ser compartilhada,
+      próprio histórico. Só a visão consolidada passa a ser compartilhada,
       e só depois que você aceitar o vínculo.
     </p>
     ${contaNova ? `
     <p style="${S.p}">Sua conta já foi criada. Clique no botão abaixo para definir sua senha e acessar:</p>
     <a href="${linkSenha}" style="${S.btn}">Definir minha senha</a>
     ` : `
-    <p style="${S.p}">Você já tem conta no Dashboard — entre normalmente para ver o convite e aceitar ou recusar o vínculo.</p>
+    <p style="${S.p}">Você já tem conta no Dashboard. Entre normalmente para ver o convite e aceitar ou recusar o vínculo.</p>
     <a href="https://dashboard.flaviaschusciman.com/login.html" style="${S.btn}">Entrar no Dashboard</a>
     `}
     <p style="${S.pSmall}">

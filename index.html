@@ -1067,8 +1067,8 @@ function renderVinculoCard(status) {
   formBox.style.display   = 'none';
   statusBox.style.display = '';
   document.getElementById('vinculoStatusLabel').textContent =
-    status.casalStatus === 'ativo' ? 'Vinculada' : 'Convite enviado — aguardando aceite';
-  document.getElementById('vinculoStatusNome').textContent = status.outroNome || '—';
+    status.casalStatus === 'ativo' ? 'Vinculada' : 'Convite enviado, aguardando aceite';
+  document.getElementById('vinculoStatusNome').textContent = status.outroNome || '-';
   document.getElementById('btnDesvincularCasalHome').textContent =
     status.casalStatus === 'ativo' ? 'Desvincular' : 'Cancelar convite';
 }
