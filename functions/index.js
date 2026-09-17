@@ -13100,7 +13100,13 @@ exports.getPatrimonioCasal = onCall({ secrets: SECRETS_SHEETS }, async (request)
     _buscarPatrimonioInterno(uidA).catch(() => vazio),
     _buscarPatrimonioInterno(uidB).catch(() => vazio),
   ]);
-  const marcar = (uid) => (item) => ({ ...item, _deQuem: uid === auth.uid ? 'eu' : 'parceiro' });
+  // Fatia 3: item marcado como `compartilhado` (bem/dívida do casal, lançado
+  // só de um lado) aparece como "casal" em vez de "voce"/"parceiro" — ver
+  // dashboard/MODO_CASAL_SPEC.md.
+  const marcar = (uid) => (item) => ({
+    ...item,
+    _deQuem: item.compartilhado ? 'compartilhado' : (uid === auth.uid ? 'eu' : 'parceiro'),
+  });
   return {
     ativos:  [...ladoA.ativos.map(marcar(uidA)),  ...ladoB.ativos.map(marcar(uidB))],
     dividas: [...ladoA.dividas.map(marcar(uidA)), ...ladoB.dividas.map(marcar(uidB))],

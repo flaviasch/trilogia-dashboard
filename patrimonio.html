@@ -730,6 +730,7 @@
     <!-- Patrimônio do Casal (Fatia 2, leitura) -->
     <div id="cardPatrimonioCasal" style="display:none;background:var(--navy);border:1px solid var(--border);border-radius:16px;padding:20px 24px;margin-top:24px;">
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:12px;">Patrimônio do Casal (visão consolidada)</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Bem ou dívida que é dos dois? Marque como "compartilhado" ao cadastrar (só de um lado) pra não contar em dobro aqui.</div>
       <button id="btnVerPatrimonioCasal" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;color:inherit;">Ver patrimônio do casal</button>
       <div id="patrimonioCasalPainel" style="display:none;margin-top:16px;">
         <div id="patrimonioCasalCarregando" style="font-size:12px;color:var(--text-muted);">Carregando…</div>
@@ -770,6 +771,13 @@
       <div class="field-group">
         <label for="ativoValor">Valor (R$)</label>
         <input type="text" inputmode="numeric" id="ativoValor" placeholder="0" />
+      </div>
+      <div class="field-group" id="campoAtivoCompartilhado" style="display:none;">
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="ativoCompartilhado" style="width:auto;">
+          Esse bem é do casal (compartilhado)
+        </label>
+        <span style="font-size:11px; color:var(--text-muted);">Marque só de um lado, pra não contar em dobro na visão do casal.</span>
       </div>
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelAtivo">Cancelar</button>
@@ -852,6 +860,13 @@
       <div class="field-group">
         <label for="dividaTermino">Término previsto</label>
         <input type="month" id="dividaTermino" />
+      </div>
+      <div class="field-group" id="campoDividaCompartilhada" style="display:none;">
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="dividaCompartilhada" style="width:auto;">
+          Essa dívida é do casal (compartilhada)
+        </label>
+        <span style="font-size:11px; color:var(--text-muted);">Marque só de um lado, pra não contar em dobro na visão do casal.</span>
       </div>
 
       <div class="modal-actions">
@@ -1026,8 +1041,13 @@
 
     function renderCasalPatrimonioCard(status) {
       const card = document.getElementById('cardPatrimonioCasal');
+      const campoAtivoCompartilhado  = document.getElementById('campoAtivoCompartilhado');
+      const campoDividaCompartilhada = document.getElementById('campoDividaCompartilhada');
+      const ativo = status?.casalStatus === 'ativo';
+      if (campoAtivoCompartilhado)  campoAtivoCompartilhado.style.display  = ativo ? '' : 'none';
+      if (campoDividaCompartilhada) campoDividaCompartilhada.style.display = ativo ? '' : 'none';
       if (!card) return;
-      if (status?.casalStatus === 'ativo') {
+      if (ativo) {
         card.style.display = '';
         _casalIdPatrimonio = status.casalId;
       } else {
@@ -1056,14 +1076,15 @@
         document.getElementById('casalTotalDividas').textContent = brlCasalPatrimonio(totalDividas);
         document.getElementById('casalTotalPL').textContent      = brlCasalPatrimonio(totalAtivos - totalDividas);
 
+        const rotuloDeQuem = (deQuem) => deQuem === 'eu' ? 'voce' : (deQuem === 'compartilhado' ? 'casal' : 'parceiro');
         const linhaAtivo = (a) => `
           <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
-            <span>${a.classe || 'Ativo'} <span style="color:var(--text-muted);font-size:11px;">(${a._deQuem === 'eu' ? 'voce' : 'parceiro'})</span></span>
+            <span>${a.classe || 'Ativo'} <span style="color:var(--text-muted);font-size:11px;">(${rotuloDeQuem(a._deQuem)})</span></span>
             <span>${brlCasalPatrimonio(a.valor)}</span>
           </div>`;
         const linhaDivida = (d) => `
           <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:#f87171;">
-            <span>${d.nome || 'Divida'} <span style="color:var(--text-muted);font-size:11px;">(${d._deQuem === 'eu' ? 'voce' : 'parceiro'})</span></span>
+            <span>${d.nome || 'Divida'} <span style="color:var(--text-muted);font-size:11px;">(${rotuloDeQuem(d._deQuem)})</span></span>
             <span>${brlCasalPatrimonio(d.saldo)}</span>
           </div>`;
         document.getElementById('patrimonioCasalLista').innerHTML =
@@ -2076,9 +2097,11 @@
         const a = ativos.find(x => x.classe === classe);
         document.getElementById('ativoNome').value = a ? a.classe : '';
         setMoney(document.getElementById('ativoValor'), a ? a.valor : null);
+        document.getElementById('ativoCompartilhado').checked = !!(a && a.compartilhado);
       } else {
         document.getElementById('ativoNome').value  = '';
         document.getElementById('ativoValor').value = '';
+        document.getElementById('ativoCompartilhado').checked = false;
       }
       modalAtivo.classList.remove('hidden');
       document.getElementById('ativoNome').focus();
@@ -2117,6 +2140,7 @@
       const btnSaveAtivo = document.getElementById('btnSaveAtivo');
       const nome  = document.getElementById('ativoNome').value.trim();
       const valor = readMoney(document.getElementById('ativoValor'));
+      const compartilhado = document.getElementById('ativoCompartilhado').checked;
 
       if (!nome)       { toast('Preencha o nome do ativo.', 'warning'); return; }
       if (valor < 0)   { toast('Preencha um valor válido.', 'warning'); return; }
@@ -2125,20 +2149,21 @@
         // Edição: pode renomear a classe e/ou alterar o valor
         const idx = ativos.findIndex(a => a.classe === editandoClasse);
         if (idx !== -1) {
-          // Se renomeou E já existe a nova classe, soma
+          // Se renomeou E já existe a nova classe, soma (compartilhado prevalece se marcado em qualquer um dos dois)
           if (nome !== editandoClasse) {
             const dup = ativos.findIndex(a => a.classe === nome);
-            if (dup !== -1) { ativos[dup].valor += valor; ativos.splice(idx, 1); }
-            else            { ativos[idx] = { classe: nome, valor }; }
+            if (dup !== -1) { ativos[dup].valor += valor; ativos[dup].compartilhado = ativos[dup].compartilhado || compartilhado; ativos.splice(idx, 1); }
+            else            { ativos[idx] = { classe: nome, valor, compartilhado }; }
           } else {
             ativos[idx].valor = valor;
+            ativos[idx].compartilhado = compartilhado;
           }
         }
       } else {
-        // Novo: se já existe, soma
+        // Novo: se já existe, soma (compartilhado prevalece se marcado em qualquer um dos dois)
         const existente = ativos.find(a => a.classe.toLowerCase() === nome.toLowerCase());
-        if (existente) { existente.valor += valor; }
-        else           { ativos.push({ classe: nome, valor }); }
+        if (existente) { existente.valor += valor; existente.compartilhado = existente.compartilhado || compartilhado; }
+        else           { ativos.push({ classe: nome, valor, compartilhado }); }
       }
 
       fecharModalAtivo();
@@ -2296,6 +2321,7 @@
           setMoney(document.getElementById('dividaParcela'), d.parcela || null);
           document.getElementById('dividaTotalParcelas').value = d.totalParcelas || '';
           document.getElementById('dividaTermino').value = d.termino || '';
+          document.getElementById('dividaCompartilhada').checked = !!d.compartilhado;
           if (infoEl) {
             const pagas = d.parcelasPagas || 0;
             infoEl.style.display = (forma === 'parcelada' && pagas > 0) ? '' : 'none';
@@ -2327,6 +2353,7 @@
       document.getElementById('dividaParcela').value = '';
       document.getElementById('dividaTotalParcelas').value = '';
       document.getElementById('dividaTermino').value = '';
+      document.getElementById('dividaCompartilhada').checked = false;
     }
 
     document.getElementById('btnSaveDivida').addEventListener('click', async () => {
@@ -2338,6 +2365,7 @@
       const totalParcelasRaw = document.getElementById('dividaTotalParcelas').value;
       const totalParcelas = forma === 'parcelada' && totalParcelasRaw ? parseInt(totalParcelasRaw, 10) : null;
       const termino = document.getElementById('dividaTermino').value;
+      const compartilhada = document.getElementById('dividaCompartilhada').checked;
 
       if (!nome || isNaN(saldo) || saldo <= 0) {
         toast('Preencha pelo menos a descrição e o saldo devedor.', 'warning');
@@ -2367,6 +2395,7 @@
               ...anterior, nome, tipo, saldo, parcela, termino,
               formaPagamento: forma, totalParcelas, parcelasStatus,
               parcelasPagas: parcelasStatus.filter(Boolean).length,
+              compartilhado: compartilhada,
             };
           }
           await saveDivida(dividas[idx !== -1 ? idx : 0]);
@@ -2378,6 +2407,7 @@
             id: 'd' + Date.now(), nome, tipo, saldo, parcela, termino,
             formaPagamento: forma, totalParcelas, parcelasStatus,
             parcelasPagas: 0, pagamentos: [], quitada: false,
+            compartilhado: compartilhada,
           };
           dividas.push(nova);
           await saveDivida(nova);
