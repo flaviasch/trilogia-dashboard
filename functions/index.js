@@ -502,9 +502,12 @@ exports.getNivelAcesso = onCall({}, async (request) => {
   requireSelfOrAdmin(request, uid);
   const docSnap = await db.collection('mentoradas').doc(uid).get();
   if (!docSnap.exists) {
-    // Modo Casal: uid pode ser de um parceiro (contasParceiro).
+    // Modo Casal: uid pode ser de um parceiro (contasParceiro). Parceiro
+    // nunca tem acesso à Jornada, mesmo que a mentorada vinculada tenha
+    // mentoria ativa (decisão Flávia 17/09/2026) — conteúdo pago não se
+    // estende ao Modo Casal.
     const parceiroSnap = await db.collection('contasParceiro').doc(uid).get();
-    if (parceiroSnap.exists) return { nivelAcesso: null, temMentoria: true };
+    if (parceiroSnap.exists) return { nivelAcesso: null, temMentoria: false };
     throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
   }
   const temMentoria = await _temContratoMentoria(uid);
@@ -3374,8 +3377,8 @@ async function _buscarPatrimonioInterno(uid) {
   const docSnap = await db.collection('mentoradas').doc(uid)
     .collection('patrimonio').doc('dados').get();
   if (docSnap.exists) {
-    const { ir = [], corretora = [], dividas = [] } = docSnap.data();
-    return { ativos: consolidarAtivos(ir, corretora), dividas, corretoraPosicoes: agruparPosicoesCorretora(corretora) };
+    const { ir = [], corretora = [], dividas = [], atualizadoEm = null } = docSnap.data();
+    return { ativos: consolidarAtivos(ir, corretora), dividas, corretoraPosicoes: agruparPosicoesCorretora(corretora), atualizadoEm };
   }
 
   // ── Fallback: Sheets + auto-migra ────────────────────────────────────────

@@ -984,6 +984,7 @@
 
     let perfilInvestidor = null;  // preenchido no init()
     let patrimonioAtual  = [];   // ativos consolidados de getPatrimonio()
+    let patrimonioAtualizadoEmMs = null;  // timestamp (ms) da última atualização do patrimônio
 
     // Mapeamento: código interno → label usado no ALOCACAO_PERFIL
     const CLASS_TO_LABEL = {
@@ -1121,10 +1122,13 @@
         else
           console.warn('[reservas] getPerfil falhou:', perfilResult.reason);
 
-        if (patResult.status === 'fulfilled')
+        if (patResult.status === 'fulfilled') {
           patrimonioAtual = Array.isArray(patResult.value?.ativos) ? patResult.value.ativos : [];
-        else
+          const ts = patResult.value?.atualizadoEm;
+          patrimonioAtualizadoEmMs = ts ? (ts._seconds ? ts._seconds * 1000 : new Date(ts).getTime()) : null;
+        } else {
           console.warn('[reservas] getPatrimonio falhou:', patResult.reason);
+        }
 
         if (!VIEW_AS_UID) cacheSet(_cacheKey, { reservas, perfilInvestidor, patrimonioAtual });
 
@@ -1267,10 +1271,26 @@
         titulo = '✓ Patrimônio 100% alocado nas reservas';
         msg    = 'Todo o patrimônio financeiro está coberto por uma reserva.';
       } else if (diff > 0) {
+        // Retirada pendente = houve retirada registrada depois da última
+        // atualização do patrimônio (reimportação de extrato). Enquanto isso,
+        // o gap é o reflexo dessa retirada ainda não refletida, não dinheiro
+        // sobrando — mostra "Atualizar patrimônio" em vez de "Alocar".
+        let retiradaTs = null;
+        try { retiradaTs = Number(localStorage.getItem('reservas_retirada_pendente')) || null; } catch (_) {}
+        const retiradaPendente = retiradaTs && (!patrimonioAtualizadoEmMs || retiradaTs > patrimonioAtualizadoEmMs);
+        if (retiradaTs && !retiradaPendente) {
+          try { localStorage.removeItem('reservas_retirada_pendente'); } catch (_) {}
+        }
+
         tipo   = 'aviso';
         titulo = `⚠ ${brl(absDiff)} do patrimônio não estão em nenhuma reserva`;
-        msg    = `Crie uma nova reserva ou aloque os ${brl(absDiff)} restantes numa existente.`;
-        acaoHtml = `<button class="btn-usar-saldo" id="btnAlocarCobertura" style="margin-top:10px;">Alocar em uma reserva</button>`;
+        if (retiradaPendente) {
+          msg      = `Essa diferença é da retirada recente que ainda não caiu no extrato. Reimporte o extrato em Patrimônio para atualizar.`;
+          acaoHtml = `<a href="patrimonio.html?from=retirada" class="btn-usar-saldo" style="text-decoration:none;display:inline-block;margin-top:10px;">Atualizar patrimônio</a>`;
+        } else {
+          msg      = `Crie uma nova reserva ou aloque os ${brl(absDiff)} restantes numa existente.`;
+          acaoHtml = `<button class="btn-usar-saldo" id="btnAlocarCobertura" style="margin-top:10px;">Alocar em uma reserva</button>`;
+        }
       } else {
         tipo   = 'excesso';
         titulo = `⚠ Reservas excedem o patrimônio em ${brl(absDiff)}`;
@@ -1909,6 +1929,11 @@
       const novoAcumulado = Math.max(0, r.acumulado - valor);
       const idx = reservas.findIndex(x => x.id === retirandoId);
       reservas[idx] = { ...r, acumulado: novoAcumulado };
+
+      // Marca que houve retirada ainda não refletida no patrimônio — usado
+      // pela cobertura pra sugerir "Atualizar patrimônio" em vez de "Alocar
+      // em uma reserva" enquanto o extrato não for reimportado.
+      try { localStorage.setItem('reservas_retirada_pendente', String(Date.now())); } catch (_) {}
 
       console.log('[retirada] STEP1 - valor:', valor, 'novoAcumulado:', novoAcumulado, 'patrimonioAtual.length:', patrimonioAtual.length);
 
