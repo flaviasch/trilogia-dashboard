@@ -13041,6 +13041,35 @@ exports.desvincular = onCall({}, async (request) => {
 // usa as telas — Fatia 4), esse lado entra como zero/vazio em vez de
 // derrubar a consolidação inteira.
 
+/**
+ * Fatia 3 (reforço): detecta pares de itens muito parecidos entre os dois
+ * lados do casal (mesma classe/nome, valor igual ou próximo) que NÃO estão
+ * marcados como `compartilhado` — sinal de que o mesmo bem/dívida pode ter
+ * sido lançado duas vezes, uma vez por cada um. Não bloqueia nada, só avisa.
+ */
+function _detectarDuplicidadesProvaveis(itensA, itensB, campoChave, campoValor) {
+  const normalizar = (s) => String(s || '').trim().toLowerCase();
+  const avisos = [];
+  for (const a of itensA) {
+    if (a.compartilhado) continue;
+    const chaveA = normalizar(a[campoChave]);
+    const valorA = a[campoValor] || 0;
+    if (!chaveA || valorA <= 0) continue;
+    for (const b of itensB) {
+      if (b.compartilhado) continue;
+      const chaveB = normalizar(b[campoChave]);
+      const valorB = b[campoValor] || 0;
+      if (chaveA !== chaveB || valorB <= 0) continue;
+      const diferenca = Math.abs(valorA - valorB);
+      const maior = Math.max(valorA, valorB);
+      if (diferenca === 0 || diferenca / maior <= 0.05) {
+        avisos.push({ chave: a[campoChave], valorA, valorB });
+      }
+    }
+  }
+  return avisos;
+}
+
 async function _resolverCasalAtivo(request, casalId) {
   const auth = await requireSelfOrPartner(db, request, casalId);
   const casalSnap = await db.collection('casais').doc(casalId).get();
@@ -13107,9 +13136,14 @@ exports.getPatrimonioCasal = onCall({ secrets: SECRETS_SHEETS }, async (request)
     ...item,
     _deQuem: item.compartilhado ? 'compartilhado' : (uid === auth.uid ? 'eu' : 'parceiro'),
   });
+  const duplicidades = {
+    ativos:  _detectarDuplicidadesProvaveis(ladoA.ativos,  ladoB.ativos,  'classe', 'valor'),
+    dividas: _detectarDuplicidadesProvaveis(ladoA.dividas, ladoB.dividas, 'nome',   'saldo'),
+  };
   return {
     ativos:  [...ladoA.ativos.map(marcar(uidA)),  ...ladoB.ativos.map(marcar(uidB))],
     dividas: [...ladoA.dividas.map(marcar(uidA)), ...ladoB.dividas.map(marcar(uidB))],
+    duplicidades,
   };
 });
 
