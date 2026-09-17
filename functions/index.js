@@ -13033,6 +13033,35 @@ exports.desvincular = onCall({}, async (request) => {
   return { ok: true };
 });
 
+/**
+ * Admin (Fatia 5): lista todos os vínculos de casal (Modo Casal), com
+ * nome/e-mail dos dois lados, pra dar visão geral no admin.html sem
+ * precisar abrir mentorada por mentorada procurando quem tem casalId.
+ * O desfazer de ofício já existe (desvincular aceita chamada de admin) —
+ * isso só cobre a metade que faltava, "ver o vínculo". Ver
+ * dashboard/MODO_CASAL_SPEC.md, seção 10.
+ */
+exports.listarCasais = onCall({}, async (request) => {
+  requireAdmin(request);
+  const snap = await db.collection('casais').orderBy('criadoEm', 'desc').limit(500).get();
+  const casais = await Promise.all(snap.docs.map(async (doc) => {
+    const { uidA, uidB, status, criadoEm, aceitoEm } = doc.data();
+    const [snapA, snapB] = await Promise.all([
+      db.collection('mentoradas').doc(uidA).get(),
+      db.collection('contasParceiro').doc(uidB).get(),
+    ]);
+    return {
+      casalId: doc.id,
+      status,
+      criadoEm: criadoEm || null,
+      aceitoEm: aceitoEm || null,
+      mentorada: { uid: uidA, nome: snapA.exists ? (snapA.data().nome || null) : null, email: snapA.exists ? (snapA.data().email || null) : null },
+      parceiro:  { uid: uidB, nome: snapB.exists ? (snapB.data().nome || null) : null, email: snapB.exists ? (snapB.data().email || null) : null },
+    };
+  }));
+  return casais;
+});
+
 // ─── MODO CASAL — Fatia 2 (leitura consolidada) ────────────────────────────
 // Wrappers finos por cima da lógica interna de getDashboard/getOrcamento/
 // getPatrimonio/getReservas — chama pros dois uids do casal em paralelo e

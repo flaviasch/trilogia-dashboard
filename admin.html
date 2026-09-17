@@ -1852,6 +1852,17 @@
         <div id="adminsErro" style="font-size:12px;color:var(--negative);margin-top:8px;display:none;"></div>
       </div>
 
+      <!-- Vinculos de casal (Modo Casal, Fatia 5) -->
+      <div class="detalhe-card" style="margin-bottom:24px;">
+        <div class="card-header-row" style="margin-bottom:16px;">
+          <div class="detalhe-card-label">💞 Vínculos de Casal</div>
+        </div>
+        <p style="font-size:13px;color:var(--text-secondary);margin:0 0 16px;">
+          Todos os vínculos do Modo Casal, pendentes, ativos e desfeitos. Desvincular aqui não apaga dado nenhum, só para a consolidação entre as duas contas.
+        </p>
+        <div id="listaCasais" style="margin-bottom:4px;">Carregando…</div>
+      </div>
+
       <!-- Status do backup -->
       <div class="detalhe-card">
         <div class="card-header-row" style="margin-bottom:12px;">
@@ -2234,7 +2245,7 @@
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
              syncDiagnostico, bootstrapNotionPageIds, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, anunciarNovidadesJun2026Completo, anunciarJornadaDashboard, anunciarNovidadesJul2026, anunciarNovidadesJul2026Completo, anunciarNovidadesAgo2026Completo, anunciarModoClaroAgo2026, anunciarDiaDoCliente2026, anunciarModoCasal2026, anunciarBalancoJul2026, anunciarMultiplasContasJul2026, anunciarRaioXJul2026, anunciarPatrimonioIAJul2026, corrigirRelatorioAgosto2026, comunicadoTecnico, migrarOrcamento, getAnalytics,
-             getAdmins, addAdmin, removeAdmin, getBackupStatus,
+             getAdmins, addAdmin, removeAdmin, getBackupStatus, listarCasais,
              enviarPushManual, saveMissaoMes, getComunicadosStatus,
              editarVencimento,
              getTributosConfig, saveTributoConfig, deleteTributoConfig, trocarRegimeTributarioPJ, getTrocasRegimePJ,
@@ -3342,7 +3353,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
       // Verifica se é master
       _isMaster = auth.currentUser?.email === MASTER_EMAIL;
 
-      await Promise.allSettled([carregarAdmins(), carregarStatusBackup()]);
+      await Promise.allSettled([carregarAdmins(), carregarStatusBackup(), carregarVinculosCasal()]);
 
       // Mostra campo de adicionar só se for master
       document.querySelector('#view-configuracoes .btn-acao')?.style.setProperty('display', _isMaster ? '' : 'none');
@@ -3378,6 +3389,51 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
         await removeAdmin(uid);
         mostrarToast('Admin removido.');
         await carregarAdmins();
+      } catch (e) { mostrarToast('Erro: ' + e.message); }
+    }
+
+    const STATUS_CASAL_LABEL = { pendente: 'Pendente', ativo: 'Ativo', desvinculado: 'Desvinculado' };
+    const STATUS_CASAL_COR   = { pendente: 'var(--gold)', ativo: 'var(--positive)', desvinculado: 'var(--text-secondary)' };
+
+    function fmtDataCasal(ts) {
+      if (!ts) return '?';
+      const ms = ts._seconds ? ts._seconds * 1000 : new Date(ts).getTime();
+      if (!ms || isNaN(ms)) return '?';
+      return new Date(ms).toLocaleDateString('pt-BR');
+    }
+
+    async function carregarVinculosCasal() {
+      const el = document.getElementById('listaCasais');
+      if (!el) return;
+      try {
+        const casais = await listarCasais();
+        if (!casais.length) { el.innerHTML = '<p style="font-size:13px;color:var(--text-secondary);">Nenhum vínculo de casal ainda.</p>'; return; }
+        el.innerHTML = casais.map(c => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:12px;">
+            <div style="min-width:0;">
+              <div style="font-size:14px;font-weight:600;">${escHtml(c.mentorada.nome || c.mentorada.email || c.mentorada.uid)} <span style="color:var(--text-secondary);font-weight:400;">+</span> ${escHtml(c.parceiro.nome || c.parceiro.email || c.parceiro.uid)}</div>
+              <div style="font-size:12px;color:var(--text-secondary);">
+                <span style="color:${STATUS_CASAL_COR[c.status] || 'var(--text-secondary)'};font-weight:600;">${STATUS_CASAL_LABEL[c.status] || c.status}</span>
+                · convite em ${fmtDataCasal(c.criadoEm)}${c.aceitoEm ? ` · aceito em ${fmtDataCasal(c.aceitoEm)}` : ''}
+              </div>
+            </div>
+            ${c.status !== 'desvinculado'
+              ? `<button class="btn-acao btn-danger" data-desvincular-casal="${c.casalId}" style="font-size:12px;padding:5px 12px;flex-shrink:0;">Desvincular</button>`
+              : ''}
+          </div>`).join('');
+        el.querySelectorAll('[data-desvincular-casal]').forEach(b =>
+          b.addEventListener('click', () => desvincularCasalAdmin(b.dataset.desvincularCasal)));
+      } catch (e) {
+        el.innerHTML = `<p style="font-size:12px;color:var(--negative);">Erro ao carregar vínculos.</p>`;
+      }
+    }
+
+    async function desvincularCasalAdmin(casalId) {
+      if (!confirm('Desvincular este casal?\n\nNenhum dado é apagado — só a consolidação entre as duas contas para de acontecer.')) return;
+      try {
+        await desvincularAdmin(casalId);
+        mostrarToast('Vínculo desfeito.');
+        await carregarVinculosCasal();
       } catch (e) { mostrarToast('Erro: ' + e.message); }
     }
 

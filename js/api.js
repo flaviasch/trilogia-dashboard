@@ -597,6 +597,11 @@ export async function desvincularAdmin(casalId) {
   return adminCall('desvincular')({ casalId });
 }
 
+/** Admin: lista todos os vínculos de casal (Modo Casal), pra visão geral no painel. */
+export async function listarCasais() {
+  return adminCall('listarCasais')({});
+}
+
 /** Reenvía o link de definição de senha para a mentorada (admin only). */
 export async function reenviarAcesso(uid) {
   return adminCall('reenviarAcesso')({ uid });
