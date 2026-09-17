@@ -1578,6 +1578,37 @@ function emailModoCasal2026(nome) {
   `);
 }
 
+/**
+ * E-mail: gestão conjunta do Modo Casal antecipada (17/09/2026) — o
+ * lançamento próprio de orçamento, patrimônio e reservas pelo parceiro,
+ * previsto pra 01/10, saiu antes. Só pra ativas.
+ */
+function emailModoCasalGestaoConjunta2026(nome) {
+  const primeiroNome = (nome || 'você').split(' ')[0];
+  return layout(`
+    <h2 style="${S.h2}">Antecipamos a gestão conjunta do Modo Casal</h2>
+    <p style="${S.p}">Olá, ${primeiroNome}!</p>
+    <p style="${S.p}">
+      Quando lançamos o Modo Casal, a gestão conjunta (os dois lançando e
+      acompanhando orçamento, patrimônio e reservas juntos) estava prevista
+      pra 01/10. Adiantamos essa parte e ela já está disponível.
+    </p>
+    <p style="${S.p}">
+      Se você já vinculou sua conta com a do seu parceiro ou parceira, é só
+      ele ou ela entrar no Dashboard: depois de aceitar os termos de uso,
+      já dá pra lançar orçamento, patrimônio e reservas próprios. Sua tela
+      inicial também ganhou um botão para ver os números do casal
+      consolidados.
+    </p>
+    <p style="${S.p}">
+      Ainda não vinculou? Procure o card "Vínculo de Casal" na sua tela
+      inicial para enviar o convite.
+    </p>
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">Ver dashboard</a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
 function emailModoClaroAporteAgo2026(nome) {
   const item = (emoji, titulo, desc) =>
     `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
@@ -1667,6 +1698,7 @@ module.exports = {
   emailModoClaroAporteAgo2026,
   emailDiaDoCliente,
   emailModoCasal2026,
+  emailModoCasalGestaoConjunta2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,

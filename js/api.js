@@ -1468,6 +1468,11 @@ export async function anunciarModoCasal2026() {
   return call('anunciarModoCasal2026')({});
 }
 
+/** Dispara e-mail avisando que a gestão conjunta do Modo Casal foi antecipada de 01/10. Admin only. */
+export async function anunciarModoCasalGestaoConjunta2026() {
+  return call('anunciarModoCasalGestaoConjunta2026')({});
+}
+
 /**
  * Reenvia o resumo mensal de agosto/2026 com Despesas/Sobra corrigidas —
  * correção pontual (achado 01/09/2026), não faz parte do fluxo normal.

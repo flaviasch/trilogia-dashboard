@@ -65,6 +65,7 @@ const {
   emailModoClaroAporteAgo2026,
   emailDiaDoCliente,
   emailModoCasal2026,
+  emailModoCasalGestaoConjunta2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
@@ -10718,6 +10719,36 @@ exports.anunciarModoCasal2026 = onCall({ secrets: SECRETS_EMAIL }, async (reques
   }
   await db.collection('config').doc('comunicados').set(
     { modoCasal2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+/**
+ * Modo Casal: gestão conjunta antecipada (17/09/2026) — a leitura/lançamento
+ * conjunto de orçamento, patrimônio e reservas, originalmente previsto pra
+ * 01/10, saiu antes. Só pra ativas.
+ */
+exports.anunciarModoCasalGestaoConjunta2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Antecipamos a gestão conjunta do Modo Casal',
+        html:    emailModoCasalGestaoConjunta2026(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarModoCasalGestaoConjunta2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { modoCasalGestaoConjunta2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };
