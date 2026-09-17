@@ -3429,7 +3429,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
     }
 
     async function desvincularCasalAdmin(casalId) {
-      if (!confirm('Desvincular este casal?\n\nNenhum dado é apagado — só a consolidação entre as duas contas para de acontecer.')) return;
+      if (!confirm('Desvincular este casal?\n\nNenhum dado é apagado, só a consolidação entre as duas contas para de acontecer.')) return;
       try {
         await desvincularAdmin(casalId);
         mostrarToast('Vínculo desfeito.');
@@ -4559,7 +4559,7 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       if (!mentoradaEmDetalhe) return;
       const casalId = mentoradaEmDetalhe.casalId;
       if (!casalId) return;
-      if (!confirm(`Desvincular o casal de ${mentoradaEmDetalhe.nome}?\n\nNenhum dado é apagado — só a consolidação entre as duas contas para de acontecer. Pode ser refeito depois com um novo convite.`)) return;
+      if (!confirm(`Desvincular o casal de ${mentoradaEmDetalhe.nome}?\n\nNenhum dado é apagado, só a consolidação entre as duas contas para de acontecer. Pode ser refeito depois com um novo convite.`)) return;
 
       const btn = document.getElementById('btnDesvincularCasal');
       btn.disabled = true;
