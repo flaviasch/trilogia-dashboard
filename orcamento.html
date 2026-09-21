@@ -5006,6 +5006,7 @@
             ? `<button class="btn-item" data-proj-fatura="${ev.acao.estadoKey}" data-proj-fatura-total="${ev.acao.total}" data-proj-fatura-nome="${escapeHtml(ev.acao.nomeCartao)}" data-proj-fatura-mes="${escapeHtml(ev.acao.mesFatura)}" title="Confirmar pagamento" style="color:var(--positive)">✓</button>`
             : ev.virtual
             ? `<button class="btn-item" data-proj-materializar="${ev.recorrenteId}:${ev.dia}" title="${ev.tipo === 'receita' ? 'Lançar essa receita fixa' : 'Lançar essa despesa fixa'}" style="color:var(--positive)">✓</button>
+               ${ev.tipo === 'receita' ? `<button class="btn-item" data-proj-editar-fixa="${ev.recorrenteId}:${ev.dia}" title="Ajustar o valor só deste mês">✎</button>` : ''}
                <button class="btn-item" data-proj-pular="${ev.recorrenteId}:${ev.dia}" title="Pular este mês (a recorrência continua ativa)" style="color:var(--text-muted)">⏭</button>`
             : `<button class="btn-item" data-proj-confirmar="${ev.tipo}:${ev.idx}" title="Confirmar" style="color:var(--positive)">✓</button>
                <button class="btn-item" data-proj-editar="${ev.tipo}:${ev.idx}" title="Editar">✎</button>
@@ -5057,6 +5058,11 @@
           btn.addEventListener('click', () => {
             const [recorrenteId, dia] = btn.dataset.projMaterializar.split(':');
             materializarFixaPendente(recorrenteId, +dia, btn);
+          }));
+        projecaoListaEl.querySelectorAll('[data-proj-editar-fixa]').forEach(btn =>
+          btn.addEventListener('click', () => {
+            const [recorrenteId, dia] = btn.dataset.projEditarFixa.split(':');
+            editarFixaMes(recorrenteId, +dia, btn);
           }));
         projecaoListaEl.querySelectorAll('[data-proj-pular]').forEach(btn =>
           btn.addEventListener('click', () => {
@@ -11059,7 +11065,29 @@
         _materializandoFixa.delete(chaveEmCurso);
       }
     }
-    async function _materializarFixaPendenteImpl(recorrenteId, dia) {
+    // Ajustar o valor de uma receita fixa só neste mês: lança a ocorrência como
+    // PENDENTE (mesmo valor da fixa) e já abre o editor, pra ela mexer no valor
+    // sem depender de "confirmar" primeiro (achado 21/09/2026, Flávia: linhas
+    // de receita fixa no Saldo Projetado só tinham ✓ e ⏭, sem editar).
+    async function editarFixaMes(recorrenteId, dia, btn) {
+      const chaveEmCurso = 'editar:' + recorrenteId + ':' + dia;
+      if (_materializandoFixa.has(chaveEmCurso)) return;
+      _materializandoFixa.add(chaveEmCurso);
+      if (btn) btn.disabled = true;
+      try {
+        await _materializarFixaPendenteImpl(recorrenteId, dia, { comoPendente: true });
+        const { mes, ano } = currentData.periodo;
+        const dataStr = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+        const idx = currentData.receitas.findIndex(x => x.recorrenteId === recorrenteId && x.data === dataStr);
+        if (idx >= 0) abrirModal('receita', idx);
+      } catch (err) {
+        toast(msgErro(err), 'error');
+        if (btn) btn.disabled = false;
+      } finally {
+        _materializandoFixa.delete(chaveEmCurso);
+      }
+    }
+    async function _materializarFixaPendenteImpl(recorrenteId, dia, { comoPendente = false } = {}) {
       const r = _recorrentes.find(x => x.id === recorrenteId);
       if (!r) return;
       const { mes, ano } = currentData.periodo;
@@ -11089,7 +11117,7 @@
           data:         dataStr,
           origem:       'recorrente',
           recorrenteId: r.id,
-          confirmado:   true,
+          ...(comoPendente ? { pendente: true } : { confirmado: true }),
           ...(r.contaId ? { contaId: r.contaId } : {}),
         });
         await salvarEAtualizar();
@@ -11099,7 +11127,7 @@
           await carregarRecorrentes();
         }
         render(currentData);
-        toast('Receita fixa lançada!', 'success');
+        if (!comoPendente) toast('Receita fixa lançada!', 'success');
         return;
       }
 
