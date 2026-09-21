@@ -2260,16 +2260,22 @@ exports.getFaturaEstados = onCall({ secrets: [] }, async (request) => {
 
 /**
  * Salva o estado de uma fatura específica (ajuste total, pagamento, rollover).
- * Espera: { uid, cartaoId, faturaKey, ajusteTotal?, estado?, valorPago?, rollover?,
- *           nomeCartao?, nextMesKey?, contaId? }
+ * Espera: { uid, cartaoId, faturaKey, ajusteValor?, ajusteTotal?, estado?, valorPago?,
+ *           rollover?, nomeCartao?, nextMesKey?, contaId? }
+ * ajusteValor = diferença sobre o total calculado (+ débito, − crédito);
+ * ajusteTotal = valor final fixo (legado, ainda usado no "pagar com valor
+ * diferente").
  * Se estado=paga_parcial e rollover>0, cria automaticamente uma despesa no nextMesKey.
  */
 exports.saveFaturaEstado = onCall({ secrets: [] }, async (request) => {
   requireAuth(request);
-  const { uid, cartaoId, faturaKey, ajusteTotal, estado, valorPago, rollover,
+  const { uid, cartaoId, faturaKey, ajusteTotal, ajusteValor, estado, valorPago, rollover,
           nomeCartao, nextMesKey, contaId } = request.data;
   requireSelfOrAdmin(request, uid);
   await checkRateLimit(uid, 'saveFaturaEstado', 20, 60_000); // 20/min
+
+  if (ajusteValor != null && (typeof ajusteValor !== 'number' || !Number.isFinite(ajusteValor) || Math.abs(ajusteValor) > 1e9))
+    throw new HttpsError('invalid-argument', 'ajusteValor deve ser um número.');
 
   if (!cartaoId || typeof cartaoId !== 'string')
     throw new HttpsError('invalid-argument', 'cartaoId é obrigatório.');
@@ -2287,6 +2293,8 @@ exports.saveFaturaEstado = onCall({ secrets: [] }, async (request) => {
   // continuava mascarando a soma real mesmo depois de novos lançamentos).
   if (ajusteTotal === null) update.ajusteTotal = admin.firestore.FieldValue.delete();
   else if (ajusteTotal != null) update.ajusteTotal = ajusteTotal;
+  if (ajusteValor === null) update.ajusteValor = admin.firestore.FieldValue.delete();
+  else if (ajusteValor != null) update.ajusteValor = Math.round(ajusteValor * 100) / 100;
   if (estado       != null) update.estado        = estado;
   if (valorPago    != null) update.valorPago      = valorPago;
   if (rollover     != null) update.rollover       = rollover;

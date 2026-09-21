@@ -108,6 +108,32 @@ function pertenceAConta(item, contaId) {
   return (item.contaId || CONTA_PRINCIPAL_ID) === contaId;
 }
 
+// ─── Ajuste manual de fatura ───────────────────────────────────────────────────
+
+/**
+ * Total efetivo de uma fatura considerando o ajuste manual da usuária.
+ *
+ * Modelo novo (achado 21/09/2026, Flávia): o ajuste é um LANÇAMENTO sobre o
+ * total calculado, guardado em `ajusteValor` (positivo = débito, negativo =
+ * crédito) — total = calculado + ajusteValor. Compra lançada depois do ajuste
+ * entra sozinha na conta; antes o ajuste era um valor final fixo
+ * (`ajusteTotal`) que congelava o total e ignorava tudo lançado depois.
+ *
+ * `ajusteTotal` (valor absoluto) continua sendo lido como legado: faturas já
+ * ajustadas e faturas pagas com valor diferente seguem com o total gravado.
+ * `ajusteValor` tem prioridade quando os dois existem.
+ */
+function totalFaturaComAjuste(fe, calculado) {
+  if (fe?.ajusteValor != null) return Math.round(((calculado || 0) + fe.ajusteValor) * 100) / 100;
+  if (fe?.ajusteTotal != null) return fe.ajusteTotal;
+  return calculado;
+}
+
+/** true quando a fatura tem algum ajuste manual (novo ou legado). */
+function temAjusteFatura(fe) {
+  return fe?.ajusteValor != null || fe?.ajusteTotal != null;
+}
+
 // ─── Agregação principal ───────────────────────────────────────────────────────
 
 function calcularAgregadosOrcamento({
@@ -173,7 +199,7 @@ function calcularAgregadosOrcamento({
   });
   Object.entries(faturaEstados).forEach(([key, fe]) => {
     if (key in gruposFechadaCaixa) return;
-    if (fe.ajusteTotal == null) return;
+    if (!temAjusteFatura(fe)) return;
     if (contaId != null && (fe.contaId || CONTA_PRINCIPAL_ID) !== contaId) return;
     const [cartaoId, faturaKey] = key.split('_');
     if (_periodoNumCalc(faturaKey) !== periodoTotal) return;
@@ -183,7 +209,7 @@ function calcularAgregadosOrcamento({
   let totalCartaoPago = 0; // fatura fechada já confirmada (total ou parte paga)
   Object.entries(gruposFechadaCaixa).forEach(([key, total]) => {
     const fe = faturaEstados[key];
-    const totalAjustado = fe?.ajusteTotal ?? total;
+    const totalAjustado = totalFaturaComAjuste(fe, total);
     if (fe?.estado === 'paga_total') totalCartaoPago += totalAjustado;
     else if (fe?.estado === 'paga_parcial') totalCartaoPago += fe.valorPago || 0;
     else totalFaturas += totalAjustado;
@@ -261,6 +287,8 @@ function calcularAjuste(diffNaoIdentificadoMes, jaExplicadoPor = 0) {
 }
 
 module.exports = {
+  totalFaturaComAjuste,
+  temAjusteFatura,
   CONTA_PRINCIPAL_ID,
   CATEGORIA_AJUSTE,
   pertenceAConta,

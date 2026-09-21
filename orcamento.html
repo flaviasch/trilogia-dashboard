@@ -2742,6 +2742,7 @@
       isPendenteEfetivo, normCat, diasSemanaNoMes, diasEsperadosRecorrente, diasFaltantesRecorrente,
       getFixasPuladas, chaveFixaPulada,
       calcularAgregadosOrcamento, calcularAjuste, calcularNaoPlanejado, pertenceAConta, CONTA_PRINCIPAL_ID, CATEGORIA_AJUSTE,
+      totalFaturaComAjuste, temAjusteFatura,
     } from './js/orcamento-calc.js';
 
     // Alias de compatibilidade — funções mais antigas usavam mostrarToast
@@ -4963,7 +4964,7 @@
         if (!faturaKey) return;
         const nomeCartao = cartaoObj?.nome || 'Cartão';
         const [fAno, fMes] = faturaKey.split('-').map(Number);
-        const totalAjustado = fe?.ajusteTotal ?? total;
+        const totalAjustado = totalFaturaComAjuste(fe, total);
         eventosProjecao.push({
           data: new Date(fAno, fMes - 1, cartaoObj?.diaVencimento || 1),
           label: `${nomeCartao} — fatura`,
@@ -5855,7 +5856,7 @@
         // mostrando o valor calculado puro — só a Fechada lia ajusteTotal
         // (ver totalDisplay abaixo). Mesmo mecanismo, agora nas duas.
         const abertaEstadoKey = abertaKey ? `${cartaoId}_${abertaKey}` : '';
-        const totalAberta = _faturaEstados[abertaEstadoKey]?.ajusteTotal ?? totalCalculadoAberta;
+        const totalAberta = totalFaturaComAjuste(_faturaEstados[abertaEstadoKey], totalCalculadoAberta);
         totalGeralAbertas += totalAberta;
 
         const fechaStr = (() => {
@@ -5889,8 +5890,8 @@
                     ${estadoBadge}
                   </div>
                   ${subLabel ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${subLabel}</div>` : ''}
-                  ${_faturaEstados[abertaEstadoKey]?.ajusteTotal != null && _faturaEstados[abertaEstadoKey].ajusteTotal !== totalCalculadoAberta
-                    ? `<div style="font-size:11px;color:#fbbf24;margin-top:2px;">Calculado: ${brl(totalCalculadoAberta)} → Ajustado: ${brl(_faturaEstados[abertaEstadoKey].ajusteTotal)}</div>`
+                  ${temAjusteFatura(_faturaEstados[abertaEstadoKey]) && totalAberta !== totalCalculadoAberta
+                    ? `<div style="font-size:11px;color:#fbbf24;margin-top:2px;">${_ajusteInfoTexto(_faturaEstados[abertaEstadoKey], totalCalculadoAberta, totalAberta)}</div>`
                     : ''}
                 </div>
               </div>
@@ -5964,10 +5965,10 @@
         // alcance do getOrcamento do mês em tela) mas com pagamento salvo —
         // usa valorPago+rollover como aproximação do total, em vez de exibir
         // R$0 (achado 02/08/2026).
-        const totalCalc    = (fechadaItens.length || fatEstado.ajusteTotal != null)
+        const totalCalc    = (fechadaItens.length || temAjusteFatura(fatEstado))
           ? totalCalcItens
           : (fatEstado.valorPago || 0) + (fatEstado.rollover || 0);
-        const totalDisplay = fatEstado.ajusteTotal ?? totalCalc;
+        const totalDisplay = totalFaturaComAjuste(fatEstado, totalCalc);
         totalGeralFechadas += totalDisplay;
         const vctoStr      = _vctoLabel(cartaoObj?.diaVencimento, cartaoObj?.diaCorte, fMes, fAno);
 
@@ -5985,8 +5986,8 @@
         const pagamentoInfo = fatEstado.estado === 'paga_parcial' && fatEstado.rollover
           ? `<div style="font-size:11px;color:#fbbf24;margin-top:2px;">Pago ${brl(fatEstado.valorPago || 0)} · Restante: ${brl(fatEstado.rollover)}</div>`
           : '';
-        const ajusteInfo = fatEstado.ajusteTotal != null && fatEstado.ajusteTotal !== totalCalc
-          ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Calculado: ${brl(totalCalc)} → Ajustado: ${brl(fatEstado.ajusteTotal)}</div>`
+        const ajusteInfo = temAjusteFatura(fatEstado) && totalDisplay !== totalCalc
+          ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${_ajusteInfoTexto(fatEstado, totalCalc, totalDisplay)}</div>`
           : '';
         const antecipado = _antecipadoPorFechada[estadoKey] || 0;
         const btnConfirmar = fatEstado.estado === 'paga_total' ? '' :
@@ -9848,6 +9849,21 @@
       } finally { setLoading(btn, false); }
     });
 
+    // ── Ajuste de fatura como lançamento (21/09/2026) ─────────────────────────
+    // achado 21/09/2026, Flávia: depois de ajustar o valor de uma fatura, uma
+    // compra nova não somava — o ajuste era um valor final fixo (ajusteTotal)
+    // e travava o total. Agora o ajuste é uma diferença sobre o calculado
+    // (ajusteValor: + débito, − crédito): total = calculado + ajusteValor.
+    // ajusteTotal segue sendo lido como legado (ver totalFaturaComAjuste).
+    function _ajusteInfoTexto(fe, calculado, total) {
+      if (fe?.ajusteValor != null) {
+        const d = fe.ajusteValor;
+        const sinal = d >= 0 ? '+' : '−';
+        return `Calculado: ${brl(calculado)} · Ajuste: ${sinal} ${brl(Math.abs(d))} → ${brl(total)}`;
+      }
+      return `Calculado: ${brl(calculado)} → Ajustado: ${brl(total)}`;
+    }
+
     // ── Modal ajustar fatura ──────────────────────────────────────────────────
     // achado 31/07/2026, Flávia: "ajustes em fatura não devem gerar
     // contrapartida em lugar nenhum" — a versão anterior (desde 15/07/2026)
@@ -9864,13 +9880,16 @@
       _afTotalCalculado = totalCalculado || 0;
       document.getElementById('afSub').textContent          = `${nomeCartao} · ${mesFatura}`;
       document.getElementById('afTotalCalculado').textContent = brl(totalCalculado);
-      setMoney(document.getElementById('afValorReal'), totalCalculado);
+      // Já com ajuste salvo, abre com o total atual (calculado + ajuste) e
+      // não com o calculado puro — quem reabre o modal quer corrigir o valor
+      // que está vendo na tela, não recomeçar do zero.
+      setMoney(document.getElementById('afValorReal'), totalFaturaComAjuste(_faturaEstados[estadoKey], totalCalculado || 0));
       // Só mostra "Remover ajuste" se já existir um ajuste salvo pra essa
       // fatura — sem isso não tinha como voltar a usar o total calculado
       // depois de ajustar uma vez (o botão Salvar bloqueia quando o valor
       // digitado bate com o calculado, "Sem diferença a ajustar" — achado
       // 05/08/2026).
-      const jaTemAjuste = _faturaEstados[estadoKey]?.ajusteTotal != null;
+      const jaTemAjuste = temAjusteFatura(_faturaEstados[estadoKey]);
       document.getElementById('afRemover').style.display = jaTemAjuste ? '' : 'none';
       _lockBody();
       document.getElementById('modalAjustarFatura').classList.remove('hidden');
@@ -9893,13 +9912,18 @@
       if (valorReal < 0) { toast('Preencha o valor real a pagar.', 'warning'); return; }
       const diferenca = Math.round((valorReal - _afTotalCalculado) * 100) / 100;
       if (Math.abs(diferenca) < 0.01) { toast('Sem diferença a ajustar.', 'warning'); return; }
+      // Ajuste guardado como diferença sobre o calculado; ajusteTotal (legado)
+      // é apagado pra não competir com o novo (ajusteValor tem prioridade,
+      // mas apagar evita estado ambíguo no Firestore).
       const [cartaoId, faturaKey] = _afEstadoKey.split('_').reduce((acc, p, i, arr) =>
         i === arr.length - 1 ? [arr.slice(0, -1).join('_'), p] : acc, ['', '']);
 
       setLoading(btn, true);
       try {
-        await saveFaturaEstado(cartaoId, faturaKey, { ajusteTotal: valorReal });
-        _faturaEstados[_afEstadoKey] = { ..._faturaEstados[_afEstadoKey], ajusteTotal: valorReal };
+        await saveFaturaEstado(cartaoId, faturaKey, { ajusteValor: diferenca, ajusteTotal: null });
+        const _feNovo = { ..._faturaEstados[_afEstadoKey], ajusteValor: diferenca };
+        delete _feNovo.ajusteTotal;
+        _faturaEstados[_afEstadoKey] = _feNovo;
         fecharModalAjustarFatura();
         renderFaturas(currentData);
         render(currentData); // atualiza Despesa Total/Sobra/Saldo Final no Resumo
@@ -9918,8 +9942,11 @@
       try {
         // null explícito é o sinal pro servidor apagar o campo (não é o
         // mesmo que "não mandar o campo") — ver saveFaturaEstado.
-        await saveFaturaEstado(cartaoId, faturaKey, { ajusteTotal: null });
-        if (_faturaEstados[_afEstadoKey]) delete _faturaEstados[_afEstadoKey].ajusteTotal;
+        await saveFaturaEstado(cartaoId, faturaKey, { ajusteValor: null, ajusteTotal: null });
+        if (_faturaEstados[_afEstadoKey]) {
+          delete _faturaEstados[_afEstadoKey].ajusteTotal;
+          delete _faturaEstados[_afEstadoKey].ajusteValor;
+        }
         fecharModalAjustarFatura();
         renderFaturas(currentData);
         render(currentData);
