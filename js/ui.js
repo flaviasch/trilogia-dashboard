@@ -49,10 +49,15 @@ export function toast(msg, type = 'success', duration = 3500) {
   el.textContent = msg;
   container.appendChild(el);
 
-  setTimeout(() => {
+  let fechado = false;
+  const fechar = () => {
+    if (fechado) return;
+    fechado = true;
     el.style.animation = '_tOut .2s ease forwards';
     setTimeout(() => el.remove(), 220);
-  }, duration);
+  };
+  setTimeout(fechar, duration);
+  return fechar;
 }
 
 // ─── Confirm delete dialog ────────────────────────────────────────────────────

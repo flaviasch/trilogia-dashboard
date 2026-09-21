@@ -4053,6 +4053,12 @@
     let valorAportePendente  = null;
     let contaAportePendente  = null; // achado 27/07/2026 — conta escolhida no strip pra sensibilizar
     let alocacoesPendentes   = []; // [{ reservaId, valor }]
+    // Patrimônio buscado já na abertura do fluxo de aporte: sem isso, ao clicar
+    // em "Próximo" a janela sumia e ficava vários segundos sem nada na tela
+    // enquanto getPatrimonio() respondia (achado 21/09/2026, Flávia: "registrei
+    // aporte mas não tem feedback, parece que nada acontece").
+    let _patrimonioAporte    = null;
+    const _patrimonioParaAporte = () => _patrimonioAporte || getPatrimonio().catch(() => ({ ativos: [] }));
 
     // Sem reserva cadastrada, o aporte não tem onde ser guardado — em vez de
     // deixar clicar e só avisar depois (toast fácil de não notar, achado no
@@ -4117,6 +4123,7 @@
         return;
       }
       valorAportePendente = valor;
+      _patrimonioAporte = getPatrimonio().catch(() => ({ ativos: [] }));
       document.getElementById('modalReservasSub').textContent =
         `Aporte de ${brl(valor)} — distribua entre as reservas ativas (pode deixar zero).`;
 
@@ -4240,7 +4247,7 @@
       // Busca os ativos reais já cadastrados pra resolver cada classe sugerida
       // pro nome que já existe no patrimônio (achado 15/07/2026) — se falhar,
       // segue com a lista vazia e cai no fallback (nome completo sem parêntese).
-      const { ativos: _ativosAtuais } = await getPatrimonio().catch(() => ({ ativos: [] }));
+      const { ativos: _ativosAtuais } = await _patrimonioParaAporte();
 
       // ── Monta passo 2: uma linha por reserva + resto não alocado ─────────
       const naoAlocado = (valorAportePendente || 0) - distribuido;
@@ -4309,6 +4316,10 @@
       if (!currentData.aportes) currentData.aportes = [];
       currentData.aportes.push({ id: 'a' + Date.now(), valor, nota: '', ...(contaAportePendente ? { contaId: contaAportePendente } : {}) });
       contaAportePendente = null;
+      // Feedback imediato: o aporte já aparece na tela e um aviso de "salvando"
+      // segura a tela até as gravações terminarem.
+      render(currentData);
+      const fecharSalvando = toast('Salvando aporte…', 'info', 30000);
 
       const reservasAtualizadas = alocacoes
         .map(({ reservaId, valor: v }) => {
@@ -4318,7 +4329,7 @@
         })
         .filter(Boolean);
 
-      const { ativos: _ativosAtuais } = await getPatrimonio().catch(() => ({ ativos: [] }));
+      const { ativos: _ativosAtuais } = await _patrimonioParaAporte();
       const classePadrao = _resolverClasseReal('pos', _ativosAtuais);
 
       const resultados = await Promise.allSettled([
@@ -4327,6 +4338,7 @@
         ...reservasAtualizadas.map(r => saveReserva(r)),
       ]);
 
+      fecharSalvando();
       const erros = resultados.filter(r => r.status === 'rejected');
       if (erros.length) {
         toast('Aporte salvo parcialmente. Confira Patrimônio e Reservas.', 'warning');
@@ -4359,6 +4371,9 @@
       if (!currentData.aportes) currentData.aportes = [];
       currentData.aportes.push({ id: 'a' + Date.now(), valor, nota: '', ...(contaAportePendente ? { contaId: contaAportePendente } : {}) });
       contaAportePendente = null;
+      // Feedback imediato (mesmo motivo do "Pular" acima).
+      render(currentData);
+      const fecharSalvando = toast('Salvando aporte…', 'info', 30000);
 
       // Lê as classes selecionadas para cada linha
       const selects = document.querySelectorAll('#classeAporteList .classe-select');
@@ -4397,6 +4412,7 @@
 
       const resultados = await Promise.allSettled(chamadas);
       setLoading(btnConfirmar, false);
+      fecharSalvando();
       const erros = resultados.filter(r => r.status === 'rejected');
       if (erros.length > 0) {
         console.error('Erros ao confirmar aporte:', erros.map(e => e.reason));
