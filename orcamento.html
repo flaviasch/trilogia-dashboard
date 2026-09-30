@@ -1861,6 +1861,23 @@
         </div>
       </div>
 
+      <!-- Toggle: Despesa fixa (achado 30/09/2026, Flávia: faltava marcar uma
+           compra no cartão como despesa fixa direto por aqui, sem precisar
+           abrir o cadastro de despesas fixas à parte) -->
+      <div style="margin-top:12px;padding:12px 16px;background:var(--navy-mid);border:1px solid var(--border);border-radius:10px;">
+        <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:12px;user-select:none;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:15px;">📌</span>
+            <div>
+              <div style="font-size:14px;color:var(--white);font-weight:500;">Despesa fixa</div>
+              <div style="font-size:11px;color:var(--text-muted);">Repete todo mês nesse cartão</div>
+            </div>
+          </div>
+          <input type="checkbox" id="cdFixa" style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;" />
+        </label>
+        <div id="cdFixaAviso" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);"></div>
+      </div>
+
       <button id="btnSalvarCartaoDespesa" class="btn-save" style="width:100%;margin-top:16px;font-size:15px;">Salvar</button>
     </div>
   </div>
@@ -10131,6 +10148,10 @@
       document.getElementById('cdParceladoOpcoes').style.display = 'none';
       document.getElementById('cdNParcelas').value = '';
       document.getElementById('cdParceladoPreview').style.display = 'none';
+      document.getElementById('cdFixa').checked = false;
+      document.getElementById('cdFixa').disabled = false;
+      document.getElementById('cdParcelado').disabled = false;
+      document.getElementById('cdFixaAviso').style.display = 'none';
       // Calcula fatura para a data de hoje
       _calcFaturaCartaoModal();
       _lockBody();
@@ -10184,6 +10205,7 @@
       const fatura     = document.getElementById('cdFaturaInput').value.trim();
       const parcelado  = document.getElementById('cdParcelado')?.checked;
       const nParcelas  = parcelado ? parseInt(document.getElementById('cdNParcelas')?.value) : 1;
+      const fixa       = document.getElementById('cdFixa')?.checked && !parcelado;
 
       if (!categoria)           return mostrarToast('Preencha a categoria.', 'warning');
       if (!data)                return mostrarToast('Preencha a data da compra.', 'warning');
@@ -10233,14 +10255,36 @@
           const ultimoAno    = fatAno + Math.floor((fatMes - 1 + nParcelas - 1) / 12);
           mostrarToast(`💳 ${nParcelas}× ${brl(valorParcela)} — de ${MESES[fatMes-1]} até ${MESES[ultimoMesIdx]}/${ultimoAno}`, 'success', 6000);
         } else {
-          // Parcela única
+          // Parcela única, opcionalmente virando o molde de uma despesa fixa
+          // (achado 30/09/2026): cria a recorrente ANTES de montar o item,
+          // pra já nascer com recorrenteId vinculado — sem isso, a projeção
+          // virtual dos próximos meses (diasFaltantesRecorrente) só evitaria
+          // duplicar o mês atual via match frágil de categoria/dia, não um
+          // vínculo de verdade.
+          let recorrenteId = null;
+          if (fixa) {
+            const diaFixa = Math.min(parseInt(data.split('-')[2], 10), 28);
+            const { id } = await saveRecorrente({
+              tipo: 'despesa', categoria, valor, descricao, dia: diaFixa,
+              frequencia: 'mensal', mesesRestantes: null, ativo: true,
+              cartao: true, cartaoId, mesInicio: fatMes, anoInicio: fatAno,
+            });
+            recorrenteId = id;
+            await carregarRecorrentes();
+          }
           const itensFatura = (await getOrcamento(fatMes, fatAno)).filter(i => i._sourceMes == null);
-          itensFatura.push({ categoria, descricao, tipo: 'despesa', valor, data, cartao: true, cartaoId, fatura, origem: 'manual' });
+          itensFatura.push({
+            categoria, descricao, tipo: 'despesa', valor, data, cartao: true, cartaoId, fatura,
+            origem: recorrenteId ? 'recorrente' : 'manual',
+            ...(recorrenteId ? { recorrenteId } : {}),
+          });
           await saveOrcamento(fatMes, fatAno, itensFatura);
           _invalPeriodo(fatMes, fatAno);
           _unlockBody(); document.getElementById('modalCartaoDespesa').classList.add('hidden'); document.getElementById('fabSpeedDial').style.display = 'flex';
-          registrarEvento('despesa_cartao_lancada');
-          mostrarToast(`💳 Salvo na fatura de ${MESES[fatMes-1]} ✓`, 'success');
+          registrarEvento(fixa ? 'despesa_cartao_fixa_lancada' : 'despesa_cartao_lancada');
+          mostrarToast(fixa
+            ? `📌 Despesa fixa criada! Salva na fatura de ${MESES[fatMes-1]} ✓`
+            : `💳 Salvo na fatura de ${MESES[fatMes-1]} ✓`, 'success');
         }
         // Sempre busca currentData de novo, mesmo que a fatura tenha caído
         // num mês diferente do que está em tela — achado 05/08/2026: quando
@@ -10280,7 +10324,7 @@
     document.getElementById('btnLancarNoCartao')?.addEventListener('click', () => abrirModalCartaoDespesa());
     document.getElementById('btnSalvarCartaoDespesa')?.addEventListener('click', _salvarCartaoDespesa);
     document.getElementById('cdCartao')?.addEventListener('change', _calcFaturaCartaoModal);
-    document.getElementById('cdData')?.addEventListener('change', _calcFaturaCartaoModal);
+    document.getElementById('cdData')?.addEventListener('change', () => { _calcFaturaCartaoModal(); _atualizarAvisoFixaCartao(); });
     // cdBtnAjustarFatura: tratado via onclick no HTML (compatível com Android PWA)
     document.getElementById('cdFaturaInput')?.addEventListener('change', () => {
       const yyyyMM    = document.getElementById('cdFaturaInput').value;
@@ -10294,10 +10338,30 @@
       const on = document.getElementById('cdParcelado').checked;
       document.getElementById('cdParceladoOpcoes').style.display = on ? '' : 'none';
       if (on) document.getElementById('cdNParcelas').focus();
+      // Parcelado e despesa fixa são conceitos excludentes — trava um
+      // enquanto o outro estiver marcado, em vez de deixar combinar os dois.
+      document.getElementById('cdFixa').disabled = on;
       _atualizarPreviewParcelado();
     });
     document.getElementById('cdNParcelas')?.addEventListener('input', _atualizarPreviewParcelado);
     document.getElementById('cdValor')?.addEventListener('input', _atualizarPreviewParcelado);
+
+    document.getElementById('cdFixa')?.addEventListener('change', () => {
+      const on = document.getElementById('cdFixa').checked;
+      document.getElementById('cdParcelado').disabled = on;
+      _atualizarAvisoFixaCartao();
+    });
+
+    function _atualizarAvisoFixaCartao() {
+      const el = document.getElementById('cdFixaAviso');
+      if (!document.getElementById('cdFixa').checked) { el.style.display = 'none'; return; }
+      const data = document.getElementById('cdData').value;
+      const dia  = data ? Math.min(parseInt(data.split('-')[2], 10), 28) : null;
+      el.style.display = '';
+      el.textContent = dia
+        ? `Repete todo mês no dia ${dia}, cobrando nesse cartão. Essa compra já conta como a primeira ocorrência.`
+        : 'Informe a data da compra para definir o dia da repetição.';
+    }
 
     function _atualizarPreviewParcelado() {
       const el = document.getElementById('cdParceladoPreview');
