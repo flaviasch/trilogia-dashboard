@@ -253,7 +253,23 @@ function calcularAgregadosOrcamento({
 
   const _mesKeyAtualComprometido = `${ano}-${String(mes).padStart(2, '0')}`;
   const totalComprometidoMes = data.despesas.filter(d => !d._faturaAberta || d.fatura === _mesKeyAtualComprometido).reduce((s, d) => s + d.valor, 0);
-  const despesaComprometida = despesaCaixa + totalPendente + (ehFuturo ? 0 : totalFaturas) + totalFixasVirtuais;
+  // Fatura aberta que debita no mês em tela — ver comentário completo em
+  // js/orcamento-calc.js (achado 01/10/2026). Sincronizado aqui.
+  let totalAbertaRealMes = 0;
+  if (!ehFuturo) {
+    (cartoes || []).forEach(c => {
+      if (_openKeyPorCartao[c.id] !== _mesKeyAtualComprometido) return;
+      const despesaBruta = data.despesas
+        .filter(d => d.cartao && d.cartaoId === c.id && d._faturaAberta && d.fatura === _mesKeyAtualComprometido && !d.virtual)
+        .reduce((s, d) => s + d.valor, 0);
+      const estornoBruto = (data.receitas || [])
+        .filter(r => r.cartao && r.cartaoId === c.id && r._faturaAberta && r.fatura === _mesKeyAtualComprometido)
+        .reduce((s, r) => s + r.valor, 0);
+      const fe = faturaEstados[`${c.id}_${_mesKeyAtualComprometido}`];
+      totalAbertaRealMes += totalFaturaComAjuste(fe, despesaBruta - estornoBruto);
+    });
+  }
+  const despesaComprometida = despesaCaixa + totalPendente + (ehFuturo ? 0 : totalFaturas) + totalFixasVirtuais + totalAbertaRealMes;
   const diffNaoIdentificadoMes = ehFuturo ? 0 : (totalComprometidoMes - despesaComprometida);
 
   const sobra = saldoConta + totalReceita - despesaCaixa;

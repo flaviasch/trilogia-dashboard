@@ -464,12 +464,37 @@ export function calcularAgregadosOrcamento({
   // custar no total", diferente de despesaCaixa ("quanto já saiu da conta").
   const _mesKeyAtualComprometido = `${ano}-${String(mes).padStart(2, '0')}`;
   const totalComprometidoMes = data.despesas.filter(d => !d._faturaAberta || d.fatura === _mesKeyAtualComprometido).reduce((s, d) => s + d.valor, 0);
+  // Fatura ABERTA (ciclo em curso) que debita no mês em tela: totalComprometidoMes
+  // acima já inclui os itens reais dela (regra 09/08/2026), mas despesaCaixa
+  // exclui todo item _faturaAberta (ainda não chegou no caixa) e totalFaturas
+  // só soma fatura FECHADA — sem este termo, o valor inteiro da fatura aberta
+  // ficava sem nenhum correspondente em despesaComprometida, e sobrava como
+  // "Lançamentos não identificados" do tamanho da fatura toda, não só da
+  // diferença de ajuste/estorno (achado 01/10/2026, Flávia: valor negativo
+  // grande no Planejamento depois da correção do bug das faturas Bradesco/XP/
+  // Sem Parar — o fix de lá tirou o "preenchimento" que mascarava este buraco
+  // aqui). Mesma base (real, sem virtual, estorno líquido) e mesmo ajuste do
+  // card "aberta" da aba Faturas, pra bater com o mesmo total exibido lá.
+  let totalAbertaRealMes = 0;
+  if (!ehFuturo) {
+    (cartoes || []).forEach(c => {
+      if (_openKeyPorCartao[c.id] !== _mesKeyAtualComprometido) return;
+      const despesaBruta = data.despesas
+        .filter(d => d.cartao && d.cartaoId === c.id && d._faturaAberta && d.fatura === _mesKeyAtualComprometido && !d.virtual)
+        .reduce((s, d) => s + d.valor, 0);
+      const estornoBruto = (data.receitas || [])
+        .filter(r => r.cartao && r.cartaoId === c.id && r._faturaAberta && r.fatura === _mesKeyAtualComprometido)
+        .reduce((s, r) => s + r.valor, 0);
+      const fe = faturaEstados[`${c.id}_${_mesKeyAtualComprometido}`];
+      totalAbertaRealMes += totalFaturaComAjuste(fe, despesaBruta - estornoBruto);
+    });
+  }
   // Em mês futuro, totalFaturas já está embutido em despesaCaixa (via
   // totalCartaoCaixa, que soma TODO gruposFechadaCaixa pra projeção) —
   // somar de novo aqui duplicaria a mesma fatura fechada. Só soma em
   // separado no mês atual/passado, onde despesaCaixa exclui a parte "a
   // vencer" de propósito (só conta o que já foi pago).
-  const despesaComprometida = despesaCaixa + totalPendente + (ehFuturo ? 0 : totalFaturas) + totalFixasVirtuais;
+  const despesaComprometida = despesaCaixa + totalPendente + (ehFuturo ? 0 : totalFaturas) + totalFixasVirtuais + totalAbertaRealMes;
   // Diferença entre o comprometido (soma direta de tudo lançado) e a
   // reconciliação de caixa (despesaCaixa + pendentes + faturas + fixas
   // virtuais) — idealmente ~0; se não for, indica algo não identificável
