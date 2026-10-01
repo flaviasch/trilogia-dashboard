@@ -307,6 +307,11 @@
   </div>
 
   <script type="module">
+    // Escapa texto vindo de usuária antes de entrar em innerHTML/atributo
+    // (auditoria de segurança 01/10/2026, achado Alto de XSS armazenado).
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
     import { auth } from './js/firebase-config.js';
     import {
       getContaPJ,
@@ -574,7 +579,7 @@
           <div style="background:rgba(207,174,101,.08);border:1px solid rgba(207,174,101,.25);border-radius:8px;padding:12px 14px;margin-bottom:14px">
             <p style="font-size:12px;color:var(--gold-light);margin-bottom:10px">${sugestao.aviso}</p>
             <ul style="list-style:none;font-size:13px;margin-bottom:12px">
-              ${sugestao.tributos.map(t => `<li style="padding:4px 0;border-bottom:1px solid var(--border)">${t.nome} — ${t.tipo === 'percentual' ? `${t.percentual}%` : `valor fixo (a definir)`}${t.periodicidade === 'trimestral' ? ' · trimestral' : ''}</li>`).join('')}
+              ${sugestao.tributos.map(t => `<li style="padding:4px 0;border-bottom:1px solid var(--border)">${escapeHtml(t.nome)} — ${t.tipo === 'percentual' ? `${t.percentual}%` : `valor fixo (a definir)`}${t.periodicidade === 'trimestral' ? ' · trimestral' : ''}</li>`).join('')}
             </ul>
             <button class="btn-acao" id="btnAplicarSugestaoRegime" style="width:100%">Aplicar sugestão (edito depois)</button>
           </div>`;
@@ -584,7 +589,7 @@
       el.innerHTML = _tributosCache.map(t => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
           <div>
-            <div style="font-size:14px;font-weight:600">${t.nome}${t.ativo ? '' : ' <span style="color:var(--text-muted);font-weight:400">(pausado)</span>'}${t.periodicidade === 'trimestral' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">trimestral</span>' : ''}${t.periodicidade === 'anual' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">anual</span>' : ''}</div>
+            <div style="font-size:14px;font-weight:600">${escapeHtml(t.nome)}${t.ativo ? '' : ' <span style="color:var(--text-muted);font-weight:400">(pausado)</span>'}${t.periodicidade === 'trimestral' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">trimestral</span>' : ''}${t.periodicidade === 'anual' ? ' <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--gold);background:rgba(207,174,101,.12);border-radius:4px;padding:2px 6px;margin-left:4px">anual</span>' : ''}</div>
             <div style="font-size:12px;color:var(--text-muted)">
               ${t.tipo === 'percentual' ? `${t.percentual}% sobre a nota` : `Valor fixo (padrão ${brl(t.valorFixo)})`}
               ${t.periodicidade === 'anual'
@@ -677,7 +682,7 @@
       el.innerHTML = vig.map(t => `
         <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer">
           <input type="checkbox" data-wz-trib="${t.id}" checked>
-          <span>${t.nome} <span style="color:var(--text-muted)">— ${t.tipo === 'percentual' ? `${t.percentual}%` : brl(t.valorFixo)}</span></span>
+          <span>${escapeHtml(t.nome)} <span style="color:var(--text-muted)">— ${t.tipo === 'percentual' ? `${t.percentual}%` : brl(t.valorFixo)}</span></span>
         </label>`).join('');
     }
     document.getElementById('btnAbrirWizardRegime').addEventListener('click', abrirWizardRegime);

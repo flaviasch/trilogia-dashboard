@@ -1007,6 +1007,11 @@
   </nav>
 
   <script type="module">
+    // Escapa texto vindo de usuária antes de entrar em innerHTML/atributo
+    // (auditoria de segurança 01/10/2026, achado Alto de XSS armazenado).
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
     import { auth } from './js/firebase-config.js';
     import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor, getContaPJ, getStatusVinculo, convidarParceiro, desvincular, getDashboardCasal } from './js/api.js?v=66';
     import { isAdmin } from './js/admin-guard.js';
@@ -2281,7 +2286,7 @@ async function init(user) {
         return `
           <div class="reserva-card" onclick="window.location.href='reservas.html#${r.id}'" role="link" tabindex="0">
             <div class="reserva-top">
-              <span class="reserva-nome">${r.nome}</span>
+              <span class="reserva-nome">${escapeHtml(r.nome)}</span>
               <span class="reserva-tag">${prazoLabel(r.mesesRestantes)}</span>
             </div>
             <div class="reserva-valores">

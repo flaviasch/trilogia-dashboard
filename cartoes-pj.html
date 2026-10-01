@@ -547,7 +547,7 @@
 
     async function excluirCartao(id) {
       const cartao = _cartoes.find(c => c.id === id);
-      if (!(await confirmDelete(`Excluir o cartão "${cartao?.nome}"? Os lançamentos já feitos nele NÃO são apagados.`))) return;
+      if (!(await confirmDelete(`Excluir o cartão "${escapeHtml(cartao?.nome)}"? Os lançamentos já feitos nele NÃO são apagados.`))) return;
       try {
         await deleteCartaoPJ(uidAtual(), id);
         toast('Cartão excluído.');

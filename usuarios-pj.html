@@ -167,6 +167,11 @@
   </div>
 
   <script type="module">
+    // Escapa texto vindo de usuária antes de entrar em innerHTML/atributo
+    // (auditoria de segurança 01/10/2026, achado Alto de XSS armazenado).
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
     import { auth } from './js/firebase-config.js';
     import {
       getContaPJ, msgErro, setViewAsUid, uidAtual, ehUsuarioSecundarioPJ,
@@ -251,8 +256,8 @@
       document.getElementById('usuariosVazio').style.display = 'none';
       tbody.innerHTML = lista.map(u => `
         <tr>
-          <td class="td-fin">${u.nome || '—'}</td>
-          <td class="td-fin">${u.email || '—'}</td>
+          <td class="td-fin">${escapeHtml(u.nome || '—')}</td>
+          <td class="td-fin">${escapeHtml(u.email || '—')}</td>
           <td class="td-fin">${(u.abasPermitidas || []).map(a => ABA_LABEL[a] || a).join(', ') || '—'}</td>
           <td class="td-fin">${u.ativo !== false ? '<span class="badge-ativo">Ativo</span>' : '<span class="badge-inativo">Inativo</span>'}</td>
           <td class="td-fin" style="text-align:right;white-space:nowrap">

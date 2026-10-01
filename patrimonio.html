@@ -1079,7 +1079,7 @@
         if (duplicidades.length) {
           dupBox.style.display = '';
           dupBox.innerHTML = '<div style="font-weight:600;margin-bottom:6px;">⚠ Possível duplicidade</div>' +
-            duplicidades.map(d => `<div style="margin-bottom:4px;">${d.tipo} "${d.chave}" aparece nos dois lados (${brlCasalPatrimonio(d.valorA)} e ${brlCasalPatrimonio(d.valorB)}). Se for o mesmo bem/dívida, marque "compartilhado" de um lado e apague do outro.</div>`).join('');
+            duplicidades.map(d => `<div style="margin-bottom:4px;">${escapeHtml(d.tipo)} "${escapeHtml(d.chave)}" aparece nos dois lados (${brlCasalPatrimonio(d.valorA)} e ${brlCasalPatrimonio(d.valorB)}). Se for o mesmo bem/dívida, marque "compartilhado" de um lado e apague do outro.</div>`).join('');
         } else {
           dupBox.style.display = 'none';
         }
@@ -1093,12 +1093,12 @@
         const rotuloDeQuem = (deQuem) => deQuem === 'eu' ? 'voce' : (deQuem === 'compartilhado' ? 'casal' : 'parceiro');
         const linhaAtivo = (a) => `
           <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
-            <span>${a.classe || 'Ativo'} <span style="color:var(--text-muted);font-size:11px;">(${rotuloDeQuem(a._deQuem)})</span></span>
+            <span>${escapeHtml(a.classe || 'Ativo')} <span style="color:var(--text-muted);font-size:11px;">(${rotuloDeQuem(a._deQuem)})</span></span>
             <span>${brlCasalPatrimonio(a.valor)}</span>
           </div>`;
         const linhaDivida = (d) => `
           <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:#f87171;">
-            <span>${d.nome || 'Divida'} <span style="color:var(--text-muted);font-size:11px;">(${rotuloDeQuem(d._deQuem)})</span></span>
+            <span>${escapeHtml(d.nome || 'Divida')} <span style="color:var(--text-muted);font-size:11px;">(${rotuloDeQuem(d._deQuem)})</span></span>
             <span>${brlCasalPatrimonio(d.saldo)}</span>
           </div>`;
         document.getElementById('patrimonioCasalLista').innerHTML =
@@ -1424,9 +1424,9 @@
               <div class="ativo-value">${brl(a.valor)}</div>
               <div class="ativo-acoes">
                 ${a.source === 'investimentos'
-                  ? `<button class="btn-icon" data-edit-corretora="${a.classe}" title="Editar via posições da corretora">${IC_EDIT}</button>`
-                  : `<button class="btn-icon" data-edit-ativo="${a.classe}" title="Editar">${IC_EDIT}</button>`}
-                <button class="btn-icon btn-delete" data-del-ativo="${a.classe}" title="Excluir">${IC_DELETE}</button>
+                  ? `<button class="btn-icon" data-edit-corretora="${escapeHtml(a.classe)}" title="Editar via posições da corretora">${IC_EDIT}</button>`
+                  : `<button class="btn-icon" data-edit-ativo="${escapeHtml(a.classe)}" title="Editar">${IC_EDIT}</button>`}
+                <button class="btn-icon btn-delete" data-del-ativo="${escapeHtml(a.classe)}" title="Excluir">${IC_DELETE}</button>
               </div>
             </div>`;
         }).join('');
@@ -1744,7 +1744,7 @@
             <div class="divida-row">
               <span class="divida-icon">${tipoIcons[d.tipo] || '📋'}</span>
               <div class="divida-info">
-                <div class="divida-nome">${d.nome}</div>
+                <div class="divida-nome">${escapeHtml(d.nome)}</div>
                 <div class="divida-meta">${metaLabel}</div>
                 <div class="divida-progress-track">
                   <div class="divida-progress-fill" style="width:${pctDivida}%"></div>
@@ -1796,7 +1796,7 @@
             <div class="divida-row" style="opacity:.6">
               <span class="divida-icon">✅</span>
               <div class="divida-info">
-                <div class="divida-nome" style="text-decoration:line-through">${d.nome}</div>
+                <div class="divida-nome" style="text-decoration:line-through">${escapeHtml(d.nome)}</div>
                 <div class="divida-meta">Quitada${quitadaEm ? ' em ' + quitadaEm : ''}</div>
               </div>
               <div class="divida-value" style="color:var(--positive)">R$ 0</div>
@@ -2210,7 +2210,7 @@
         );
         return;
       }
-      if (!(await confirmDelete(`Excluir "${a.classe}" (${brl(a.valor)})?`))) return;
+      if (!(await confirmDelete(`Excluir "${escapeHtml(a.classe)}" (${brl(a.valor)})?`))) return;
       ativos = ativos.filter(x => x.classe !== classe);
       render(ativos, dividas);
       await gravarAtivos();
@@ -2447,7 +2447,7 @@
     async function deletarDivida(id) {
       const d = dividas.find(x => x.id === id);
       if (!d) return;
-      if (!(await confirmDelete(`Excluir "${d.nome}" (${brl(d.saldo)})?`))) return;
+      if (!(await confirmDelete(`Excluir "${escapeHtml(d.nome)}" (${brl(d.saldo)})?`))) return;
       dividas = dividas.filter(x => x.id !== id);
       try { await deleteDivida(id); }
       catch (err) { console.error('Erro ao excluir dívida:', err); toast(`Erro: ${msgErro(err)}`, 'error'); }

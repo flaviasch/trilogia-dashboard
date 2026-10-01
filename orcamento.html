@@ -2869,7 +2869,7 @@
 
         const linha = (i) => `
           <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;${i.tipo === 'despesa' ? 'color:#f87171;' : ''}">
-            <span>${i.categoria || i.descricao || 'Item'} <span style="color:var(--text-muted);font-size:11px;">(${i._deQuem === 'eu' ? 'voce' : 'parceiro'})</span></span>
+            <span>${escapeHtml(i.categoria || i.descricao || 'Item')} <span style="color:var(--text-muted);font-size:11px;">(${i._deQuem === 'eu' ? 'voce' : 'parceiro'})</span></span>
             <span>${brlCasalOrcamento(i.valor)}</span>
           </div>`;
         document.getElementById('orcamentoCasalLista').innerHTML =
@@ -3911,7 +3911,7 @@
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
       const item  = lista[idx];
       if (!item) return;
-      if (!(await confirmDelete(`Excluir "${item.categoria}"?`))) return;
+      if (!(await confirmDelete(`Excluir "${escapeHtml(item.categoria)}"?`))) return;
       // Feedback imediato ao confirmar — spinner de verdade, não só disabled
       // (achado 14/08/2026, Flávia: "quando clica, não vem feedback de
       // processando, excluindo... parece que nada está acontecendo" — só
@@ -4166,7 +4166,7 @@
           return `
           <div class="reserva-aporte-row">
             <div class="reserva-aporte-info">
-              <div class="reserva-aporte-nome">${r.nome}</div>
+              <div class="reserva-aporte-nome">${escapeHtml(r.nome)}</div>
               <div class="reserva-aporte-plan">
                 ${temAporte ? `planejado ${brl(r.aporte)} · ` : ''}faltam ${brl(restante)}
               </div>

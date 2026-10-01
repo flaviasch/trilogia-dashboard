@@ -268,6 +268,11 @@
   </div>
 
   <script type="module">
+    // Escapa texto vindo de usuária antes de entrar em innerHTML/atributo
+    // (auditoria de segurança 01/10/2026, achado Alto de XSS armazenado).
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
     import { auth } from './js/firebase-config.js';
     import {
       getContaPJ, getIndicadoresReservasPJ, salvarReservaMinimaCaixaPJ,
@@ -509,7 +514,7 @@
       lista.innerHTML = dados.reservas.map(r => `
         <div class="reserva-item">
           <div class="reserva-info">
-            <div class="reserva-nome">${r.nome}</div>
+            <div class="reserva-nome">${escapeHtml(r.nome)}</div>
             <div class="reserva-tipo">${TIPO_LABEL[r.tipo] || r.tipo}${r.dataMeta ? ` · meta ${r.dataMeta.split('-').reverse().join('/')}` : ''}</div>
             <div class="reserva-progresso-track"><div class="reserva-progresso-fill" style="width:${Math.round(r.progresso * 100)}%"></div></div>
             <div class="reserva-valores">${brl(r.saldoAtual)} de ${brl(r.valorMeta)} (${Math.round(r.progresso * 100)}%)</div>

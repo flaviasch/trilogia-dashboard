@@ -234,6 +234,11 @@
   </div>
 
   <script type="module">
+    // Escapa texto vindo de usuária antes de entrar em innerHTML/atributo
+    // (auditoria de segurança 01/10/2026, achado Alto de XSS armazenado).
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
     import { auth } from './js/firebase-config.js';
     import { getContaPJ, getFluxoCaixaPJ, atualizarSaldoCaixaPJ, getOutrasEntradasPJ, saveOutraEntradaPJ, deleteOutraEntradaPJ, getVencimentosHojePJ, getStatusContaPF, msgErro, setViewAsUid, uidAtual } from './js/api.js?v=62';
     import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -391,7 +396,7 @@
         document.getElementById('movimentosVazio').style.display = 'none';
         tbody.innerHTML = dados.movimentos.map(m => `
           <tr>
-            <td class="td-fin nome">${m.descricao}</td>
+            <td class="td-fin nome">${escapeHtml(m.descricao)}</td>
             <td class="td-fin">${fmtData(m.data)}</td>
             <td class="td-fin">${m.confirmado ? '<span class="badge-confirmado">Confirmado</span>' : '<span class="badge-previsto">Previsto</span>'}</td>
             <td class="td-fin valor ${m.tipo === 'entrada' ? 'valor-entrada' : 'valor-saida'}">${m.tipo === 'entrada' ? '+' : '−'} ${brl(m.valor)}</td>
@@ -436,7 +441,7 @@
       el.innerHTML = _outrasCache.map(o => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)">
           <div>
-            <div style="font-size:14px;font-weight:600">${o.descricao}</div>
+            <div style="font-size:14px;font-weight:600">${escapeHtml(o.descricao)}</div>
             <div style="font-size:12px;color:var(--text-muted)">${CATEGORIA_LABEL[o.categoria] || o.categoria} · ${fmtData(o.data)}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">

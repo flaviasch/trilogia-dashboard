@@ -188,7 +188,7 @@ dashboard/
 **`updateMentorada`** — atualiza campos permitidos: `status`, `nota`, `perfil`, `inicio`, `produto`, `valorMensal`, `formaPagamento`, `dataExpiracao`, `mentoriaEncerrada`, `assinaturaDashboard`
 **`bloquearMentorada`** — desabilita no Firebase Auth + status: inativa
 **`reativarMentorada`** — reabilita no Firebase Auth + status: ativa
-**`deletarMentorada`** — remove conta Auth, documento Firestore (incluindo subcoleções), cobranças e contratos; apaga a planilha do Drive e arquiva a página no Notion (LGPD, direito de apagamento); grava audit log com TTL de 5 anos em `mentoradas_deletadas`
+**`deletarMentorada`** — remove conta Auth, documento Firestore com todas as subcoleções via `recursiveDelete` (lista fixa removida em 01/10/2026), cobranças, dados de Dashboard PJ do mesmo uid (`_apagarDadosPJ`) e WhatsApp agendado; desfaz vínculo de casal sem apagar a conta do parceiro (uid vai no audit log); apaga a planilha do Drive e arquiva a página no Notion (LGPD, direito de apagamento); grava audit log com TTL de 5 anos em `mentoradas_deletadas`
 **`reenviarAcesso`** — gera novo link de redefinição de senha + envia e-mail
 **`criarPlanilha`** — provisiona planilha para mentorada que ainda não tem sheetId
 **`bootstrapAdmin`** — auto-configura custom claim `admin: true` para a conta master (flaviasch@gmail.com)

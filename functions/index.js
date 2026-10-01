@@ -451,6 +451,26 @@ function hoje() {
 }
 
 /**
+ * Remove '<' e '>' de texto livre digitado pela usuária antes de gravar
+ * (auditoria de segurança 01/10/2026, achado Alto de XSS armazenado). É a
+ * segunda camada: a primeira é o escapeHtml no frontend, que também cobre
+ * dado antigo já gravado com esses caracteres.
+ */
+function _semTagHtml(v) {
+  return typeof v === 'string' ? v.replace(/[<>]/g, '') : v;
+}
+function _limparCamposTexto(obj, campos) {
+  if (obj && typeof obj === 'object') {
+    for (const c of campos) if (typeof obj[c] === 'string') obj[c] = _semTagHtml(obj[c]);
+  }
+  return obj;
+}
+function _limparItensTexto(arr, campos) {
+  if (Array.isArray(arr)) arr.forEach(it => _limparCamposTexto(it, campos));
+  return arr;
+}
+
+/**
  * Rate limiting por usuária/ação usando Firestore como contador.
  * Lança HttpsError 'resource-exhausted' se o limite for atingido.
  *
@@ -1526,6 +1546,7 @@ async function _gravarOrcamento({ uid, mes, ano, itens, permitirReducao }) {
     it.categoria = _resolverCategoria(it.categoria);
     if (it.categoria.length > 200) it.categoria = it.categoria.slice(0, 200);
     if (it.descricao && it.descricao.length > 500) it.descricao = it.descricao.slice(0, 500);
+    _limparCamposTexto(it, ['categoria', 'descricao']); // XSS, auditoria 01/10/2026
   }
 
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
@@ -3419,6 +3440,7 @@ exports.getPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
  * Espera: { uid, posicaoId?, nome, itens: [{classe, valor}] }
  */
 exports.saveCorretoraPosicao = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  _limparCamposTexto(request.data, ['nome']); _limparItensTexto(request.data?.itens, ['classe', 'nome']); // XSS, auditoria 01/10/2026
   const auth = requireAuth(request);
   const { uid, posicaoId, nome, itens } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -3514,6 +3536,7 @@ exports.deleteCorretoraPosicao = onCall({ secrets: SECRETS_SHEETS }, async (requ
 // (achado 20/07/2026: savePatrimonio(tipo='corretora') sobrescrevia tudo,
 // perdendo a posição de quem já tinha importado antes).
 exports.savePatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  _limparItensTexto(request.data?.itens, ['classe']); // XSS, auditoria 01/10/2026
   const auth = requireAuth(request);
   const { uid, itens, tipo } = request.data; // tipo: 'ir' (único suportado)
   requireSelfOrAdmin(request, uid);
@@ -3986,6 +4009,7 @@ exports.snapshotMensalPatrimonioDia28 = onSchedule(
 // ─── DÍVIDAS ──────────────────────────────────────────────────────────────────
 
 exports.saveDivida = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  _limparCamposTexto(request.data?.divida, ['nome']); // XSS, auditoria 01/10/2026
   const auth = requireAuth(request);
   const { uid, divida } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -4094,6 +4118,7 @@ exports.getReservas = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
 });
 
 exports.saveReserva = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  _limparCamposTexto(request.data?.reserva, ['nome']); // XSS, auditoria 01/10/2026
   const auth = requireAuth(request);
   const { uid, reserva } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -4460,9 +4485,10 @@ exports.reativarMentorada = onCall({}, async (request) => {
 });
 
 /**
- * Remove permanentemente a mentorada: apaga a conta do Firebase Auth
- * e o documento Firestore. A planilha no Google Drive não é removida
- * automaticamente (pode ser feita manualmente se necessário).
+ * Remove permanentemente a mentorada: conta do Firebase Auth, documento
+ * Firestore com todas as subcoleções, cobranças, dados de Dashboard PJ do
+ * mesmo uid, WhatsApp agendado, planilha no Drive e página no Notion
+ * (arquivada). Desfaz vínculo de casal sem apagar a conta do parceiro.
  * Exclusivo para admin.
  */
 exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, sNotion] }, async (request) => {
@@ -4496,23 +4522,56 @@ exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, s
     console.warn(`[deletarMentorada] Falha ao remover cobranças de ${uid}:`, err.message);
   }
 
-  // Apaga contratos (subcoleção)
-  try {
-    const contratosSnap = await db.collection('mentoradas').doc(uid)
-      .collection('contratos').get();
-    if (!contratosSnap.empty) {
-      const batch = db.batch();
-      contratosSnap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
+  // Subcoleções (contratos, orcamento, patrimonio, cartoes, contas, etc.) são
+  // apagadas no fim, junto com o doc principal, via recursiveDelete. Antes
+  // havia uma lista fixa de 6 subcoleções e as criadas depois (patrimonio,
+  // cartoes, contas, saldosConta, recorrentes, faturaEstados, analytics...)
+  // ficavam órfãs (auditoria de segurança 01/10/2026, achado Alto LGPD).
+
+  // Modo Casal: desfaz o vínculo. A conta do parceiro é de outra titular
+  // (com aceite LGPD próprio) e não é apagada aqui; o uid dela vai no audit
+  // log para decisão manual.
+  let parceiroUid = null;
+  if (docData.casalId) {
+    try {
+      const casalRef = db.collection('casais').doc(docData.casalId);
+      const casalSnap = await casalRef.get();
+      if (casalSnap.exists) {
+        parceiroUid = casalSnap.data().uidB || null;
+        await casalRef.update({ status: 'desvinculado', desvinculadoPorExclusao: true });
+        if (parceiroUid) {
+          await db.collection('contasParceiro').doc(parceiroUid)
+            .update({ casalId: admin.firestore.FieldValue.delete() }).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn(`[deletarMentorada] Falha ao desfazer vínculo de casal de ${uid}:`, err.message);
     }
-  } catch (err) {
-    console.warn(`[deletarMentorada] Falha ao remover contratos de ${uid}:`, err.message);
   }
 
-  // Apaga subcoleções de dados financeiros (LGPD — Firestore não deleta subcoleções automaticamente)
-  for (const sub of ['orcamento', 'reservas', 'perfil', 'historico', 'planejamento', 'scores']) {
-    try { await deleteSubcolecao(uid, sub); } catch (err) {
-      console.warn(`[deletarMentorada] Falha ao remover ${sub} de ${uid}:`, err.message);
+  // Dashboard PJ do mesmo uid: a conta Auth já foi apagada acima, então a
+  // conta PJ ficaria inacessível com o dado guardado.
+  let contaPJApagada = false;
+  try {
+    const contaPJRef = db.collection('contasPJ').doc(uid);
+    const contaPJSnap = await contaPJRef.get();
+    await _apagarDadosPJ(uid);
+    if (contaPJSnap.exists) {
+      await db.recursiveDelete(contaPJRef);
+      contaPJApagada = true;
+    }
+  } catch (err) {
+    console.warn(`[deletarMentorada] Falha ao apagar dados PJ de ${uid}:`, err.message);
+  }
+
+  // WhatsApp pós-venda ainda não enviado (guarda nome, e-mail e telefone).
+  if (docData.email) {
+    try {
+      const waSnap = await db.collection('whatsapp_agendado')
+        .where('email', '==', String(docData.email).toLowerCase()).get();
+      await _deleteDocsBatched(waSnap.docs.map(d => d.ref));
+    } catch (err) {
+      console.warn(`[deletarMentorada] Falha ao limpar whatsapp_agendado de ${uid}:`, err.message);
     }
   }
 
@@ -4562,6 +4621,8 @@ exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, s
       sheetId:         docData.sheetId         || null,
       notionPageId:    docData.notionPageId    || null,
       planilhaApagada,
+      contaPJApagada,
+      parceiroUid,
       deletadoEm:      admin.firestore.FieldValue.serverTimestamp(),
       deletadoPor:     request.auth?.uid       || 'admin',
       expireAt:        expireAtDeletada,
@@ -4571,9 +4632,9 @@ exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, s
     console.warn(`[deletarMentorada] Falha ao criar audit log para ${uid}:`, err.message);
   }
 
-  // Apaga documento principal
+  // Apaga documento principal + todas as subcoleções
   try {
-    await db.collection('mentoradas').doc(uid).delete();
+    await db.recursiveDelete(db.collection('mentoradas').doc(uid));
   } catch (err) {
     throw new HttpsError('internal', `Erro ao remover dados: ${err.message}`);
   }
@@ -6520,6 +6581,7 @@ exports.getTributosConfig = onCall({}, async (request) => {
 });
 
 exports.saveTributoConfig = onCall({}, async (request) => {
+  _limparCamposTexto(request.data, ['nome']); // XSS, auditoria 01/10/2026
   const { uid, id, nome, tipo, percentual, valorFixo, diaVencimento, defasagemMeses, mesVencimento, ativo, periodicidade,
           vigenciaInicioMes, vigenciaInicioAno, vigenciaFimMes, vigenciaFimAno } = request.data;
   requireSelfOrAdmin(request, uid);
@@ -7121,6 +7183,7 @@ exports.getDespesasPJ = onCall({}, async (request) => {
 });
 
 exports.saveDespesaPJ = onCall({}, async (request) => {
+  _limparCamposTexto(request.data, ['nome']); // XSS, auditoria 01/10/2026
   const { uid, id, nome, valor, diaVencimento, data, tipo, mesesRestantes, numeroParcelas, mesInicio, anoInicio, categoria, ativo } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!nome || typeof nome !== 'string' || !nome.trim())
@@ -7539,6 +7602,7 @@ exports.getCartoesPJ = onCall({}, async (request) => {
 });
 
 exports.saveCartaoPJ = onCall({}, async (request) => {
+  _limparCamposTexto(request.data?.cartao, ['nome']); // XSS, auditoria 01/10/2026
   const { uid, cartao } = request.data;
   requireSelfOrAdmin(request, uid);
   await checkRateLimit(uid, 'saveCartaoPJ', 10, 60_000); // 10/min
@@ -7804,6 +7868,7 @@ exports.getOutrasEntradasPJ = onCall({}, async (request) => {
 });
 
 exports.saveOutraEntradaPJ = onCall({}, async (request) => {
+  _limparCamposTexto(request.data, ['descricao']); // XSS, auditoria 01/10/2026
   const { uid, id, descricao, valor, data, categoria } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!descricao || typeof descricao !== 'string' || !descricao.trim())
@@ -8167,6 +8232,7 @@ function _validarAbasPermitidas(abas) {
  * convite com link pra definir senha.
  */
 exports.criarUsuarioSecundarioPJ = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  _limparCamposTexto(request.data, ['nome']); // XSS, auditoria 01/10/2026
   const { uidTitular, nome, email, abasPermitidas } = request.data;
   requireSelfOrAdmin(request, uidTitular);
 
@@ -9062,6 +9128,7 @@ exports.salvarReservaMinimaCaixaPJ = onCall({}, async (request) => {
 const TIPOS_RESERVA_PJ = new Set(['emergencia', 'investimento', 'outro', 'sazonalidade', 'imprevistos']);
 
 exports.criarReservaPJ = onCall({}, async (request) => {
+  _limparCamposTexto(request.data, ['nome']); // XSS, auditoria 01/10/2026
   const { uid, nome, tipo, valorMeta, dataMeta } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!nome || typeof nome !== 'string' || !nome.trim()) throw new HttpsError('invalid-argument', 'nome é obrigatório.');
@@ -9556,6 +9623,25 @@ exports.exportarMeusDadosPJ = onCall({}, async (request) => {
 });
 
 /** Apaga em lotes de até 450 (limite do Firestore é 500 por batch). */
+/**
+ * Apaga todo dado de Dashboard PJ de um uid (coleções raiz filtradas por
+ * uid, com as subcoleções de cada doc, e proLaborePJ/{uid}). Não apaga o
+ * doc contasPJ/{uid} nem grava audit log: isso fica com quem chama
+ * (excluirContaPJ ou deletarMentorada). Extraído de excluirContaPJ na
+ * auditoria de segurança de 01/10/2026, que também incluiu cartoesPJ e
+ * faturaEstadosPJ (antes ficavam para trás). trocasRegimePJ fica de fora de
+ * propósito: é log de auditoria com TTL próprio de 5 anos.
+ */
+async function _apagarDadosPJ(uid) {
+  const colecoes = ['notasEmitidas', 'despesasPJ', 'reservasPJ', 'cartoesPJ', 'faturaEstadosPJ',
+                    'tributosConfig', 'impostosPrevistos', 'outrasEntradasPJ'];
+  for (const nomeColecao of colecoes) {
+    const snap = await db.collection(nomeColecao).where('uid', '==', uid).get();
+    for (const doc of snap.docs) await db.recursiveDelete(doc.ref); // leva recebimentos/pagamentos/movimentos
+  }
+  await db.recursiveDelete(db.collection('proLaborePJ').doc(uid));
+}
+
 async function _deleteDocsBatched(refs) {
   for (let i = 0; i < refs.length; i += 450) {
     const chunk = refs.slice(i, i + 450);
@@ -9584,36 +9670,7 @@ exports.excluirContaPJ = onCall({}, async (request) => {
   let email = null;
   try { email = (await admin.auth().getUser(uid)).email || null; } catch (_) { /* segue sem e-mail no log */ }
 
-  // notasEmitidas + recebimentos (subcoleção não é apagada junto do pai)
-  const notasSnap = await db.collection('notasEmitidas').where('uid', '==', uid).get();
-  for (const doc of notasSnap.docs) {
-    const recSnap = await doc.ref.collection('recebimentos').get();
-    await _deleteDocsBatched(recSnap.docs.map(d => d.ref));
-  }
-  await _deleteDocsBatched(notasSnap.docs.map(d => d.ref));
-
-  // despesasPJ + pagamentos (achado no mapeamento: deleteDespesaPJ normal
-  // NÃO limpa essa subcoleção — aqui precisa ser feito manualmente)
-  const despesasSnap = await db.collection('despesasPJ').where('uid', '==', uid).get();
-  for (const doc of despesasSnap.docs) {
-    const pagSnap = await doc.ref.collection('pagamentos').get();
-    await _deleteDocsBatched(pagSnap.docs.map(d => d.ref));
-  }
-  await _deleteDocsBatched(despesasSnap.docs.map(d => d.ref));
-
-  // reservasPJ (TODAS, inclusive as soft-deleted com ativa:false) + movimentos
-  const reservasSnap = await db.collection('reservasPJ').where('uid', '==', uid).get();
-  for (const doc of reservasSnap.docs) {
-    const movSnap = await doc.ref.collection('movimentos').get();
-    await _deleteDocsBatched(movSnap.docs.map(d => d.ref));
-  }
-  await _deleteDocsBatched(reservasSnap.docs.map(d => d.ref));
-
-  // Coleções raiz simples, sem subcoleção
-  for (const nomeColecao of ['tributosConfig', 'impostosPrevistos', 'outrasEntradasPJ']) {
-    const snap = await db.collection(nomeColecao).where('uid', '==', uid).get();
-    await _deleteDocsBatched(snap.docs.map(d => d.ref));
-  }
+  await _apagarDadosPJ(uid);
 
   // Audit log LGPD — mesmo TTL de 5 anos usado em mentoradas_deletadas/_lgpd_log
   const expireAt = new Date();
@@ -9632,8 +9689,9 @@ exports.excluirContaPJ = onCall({}, async (request) => {
     console.warn(`[excluirContaPJ] Falha ao criar audit log para ${uid}:`, err.message);
   }
 
-  // Documento principal por último
-  if (contaSnap.exists) await contaRef.delete();
+  // Documento principal por último. recursiveDelete leva junto a subcoleção
+  // usuariosSecundarios (contaRef.delete() deixava os docs órfãos).
+  if (contaSnap.exists) await db.recursiveDelete(contaRef);
 
   return { ok: true };
 });
@@ -12842,6 +12900,7 @@ exports.getStatusVinculo = onCall({}, async (request) => {
  * dado é consolidado até o parceiro aceitar (aceitarVinculo).
  */
 exports.convidarParceiro = onCall({ secrets: SECRETS_ALL }, async (request) => {
+  _limparCamposTexto(request.data, ['nomeParceiro']); // XSS no e-mail, auditoria 01/10/2026
   const auth = requireAuth(request);
   const uid = auth.uid;
 

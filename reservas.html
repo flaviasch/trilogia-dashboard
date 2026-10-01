@@ -823,6 +823,11 @@
   </nav>
 
   <script type="module">
+    // Escapa texto vindo de usuária antes de entrar em innerHTML/atributo
+    // (auditoria de segurança 01/10/2026, achado Alto de XSS armazenado).
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
     import { auth } from './js/firebase-config.js';
     import { getReservas, saveReserva, deleteReserva, getPerfil, getPatrimonio, PATRIMONIO_COR, setViewAsUid, registrarEvento, msgErro, getNivelAcesso, getStatusVinculo, getReservasCasal } from './js/api.js?v=66';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
@@ -931,7 +936,7 @@
         totalBox.style.display   = '';
         lista.innerHTML = itens.map(r => `
           <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
-            <span>${r.nome || 'Reserva'} <span style="color:var(--text-secondary);font-size:11px;">(${r._deQuem === 'eu' ? 'voce' : 'parceiro'})</span></span>
+            <span>${escapeHtml(r.nome || 'Reserva')} <span style="color:var(--text-secondary);font-size:11px;">(${r._deQuem === 'eu' ? 'voce' : 'parceiro'})</span></span>
             <span>${brlCasalReservas(r.acumulado)}</span>
           </div>
         `).join('') || '<div style="font-size:13px;color:var(--text-secondary);">Nenhuma reserva encontrada.</div>';
@@ -1207,7 +1212,7 @@
             if (reservas.length) {
               const sel = document.getElementById('rVincularExistente');
               sel.innerHTML = '<option value="">+ Criar reserva nova</option>' +
-                reservas.map(r => `<option value="${r.id}">${r.nome || '(sem nome)'} (${brl(r.meta)})</option>`).join('');
+                reservas.map(r => `<option value="${r.id}">${escapeHtml(r.nome || '(sem nome)')} (${brl(r.meta)})</option>`).join('');
               sel.value = '';
               document.getElementById('fgVincularLiberdade').classList.remove('hidden');
             }
@@ -1403,7 +1408,7 @@
         <div class="${cardClass}" id="${r.id}">
           <div class="reserva-header">
             <div class="reserva-header-left">
-              <div class="reserva-nome">${r.nome}</div>
+              <div class="reserva-nome">${escapeHtml(r.nome)}</div>
               <div class="reserva-tags">${tags}</div>
             </div>
             <div class="reserva-acoes">
@@ -1834,7 +1839,7 @@
       document.getElementById('alocarSub').textContent = 'Escolha em qual reserva alocar o valor não coberto.';
       const sel = document.getElementById('alocarReserva');
       sel.innerHTML = reservas.map(r =>
-        `<option value="${r.id}">${r.nome} (${brl(r.acumulado)} de ${brl(r.meta)})</option>`
+        `<option value="${r.id}">${escapeHtml(r.nome)} (${brl(r.acumulado)} de ${brl(r.meta)})</option>`
       ).join('');
       setMoney(document.getElementById('alocarValor'), sugestao);
       document.getElementById('fgAlocar').classList.remove('has-error');
@@ -2137,7 +2142,7 @@
     async function deletarReserva(id) {
       const r = reservas.find(x => x.id === id);
       if (!r) return;
-      if (!(await confirmDelete(`Excluir a reserva "${r.nome}"?`))) return;
+      if (!(await confirmDelete(`Excluir a reserva "${escapeHtml(r.nome)}"?`))) return;
 
       // Remove localmente de imediato para feedback rápido
       reservas = reservas.filter(x => x.id !== id);
