@@ -4003,7 +4003,7 @@ async function snapshotMensalPatrimonioTodasAtivas() {
 }
 
 exports.snapshotMensalPatrimonioDia1 = onSchedule(
-  { schedule: '0 8 1 * *', timeZone: 'America/Sao_Paulo' },
+  { schedule: '0 8 1 * *', timeZone: 'America/Sao_Paulo', secrets: [sGmail] }, // sGmail: alertarErro precisa (auditoria 01/10/2026)
   comMonitoramento('snapshotMensalPatrimonioDia1', async () => {
     if (await jaExecutouHoje('snapshotMensalPatrimonioDia1')) return;
     await snapshotMensalPatrimonioTodasAtivas();
@@ -4011,7 +4011,7 @@ exports.snapshotMensalPatrimonioDia1 = onSchedule(
 );
 
 exports.snapshotMensalPatrimonioDia28 = onSchedule(
-  { schedule: '0 8 28 * *', timeZone: 'America/Sao_Paulo' },
+  { schedule: '0 8 28 * *', timeZone: 'America/Sao_Paulo', secrets: [sGmail] }, // sGmail: alertarErro precisa (auditoria 01/10/2026)
   comMonitoramento('snapshotMensalPatrimonioDia28', async () => {
     if (await jaExecutouHoje('snapshotMensalPatrimonioDia28')) return;
     await snapshotMensalPatrimonioTodasAtivas();
@@ -11531,7 +11531,7 @@ exports.processaWhatsAppAgendado = onSchedule(
   {
     schedule: '0 10 * * *',
     timeZone: 'America/Sao_Paulo',
-    secrets:  [sZapiId, sZapiToken, sZapiClient],
+    secrets:  [sZapiId, sZapiToken, sZapiClient, sGmail], // sGmail: alertarErro precisa (auditoria 01/10/2026)
   },
   comMonitoramento('processaWhatsAppAgendado', async () => {
     if (await jaExecutouHoje('processaWhatsAppAgendado')) return;
@@ -12741,40 +12741,63 @@ exports.syncDiagnosticoWebhook = onRequest({ secrets: [sDiagSecret] }, async (re
 });
 
 /**
- * backupFirestore — exporta o Firestore para o Cloud Storage semanalmente.
- * Roda todo domingo às 02h (Sao_Paulo).
- * Pré-requisito (1x manual via gcloud):
- *   gcloud projects add-iam-policy-binding trilogia-dashboard \
- *     --member="serviceAccount:$(gcloud projects describe trilogia-dashboard --format='value(projectNumber)')-compute@developer.gserviceaccount.com" \
- *     --role="roles/datastore.importExportAdmin"
+ * backupFirestore: exporta o Firestore inteiro para o Cloud Storage, todo
+ * domingo às 02h (Sao_Paulo).
+ *
+ * Corrigido na auditoria de segurança de 01/10/2026: desde junho a função
+ * apontava para gs://trilogia-dashboard.appspot.com, bucket que não existe
+ * neste projeto (o padrão daqui é .firebasestorage.app), e não tinha o
+ * secret do Gmail, então a falha nunca chegava por e-mail. Agora: bucket
+ * próprio de backup (com regra de retenção de 90 dias, configurada no
+ * Console), acompanha a operação de export até o fim e alerta por e-mail
+ * se der erro.
+ *
+ * Pré-requisitos (1x, via gcloud; ver auditoria-seguranca-2026-10.md):
+ *   - bucket gs://trilogia-dashboard-backups-sa em southamerica-east1 (nome
+ *     com sufixo -sa porque "trilogia-dashboard-backups" já existia, criado
+ *     em 10/07/2026 na região US pra um snapshot manual avulso)
+ *   - roles/datastore.importExportAdmin para a service account da função
+ *   - roles/storage.admin no bucket para o agente de serviço do Firestore
  */
+const BACKUP_BUCKET = 'gs://trilogia-dashboard-backups-sa';
+
 exports.backupFirestore = onSchedule(
-  { schedule: '0 2 * * 0', timeZone: 'America/Sao_Paulo' },
+  { schedule: '0 2 * * 0', timeZone: 'America/Sao_Paulo', timeoutSeconds: 540, secrets: [sGmail] },
   comMonitoramento('backupFirestore', async () => {
     const { GoogleAuth } = require('google-auth-library');
     const auth   = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
     const client = await auth.getClient();
     const token  = await client.getAccessToken();
+    const headers = { 'Authorization': `Bearer ${token.token}`, 'Content-Type': 'application/json' };
 
     const date   = new Date().toISOString().slice(0, 10);
-    const bucket = `gs://trilogia-dashboard.appspot.com/firestore-backups/${date}`;
+    const prefix = `${BACKUP_BUCKET}/firestore-backups/${date}`;
 
     const res = await fetch(
       'https://firestore.googleapis.com/v1/projects/trilogia-dashboard/databases/(default):exportDocuments',
-      {
-        method:  'POST',
-        headers: { 'Authorization': `Bearer ${token.token}`, 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ outputUriPrefix: bucket }),
-      }
+      { method: 'POST', headers, body: JSON.stringify({ outputUriPrefix: prefix }) }
     );
-
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(`Firestore export falhou: ${JSON.stringify(err)}`);
+      throw new Error(`Firestore export falhou ao iniciar: ${JSON.stringify(err)}`);
     }
+    const op = await res.json();
+    console.log(`[backupFirestore] Export iniciado para ${prefix}:`, op.name);
 
-    const result = await res.json();
-    console.log(`[backupFirestore] Export iniciado para ${bucket}:`, result.name);
+    // Acompanha a operação: o export é assíncrono e um erro de permissão ou
+    // bucket só aparece aqui, não na resposta acima.
+    const limite = Date.now() + 8 * 60 * 1000;
+    while (Date.now() < limite) {
+      await new Promise(r => setTimeout(r, 20000));
+      const st = await fetch(`https://firestore.googleapis.com/v1/${op.name}`, { headers });
+      const dados = await st.json().catch(() => ({}));
+      if (dados.done) {
+        if (dados.error) throw new Error(`Firestore export falhou: ${JSON.stringify(dados.error)}`);
+        console.log(`[backupFirestore] ✅ Export concluído em ${prefix}`);
+        return;
+      }
+    }
+    throw new Error(`Firestore export não terminou em 8 minutos (operação ${op.name}). Conferir no Console.`);
   })
 );
 
@@ -12796,8 +12819,12 @@ exports.zapiWebhookCRM = onRequest(
   async (req, res) => {
     if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
+    // Comparação timing-safe via hash, mesmo padrão do syncDiagnosticoWebhook
+    // (auditoria de segurança 01/10/2026, item 8). O token segue na query
+    // string porque a Z-API não assina webhook nem envia header próprio.
     const tokenEsperado = sZapiWebhookTokenCRM.value();
-    if (!tokenEsperado || req.query.token !== tokenEsperado) {
+    const _hashTok = (s) => require('crypto').createHash('sha256').update(String(s || '')).digest();
+    if (!tokenEsperado || !require('crypto').timingSafeEqual(_hashTok(req.query.token), _hashTok(tokenEsperado))) {
       console.warn('[zapiWebhookCRM] Token inválido ou ausente.');
       res.status(401).json({ error: 'Unauthorized' });
       return;

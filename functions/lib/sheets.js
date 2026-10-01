@@ -22,6 +22,23 @@ function buildAuth() {
  * Wrapper da Google Sheets API para um arquivo específico.
  * Cada instância representa a planilha de uma mentorada.
  */
+/**
+ * Impede que texto digitado pela usuária vire fórmula na planilha
+ * (auditoria de segurança 01/10/2026, item 8). Com USER_ENTERED, um nome
+ * começando com "=" (ou "+", "@", ou "-" seguido de função) é interpretado
+ * como fórmula. Prefixar com apóstrofo força o Sheets a guardar como texto;
+ * o apóstrofo não aparece na célula nem volta na leitura. Números (tipo
+ * number) e strings numéricas como "-5" passam intactos.
+ */
+function _semFormula(values) {
+  const proteger = (v) => (
+    typeof v === 'string' && (/^[=+@]/.test(v) || /^-.*[A-Za-z(]/.test(v)) ? `'${v}` : v
+  );
+  return Array.isArray(values)
+    ? values.map(row => (Array.isArray(row) ? row.map(proteger) : proteger(row)))
+    : values;
+}
+
 class SheetsClient {
   constructor(sheetId) {
     this.sheetId = sheetId;
@@ -55,7 +72,7 @@ class SheetsClient {
         spreadsheetId: this.sheetId,
         range,
         valueInputOption: 'USER_ENTERED',
-        requestBody: { values },
+        requestBody: { values: _semFormula(values) },
       });
     } catch (err) {
       throw new HttpsError('internal', `Erro ao escrever planilha (${range}): ${err.message}`);
@@ -70,7 +87,7 @@ class SheetsClient {
         range,
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values },
+        requestBody: { values: _semFormula(values) },
       });
     } catch (err) {
       throw new HttpsError('internal', `Erro ao inserir linha (${range}): ${err.message}`);

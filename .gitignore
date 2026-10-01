@@ -27,3 +27,14 @@ functions/tmp_*.txt
 .claude/
 .firebase/
 *.md
+# Relatórios de auditoria entram no Git (auditoria 01/10/2026, item 8).
+# Não colar segredo, nem parcial, nesses arquivos.
+!auditoria-seguranca-*.md
+
+# Dados reais e scripts pontuais com dado de cliente: nunca versionar
+# (auditoria 01/10/2026, item 8)
+scripts/*.json
+!scripts/package.json
+!scripts/package-lock.json
+scripts/*isabella*
+scripts/_diag_*
