@@ -1389,12 +1389,24 @@ async function _buscarItensOrcamento(uid, mes, ano) {
   const cartaoMap = {};
   cartoesSnap.forEach(doc => { cartaoMap[doc.id] = doc.data(); });
 
-  // Faturas que já têm estado salvo (paga/ajustada, mesmo que parcial) —
-  // usado abaixo pra nunca deixar uma fatura já fechada voltar a ser
-  // "aberta" só porque o dia de corte do cartão mudou depois (achado
-  // 26/08/2026, Flávia: mesmo problema encontrado no cartão PJ).
+  // Faturas que já têm ESTADO DE PAGAMENTO salvo (paga total/parcial) — usado
+  // abaixo pra nunca deixar uma fatura já fechada voltar a ser "aberta" só
+  // porque o dia de corte do cartão mudou depois (achado 26/08/2026, Flávia:
+  // mesmo problema encontrado no cartão PJ).
+  //
+  // Critério errado até 01/10/2026: contava QUALQUER doc em faturaEstados,
+  // inclusive um que só tem `ajusteValor` (a correção de delta, sem nenhum
+  // `estado` de pagamento). Resultado: ajustar o valor de uma fatura AINDA
+  // ABERTA (ciclo em curso, antes do corte) fazia ela nunca mais ser marcada
+  // `_faturaAberta` pro resto da sessão — os itens dela saíam do "Faturas a
+  // vencer" certo, mas também desapareciam de onde deveriam aparecer como
+  // aberta, inflando "Lançamentos não identificados" do Planejamento/Detalhe
+  // pelo valor inteiro da fatura (achado 01/10/2026, Flávia: XP e Sem Parar
+  // ajustadas de manhã, R$7-9 mil sobrando como ajuste à tarde). Agora só
+  // conta fatura com `estado` de verdade (paga_total/paga_parcial) — ajuste
+  // isolado não basta pra travar a reabertura.
   const faturasComEstado = new Set();
-  faturaEstadosSnap.forEach(doc => faturasComEstado.add(doc.id)); // doc.id = `${cartaoId}_${faturaKey}`
+  faturaEstadosSnap.forEach(doc => { if (doc.data().estado) faturasComEstado.add(doc.id); }); // doc.id = `${cartaoId}_${faturaKey}`
 
   // Wrapper que usa dados do cartão para determinar o mês de pagamento correto
   const _mp = item => {
@@ -7585,12 +7597,14 @@ exports.getContasPagarPendentesPJ = onCall({}, async (request) => {
     if (!cartao) return;
     const estadoDoc = estadosPorChave[`${uid}_${g.cartaoId}_${g.faturaKey}`];
     // Mesma regra de getFaturasCartaoPJ: só é "ainda aberta" (fora de Contas
-    // a Pagar) se bater com o ciclo de hoje E nunca ter recebido estado de
-    // pagamento — sem o segundo critério, editar o dia de corte podia fazer
+    // a Pagar) se bater com o ciclo de hoje E nunca ter recebido ESTADO DE
+    // PAGAMENTO — sem o segundo critério, editar o dia de corte podia fazer
     // uma fatura JÁ FECHADA (com estado salvo) sumir daqui, ou uma fatura
     // realmente pendente aparecer como "ainda aberta" e sumir por engano
-    // (achado 26/08/2026, Flávia).
-    if (!estadoDoc && abertaKeyPorCartao[g.cartaoId] === g.faturaKey) return;
+    // (achado 26/08/2026, Flávia). `estadoDoc` só com `ajusteValor`/
+    // `ajusteTotal` (sem `estado`) não conta como fechada — mesmo bug
+    // corrigido no lado PF em 01/10/2026 (ver _buscarItensOrcamento).
+    if (!estadoDoc?.estado && abertaKeyPorCartao[g.cartaoId] === g.faturaKey) return;
     if (estadoDoc?.estado === 'paga_total') return; // já paga
     const totalDevido = estadoDoc?.ajusteTotal != null ? estadoDoc.ajusteTotal
       : (estadoDoc?.estado === 'paga_parcial' ? (g.total - (estadoDoc.valorPago || 0)) : g.total);
@@ -7815,12 +7829,13 @@ exports.getFaturasCartaoPJ = onCall({}, async (request) => {
     // exemplo) muda o que "hoje" mapeia pra qual fatura, e uma fatura já
     // fechada/paga podia voltar a aparecer como aberta, com o total antigo
     // (ajusteTotal) da época em que foi paga, divergindo dos lançamentos
-    // reais. Uma fatura que já tem estado salvo (foi paga/confirmada, mesmo
-    // que parcial) nunca mais volta a ser "aberta" — o ciclo dela já
-    // fechou de verdade, independente do que o diaCorte disser agora
-    // (achado 26/08/2026, Flávia: Márcia editou o dia de corte e a fatura
-    // aberta mudou de valor sozinha).
-    const aberta = !estadoDoc && abertaKeyPorCartao[g.cartaoId] === g.faturaKey;
+    // reais. Uma fatura com ESTADO DE PAGAMENTO salvo (paga total/parcial)
+    // nunca mais volta a ser "aberta" — o ciclo dela já fechou de verdade,
+    // independente do que o diaCorte disser agora (achado 26/08/2026, Flávia:
+    // Márcia editou o dia de corte e a fatura aberta mudou de valor
+    // sozinha). `estadoDoc` só com `ajusteValor` (sem `estado`) não conta —
+    // mesmo bug corrigido no lado PF em 01/10/2026 (ver _buscarItensOrcamento).
+    const aberta = !estadoDoc?.estado && abertaKeyPorCartao[g.cartaoId] === g.faturaKey;
     return {
       cartaoId: g.cartaoId,
       faturaKey: g.faturaKey,
