@@ -203,6 +203,10 @@ function calcularAgregadosOrcamento({
     if (contaId != null && (fe.contaId || CONTA_PRINCIPAL_ID) !== contaId) return;
     const [cartaoId, faturaKey] = key.split('_');
     if (_periodoNumCalc(faturaKey) !== periodoTotal) return;
+    // Só backfilla fatura que já fechou de verdade — ver cópia em
+    // js/orcamento-calc.js (achado 01/10/2026) pro comentário completo.
+    // Manter as duas em sincronia.
+    if (!_faturaJaAbriu(cartaoId, faturaKey)) return;
     if (cartoes.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixa[key] = 0;
   });
   let totalFaturas    = 0; // fatura fechada ainda não confirmada como paga ("a vencer")

@@ -356,6 +356,17 @@ export function calcularAgregadosOrcamento({
     if (contaId != null && (fe.contaId || CONTA_PRINCIPAL_ID) !== contaId) return;
     const [cartaoId, faturaKey] = key.split('_');
     if (_periodoNumCalc(faturaKey) !== periodoTotal) return;
+    // Só backfilla fatura que JÁ FECHOU de verdade — sem isso, uma fatura
+    // ainda aberta (acumulando) que já tinha um ajuste salvo (de um ciclo
+    // anterior, ou ajustada por engano antes de fechar) entrava aqui com
+    // base ZERO, ignorando por completo os itens reais dela (que a
+    // primeira passada acima pulou de propósito, por ainda não ter
+    // fechado) — o total exibido virava só o ajuste isolado, bem menor
+    // que o real, e a fatura aparecia como "a vencer" antes da hora
+    // (achado 01/10/2026, Flávia: XP e Sem Parar de outubro, ainda
+    // abertas, aparecendo em "Faturas a vencer" com valor quase igual
+    // só ao ajuste, ignorando dezenas de compras reais já lançadas).
+    if (!_faturaJaAbriu(cartaoId, faturaKey)) return;
     if (cartoes.some(c => c.id === cartaoId && c.ativo)) gruposFechadaCaixa[key] = 0;
   });
   // Sempre calcula a distinção paga/a vencer, mesmo em mês futuro — uma

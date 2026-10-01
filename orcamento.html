@@ -5868,12 +5868,26 @@
         const diaFecha   = Math.min(diaCorte, ultimoDia);
         const mesNome    = aAno ? `${MESES[aMes - 1]} ${aAno}` : '—';
         const totalCalculadoAberta = abertaItens.reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
+        // Base real, sem as despesas fixas ainda não lançadas (projeção) —
+        // é essa que precisa bater com o que a fatura vai usar quando fechar
+        // (gruposFechadaCaixa só soma item real, nunca projeção). Usada tanto
+        // pro "Ajustar fatura" quanto pra aplicar um ajuste já salvo, senão o
+        // ajuste vira uma diferença fixa sobre uma base que ainda vai encolher
+        // (achado 01/10/2026, Flávia: ajustou o Bradesco pro valor certo e no
+        // dia seguinte, com a fatura fechada, o total exibido tinha mudado).
+        const totalCalculadoAbertaReal = abertaItens.filter(d => !d.virtual)
+          .reduce((s, d) => s + (d.tipo === 'receita' ? -d.valor : d.valor), 0);
         // achado 31/07/2026, Flávia: ajustar uma fatura ABERTA salvava
         // (ajusteTotal ia pro faturaEstados certinho) mas o card continuava
         // mostrando o valor calculado puro — só a Fechada lia ajusteTotal
         // (ver totalDisplay abaixo). Mesmo mecanismo, agora nas duas.
         const abertaEstadoKey = abertaKey ? `${cartaoId}_${abertaKey}` : '';
-        const totalAberta = totalFaturaComAjuste(_faturaEstados[abertaEstadoKey], totalCalculadoAberta);
+        // Sem ajuste salvo: mantém a projeção com assinaturas futuras (pedido
+        // Flávia 26/08/2026). Com ajuste salvo: aplica sobre a base real, não
+        // sobre a projeção — ver comentário acima.
+        const totalAberta = temAjusteFatura(_faturaEstados[abertaEstadoKey])
+          ? totalFaturaComAjuste(_faturaEstados[abertaEstadoKey], totalCalculadoAbertaReal)
+          : totalCalculadoAberta;
         totalGeralAbertas += totalAberta;
 
         const fechaStr = (() => {
@@ -5907,8 +5921,8 @@
                     ${estadoBadge}
                   </div>
                   ${subLabel ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${subLabel}</div>` : ''}
-                  ${temAjusteFatura(_faturaEstados[abertaEstadoKey]) && totalAberta !== totalCalculadoAberta
-                    ? `<div style="font-size:11px;color:#fbbf24;margin-top:2px;">${_ajusteInfoTexto(_faturaEstados[abertaEstadoKey], totalCalculadoAberta, totalAberta)}</div>`
+                  ${temAjusteFatura(_faturaEstados[abertaEstadoKey]) && totalAberta !== totalCalculadoAbertaReal
+                    ? `<div style="font-size:11px;color:#fbbf24;margin-top:2px;">${_ajusteInfoTexto(_faturaEstados[abertaEstadoKey], totalCalculadoAbertaReal, totalAberta)}</div>`
                     : ''}
                 </div>
               </div>
@@ -5925,7 +5939,7 @@
               <button class="btn-add-item" data-add-cartao="${cartaoId}" style="margin:6px 14px 0;width:calc(100% - 28px);">+ Adicionar a esta fatura</button>
               ${abertaKey ? `<button class="btn-add-item" data-antecipar-fat="${cartaoId}_${abertaKey}" data-acumulado="${totalAberta}" data-nome="${nomeCartao}" data-mes="${mesNome}"
                 style="margin:6px 14px 0;width:calc(100% - 28px);background:rgba(52,211,153,0.08);color:#34d399;border-color:rgba(52,211,153,0.25);">💳 Pagar adiantado</button>` : ''}
-              ${totalAberta > 0 && abertaKey ? `<button class="btn-add-item" data-ajustar-fat="${cartaoId}_${abertaKey}" data-total-calculado="${totalCalculadoAberta}" data-nome="${nomeCartao}" data-mes="${mesNome}"
+              ${totalAberta > 0 && abertaKey ? `<button class="btn-add-item" data-ajustar-fat="${cartaoId}_${abertaKey}" data-total-calculado="${totalCalculadoAbertaReal}" data-nome="${nomeCartao}" data-mes="${mesNome}"
                 style="margin:6px 14px 0;width:calc(100% - 28px);background:transparent;color:var(--text-muted);border-color:var(--border);">✎ Ajustar fatura</button>` : ''}
             </div>
           </div>`;
