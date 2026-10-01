@@ -4491,12 +4491,22 @@ exports.reativarMentorada = onCall({}, async (request) => {
  * (arquivada). Desfaz vínculo de casal sem apagar a conta do parceiro.
  * Exclusivo para admin.
  */
-exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, sNotion] }, async (request) => {
-  requireAdmin(request);
-
-  const { uid } = request.data;
-  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
-
+/**
+ * Exclusão completa de uma mentorada (LGPD, direito de apagamento): conta
+ * Auth, documento Firestore com todas as subcoleções, cobranças, dados de
+ * Dashboard PJ do mesmo uid, WhatsApp agendado, planilha do Drive, página
+ * do Notion (arquivada) e vínculo de casal (desfeito, sem apagar a conta
+ * do parceiro). Grava/atualiza audit log com TTL de 5 anos em
+ * mentoradas_deletadas (merge: true, pra não perder campos de um stub já
+ * existente — ver limparDadosExpirados).
+ *
+ * Usada tanto pelo botão manual (deletarMentorada, admin) quanto pela
+ * retenção automática (limparDadosExpirados) — extraída em 01/10/2026
+ * pra a rotina automática deixar de só marcar "deletado" sem apagar nada
+ * de verdade (achado Flávia: mentorada com `deletadoPor: auto-lgpd-retencao`
+ * registrado desde junho/2026, conta inteira ainda viva no Firestore).
+ */
+async function _executarExclusaoCompleta(uid, { deletadoPor, extraLog = {} } = {}) {
   // Lê dados antes de apagar (audit log LGPD + preservar sheetId)
   const docSnap = await db.collection('mentoradas').doc(uid).get();
   const docData = docSnap.exists ? docSnap.data() : {};
@@ -4623,10 +4633,12 @@ exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, s
       planilhaApagada,
       contaPJApagada,
       parceiroUid,
+      contaApagada:    true,
       deletadoEm:      admin.firestore.FieldValue.serverTimestamp(),
-      deletadoPor:     request.auth?.uid       || 'admin',
+      deletadoPor:     deletadoPor             || 'admin',
       expireAt:        expireAtDeletada,
-    });
+      ...extraLog,
+    }, { merge: true });
   } catch (err) {
     // Não bloqueia a deleção — apenas registra o problema
     console.warn(`[deletarMentorada] Falha ao criar audit log para ${uid}:`, err.message);
@@ -4640,6 +4652,13 @@ exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, s
   }
 
   return { ok: true };
+}
+
+exports.deletarMentorada = onCall({ secrets: [sClientId, sClientSec, sRefresh, sNotion] }, async (request) => {
+  requireAdmin(request);
+  const { uid } = request.data;
+  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+  return _executarExclusaoCompleta(uid, { deletadoPor: request.auth?.uid || 'admin' });
 });
 
 /**
@@ -11273,79 +11292,84 @@ exports.agendarLimpezaEncerradas = onSchedule(
 
 /**
  * limparDadosExpirados — dia 1 de cada mês às 09h30 (Sao_Paulo)
- * Conformidade LGPD: apaga planilhas Google Drive de mentoradas deletadas há mais de 12 meses.
- * A planilha é mantida intencionalmente durante esse período para possibilitar reativação.
+ * Conformidade LGPD: 12 meses depois de agendarLimpezaEncerradas marcar uma
+ * mentorada pra exclusão, essa rotina apaga a conta de verdade (conta Auth,
+ * Firestore com subcoleções, planilha do Drive, Notion) via
+ * _executarExclusaoCompleta — mesma exclusão completa do botão manual do
+ * admin. Antes (até 01/10/2026) só apagava a planilha do Drive e deixava a
+ * conta inteira viva no Firestore pra sempre, apesar do registro em
+ * mentoradas_deletadas dizer "deletadoPor: auto-lgpd-retencao" (achado
+ * Flávia: mentorada "deletada" em junho/2026 com todos os dados ainda lá
+ * em outubro). O prazo de 12 meses entre marcar e apagar de verdade segue
+ * existindo, pra dar tempo de reativar manualmente se for engano.
+ *
+ * Trava de segurança: antes de apagar, confirma que a mentorada AINDA está
+ * inativa — se foi reativada nesse meio tempo (status: ativa), cancela a
+ * exclusão e remove o registro da fila, em vez de apagar uma conta ativa.
  */
 exports.limparDadosExpirados = onSchedule(
-  { schedule: '30 9 1 * *', timeZone: 'America/Sao_Paulo', secrets: [sClientId, sClientSec, sRefresh] },
+  { schedule: '30 9 1 * *', timeZone: 'America/Sao_Paulo', secrets: [sClientId, sClientSec, sRefresh, sNotion] },
   async () => {
     const prazo = new Date();
     prazo.setMonth(prazo.getMonth() - 12);
 
     const snap = await db.collection('mentoradas_deletadas')
-      .where('planilhaApagada', '==', false)
       .where('deletadoEm', '<', prazo)
       .get();
 
-    if (snap.empty) {
-      console.log('[limparDadosExpirados] Nenhuma planilha para apagar.');
+    const pendentes = snap.docs.filter(doc => doc.data().contaApagada !== true);
+    if (!pendentes.length) {
+      console.log('[limparDadosExpirados] Nenhuma conta pendente de exclusão.');
       return;
     }
-
-    const { google } = require('googleapis');
-    const auth = new google.auth.OAuth2(sClientId.value(), sClientSec.value());
-    auth.setCredentials({ refresh_token: sRefresh.value() });
-    const drive = google.drive({ version: 'v3', auth });
 
     const agora = new Date();
     const expireAt = new Date(agora);
     expireAt.setFullYear(expireAt.getFullYear() + 5); // TTL LGPD: 5 anos
 
-    for (const doc of snap.docs) {
-      const { sheetId, nome, email, deletadoEm } = doc.data();
-
-      if (!sheetId) {
-        await doc.ref.update({ planilhaApagada: true, planilhaApagadaEm: agora });
-        await db.collection('_lgpd_log').add({
-          uid:              doc.id,
-          nome:             nome || null,
-          email:            email || null,
-          sheetId:          null,
-          acao:             'sem_planilha_registrada',
-          deletadoEm:       deletadoEm || null,
-          planilhaApagadaEm: agora,
-          expireAt,
-        });
-        continue;
-      }
+    for (const doc of pendentes) {
+      const { nome, email, deletadoEm, motivo } = doc.data();
+      const uid = doc.id;
 
       try {
-        await drive.files.delete({ fileId: sheetId });
-        await doc.ref.update({ planilhaApagada: true, planilhaApagadaEm: agora });
-        await db.collection('_lgpd_log').add({
-          uid:               doc.id,
-          nome:              nome  || null,
-          email:             email || null,
-          sheetId,
-          acao:              'planilha_apagada',
-          deletadoEm:        deletadoEm || null,
-          planilhaApagadaEm: agora,
-          expireAt,
+        const mentoradaSnap = await db.collection('mentoradas').doc(uid).get();
+        if (!mentoradaSnap.exists) {
+          // Já foi apagada por outro caminho (ex: botão manual) — só
+          // atualiza o stub pra sair da fila nos próximos meses.
+          await doc.ref.set({ contaApagada: true, planilhaApagada: true }, { merge: true });
+          continue;
+        }
+        if (mentoradaSnap.data().status === 'ativa') {
+          // Reativada nesse meio tempo — cancela a exclusão agendada.
+          await doc.ref.delete();
+          await db.collection('_lgpd_log').add({
+            uid, nome: nome || null, email: email || null,
+            acao: 'cancelado_reativada', deletadoEm: deletadoEm || null,
+            canceladoEm: agora, expireAt,
+          });
+          console.log(`[limparDadosExpirados] Cancelado (reativada): ${nome} (${uid})`);
+          continue;
+        }
+
+        await _executarExclusaoCompleta(uid, {
+          deletadoPor: 'auto-lgpd-retencao',
+          extraLog: { motivo: motivo || null, agendadoEm: deletadoEm || null },
         });
-        console.log(`[limparDadosExpirados] Planilha apagada: ${nome} (${sheetId})`);
+        await db.collection('_lgpd_log').add({
+          uid, nome: nome || null, email: email || null,
+          acao: 'conta_apagada', deletadoEm: deletadoEm || null,
+          contaApagadaEm: agora, expireAt,
+        });
+        console.log(`[limparDadosExpirados] Conta apagada: ${nome} (${uid})`);
       } catch (err) {
         await db.collection('_lgpd_log').add({
-          uid:        doc.id,
-          nome:       nome  || null,
-          email:      email || null,
-          sheetId,
-          acao:       'falha_apagar_planilha',
-          erro:       err.message,
+          uid, nome: nome || null, email: email || null,
+          acao: 'falha_apagar_conta', erro: err.message,
           deletadoEm: deletadoEm || null,
           tentativaEm: agora,
           expireAt,
         });
-        console.error(`[limparDadosExpirados] Falha ao apagar ${sheetId} (${nome}):`, err.message);
+        console.error(`[limparDadosExpirados] Falha ao apagar conta (${nome}, ${uid}):`, err.message);
       }
     }
   },
