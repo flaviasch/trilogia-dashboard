@@ -4713,6 +4713,24 @@ exports.solicitarRedefinicaoSenha = onCall({ secrets: SECRETS_EMAIL }, async (re
     throw new HttpsError('invalid-argument', 'E-mail inválido.');
   }
   const emailNorm = email.trim().toLowerCase();
+
+  // Limite de envio (auditoria de segurança 01/10/2026, item 4): a função é
+  // pública, então sem limite dava pra encher a caixa de uma mentorada e
+  // esgotar a cota diária do Gmail (o que derruba todo e-mail transacional
+  // do dia). 3 por hora por e-mail e 10 por hora por IP. A chave é hash,
+  // pra não guardar e-mail em texto na coleção rateLimit. Ao estourar,
+  // responde ok:true do mesmo jeito, pra não revelar nada a quem chama.
+  const crypto = require('crypto');
+  const hash = (s) => crypto.createHash('sha256').update(String(s)).digest('hex').slice(0, 32);
+  try {
+    await checkRateLimit(hash(emailNorm), 'resetSenha', 3, 60 * 60 * 1000);
+    const ip = request.rawRequest?.ip;
+    if (ip) await checkRateLimit(hash(ip), 'resetSenhaIp', 10, 60 * 60 * 1000);
+  } catch (err) {
+    console.warn(`[solicitarRedefinicaoSenha] Limite atingido (${maskEmail(emailNorm)}), nenhum e-mail enviado.`);
+    return { ok: true };
+  }
+
   try {
     const userRecord = await admin.auth().getUserByEmail(emailNorm);
     const link = await admin.auth().generatePasswordResetLink(userRecord.email, {
@@ -4728,7 +4746,7 @@ exports.solicitarRedefinicaoSenha = onCall({ secrets: SECRETS_EMAIL }, async (re
     console.log(`[solicitarRedefinicaoSenha] e-mail enviado para ${maskEmail(emailNorm)}`);
   } catch (err) {
     // Silencia auth/user-not-found e outros erros — não revela se o e-mail existe
-    console.warn(`[solicitarRedefinicaoSenha] ${emailNorm}: ${err.message}`);
+    console.warn(`[solicitarRedefinicaoSenha] ${maskEmail(emailNorm)}: ${err.message}`);
   }
   return { ok: true };
 });
@@ -12928,12 +12946,20 @@ exports.convidarParceiro = onCall({ secrets: SECRETS_ALL }, async (request) => {
   const auth = requireAuth(request);
   const uid = auth.uid;
 
-  const { nomeParceiro, emailParceiro } = request.data || {};
-  if (!nomeParceiro || !emailParceiro) {
+  const { nomeParceiro: nomeParceiroBruto, emailParceiro } = request.data || {};
+  if (!nomeParceiroBruto || !emailParceiro) {
     throw new HttpsError('invalid-argument', 'nomeParceiro e emailParceiro são obrigatórios.');
   }
   const emailNorm = String(emailParceiro).trim().toLowerCase();
   if (!emailNorm.includes('@')) throw new HttpsError('invalid-argument', 'E-mail do parceiro inválido.');
+  // Nome vai no e-mail enviado pelo Gmail da Flávia para um endereço
+  // qualquer: só letras, espaços, apóstrofo e hífen (sem ponto, pra não
+  // virar link tipo 'site.com'), até 80
+  // caracteres (auditoria de segurança 01/10/2026, item 3).
+  const nomeParceiro = String(nomeParceiroBruto).trim().replace(/\s+/g, ' ');
+  if (nomeParceiro.length < 2 || nomeParceiro.length > 80 || !/^[\p{L}\p{M}' -]+$/u.test(nomeParceiro)) {
+    throw new HttpsError('invalid-argument', 'Use só letras e espaços no nome do parceiro (até 80 caracteres).');
+  }
 
   const mentoradaSnap = await db.collection('mentoradas').doc(uid).get();
   if (!mentoradaSnap.exists) throw new HttpsError('permission-denied', 'Só mentoradas podem convidar um parceiro.');
@@ -12943,6 +12969,18 @@ exports.convidarParceiro = onCall({ secrets: SECRETS_ALL }, async (request) => {
   }
   if (emailNorm === String(mentoradaData.email || '').toLowerCase()) {
     throw new HttpsError('invalid-argument', 'O e-mail do parceiro não pode ser o mesmo da sua conta.');
+  }
+
+  // Cada convite cria conta, planilha no Drive e manda e-mail pelo Gmail da
+  // Flávia. Sem limite, convidar/desvincular em loop virava canal de spam
+  // (auditoria de segurança 01/10/2026, item 3).
+  try {
+    await checkRateLimit(uid, 'convidarParceiro', 3, 24 * 60 * 60 * 1000);
+  } catch (err) {
+    if (err.code === 'resource-exhausted') {
+      throw new HttpsError('resource-exhausted', 'Você atingiu o limite de 3 convites em 24 horas. Tente de novo amanhã.');
+    }
+    throw err;
   }
 
   let userRecord = null;
@@ -13087,7 +13125,7 @@ exports.aceitarVinculo = onCall({ secrets: [sGmail] }, async (request) => {
  * apaga a conta do parceiro — ela fica sem casalId, pronta pra um convite
  * futuro (dele mesmo ou de outra mentorada).
  */
-exports.recusarVinculo = onCall({ secrets: [sGmail] }, async (request) => {
+exports.recusarVinculo = onCall({ secrets: [sGmail, sClientId, sClientSec, sRefresh] }, async (request) => {
   const auth = requireAuth(request);
   const { casalId } = request.data || {};
   if (!casalId) throw new HttpsError('invalid-argument', 'casalId é obrigatório.');
@@ -13121,16 +13159,22 @@ exports.recusarVinculo = onCall({ secrets: [sGmail] }, async (request) => {
     }).catch(err => console.error('[recusarVinculo] Falha ao enviar e-mail:', err.message));
   }
 
-  return { ok: true };
+  // Conta criada só por causa do convite e nunca usada: apaga (LGPD).
+  const contaApagada = await _apagarParceiroSeNuncaUsou(uidB, 'recusou_convite')
+    .catch(err => { console.warn('[recusarVinculo] Falha ao apagar conta do parceiro:', err.message); return false; });
+
+  return { ok: true, contaApagada };
 });
 
 /**
  * Desfaz um vínculo de casal, pendente ou ativo. Qualquer um dos dois lados
  * pode chamar, a qualquer momento, sem aprovação do outro — ou admin, a
  * pedido de suporte (MODO_CASAL_SPEC.md, seção 10.1), com botão dedicado em
- * admin.html. Não apaga dado de ninguém, só para de consolidar.
+ * admin.html. Não apaga dado de ninguém, só para de consolidar. Exceção:
+ * convite ainda pendente cancelado pela mentorada, em que a conta do
+ * parceiro nunca foi usada (sem aceite LGPD) e é apagada.
  */
-exports.desvincular = onCall({}, async (request) => {
+exports.desvincular = onCall({ secrets: [sClientId, sClientSec, sRefresh] }, async (request) => {
   const auth = requireAuth(request);
   const { casalId } = request.data || {};
   if (!casalId) throw new HttpsError('invalid-argument', 'casalId é obrigatório.');
@@ -13152,8 +13196,85 @@ exports.desvincular = onCall({}, async (request) => {
     db.collection('contasParceiro').doc(uidB).update({ casalId: admin.firestore.FieldValue.delete() }).catch(() => {}),
   ]);
 
+  if (status === 'pendente') {
+    await _apagarParceiroSeNuncaUsou(uidB, 'convite_cancelado')
+      .catch(err => console.warn('[desvincular] Falha ao apagar conta do parceiro:', err.message));
+  }
+
   return { ok: true };
 });
+
+/**
+ * Apaga a conta de parceiro (Auth, contasParceiro com subcoleções e
+ * planilha no Drive) quando ela nunca foi usada: sem aceite LGPD. A conta
+ * é criada por convidarParceiro antes de o parceiro concordar com nada, e
+ * antes desta mudança ficava guardada para sempre se o convite fosse
+ * recusado, cancelado ou ignorado (auditoria de segurança 01/10/2026,
+ * item 3). Parceiro que já aceitou os termos é titular de verdade e nunca
+ * é apagado aqui.
+ *
+ * @returns {Promise<boolean>} true se apagou
+ */
+async function _apagarParceiroSeNuncaUsou(uidB, motivo) {
+  if (!uidB) return false;
+  const ref = db.collection('contasParceiro').doc(uidB);
+  const snap = await ref.get();
+  if (!snap.exists) return false;
+  const dados = snap.data();
+  if (dados.lgpdAceite === true || dados.casalId) return false;
+
+  try {
+    await admin.auth().deleteUser(uidB);
+  } catch (err) {
+    if (err.code !== 'auth/user-not-found') throw err;
+  }
+  if (dados.sheetId) {
+    try { await deletePlanilha(dados.sheetId); } catch (err) {
+      console.warn(`[_apagarParceiroSeNuncaUsou] Falha ao apagar planilha de ${uidB}:`, err.message);
+    }
+  }
+  await db.recursiveDelete(ref);
+
+  const expireAt = new Date();
+  expireAt.setFullYear(expireAt.getFullYear() + 5);
+  await db.collection('_lgpd_log').add({
+    uid: uidB,
+    acao: 'conta_parceiro_nao_usada_apagada',
+    motivo,
+    planilhaApagada: !!dados.sheetId,
+    apagadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    expireAt,
+  }).catch(() => {});
+  return true;
+}
+
+/**
+ * Expira convites de casal pendentes há mais de 30 dias: marca o vínculo
+ * como 'expirado', libera a mentorada para convidar de novo e apaga a
+ * conta do parceiro se nunca foi usada (auditoria de segurança
+ * 01/10/2026, item 3). Filtra a data em memória pra não exigir índice
+ * composto (status + criadoEm); o volume de convites pendentes é pequeno.
+ */
+exports.expirarConvitesParceiro = onSchedule(
+  { schedule: '0 4 * * *', timeZone: 'America/Sao_Paulo', secrets: [sGmail, sClientId, sClientSec, sRefresh] },
+  comMonitoramento('expirarConvitesParceiro', async () => {
+    const limite = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const snap = await db.collection('casais').where('status', '==', 'pendente').get();
+    let expirados = 0;
+    let contasApagadas = 0;
+    for (const doc of snap.docs) {
+      const { uidA, uidB, criadoEm } = doc.data();
+      const criadoMs = criadoEm?.toMillis ? criadoEm.toMillis() : 0;
+      if (!criadoMs || criadoMs > limite) continue;
+      await doc.ref.update({ status: 'expirado', expiradoEm: admin.firestore.FieldValue.serverTimestamp() });
+      await db.collection('mentoradas').doc(uidA).update({ casalId: admin.firestore.FieldValue.delete() }).catch(() => {});
+      await db.collection('contasParceiro').doc(uidB).update({ casalId: admin.firestore.FieldValue.delete() }).catch(() => {});
+      expirados++;
+      if (await _apagarParceiroSeNuncaUsou(uidB, 'convite_expirado_30d')) contasApagadas++;
+    }
+    console.log(`[expirarConvitesParceiro] pendentes=${snap.size} expirados=${expirados} contasApagadas=${contasApagadas}`);
+  })
+);
 
 /**
  * Admin (Fatia 5): lista todos os vínculos de casal (Modo Casal), com

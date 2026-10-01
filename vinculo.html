@@ -305,7 +305,16 @@
       const btn = document.getElementById('btnRecusar');
       btn.disabled = true;
       try {
-        await recusarVinculo(_casalId);
+        const res = await recusarVinculo(_casalId);
+        // Conta criada só pelo convite e nunca usada é apagada no servidor
+        // ao recusar (auditoria de segurança 01/10/2026, item 3).
+        if (res?.contaApagada) {
+          elAcoesConvite.style.display = 'none';
+          elTitulo.textContent = 'Convite recusado';
+          elTexto.textContent = 'Pronto. Como você não chegou a usar o Dashboard, sua conta foi removida e nenhum dado seu ficou guardado.';
+          setTimeout(() => logout(), 6000);
+          return;
+        }
         const status = await getStatusVinculo();
         render(status);
       } catch (err) {

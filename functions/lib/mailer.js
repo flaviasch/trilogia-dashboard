@@ -12,6 +12,13 @@
 const nodemailer = require('nodemailer');
 
 const REMETENTE_NOME  = 'Trilogia Dashboard';
+
+// Escapa texto que veio de usuária antes de entrar no HTML do e-mail
+// (auditoria de segurança 01/10/2026, item 3: nome do parceiro digitado
+// pela mentorada ia cru para um e-mail enviado a endereço qualquer).
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 const REMETENTE_EMAIL = 'flaviasch@gmail.com';
 
 /**
@@ -382,7 +389,9 @@ function emailIR(nome) {
  * @param {boolean} contaNova — true se a conta do parceiro acabou de ser criada
  * @param {string|null} linkSenha — link de definicao de senha, so quando contaNova
  */
-function emailConviteParceiro(nomeParceiro, nomeMentorada, contaNova, linkSenha) {
+function emailConviteParceiro(nomeParceiroBruto, nomeMentoradaBruto, contaNova, linkSenha) {
+  const nomeParceiro = esc(nomeParceiroBruto);
+  const nomeMentorada = esc(nomeMentoradaBruto);
   return layout(`
     <h2 style="${S.h2}">${nomeMentorada} te convidou pro Dashboard Trilogia Financeira</h2>
     <p style="${S.p}">Olá, ${nomeParceiro}!</p>
@@ -411,7 +420,9 @@ function emailConviteParceiro(nomeParceiro, nomeMentorada, contaNova, linkSenha)
 /**
  * E-mail: parceiro aceitou o vínculo (enviado para quem convidou).
  */
-function emailVinculoAceito(nome, nomeParceiro) {
+function emailVinculoAceito(nomeBruto, nomeParceiroBruto) {
+  const nome = esc(nomeBruto);
+  const nomeParceiro = esc(nomeParceiroBruto);
   return layout(`
     <h2 style="${S.h2}">${nomeParceiro} aceitou o vínculo</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
@@ -426,7 +437,9 @@ function emailVinculoAceito(nome, nomeParceiro) {
 /**
  * E-mail: parceiro recusou o vínculo (enviado para quem convidou).
  */
-function emailVinculoRecusado(nome, nomeParceiro) {
+function emailVinculoRecusado(nomeBruto, nomeParceiroBruto) {
+  const nome = esc(nomeBruto);
+  const nomeParceiro = esc(nomeParceiroBruto);
   return layout(`
     <h2 style="${S.h2}">${nomeParceiro} recusou o vínculo</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
