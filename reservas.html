@@ -1227,6 +1227,27 @@
           }
         });
       }
+
+      // Veio de patrimonio.html de forma compulsória (conciliarReservas,
+      // delta > 30% do total das reservas) — abre direto o modal de alocação
+      // já com o valor não coberto preenchido, em vez de só deixar o painel
+      // de cobertura visível esperando a usuária notar e clicar (achado
+      // 01/10/2026, Flávia: "o usuário tem que ser levado de forma
+      // compulsória para fazer o ajuste").
+      if (_params.get('conciliarForcado') === '1') {
+        // Limpa o parâmetro da URL já na entrada — um refresh da página não
+        // deve reabrir o modal sozinho de novo.
+        window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+        requestAnimationFrame(() => {
+          const diff = naoAlocado();
+          // Só abre o modal de alocar quando sobra patrimônio sem reserva
+          // (diff > 0) — mesmo critério do botão "Alocar em uma reserva" do
+          // painel de cobertura. Reserva excedendo patrimônio (diff < 0) não
+          // tem "alocar" que faça sentido; o painel de cobertura já mostra o
+          // aviso de excesso sozinho, só chegar na página já é suficiente.
+          if (diff > 0) abrirModalAlocar(diff);
+        });
+      }
     }
 
     // Ao escolher uma reserva existente no seletor "Já tem uma reserva pra

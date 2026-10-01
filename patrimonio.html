@@ -935,7 +935,7 @@
       getPatrimonio, savePatrimonio, saveCorretoraPosicao, deleteCorretoraPosicao,
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
-      getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
+      getReservas, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
       categorizarPatrimonioIA, venderBemPatrimonio,
       getStatusVinculo, getPatrimonioCasal,
     } from './js/api.js?v=66';
@@ -1820,12 +1820,14 @@
     // ─── Conciliação automática de reservas ──────────────────────────────────
     /**
      * Após um import de patrimônio, compara o total de ativos financeiros
-     * com a soma dos acumulados das reservas ativas e distribui o delta
-     * proporcionalmente entre elas.
-     *
-     * Só age se o delta for "razoável" (< 30% do total das reservas).
-     * Deltas maiores indicam capital livre não alocado a nenhum objetivo —
-     * nesse caso apenas informa sem alterar.
+     * com a soma dos acumulados das reservas ativas. Qualquer diferença
+     * acima de R$10 leva a usuária de forma compulsória pra reservas.html
+     * pra decidir manualmente qual reserva ajustar — sem distribuir nada
+     * sozinho, mesmo num delta pequeno (achado 01/10/2026, Flávia: a
+     * distribuição proporcional automática, mesmo só pra delta "razoável",
+     * já causou ajuste errado; "qualquer diferença acima de 10 reais deve
+     * direcionar" pra decisão manual, sem tentar adivinhar). Versão anterior
+     * distribuía sozinha até 15%/30% do total das reservas — removido.
      */
     const CLASSES_FINANCEIRAS = new Set(['pos', 'infl', 'pre', 'rv', 'mm', 'int']);
 
@@ -1844,43 +1846,18 @@
       const totalReservas = ativas.reduce((s, r) => s + r.acumulado, 0);
       if (totalReservas === 0) return;
 
-      const delta    = totalImportado - totalReservas;
-      const pctDelta = Math.abs(delta) / totalReservas;
+      const delta = totalImportado - totalReservas;
 
       // Delta insignificante: sem ajuste
-      if (Math.abs(delta) < 50) return;
+      if (Math.abs(delta) <= 10) return;
 
       const sinal = delta > 0 ? '+' : '';
-
-      // Delta grande: provavelmente capital livre não alocado a reservas
-      if (pctDelta > 0.30) {
-        setTimeout(() => toast(
-          `Diferença de ${sinal}${brl(delta)} entre ativos financeiros e reservas.\n` +
-          `Parte pode ser capital livre. Verifique os acumulados manualmente.`,
-          'info', 6000
-        ), 600);
-        return;
-      }
-
-      // Delta razoável: distribui proporcionalmente
-      const atualizadas = ativas.map(r => ({
-        ...r,
-        acumulado: Math.min(
-          r.meta,
-          Math.max(0, Math.round(r.acumulado + delta * (r.acumulado / totalReservas)))
-        ),
-      }));
-
-      const resultados = await Promise.allSettled(atualizadas.map(r => saveReserva(r)));
-      const erros = resultados.filter(r => r.status === 'rejected').length;
-
-      setTimeout(() => toast(
-        erros
-          ? 'Erro ao atualizar algumas reservas — verifique manualmente.'
-          : `Reservas conciliadas: ${sinal}${brl(delta)} distribuídos entre ${ativas.length} reserva${ativas.length > 1 ? 's' : ''}.`,
-        erros ? 'warning' : 'info',
-        5000
-      ), 600);
+      toast(
+        `Diferença de ${sinal}${brl(delta)} entre ativos financeiros e reservas. ` +
+        `Levando você pra reservas.html pra ajustar.`,
+        'info', 3500
+      );
+      setTimeout(() => { window.location.href = 'reservas.html?conciliarForcado=1'; }, 2000);
     }
 
     // ─── Última importação por card ──────────
