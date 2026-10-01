@@ -12753,13 +12753,17 @@ exports.syncDiagnosticoWebhook = onRequest({ secrets: [sDiagSecret] }, async (re
  * se der erro.
  *
  * Pré-requisitos (1x, via gcloud; ver auditoria-seguranca-2026-10.md):
- *   - bucket gs://trilogia-dashboard-backups-sa em southamerica-east1 (nome
- *     com sufixo -sa porque "trilogia-dashboard-backups" já existia, criado
- *     em 10/07/2026 na região US pra um snapshot manual avulso)
+ *   - bucket gs://trilogia-dashboard-backups (já existia, criado em
+ *     10/07/2026 pra um snapshot manual avulso) com regra de retenção de
+ *     90 dias aplicada em 01/10/2026. Tentei um bucket novo em
+ *     southamerica-east1 primeiro, mas o Firestore recusou: o banco deste
+ *     projeto é multi-região "nam5" (EUA), e exportDocuments só aceita
+ *     bucket em "us" ou "us-centralN" — por isso o bucket de julho já
+ *     estava em US, não foi escolha arbitrária de quem criou.
  *   - roles/datastore.importExportAdmin para a service account da função
  *   - roles/storage.admin no bucket para o agente de serviço do Firestore
  */
-const BACKUP_BUCKET = 'gs://trilogia-dashboard-backups-sa';
+const BACKUP_BUCKET = 'gs://trilogia-dashboard-backups';
 
 exports.backupFirestore = onSchedule(
   { schedule: '0 2 * * 0', timeZone: 'America/Sao_Paulo', timeoutSeconds: 540, secrets: [sGmail] },
