@@ -753,7 +753,12 @@ exports.getDashboard = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
  * Usa valores cacheados (pl, sobra, scoreMes) para os cards que precisam de cálculo.
  * O frontend chama getOrcamento e getPatrimonio em background para completar os dados.
  */
-exports.getDashboardHome = onCall({ minInstances: 1 }, async (request) => {
+// minInstances:1 removido (02/10/2026) — custo de ~R$60/mês pra evitar cold
+// start não compensava o tráfego real: ~7 chamadas/dia nos últimos 14 dias
+// (mesmo raciocínio já aplicado a getProLaborePJ em 31/08/2026 e à decisão
+// de não adicionar em getOrcamento em 27/08/2026). Era a maior fatia da
+// conta do Cloud (R$136,83 em 01/10, maioria vindo desta + getContaPJ).
+exports.getDashboardHome = onCall(async (request) => {
   const auth = requireAuth(request);
   const uid  = request.data?.uid || auth.uid;
   requireSelfOrAdmin(request, uid);
@@ -8125,7 +8130,9 @@ exports.notifImpostosDia = onSchedule(
  * Devolve o doc de onboarding da conta PJ do uid, ou null se ainda não
  * completou (usado por login-pj.html pra decidir onboarding-pj x impostos-pj).
  */
-exports.getContaPJ = onCall({ minInstances: 1 }, async (request) => {
+// minInstances:1 removido (02/10/2026) — mesmo motivo de getDashboardHome
+// logo acima: ~R$60/mês fixo pra ~10 chamadas/dia não compensa.
+exports.getContaPJ = onCall(async (request) => {
   const { uid } = request.data;
   await requireContaPJAccess(db, request, uid);
   const snap = await db.collection('contasPJ').doc(uid).get();
