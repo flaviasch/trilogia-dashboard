@@ -167,7 +167,7 @@
 
     <div class="card card-ouro">
       <div class="card-titulo">Retirada sugerida do mês</div>
-      <div class="card-sub">Lucro líquido do mês, descontada a reserva mínima de caixa que você quer manter guardada.</div>
+      <div class="card-sub">Lucro líquido médio dos últimos meses, descontada a reserva mínima de caixa que você quer manter guardada.</div>
       <div id="retiradaSugeridaConteudo"></div>
       <div class="field-row" style="margin-top:14px">
         <div class="field-group">
@@ -407,7 +407,7 @@
       } else {
         elCG.innerHTML = `
           <div class="card-valor">${brl(ind.capitalDeGiro)}</div>
-          <div class="card-composicao">Ciclo financeiro de ${ind.cicloFinanceiro} dias (PMR ${ind.pmr}d − PMP ${ind.pmp}d) sobre despesa operacional de ${brl(ind.despesaOperacionalMensal)}/mês.</div>`;
+          <div class="card-composicao">Ciclo financeiro de ${ind.cicloFinanceiro} dias (PMR ${ind.pmr}d − PMP ${ind.pmp}d) sobre despesa operacional média de ${brl(ind.despesaOperacionalMensal)}/mês (últimos ${ind.janelaMeses} meses).</div>`;
       }
       if (!ind.pmrCalculado || !ind.pmpCalculado) {
         elCG.innerHTML += `<div class="card-aviso">${!ind.pmrCalculado ? 'PMR' : 'PMP'} ainda usa estimativa padrão de 30 dias — falta histórico suficiente confirmado (mín. 3) pra calcular o prazo real.</div>`;
@@ -415,7 +415,7 @@
 
       document.getElementById('retiradaSugeridaConteudo').innerHTML = `
         <div class="card-valor ${ind.retiradaSugerida < 0 ? 'negativo' : ''}">${brl(ind.retiradaSugerida)}</div>
-        <div class="card-composicao">Lucro líquido do mês ${brl(ind.lucroLiquido)} − reserva mínima de caixa ${brl(ind.reservaMinimaCaixa)}.</div>`;
+        <div class="card-composicao">Lucro líquido médio (últimos ${ind.janelaMeses} meses) ${brl(ind.lucroLiquido)} − reserva mínima de caixa ${brl(ind.reservaMinimaCaixa)}.</div>`;
       document.getElementById('reservaMinCaixaInput').value = ind.reservaMinimaCaixa || '';
 
       atualizarCalculadoraEmergencia();
@@ -447,7 +447,7 @@
       const valor = _indicadoresCache.despesaOperacionalMensal * meses;
       document.getElementById('reMesesValor').textContent = meses;
       document.getElementById('reValorSugerido').textContent = brl(valor);
-      document.getElementById('reComposicao').textContent = `${brl(_indicadoresCache.despesaOperacionalMensal)}/mês de despesa operacional × ${meses} meses.`;
+      document.getElementById('reComposicao').textContent = `${brl(_indicadoresCache.despesaOperacionalMensal)}/mês de despesa operacional média (últimos ${_indicadoresCache.janelaMeses} meses) × ${meses} meses.`;
     }
     document.getElementById('reMesesInput').addEventListener('input', atualizarCalculadoraEmergencia);
 

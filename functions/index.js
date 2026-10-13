@@ -9147,19 +9147,40 @@ exports.getIndicadoresReservasPJ = onCall({}, async (request) => {
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw new HttpsError('invalid-argument', 'mes inválido.');
   if (!Number.isInteger(ano) || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'ano inválido.');
 
-  const [dre, pmrCalculado, pmpCalculado, contaSnap, despesasSnap] = await Promise.all([
-    _calcularDRESimplificado(uid, mes, ano),
+  // Média móvel de 6 meses (mês em tela + 5 anteriores) pra despesa
+  // operacional e lucro líquido — usar só o mês em tela deixava os dois
+  // indicadores instáveis mês a mês: receita de serviço varia bastante (uma
+  // nota grande num mês, nenhuma no seguinte, acabou gerando -R$58 mil de
+  // "retirada sugerida" num mês ruim isolado), e despesa operacional também
+  // varia com despesas 'unica'/'parcelada' que só existem em alguns meses
+  // (achado 13/10/2026, Flávia: "preciso usar médias pra esses valores pq
+  // todo mês vão ser gerados números diferentes"). PMR/PMP já são média
+  // sobre todo o histórico, não precisam desse tratamento.
+  const JANELA_MESES = 6;
+  const mesesJanela = [];
+  for (let i = 0; i < JANELA_MESES; i++) {
+    let m = mes - i, a = ano;
+    while (m < 1) { m += 12; a -= 1; }
+    mesesJanela.push({ mes: m, ano: a });
+  }
+
+  const [dresJanela, pmrCalculado, pmpCalculado, contaSnap, despesasSnap] = await Promise.all([
+    Promise.all(mesesJanela.map(({ mes: m, ano: a }) => _calcularDRESimplificado(uid, m, a))),
     _calcularPMR(uid),
     _calcularPMP(uid),
     db.collection('contasPJ').doc(uid).get(),
     db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get(),
   ]);
 
-  const despesaOperacionalMensal = despesasSnap.docs.reduce((s, d) => {
-    const desp = d.data();
-    const oc = _ocorrenciaDespesaPJ(desp, mes, ano);
-    return oc ? s + (desp.valor || 0) : s;
-  }, 0);
+  const despesaOperacionalPorMes = mesesJanela.map(({ mes: m, ano: a }) =>
+    despesasSnap.docs.reduce((s, d) => {
+      const desp = d.data();
+      const oc = _ocorrenciaDespesaPJ(desp, m, a);
+      return oc ? s + (desp.valor || 0) : s;
+    }, 0)
+  );
+  const despesaOperacionalMensal = despesaOperacionalPorMes.reduce((s, v) => s + v, 0) / JANELA_MESES;
+  const lucroLiquido = dresJanela.reduce((s, d) => s + d.lucroLiquido, 0) / JANELA_MESES;
 
   // Sem histórico suficiente (< 3 confirmados), cai num padrão de 30 dias
   // pros dois — mesmo espírito do fallback já usado em getFluxoCaixaPJ.
@@ -9172,17 +9193,18 @@ exports.getIndicadoresReservasPJ = onCall({}, async (request) => {
 
   const conta = contaSnap.exists ? contaSnap.data() : {};
   const reservaMinimaCaixa = typeof conta.reservaMinimaCaixa === 'number' ? conta.reservaMinimaCaixa : 0;
-  const retiradaSugerida = dre.lucroLiquido - reservaMinimaCaixa;
+  const retiradaSugerida = lucroLiquido - reservaMinimaCaixa;
 
   const arredonda = v => Math.round(v * 100) / 100;
   return {
     despesaOperacionalMensal: arredonda(despesaOperacionalMensal),
-    lucroLiquido: dre.lucroLiquido,
+    lucroLiquido: arredonda(lucroLiquido),
     pmr, pmp, cicloFinanceiro,
     pmrCalculado: pmrCalculado !== null, pmpCalculado: pmpCalculado !== null,
     capitalDeGiro: arredonda(capitalDeGiro), autofinanciado,
     reservaMinimaCaixa: arredonda(reservaMinimaCaixa),
     retiradaSugerida: arredonda(retiradaSugerida),
+    janelaMeses: JANELA_MESES,
   };
 });
 
