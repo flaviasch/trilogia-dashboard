@@ -7145,7 +7145,7 @@ exports.salvarRecebimento = onCall({}, async (request) => {
  * (ex: o PIX default gerado na criação).
  */
 exports.gerarParcelasRecebimento = onCall({}, async (request) => {
-  const { uid, notaId, formaPagamento, valorTotal, numeroParcelas, taxaTotal, dataBase } = request.data;
+  const { uid, notaId, formaPagamento, valorTotal, numeroParcelas, taxaTotal, dataBase, entradaValor, entradaData } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!notaId) throw new HttpsError('invalid-argument', 'notaId é obrigatório.');
   if (!FORMAS_PAGAMENTO.includes(formaPagamento))
@@ -7157,16 +7157,34 @@ exports.gerarParcelasRecebimento = onCall({}, async (request) => {
   if (!dataBase || !/^\d{4}-\d{2}-\d{2}$/.test(dataBase))
     throw new HttpsError('invalid-argument', 'dataBase deve estar no formato YYYY-MM-DD.');
 
+  // Entrada opcional: recebida fora do escalonamento automático de 30 em 30
+  // dias, com valor e data próprios — não entra na divisão igual das N
+  // parcelas (achado 13/10/2026, Flávia: "alguns eu peço pagamento no ato e
+  // demais em dias específicos"). `valorTotal`/`taxaTotal` aqui já chegam só
+  // com a parte que falta dividir (o frontend não soma a entrada nisso).
+  const temEntrada = typeof entradaValor === 'number' && entradaValor > 0;
+  if (temEntrada && (!entradaData || !/^\d{4}-\d{2}-\d{2}$/.test(entradaData)))
+    throw new HttpsError('invalid-argument', 'entradaData deve estar no formato YYYY-MM-DD.');
+
   const { ref: notaRef } = await _notaDoUid(uid, notaId);
   const recebimentos = _gerarRecebimentosIniciais(valorTotal, dataBase, formaPagamento, true, numeroParcelas, taxaNum);
   const batch = db.batch();
+  if (temEntrada) {
+    batch.set(notaRef.collection('recebimentos').doc(), {
+      uid, formaPagamento,
+      valorBruto: entradaValor, taxa: 0, valorLiquido: entradaValor,
+      dataPrevista: entradaData, dataRecebimento: null,
+      parcelaAtual: null, parcelaTotal: null,
+      dataEmissaoNota: dataBase, criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
   recebimentos.forEach(r => {
     batch.set(notaRef.collection('recebimentos').doc(), {
       uid, ...r, dataEmissaoNota: dataBase, criadoEm: admin.firestore.FieldValue.serverTimestamp(),
     });
   });
   await batch.commit();
-  return { ok: true, quantidade: recebimentos.length };
+  return { ok: true, quantidade: recebimentos.length + (temEntrada ? 1 : 0) };
 });
 
 exports.confirmarRecebimento = onCall({}, async (request) => {

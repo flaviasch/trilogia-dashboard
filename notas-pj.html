@@ -317,8 +317,28 @@
           </div>
         </div>
         <div id="blocoRecebParcelado" style="display:none">
+          <!-- Entrada opcional: recebida à parte, com valor e data próprios —
+               o restante continua dividido igualmente nas parcelas seguintes
+               (achado 13/10/2026, Flávia: "alguns eu peço pagamento no ato e
+               demais em dias específicos"). -->
+          <div class="checkbox-row">
+            <input type="checkbox" id="recebTemEntrada">
+            <label for="recebTemEntrada" style="margin:0">Tem entrada?</label>
+          </div>
+          <div id="blocoRecebEntrada" style="display:none">
+            <div class="field-row">
+              <div class="field-group">
+                <label for="recebValorEntrada">Valor da entrada (R$)</label>
+                <input type="number" id="recebValorEntrada" placeholder="0" min="0" step="0.01">
+              </div>
+              <div class="field-group">
+                <label for="recebDataEntrada">Data da entrada</label>
+                <input type="date" id="recebDataEntrada">
+              </div>
+            </div>
+          </div>
           <div class="field-group">
-            <label for="recebValorTotalAuto">Valor total parcelado (o que o cliente pagou)</label>
+            <label for="recebValorTotalAuto" id="recebLabelValorTotalAuto">Valor total parcelado (o que o cliente pagou)</label>
             <input type="number" id="recebValorTotalAuto" placeholder="0" min="0" step="0.01">
           </div>
           <div class="field-row">
@@ -331,7 +351,7 @@
               <input type="number" id="recebTaxaTotalAuto" placeholder="0" min="0" step="0.01" value="0">
             </div>
           </div>
-          <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Gera todas as parcelas de uma vez — valor e taxa divididos igualmente (resto na última), datas escalonadas de 30 em 30 dias a partir de hoje. Cada parcela continua editável depois se a divisão real for diferente.</p>
+          <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px" id="recebParceladoHint">Gera todas as parcelas de uma vez — valor e taxa divididos igualmente (resto na última), datas escalonadas de 30 em 30 dias a partir de hoje. Cada parcela continua editável depois se a divisão real for diferente.</p>
           <div class="modal-acoes">
             <button class="btn-cancel" id="btnCancelarRecebimentoParcelado">Cancelar</button>
             <button class="btn-save" id="btnGerarParcelas">Gerar parcelas</button>
@@ -863,6 +883,11 @@
       document.getElementById('recebParcelado').checked = false;
       document.getElementById('recebNumParcelasAuto').value = 2;
       document.getElementById('recebTaxaTotalAuto').value = 0;
+      document.getElementById('recebTemEntrada').checked = false;
+      document.getElementById('blocoRecebEntrada').style.display = 'none';
+      document.getElementById('recebValorEntrada').value = '';
+      document.getElementById('recebDataEntrada').value = '';
+      document.getElementById('recebLabelValorTotalAuto').textContent = 'Valor total parcelado (o que o cliente pagou)';
       _atualizarModoRecebForma();
       document.getElementById('formRecebimento').style.display = '';
     }
@@ -872,6 +897,11 @@
         somarDias(_notaRecebimentosAtual?.dataEmissao, SUGESTAO_PRAZO_DIAS[e.target.value] ?? 0);
     });
     document.getElementById('recebParcelado').addEventListener('change', () => _atualizarModoRecebForma());
+    document.getElementById('recebTemEntrada').addEventListener('change', (e) => {
+      document.getElementById('blocoRecebEntrada').style.display = e.target.checked ? '' : 'none';
+      document.getElementById('recebLabelValorTotalAuto').textContent =
+        e.target.checked ? 'Valor restante parcelado (depois da entrada)' : 'Valor total parcelado (o que o cliente pagou)';
+    });
     document.getElementById('btnAddRecebimento').addEventListener('click', () => abrirFormRecebimento());
     document.getElementById('btnCancelarRecebimento').addEventListener('click', () => { document.getElementById('formRecebimento').style.display = 'none'; });
     document.getElementById('btnCancelarRecebimentoParcelado').addEventListener('click', () => { document.getElementById('formRecebimento').style.display = 'none'; });
@@ -886,6 +916,16 @@
       if (isNaN(valorTotal) || valorTotal <= 0) { alert('Informe um valor total válido.'); return; }
       if (taxaTotal > valorTotal) { alert('A taxa total não pode ser maior que o valor total.'); return; }
 
+      // Entrada opcional: recebida fora do escalonamento automático, com
+      // valor e data próprios — não entra na divisão igual das N parcelas.
+      let entrada = null;
+      if (document.getElementById('recebTemEntrada').checked) {
+        const vEntrada = parseFloat(document.getElementById('recebValorEntrada').value);
+        const dEntrada = document.getElementById('recebDataEntrada').value;
+        if (isNaN(vEntrada) || vEntrada <= 0 || !dEntrada) { alert('Preencha valor e data da entrada, ou desmarque "Tem entrada?".'); return; }
+        entrada = { valor: vEntrada, data: dEntrada };
+      }
+
       btn.disabled = true; btn.textContent = 'Gerando…';
       try {
         // Editando um recebimento existente pra virar parcelado: apaga o
@@ -895,6 +935,7 @@
         await gerarParcelasRecebimento(uidAtual(), _notaRecebimentosAtual.id, {
           formaPagamento, valorTotal, numeroParcelas, taxaTotal,
           dataBase: _notaRecebimentosAtual.dataEmissao || new Date().toISOString().slice(0, 10),
+          ...(entrada ? { entradaValor: entrada.valor, entradaData: entrada.data } : {}),
         });
         await abrirModalRecebimentos(_notaRecebimentosAtual);
       } catch (err) {
