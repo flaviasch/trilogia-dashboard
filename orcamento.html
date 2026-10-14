@@ -4616,41 +4616,37 @@
       // parecendo erro em vez de atualização (achado 14/10/2026, mesmo
       // mecanismo do index.html). Timeout de segurança: se um dos dois
       // travar ou falhar, não deixa a tela carregando pra sempre.
+      // Resolve o saldo inicial (carryover automático) ANTES do primeiro
+      // render — sem sessão anterior nesse carregamento inicial (página
+      // acabou de abrir), resolverSaldoConta faz o salto único pro mês
+      // anterior se precisar. Antes rodava depois do primeiro render e
+      // re-renderizava se o valor mudasse: Saldo Inicial/Final apareciam
+      // com um valor e corrigiam sozinhos logo em seguida, mesmo efeito do
+      // achado de recorrentes/cartões acima (achado 14/10/2026, Flávia:
+      // "na tela de orçamento, saldo inicial e final").
+      //
+      // Corre em paralelo com o carregarRecorrentes().then(...) acima, que
+      // pode SUBSTITUIR currentData por um objeto novo (via autoLancarFixasCartao
+      // → buscarPeriodo) enquanto esta resolução ainda está em voo. Como
+      // resolverSaldoContaAtiva muta o objeto que recebeu por parâmetro (não
+      // necessariamente o mesmo que currentData aponta quando termina), o
+      // saldo resolvido ficava preso num objeto órfão e nunca aparecia na
+      // tela — persistia R$0 até a próxima ação manual (achado 23/07/2026,
+      // Flávia: "saldo inicial da minha conta sumiu"). Guarda a referência
+      // usada e, se currentData já mudou nesse meio tempo, reaplica o valor
+      // resolvido no objeto atual em vez de descartar.
+      const _dataParaSaldo = currentData;
       await Promise.race([
-        Promise.all([_cartoesReady, _recorrentesCarregadas]).catch(() => {}),
+        Promise.all([_cartoesReady, _recorrentesCarregadas, resolverSaldoContaAtiva(_dataParaSaldo)]).catch(() => {}),
         new Promise(resolve => setTimeout(resolve, 5000)),
       ]);
+      if (currentData !== _dataParaSaldo) currentData.saldoConta = _dataParaSaldo.saldoConta;
 
       try {
         render(currentData);
       } catch (err) {
         console.error('Erro ao renderizar orçamento:', err);
       }
-
-      // Resolve o saldo inicial (carryover automático) em segundo plano —
-      // sem sessão anterior nesse carregamento inicial (página acabou de
-      // abrir), então resolverSaldoConta faz o salto único pro mês anterior
-      // se precisar. Só re-renderiza se o valor realmente mudou.
-      //
-      // Corre em paralelo com o carregarRecorrentes().then(...) acima, que
-      // pode SUBSTITUIR currentData por um objeto novo (via autoLancarFixasCartao
-      // → buscarPeriodo) enquanto esta resolução ainda está em voo. Como
-      // resolverSaldoContaAtiva muta o objeto que recebeu por parâmetro (não
-      // necessariamente o mesmo que currentData aponta quando o .then() roda),
-      // o saldo resolvido ficava preso num objeto órfão e nunca aparecia na
-      // tela — persistia R$0 até a próxima ação manual (achado 23/07/2026,
-      // Flávia: "saldo inicial da minha conta sumiu"). Guarda a referência
-      // usada e, se currentData já mudou nesse meio tempo, reaplica o valor
-      // resolvido no objeto atual em vez de descartar.
-      const _dataParaSaldo = currentData;
-      resolverSaldoContaAtiva(_dataParaSaldo).then(mudou => {
-        if (currentData !== _dataParaSaldo) {
-          currentData.saldoConta = _dataParaSaldo.saldoConta;
-          render(currentData);
-        } else if (mudou) {
-          render(currentData);
-        }
-      }).catch(() => {});
 
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
@@ -8053,8 +8049,11 @@
     async function trocarContaAtiva(novoId) {
       const sessaoAnterior = { ...currentData.periodo, contaId: _contaAtivaId, saldoFinal: _ultimoSaldoFinal };
       _contaAtivaId = novoId;
+      // Resolve o saldo da conta escolhida ANTES de renderizar — senão
+      // aparecia o saldo da conta anterior por um instante e corrigia
+      // sozinho (achado 14/10/2026, mesmo efeito do carregamento inicial).
+      await resolverSaldoContaAtiva(currentData, sessaoAnterior);
       render(currentData);
-      if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
     }
     window._trocarConta = async (id) => {
       document.getElementById('modalContas').classList.add('hidden'); _unlockBody();
@@ -8570,8 +8569,12 @@
         // sobrescreve o mês que ela já está vendo agora.
         if (currentData.periodo.mes === mes && currentData.periodo.ano === ano && _dataGen === genAntes) currentData = fresh;
       }
-      if (currentData.periodo.mes === mes && currentData.periodo.ano === ano) render(currentData);
-      if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
+      // Resolve o saldo ANTES de renderizar — senão aparecia o saldo ainda
+      // não resolvido por um instante e corrigia sozinho (achado 14/10/2026).
+      if (currentData.periodo.mes === mes && currentData.periodo.ano === ano) {
+        await resolverSaldoContaAtiva(currentData, sessaoAnterior);
+        render(currentData);
+      }
     });
 
     document.getElementById('btnNext').addEventListener('click', async () => {
@@ -8595,8 +8598,12 @@
         // sobrescreve o mês que ela já está vendo agora.
         if (currentData.periodo.mes === mes && currentData.periodo.ano === ano && _dataGen === genAntes) currentData = fresh;
       }
-      if (currentData.periodo.mes === mes && currentData.periodo.ano === ano) render(currentData);
-      if (await resolverSaldoContaAtiva(currentData, sessaoAnterior)) render(currentData);
+      // Resolve o saldo ANTES de renderizar — senão aparecia o saldo ainda
+      // não resolvido por um instante e corrigia sozinho (achado 14/10/2026).
+      if (currentData.periodo.mes === mes && currentData.periodo.ano === ano) {
+        await resolverSaldoContaAtiva(currentData, sessaoAnterior);
+        render(currentData);
+      }
     });
 
     // ─── Upload CSV ───────────────────────────
