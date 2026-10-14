@@ -7548,8 +7548,14 @@ exports.getContasPagarPendentesPJ = onCall({}, async (request) => {
     if (oc.mesAno === prefixoMes) previstoNoMes += desp.valor;
     if (pagamento?.dataPagamento && pagamento.dataPagamento.startsWith(prefixoMes)) pagoNoMes += desp.valor;
     if (pagamento) return; // já confirmada, não entra em pendentes/aPagar
-    if (oc.dataVenc > hojeISO) return; // ainda não venceu, nada a confirmar
-    aPagar += desp.valor;
+    // Ainda não venceu: aparece (com "A vencer" + botão Confirmar) só se for
+    // do mês que está sendo visto, mesmo padrão de "Impostos devidos" —
+    // achado 14/10/2026, Flávia: despesa fixa vencendo no fim do mês sumia
+    // da lista e não dava pra confirmar pagamento antecipado. Não soma em
+    // aPagar (KPI é "vencido ou a vencer até hoje").
+    const aVencer = oc.dataVenc > hojeISO;
+    if (aVencer && oc.mesAno !== prefixoMes) return;
+    if (!aVencer) aPagar += desp.valor;
     pendentes.push({
       despesaId, mesAno: oc.mesAno,
       nome: `${desp.nome}${oc.sufixo}`, categoria: desp.categoria || null,
@@ -7581,7 +7587,10 @@ exports.getContasPagarPendentesPJ = onCall({}, async (request) => {
     // dezenas de milhares de iterações. Cap de 60 meses (5 anos) pra trás é
     // mais que suficiente pra pendência real de pagamento.
     const inicioA = desp.anoInicio || hojeAno;
-    const totalMesesAteHoje = (hojeAno - inicioA) * 12 + (hojeMes - inicioM);
+    // Vai até o mês de hoje OU o mês visto, o que for mais tarde — navegando
+    // pra um mês futuro, as ocorrências dele também aparecem pra confirmar.
+    const limiteAbs = Math.max(hojeAno * 12 + hojeMes, ano * 12 + mes);
+    const totalMesesAteHoje = limiteAbs - (inicioA * 12 + inicioM);
     const maxIter = Math.min(Math.max(0, totalMesesAteHoje), 60);
     for (let i = 0; i <= maxIter; i++) {
       const dIter = new Date(inicioA, inicioM - 1 + i, 1);
