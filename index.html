@@ -145,6 +145,21 @@
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* Spinner pequeno, inline, pro valor de um card enquanto o dado fresco
+       não chegou — usado no lugar do número do cache (achado 14/10/2026,
+       Flávia: número do cache trocando pelo fresco parecia erro/divergência,
+       mais perceptível depois que getDashboardHome deixou de ficar sempre
+       ligada). Não bloqueia o resto da tela, só o valor. */
+    .num-spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+    }
 
     /* ─── Greeting + perfil ───────────────────── */
     .greeting-section {
@@ -1640,23 +1655,47 @@ async function init(user) {
       }
 
       const { receita, despesa, sobra, mes, ano } = data.orcamento;
-      document.getElementById('receita').textContent = brl(receita);
-      document.getElementById('despesa').textContent = brl(despesa);
-      document.getElementById('despesa').classList.add('negative');
 
-      const sobraEl = document.getElementById('sobra');
-      sobraEl.textContent = brl(sobra);
-      sobraEl.classList.add(sobra >= 0 ? 'positive' : 'negative');
+      // Valor do cache local não é exibido — só o fresco, direto da API.
+      // Mostrar o número salvo (pode já estar desatualizado) e trocar pelo
+      // certo segundos depois dava a impressão de erro/divergência, em vez
+      // de atualização (achado 14/10/2026). Enquanto não chega o fresco,
+      // fica um spinner pequeno no lugar do valor (e o sub-texto, que
+      // depende desses números, fica em branco também).
+      if (fromCache) {
+        ['receita', 'despesa', 'sobra'].forEach(id => {
+          document.getElementById(id).innerHTML = '<span class="num-spinner"></span>';
+        });
+        document.getElementById('receitaSub').textContent = '';
+        document.getElementById('despesaSub').textContent = '';
+        document.getElementById('sobraSub').textContent = '';
+      } else {
+        document.getElementById('receita').textContent = brl(receita);
+        document.getElementById('despesa').textContent = brl(despesa);
+        document.getElementById('despesa').classList.add('negative');
 
-      const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
-      document.getElementById('receitaSub').textContent = `${NOMES_MESES[mes - 1]} de ${ano}`;
-      document.getElementById('despesaSub').textContent = `${pct((despesa/receita)*100)} da receita`;
-      document.getElementById('sobraSub').textContent = `${pct(sobraPct)} da receita`;
+        const sobraEl = document.getElementById('sobra');
+        sobraEl.textContent = brl(sobra);
+        sobraEl.classList.add(sobra >= 0 ? 'positive' : 'negative');
 
-      const { ativos, dividas, pl } = data.patrimonio;
-      document.getElementById('ativos').textContent = brl(ativos);
-      document.getElementById('dividas').textContent = brl(dividas);
-      document.getElementById('pl').textContent = brl(pl);
+        const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
+        document.getElementById('receitaSub').textContent = `${NOMES_MESES[mes - 1]} de ${ano}`;
+        document.getElementById('despesaSub').textContent = `${pct((despesa/receita)*100)} da receita`;
+        document.getElementById('sobraSub').textContent = `${pct(sobraPct)} da receita`;
+      }
+
+      // Mesmo tratamento do bloco de Orçamento acima: valor do cache não é
+      // exibido, só spinner até o dado fresco chegar.
+      if (fromCache) {
+        ['ativos', 'dividas', 'pl'].forEach(id => {
+          document.getElementById(id).innerHTML = '<span class="num-spinner"></span>';
+        });
+      } else {
+        const { ativos, dividas, pl } = data.patrimonio;
+        document.getElementById('ativos').textContent = brl(ativos);
+        document.getElementById('dividas').textContent = brl(dividas);
+        document.getElementById('pl').textContent = brl(pl);
+      }
 
       const hoje = new Date();
       const reservasFormatadas = (data.reservas || []).map(r => {
