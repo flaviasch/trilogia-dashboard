@@ -137,29 +137,41 @@
       font-size: 14px;
     }
     .spinner {
-      width: 32px;
-      height: 32px;
-      border: 2px solid var(--border);
-      border-top-color: var(--gold);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--gold); position: relative;
+      animation: dot-pulse 1.4s ease-in-out infinite; animation-delay: 0.16s;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    /* Spinner pequeno, inline, pro valor de um card enquanto o dado fresco
+    .spinner::before, .spinner::after {
+      content: ''; position: absolute; top: 0; width: 10px; height: 10px;
+      border-radius: 50%; background: var(--gold);
+      animation: dot-pulse 1.4s ease-in-out infinite;
+    }
+    .spinner::before { left: -16px; animation-delay: 0s; }
+    .spinner::after  { left: 16px;  animation-delay: 0.32s; }
+    @keyframes dot-pulse {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+    /* Versão pequena, inline, pro valor de um card enquanto o dado fresco
        não chegou — usado no lugar do número do cache (achado 14/10/2026,
        Flávia: número do cache trocando pelo fresco parecia erro/divergência,
        mais perceptível depois que getDashboardHome deixou de ficar sempre
        ligada). Não bloqueia o resto da tela, só o valor. */
     .num-spinner {
       display: inline-block;
-      width: 18px;
-      height: 18px;
-      border: 2px solid var(--border);
-      border-top-color: var(--gold);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--gold); position: relative;
+      animation: dot-pulse 1.4s ease-in-out infinite; animation-delay: 0.16s;
       vertical-align: middle;
+      margin: 0 10px;
     }
+    .num-spinner::before, .num-spinner::after {
+      content: ''; position: absolute; top: 0; width: 6px; height: 6px;
+      border-radius: 50%; background: var(--gold);
+      animation: dot-pulse 1.4s ease-in-out infinite;
+    }
+    .num-spinner::before { left: -10px; animation-delay: 0s; }
+    .num-spinner::after  { left: 10px;  animation-delay: 0.32s; }
 
     /* ─── Greeting + perfil ───────────────────── */
     .greeting-section {
@@ -1497,6 +1509,7 @@ async function init(user) {
 
       // Fase 2: carrega orçamento e patrimônio em background e atualiza os cards
       const { mes, ano } = data.orcamento;
+      const NOMES_MESES_F2 = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
       Promise.all([
         getOrcamento(mes, ano),
         getPatrimonio(),
@@ -1524,7 +1537,6 @@ async function init(user) {
         const sobra   = receita - despesa;
         const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
 
-        const NOMES_MESES_F2 = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
         const elReceita = document.getElementById('receita');
         const elDespesa = document.getElementById('despesa');
         const elSobra   = document.getElementById('sobra');
@@ -1568,7 +1580,27 @@ async function init(user) {
             }
           } catch (_) {}
         }
-      }).catch(e => console.warn('[home] Fase 2 falhou (dados cacheados mantidos):', e.message));
+      }).catch(e => {
+        console.warn('[home] Fase 2 falhou, caindo pro valor aproximado:', e.message);
+        // Sem isso o spinner ficaria girando pra sempre num erro de rede —
+        // melhor mostrar o aproximado do getDashboardHome (igual o
+        // comportamento de antes desta mudança) do que nada.
+        const { receita: r2, despesa: d2, sobra: s2, mes: m2, ano: a2 } = data.orcamento;
+        document.getElementById('receita').textContent = brl(r2);
+        document.getElementById('despesa').textContent = brl(d2);
+        const sobraElF = document.getElementById('sobra');
+        sobraElF.textContent = brl(s2);
+        sobraElF.classList.add(s2 >= 0 ? 'positive' : 'negative');
+        const sobraPctF = r2 > 0 ? (s2 / r2) * 100 : 0;
+        document.getElementById('receitaSub').textContent = `${NOMES_MESES_F2[m2 - 1]} de ${a2}`;
+        document.getElementById('despesaSub').textContent = `${pct((d2/r2)*100)} da receita`;
+        document.getElementById('sobraSub').textContent = `${pct(sobraPctF)} da receita`;
+
+        const { ativos: at2, dividas: dv2, pl: pl3 } = data.patrimonio;
+        document.getElementById('ativos').textContent  = brl(at2);
+        document.getElementById('dividas').textContent = brl(dv2);
+        document.getElementById('pl').textContent      = brl(pl3);
+      });
 
       return true;   // sucesso
     }
@@ -1654,48 +1686,24 @@ async function init(user) {
         if (acaoHtml) { acaoEl.innerHTML = acaoHtml; acaoEl.style.display = ''; }
       }
 
-      const { receita, despesa, sobra, mes, ano } = data.orcamento;
-
-      // Valor do cache local não é exibido — só o fresco, direto da API.
-      // Mostrar o número salvo (pode já estar desatualizado) e trocar pelo
-      // certo segundos depois dava a impressão de erro/divergência, em vez
-      // de atualização (achado 14/10/2026). Enquanto não chega o fresco,
-      // fica um spinner pequeno no lugar do valor (e o sub-texto, que
-      // depende desses números, fica em branco também).
-      if (fromCache) {
-        ['receita', 'despesa', 'sobra'].forEach(id => {
-          document.getElementById(id).innerHTML = '<span class="num-spinner"></span>';
-        });
-        document.getElementById('receitaSub').textContent = '';
-        document.getElementById('despesaSub').textContent = '';
-        document.getElementById('sobraSub').textContent = '';
-      } else {
-        document.getElementById('receita').textContent = brl(receita);
-        document.getElementById('despesa').textContent = brl(despesa);
-        document.getElementById('despesa').classList.add('negative');
-
-        const sobraEl = document.getElementById('sobra');
-        sobraEl.textContent = brl(sobra);
-        sobraEl.classList.add(sobra >= 0 ? 'positive' : 'negative');
-
-        const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
-        document.getElementById('receitaSub').textContent = `${NOMES_MESES[mes - 1]} de ${ano}`;
-        document.getElementById('despesaSub').textContent = `${pct((despesa/receita)*100)} da receita`;
-        document.getElementById('sobraSub').textContent = `${pct(sobraPct)} da receita`;
-      }
-
-      // Mesmo tratamento do bloco de Orçamento acima: valor do cache não é
-      // exibido, só spinner até o dado fresco chegar.
-      if (fromCache) {
-        ['ativos', 'dividas', 'pl'].forEach(id => {
-          document.getElementById(id).innerHTML = '<span class="num-spinner"></span>';
-        });
-      } else {
-        const { ativos, dividas, pl } = data.patrimonio;
-        document.getElementById('ativos').textContent = brl(ativos);
-        document.getElementById('dividas').textContent = brl(dividas);
-        document.getElementById('pl').textContent = brl(pl);
-      }
+      // Receita/Despesa/Sobra e Ativos/Dívidas/PL NUNCA são mostrados aqui,
+      // nem com dado do cache local nem com o retorno "bruto" do
+      // getDashboardHome (que vem de um snapshot aproximado salvo no
+      // Firestore — sobraCacheada/plCacheado — não do cálculo exato). Só a
+      // Fase 2, mais abaixo em loadDashboard (mesmo motor de cálculo do
+      // Detalhe/Planejamento), escreve o valor de verdade nesses campos.
+      // Mostrar o aproximado aqui e trocar pelo exato segundos depois dava
+      // a impressão de erro/divergência, não de atualização — mesmo
+      // problema do cache local, numa camada que eu não tinha visto da
+      // primeira vez (achado 14/10/2026: "vem o número errado e depois
+      // atualiza pro certo, é justamente isso que não quero"). Enquanto
+      // isso, fica um spinner pequeno no lugar do valor.
+      ['receita', 'despesa', 'sobra', 'ativos', 'dividas', 'pl'].forEach(id => {
+        document.getElementById(id).innerHTML = '<span class="num-spinner"></span>';
+      });
+      document.getElementById('receitaSub').textContent = '';
+      document.getElementById('despesaSub').textContent = '';
+      document.getElementById('sobraSub').textContent = '';
 
       const hoje = new Date();
       const reservasFormatadas = (data.reservas || []).map(r => {

@@ -138,14 +138,21 @@
       font-size: 14px;
     }
     .spinner {
-      width: 32px;
-      height: 32px;
-      border: 2px solid var(--border);
-      border-top-color: var(--gold);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--gold); position: relative;
+      animation: dot-pulse 1.4s ease-in-out infinite; animation-delay: 0.16s;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner::before, .spinner::after {
+      content: ''; position: absolute; top: 0; width: 10px; height: 10px;
+      border-radius: 50%; background: var(--gold);
+      animation: dot-pulse 1.4s ease-in-out infinite;
+    }
+    .spinner::before { left: -16px; animation-delay: 0s; }
+    .spinner::after  { left: 16px;  animation-delay: 0.32s; }
+    @keyframes dot-pulse {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
+      40% { transform: scale(1); opacity: 1; }
+    }
 
     /* ─── Breadcrumb ─────────────────────────── */
     .breadcrumb {
@@ -4560,10 +4567,11 @@
         }
       }
 
-      // Carrega recorrentes em paralelo (sem bloquear o render). Fixas no
-      // cartão são lançadas automaticamente em cada fatura; fixas em conta
-      // ficam como pendentes virtuais até confirmação manual.
-      carregarRecorrentes().then(async () => {
+      // Carrega recorrentes em paralelo. Fixas no cartão são lançadas
+      // automaticamente em cada fatura; fixas em conta ficam como pendentes
+      // virtuais até confirmação manual.
+      const _recorrentesCarregadas = carregarRecorrentes();
+      _recorrentesCarregadas.then(async () => {
         if (await autoLancarFixasCartao(mes, ano)) {
           // Espera qualquer salvamento já enfileirado (ex: a usuária confirmou/
           // lançou uma despesa fixa pendente enquanto isso rodava) terminar de
@@ -4600,6 +4608,18 @@
         // dado errado); aqui só evita um render redundante.
         if (currentData.periodo.mes === mes && currentData.periodo.ano === ano) render(currentData);
       });
+
+      // Espera cartões + recorrentes — os dois dados que o Resumo/
+      // Planejamento precisam pra fechar o total certo — antes do primeiro
+      // render visível. Sem isso, a tela aparecia com o total incompleto
+      // por uma fração de segundo e corrigia sozinha logo em seguida,
+      // parecendo erro em vez de atualização (achado 14/10/2026, mesmo
+      // mecanismo do index.html). Timeout de segurança: se um dos dois
+      // travar ou falhar, não deixa a tela carregando pra sempre.
+      await Promise.race([
+        Promise.all([_cartoesReady, _recorrentesCarregadas]).catch(() => {}),
+        new Promise(resolve => setTimeout(resolve, 5000)),
+      ]);
 
       try {
         render(currentData);
