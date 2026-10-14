@@ -6202,8 +6202,13 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
     });
 
     // ─── Banner: leads Fechado Ganho sem mentorada criada ──────────────────────
+    // `contaDispensada`: marcado ao fechar o banner no × — não é "convertido
+    // de verdade" (não cria conta, não ganha o ✓), só tira da contagem deste
+    // aviso pra sempre. Achado 14/10/2026, Flávia: fechar no × só escondia
+    // até o próximo carregamento (nada persistia), reaparecendo com os
+    // mesmos leads antigos sem jeito de dispensar de vez.
     function verificarLeadsPendentesConta() {
-      const pendentes = pipelineLeads.filter(l => l.estagio === 'Fechado Ganho' && !l.convertidoEm);
+      const pendentes = pipelineLeads.filter(l => l.estagio === 'Fechado Ganho' && !l.convertidoEm && !l.contaDispensada);
       const banner = document.getElementById('leadPendenteContaBanner');
       if (pendentes.length > 0) {
         document.getElementById('leadPendenteContaCount').textContent = pendentes.length;
@@ -6213,8 +6218,12 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       }
     }
 
-    document.getElementById('btnFecharPendenteConta').addEventListener('click', () => {
-      document.getElementById('leadPendenteContaBanner').style.display = 'none';
+    document.getElementById('btnFecharPendenteConta').addEventListener('click', async () => {
+      const banner = document.getElementById('leadPendenteContaBanner');
+      banner.style.display = 'none';
+      const pendentes = pipelineLeads.filter(l => l.estagio === 'Fechado Ganho' && !l.convertidoEm && !l.contaDispensada);
+      await Promise.allSettled(pendentes.map(l => updateLead(l.id, { contaDispensada: true })));
+      pendentes.forEach(l => { l.contaDispensada = true; });
     });
 
     document.getElementById('btnVerPendenteConta').addEventListener('click', () => {
