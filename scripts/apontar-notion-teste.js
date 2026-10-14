@@ -8,7 +8,8 @@
  * documento da CONTA DE TESTE, fazendo ela ler (read-only) a mesma página.
  *
  * COMO USAR:
- *   1. Precisa do mesmo scripts/serviceAccountKey.json que o smoke-test.js já usa.
+ *   1. Precisa de `gcloud auth application-default login` feito nesta máquina
+ *      (mesmo usado pelo smoke-test.js e pelos demais scripts, desde 14/10/2026).
  *   2. Ache o notionPageId da mentorada real: mais fácil é abrir a página dela no
  *      Notion e copiar o ID de 32 caracteres (com ou sem hífens) do final da URL.
  *   3. Rode:
@@ -29,20 +30,13 @@ const admin = require('firebase-admin');
 const path  = require('path');
 const fs    = require('fs');
 
-const keyPath = path.join(__dirname, 'serviceAccountKey.json');
-if (!fs.existsSync(keyPath)) {
-  console.error('\n❌ Arquivo não encontrado: scripts/serviceAccountKey.json');
-  console.error('   Baixe em: Firebase Console → Configurações → Contas de serviço\n');
-  process.exit(1);
-}
-
 const SMOKE_TEST_UID = process.env.SMOKE_TEST_UID;
 if (!SMOKE_TEST_UID) {
   console.error('\n❌ Falta SMOKE_TEST_UID em scripts/.env (mesmo usado pelo smoke-test.js).\n');
   process.exit(1);
 }
 
-admin.initializeApp({ credential: admin.credential.cert(require(keyPath)) });
+admin.initializeApp({ credential: admin.credential.applicationDefault() });
 const db = admin.firestore();
 
 const args    = process.argv.slice(2);

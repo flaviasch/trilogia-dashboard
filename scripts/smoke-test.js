@@ -10,11 +10,11 @@
  *
  * COMO USAR (configuração, uma vez só):
  *
- *   1. Baixe a chave de serviço do Firebase Console, se ainda não tiver:
- *      Configurações do projeto → Contas de serviço → Gerar nova chave privada
- *      Salve como "serviceAccountKey.json" nesta pasta (scripts/) — já está
- *      no .gitignore, não sobe ao Git. Mesmo arquivo que set-admin-claim.js
- *      já usa, pode reaproveitar o mesmo.
+ *   1. Rode `gcloud auth application-default login` nesta máquina (uma vez
+ *      só, loga com sua conta Google normal — nenhum arquivo de chave fica
+ *      salvo em disco). Migrado em 14/10/2026 (auditoria 01/10/2026, item 6)
+ *      pra eliminar a chave de serviço de longa duração que ficava em
+ *      scripts/serviceAccountKey.json.
  *
  *   2. Tenha uma conta de teste dedicada no Dashboard (NUNCA usar conta de
  *      mentorada real). Se ainda não tiver, cria pelo admin.html normalmente
@@ -37,9 +37,9 @@
  * contra um mês fictício (janeiro/2099) que nunca aparece pra ninguém, e usa
  * permitirReducao pra não travar em reruns.
  *
- * Autenticação: usa firebase-admin (serviceAccountKey.json) só pra gerar um
- * custom token pra conta de teste — nenhuma senha de usuária fica salva em
- * lugar nenhum, nem local nem no código.
+ * Autenticação: usa firebase-admin (Application Default Credentials) só pra
+ * gerar um custom token pra conta de teste — nenhuma senha de usuária fica
+ * salva em lugar nenhum, nem local nem no código.
  */
 
 'use strict';
@@ -64,13 +64,6 @@ if (!SMOKE_TEST_UID || !SMOKE_TEST_TOKEN) {
   process.exit(1);
 }
 
-const keyPath = path.join(__dirname, 'serviceAccountKey.json');
-if (!fs.existsSync(keyPath)) {
-  console.error('\n❌ Arquivo não encontrado: scripts/serviceAccountKey.json');
-  console.error('   Baixe em: Firebase Console → Configurações → Contas de serviço\n');
-  process.exit(1);
-}
-
 // Config pública do Firebase Web SDK (mesma do dashboard/js/firebase-config.js
 // — é a apiKey do app web, não é secreta, identifica só o projeto).
 const firebaseConfig = {
@@ -84,7 +77,7 @@ const firebaseConfig = {
 
 // ─── Inicialização ─────────────────────────────────────────────────────────
 
-admin.initializeApp({ credential: admin.credential.cert(require(keyPath)) });
+admin.initializeApp({ credential: admin.credential.applicationDefault() });
 
 const clientApp  = initializeApp(firebaseConfig);
 const clientAuth = getAuth(clientApp);

@@ -4,9 +4,8 @@
  * { admin: true } na conta Firebase de um usuário.
  *
  * COMO USAR:
- *   1. Baixe a chave de serviço do Firebase Console:
- *      Configurações do projeto → Contas de serviço → Gerar nova chave privada
- *      Salve como "serviceAccountKey.json" na pasta scripts/ (não suba ao Git).
+ *   1. Rode `gcloud auth application-default login` nesta máquina (uma vez
+ *      só; mesmo usado pelos demais scripts desde 14/10/2026).
  *
  *   2. Instale a dependência:
  *      npm install firebase-admin
@@ -29,17 +28,8 @@ const fs    = require('fs');
 
 // ─── Carregar credenciais ──────────────────────────────────────────────────────
 
-const keyPath = path.join(__dirname, 'serviceAccountKey.json');
-if (!fs.existsSync(keyPath)) {
-  console.error('\n❌ Arquivo não encontrado: scripts/serviceAccountKey.json');
-  console.error('   Baixe em: Firebase Console → Configurações → Contas de serviço\n');
-  process.exit(1);
-}
-
-const serviceAccount = require(keyPath);
-
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+  credential: admin.credential.applicationDefault(),
 });
 
 // ─── Argumentos ────────────────────────────────────────────────────────────────

@@ -14,17 +14,15 @@
  * (não sobrescreve).
  *
  * Uso: node backup-e-migrar-uid-impostos.js
- * (precisa do scripts/serviceAccountKey.json, mesmo usado pelos outros
- * scripts de admin do projeto)
+ * (precisa de `gcloud auth application-default login` feito nesta máquina,
+ * mesmo usado pelos outros scripts de admin do projeto desde 14/10/2026)
  */
 
 const admin = require('firebase-admin');
 const path  = require('path');
 const fs    = require('fs');
 
-const serviceAccount = require(path.join(__dirname, 'serviceAccountKey.json'));
-
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+admin.initializeApp({ credential: admin.credential.applicationDefault() });
 
 const db = admin.firestore();
 

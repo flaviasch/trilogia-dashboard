@@ -22,8 +22,7 @@ import { calcularAgregadosOrcamento } from '../js/orcamento-calc.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
-const serviceAccount = require(path.join(__dirname, 'serviceAccountKey.json'));
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+admin.initializeApp({ credential: admin.credential.applicationDefault() });
 const db = admin.firestore();
 
 // Mesma logica client-side de sugerirFatura/_ehCicloAberto, replicada aqui

@@ -23,14 +23,14 @@
  * Uso (dentro de scripts/):
  *   node limpar-orfaos-lgpd.js              (dry-run: só lista, não apaga)
  *   node limpar-orfaos-lgpd.js --confirmar  (apaga de verdade)
- * Precisa do scripts/serviceAccountKey.json, como os outros scripts.
+ * Precisa de `gcloud auth application-default login` feito nesta máquina,
+ * como os outros scripts (desde 14/10/2026).
  */
 
 const admin = require('firebase-admin');
 const path  = require('path');
 
-const serviceAccount = require(path.join(__dirname, 'serviceAccountKey.json'));
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+admin.initializeApp({ credential: admin.credential.applicationDefault() });
 const db = admin.firestore();
 
 const CONFIRMAR = process.argv.includes('--confirmar');
