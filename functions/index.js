@@ -7145,7 +7145,8 @@ exports.salvarRecebimento = onCall({}, async (request) => {
  * (ex: o PIX default gerado na criação).
  */
 exports.gerarParcelasRecebimento = onCall({}, async (request) => {
-  const { uid, notaId, formaPagamento, valorTotal, numeroParcelas, taxaTotal, dataBase, entradaValor, entradaData } = request.data;
+  const { uid, notaId, formaPagamento, valorTotal, numeroParcelas, taxaTotal, dataBase, entradaValor, entradaData,
+    substituirPendentes, dataPrimeiraParcela } = request.data;
   requireSelfOrAdmin(request, uid);
   if (!notaId) throw new HttpsError('invalid-argument', 'notaId é obrigatório.');
   if (!FORMAS_PAGAMENTO.includes(formaPagamento))
@@ -7166,9 +7167,29 @@ exports.gerarParcelasRecebimento = onCall({}, async (request) => {
   if (temEntrada && (!entradaData || !/^\d{4}-\d{2}-\d{2}$/.test(entradaData)))
     throw new HttpsError('invalid-argument', 'entradaData deve estar no formato YYYY-MM-DD.');
 
+  // "Editar formato" (achado 14/10/2026, Flávia: editar o recebimento da nota
+  // inteira sem mexer parcela a parcela): troca TODOS os recebimentos ainda
+  // pendentes por um conjunto novo, no mesmo batch — os já confirmados ficam
+  // intactos. Nesse modo aceita 1 parcela (à vista) e a 1ª data vem explícita
+  // (as seguintes de 30 em 30 dias), em vez de dataBase + prazo da forma.
+  if (dataPrimeiraParcela && !/^\d{4}-\d{2}-\d{2}$/.test(dataPrimeiraParcela))
+    throw new HttpsError('invalid-argument', 'dataPrimeiraParcela deve estar no formato YYYY-MM-DD.');
+
   const { ref: notaRef } = await _notaDoUid(uid, notaId);
-  const recebimentos = _gerarRecebimentosIniciais(valorTotal, dataBase, formaPagamento, true, numeroParcelas, taxaNum);
+  const nParcelas = Number.isInteger(numeroParcelas) ? numeroParcelas : 2;
+  const recebimentos = _gerarRecebimentosIniciais(valorTotal, dataBase, formaPagamento,
+    !(substituirPendentes && nParcelas === 1), nParcelas, taxaNum);
+  if (dataPrimeiraParcela) {
+    recebimentos.forEach((r, i) => { r.dataPrevista = _somarDiasISO(dataPrimeiraParcela, 30 * i); });
+  }
   const batch = db.batch();
+  let removidos = 0;
+  if (substituirPendentes) {
+    const existentes = await notaRef.collection('recebimentos').get();
+    existentes.docs.forEach(d => {
+      if (d.data().uid === uid && !d.data().dataRecebimento) { batch.delete(d.ref); removidos++; }
+    });
+  }
   if (temEntrada) {
     batch.set(notaRef.collection('recebimentos').doc(), {
       uid, formaPagamento,
@@ -7184,7 +7205,7 @@ exports.gerarParcelasRecebimento = onCall({}, async (request) => {
     });
   });
   await batch.commit();
-  return { ok: true, quantidade: recebimentos.length + (temEntrada ? 1 : 0) };
+  return { ok: true, quantidade: recebimentos.length + (temEntrada ? 1 : 0), removidos };
 });
 
 exports.confirmarRecebimento = onCall({}, async (request) => {

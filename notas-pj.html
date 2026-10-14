@@ -267,6 +267,7 @@
       <p id="recebNotaResumo" class="subtitulo" style="margin-bottom:14px"></p>
       <input type="hidden" id="recebNotaId">
       <div id="listaRecebimentos" style="margin-bottom:14px;max-height:260px;overflow-y:auto"></div>
+      <button class="btn-acao-secundario" id="btnEditarFormatoReceb" style="width:100%;margin-bottom:8px;display:none">✎ Editar formato de recebimento</button>
       <button class="btn-acao-secundario" id="btnAddRecebimento" style="width:100%">+ Adicionar recebimento</button>
       <div id="formRecebimento" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
         <input type="hidden" id="recebId">
@@ -350,6 +351,10 @@
               <label for="recebTaxaTotalAuto">Taxa total (R$, opcional)</label>
               <input type="number" id="recebTaxaTotalAuto" placeholder="0" min="0" step="0.01" value="0">
             </div>
+          </div>
+          <div class="field-group" id="fgRecebDataPrimeira" style="display:none">
+            <label for="recebDataPrimeira">Data da 1ª parcela</label>
+            <input type="date" id="recebDataPrimeira">
           </div>
           <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px" id="recebParceladoHint">Gera todas as parcelas de uma vez — valor e taxa divididos igualmente (resto na última), datas escalonadas de 30 em 30 dias a partir de hoje. Cada parcela continua editável depois se a divisão real for diferente.</p>
           <div class="modal-acoes">
@@ -760,8 +765,17 @@
     }
     document.getElementById('btnFecharModalRecebimentos').addEventListener('click', () => modalRecebimentos.classList.add('hidden'));
 
+    // "Editar formato" — gate inicial (regra de deploy: feature nasce restrita
+    // ao teste). Após validar, troque por `true` pra liberar geral.
+    const EDITAR_FORMATO_RECEB_ALLOWLIST = ['flaviasch@gmail.com', 'flaschusciman@gmail.com'];
+    function podeEditarFormatoReceb() {
+      return EDITAR_FORMATO_RECEB_ALLOWLIST.includes((currentUser?.email || '').toLowerCase());
+    }
+
     function renderListaRecebimentos() {
       const el = document.getElementById('listaRecebimentos');
+      document.getElementById('btnEditarFormatoReceb').style.display =
+        podeEditarFormatoReceb() && _recebimentosCache.some(r => !r.dataRecebimento) ? '' : 'none';
       if (!_recebimentosCache.length) {
         el.innerHTML = `<p class="vazio">Nenhum recebimento lançado ainda.</p>`;
         return;
@@ -888,9 +902,45 @@
       document.getElementById('recebValorEntrada').value = '';
       document.getElementById('recebDataEntrada').value = '';
       document.getElementById('recebLabelValorTotalAuto').textContent = 'Valor total parcelado (o que o cliente pagou)';
+      _setModoEditarFormato(false);
       _atualizarModoRecebForma();
       document.getElementById('formRecebimento').style.display = '';
     }
+
+    // ── Editar formato: refaz de uma vez todos os recebimentos PENDENTES da
+    // nota (forma, nº de parcelas, taxa, 1ª data) — achado 14/10/2026, Flávia:
+    // "quero editar o formato de recebimento de uma nota sem precisar mexer
+    // parcela a parcela". Os já confirmados ficam intactos. Reaproveita o
+    // bloco parcelado do form, com 1 parcela permitida (à vista).
+    let _modoEditarFormato = false;
+    function _setModoEditarFormato(ativo) {
+      _modoEditarFormato = ativo;
+      document.getElementById('recebParcelado').closest('.checkbox-row').style.display = ativo ? 'none' : '';
+      document.getElementById('fgRecebDataPrimeira').style.display = ativo ? '' : 'none';
+      document.getElementById('recebNumParcelasAuto').min = ativo ? 1 : 2;
+      document.getElementById('btnGerarParcelas').textContent = ativo ? 'Substituir recebimentos' : 'Gerar parcelas';
+      document.getElementById('recebParceladoHint').textContent = ativo
+        ? 'Substitui todos os recebimentos ainda não confirmados desta nota pelos novos — valor e taxa divididos igualmente (resto na última), a partir da 1ª data e depois de 30 em 30 dias. Os já confirmados não mudam.'
+        : 'Gera todas as parcelas de uma vez — valor e taxa divididos igualmente (resto na última), datas escalonadas de 30 em 30 dias a partir de hoje. Cada parcela continua editável depois se a divisão real for diferente.';
+    }
+    function abrirEditarFormatoReceb() {
+      const pendentes = _recebimentosCache.filter(r => !r.dataRecebimento)
+        .sort((a, b) => (a.dataPrevista || '').localeCompare(b.dataPrevista || ''));
+      if (!pendentes.length) return;
+      abrirFormRecebimento();
+      const soma = (campo) => Math.round(pendentes.reduce((s, r) => s + (r[campo] || 0), 0) * 100) / 100;
+      const forma = pendentes[0].formaPagamento;
+      document.getElementById('recebForma').value =
+        (forma === 'credito_avista' || forma === 'credito_parcelado') ? 'credito' : (forma || 'pix');
+      document.getElementById('recebParcelado').checked = true;
+      _setModoEditarFormato(true);
+      _atualizarModoRecebForma();
+      document.getElementById('recebValorTotalAuto').value = soma('valorBruto');
+      document.getElementById('recebTaxaTotalAuto').value = soma('taxa');
+      document.getElementById('recebNumParcelasAuto').value = pendentes.length;
+      document.getElementById('recebDataPrimeira').value = pendentes[0].dataPrevista || new Date().toISOString().slice(0, 10);
+    }
+    document.getElementById('btnEditarFormatoReceb').addEventListener('click', abrirEditarFormatoReceb);
     document.getElementById('recebForma').addEventListener('change', (e) => {
       if (document.getElementById('recebId').value) return;
       document.getElementById('recebDataPrevista').value =
@@ -911,10 +961,19 @@
       const idEditando = document.getElementById('recebId').value || null;
       const formaPagamento = document.getElementById('recebForma').value;
       const valorTotal = parseFloat(document.getElementById('recebValorTotalAuto').value);
-      const numeroParcelas = parseInt(document.getElementById('recebNumParcelasAuto').value, 10) || 2;
+      const numeroParcelas = parseInt(document.getElementById('recebNumParcelasAuto').value, 10) || (_modoEditarFormato ? 1 : 2);
       const taxaTotal = parseFloat(document.getElementById('recebTaxaTotalAuto').value) || 0;
       if (isNaN(valorTotal) || valorTotal <= 0) { alert('Informe um valor total válido.'); return; }
       if (taxaTotal > valorTotal) { alert('A taxa total não pode ser maior que o valor total.'); return; }
+      if (numeroParcelas < 1 || numeroParcelas > 24) { alert('Número de parcelas deve ser entre 1 e 24.'); return; }
+      const dataPrimeira = document.getElementById('recebDataPrimeira').value;
+      if (_modoEditarFormato) {
+        if (!dataPrimeira) { alert('Informe a data da 1ª parcela.'); return; }
+        const nPend = _recebimentosCache.filter(r => !r.dataRecebimento).length;
+        const nConf = _recebimentosCache.length - nPend;
+        if (!confirm(`Os ${nPend} recebimento(s) ainda não confirmado(s) desta nota serão substituídos pelos novos.`
+          + (nConf ? ` Os ${nConf} já confirmado(s) continuam como estão.` : '') + ' Continuar?')) return;
+      }
 
       // Entrada opcional: recebida fora do escalonamento automático, com
       // valor e data próprios — não entra na divisão igual das N parcelas.
@@ -931,17 +990,18 @@
         // Editando um recebimento existente pra virar parcelado: apaga o
         // registro único antes de gerar as N parcelas, senão o valor dele
         // ficaria somado junto (achado 27/07/2026).
-        if (idEditando) await deleteRecebimento(uidAtual(), _notaRecebimentosAtual.id, idEditando);
+        if (idEditando && !_modoEditarFormato) await deleteRecebimento(uidAtual(), _notaRecebimentosAtual.id, idEditando);
         await gerarParcelasRecebimento(uidAtual(), _notaRecebimentosAtual.id, {
           formaPagamento, valorTotal, numeroParcelas, taxaTotal,
           dataBase: _notaRecebimentosAtual.dataEmissao || new Date().toISOString().slice(0, 10),
           ...(entrada ? { entradaValor: entrada.valor, entradaData: entrada.data } : {}),
+          ...(_modoEditarFormato ? { substituirPendentes: true, dataPrimeiraParcela: dataPrimeira } : {}),
         });
         await abrirModalRecebimentos(_notaRecebimentosAtual);
       } catch (err) {
         alert(msgErro(err));
       } finally {
-        btn.disabled = false; btn.textContent = 'Gerar parcelas';
+        btn.disabled = false; btn.textContent = _modoEditarFormato ? 'Substituir recebimentos' : 'Gerar parcelas';
       }
     });
 
