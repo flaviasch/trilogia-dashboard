@@ -12766,8 +12766,12 @@ exports.bulkImportLeads = onCall({}, async (request) => {
 });
 
 // ─── Sync Diagnóstico ─────────────────────────────────────────────────────────
-// Lê a planilha pública do diagnóstico, deduplica por WhatsApp e importa leads novos.
-const DIAGNOSTICO_SHEET_ID = '12Bl-tas3YMjg4EV9nAx3ZVlkA6GPfE8WRR3gccmfBGE';
+// Lê a planilha do diagnóstico, deduplica por WhatsApp e importa leads novos.
+// 15/10/2026: a planilha antiga (12Bl-tas…, pública por link) foi excluída e
+// o botão passou a dar "Erro ao ler planilha: 410". A nova não tem link
+// público (tem nome/e-mail/WhatsApp de leads, LGPD): só a Flávia e a conta
+// de serviço do dashboard (leitura) acessam, e a leitura vai pela Sheets API.
+const DIAGNOSTICO_SHEET_ID = '18S_2Ue6ml9tU4PKi4HZ5g-xnc3ZhrsPWQn33eQEdMS0';
 
 function parseCSVLine(line) {
   const result = [];
@@ -12804,14 +12808,10 @@ function mapProdutoDiagnostico(produtoIndicado) {
 
 // Lógica compartilhada de sync — usada tanto pelo onCall quanto pelo webhook HTTP.
 async function runSyncDiagnostico() {
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${DIAGNOSTICO_SHEET_ID}/export?format=csv`;
-  const resp = await fetch(csvUrl);
-  if (!resp.ok) throw new Error(`Erro ao ler planilha: ${resp.status}`);
-  const csv = await resp.text();
-
-  const lines = csv.split('\n').map(l => l.trim()).filter(Boolean);
-  if (lines.length < 2) return { ok: true, count: 0, msg: 'Planilha vazia.' };
-  const rows = lines.slice(1).map(parseCSVLine);
+  // Primeira aba, da linha 2 em diante (linha 1 é o cabeçalho).
+  const rows = (await new SheetsClient(DIAGNOSTICO_SHEET_ID).read('A2:Q'))
+    .map(r => r.map(c => String(c ?? '').trim()));
+  if (!rows.length) return { ok: true, count: 0, msg: 'Planilha vazia.' };
   // Colunas: [0]Data [1]Nome [2]Email [3]WhatsApp [4]Perfil [5]Renda [6]Investimento [7]Produto [8]Origem
 
   const existingSnap = await db.collection('leads').get();
@@ -12859,7 +12859,7 @@ async function runSyncDiagnostico() {
 }
 
 // Chamado pelo admin.html (requer autenticação Firebase admin)
-exports.syncDiagnostico = onCall({}, async (request) => {
+exports.syncDiagnostico = onCall({ secrets: [sSA] }, async (request) => {
   requireAdmin(request);
   try {
     return await runSyncDiagnostico();
@@ -12869,7 +12869,7 @@ exports.syncDiagnostico = onCall({}, async (request) => {
 });
 
 // Chamado pelo Apps Script (autenticação via chave secreta)
-exports.syncDiagnosticoWebhook = onRequest({ secrets: [sDiagSecret] }, async (req, res) => {
+exports.syncDiagnosticoWebhook = onRequest({ secrets: [sDiagSecret, sSA] }, async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') {
     res.set('Access-Control-Allow-Methods', 'POST');
