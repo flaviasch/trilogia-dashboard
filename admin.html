@@ -1172,6 +1172,27 @@
 
       <!-- ── Sub-view: Recebimentos ── -->
       <div id="subfin-recebimentos">
+        <!-- Espelho com o Dashboard PJ (15/10/2026) -->
+        <div id="espelhoCard" style="background:var(--navy);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between">
+            <div>
+              <strong style="font-size:14px">Espelho com o Dashboard PJ</strong>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Vendas daqui viram notas e recebimentos no seu PJ, e o que você confirma lá volta pra cá.</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+              <select id="espelhoModo" style="padding:6px 10px;border-radius:6px;background:var(--navy);color:inherit;border:1px solid var(--border)">
+                <option value="desligado">Desligado</option>
+                <option value="teste">Teste (só e-mails abaixo)</option>
+                <option value="ligado">Ligado (todas)</option>
+              </select>
+              <input id="espelhoEmails" type="text" placeholder="e-mail da mentorada de teste" style="padding:6px 10px;border-radius:6px;background:var(--navy);color:inherit;border:1px solid var(--border);min-width:220px">
+              <button id="espelhoSalvar" class="btn-primary" style="padding:6px 14px">Salvar</button>
+            </div>
+          </div>
+          <div id="espelhoStatus" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+          <div id="espelhoAlertas"></div>
+        </div>
+
         <!-- Seletor de mês -->
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
           <button class="btn-edit-inline" id="finMesAnterior" style="padding:6px 14px">‹</button>
@@ -2283,6 +2304,7 @@
     import { auth } from './js/firebase-config.js';
     import { getMentoradas, createMentorada, updateMentorada, bloquearMentorada, reativarMentorada, reenviarAcesso, deletarMentorada, desvincularAdmin,
              createContrato, getContratos, pagarParcela, editarPagamento, estornarPagamento, cancelarCobranca, cancelarContrato, editarContrato, getCobrancas,
+             getEspelhoFinanceiro, salvarEspelhoFinanceiro, resolverAlertaEspelho,
              criarPlanilha, getNotionCRM, getMinhaJornada, getMateriaisJornadaAdmin, salvarMaterialJornadaAdmin,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
@@ -2294,7 +2316,7 @@
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
              getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ,
-             msgErro } from './js/api.js?v=68';
+             msgErro } from './js/api.js?v=69';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -3001,7 +3023,7 @@
         const nome = tab.dataset.tab;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('ativo'));
         document.getElementById(`view-${nome}`)?.classList.add('ativo');
-        if (nome === 'financeiro')    renderFinanceiro();
+        if (nome === 'financeiro')    { renderFinanceiro(); renderEspelho(); }
         if (nome === 'clube')         renderClube();
         if (nome === 'pipeline')      renderPipeline();
         if (nome === 'pj')            renderPJTodas();
@@ -4891,6 +4913,44 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
         });
       });
     }
+
+    // ─── Espelho com o Dashboard PJ (15/10/2026) ─────
+    async function renderEspelho() {
+      const status = document.getElementById('espelhoStatus');
+      const alertasEl = document.getElementById('espelhoAlertas');
+      let dados;
+      try { dados = await getEspelhoFinanceiro(); }
+      catch (e) { status.textContent = 'Não foi possível carregar o espelho.'; return; }
+      document.getElementById('espelhoModo').value = dados.modo;
+      document.getElementById('espelhoEmails').value = (dados.emailsTeste || []).join(', ');
+      status.textContent = dados.modo === 'ligado'
+        ? `Ligado desde ${fmtData((dados.desde || '').slice(0, 10))}. Contratos e pagamentos anteriores não entram.`
+        : dados.modo === 'teste' ? 'Em teste: só as mentoradas dos e-mails informados.' : 'Desligado: nada é espelhado.';
+      alertasEl.innerHTML = (dados.alertas || []).map(a => `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;border:1px solid rgba(229,115,115,.35);border-radius:8px;background:rgba(229,115,115,.06)">
+          <div style="font-size:13px">
+            <strong>NF de ${esc(a.clienteNome)}</strong> · ${esc(PRODUTO_LABEL[a.produto] || a.produto)} · ${brl(a.valor)} · emitida em ${fmtData(a.dataEmissao)}
+            <div style="color:var(--text-muted);margin-top:2px">${esc(a.texto)}</div>
+          </div>
+          <button class="btn-edit-inline" data-espelho-resolver="${esc(a.notaId)}" data-codigo="${esc(a.codigo)}" style="white-space:nowrap">Já resolvi</button>
+        </div>`).join('');
+      alertasEl.querySelectorAll('[data-espelho-resolver]').forEach(b => b.addEventListener('click', async () => {
+        b.disabled = true;
+        try { await resolverAlertaEspelho(b.dataset.espelhoResolver, b.dataset.codigo); renderEspelho(); }
+        catch (err) { alert(msgErro(err)); b.disabled = false; }
+      }));
+    }
+
+    document.getElementById('espelhoSalvar').addEventListener('click', async () => {
+      const modo = document.getElementById('espelhoModo').value;
+      const emails = document.getElementById('espelhoEmails').value.split(/[,;\s]+/).filter(Boolean);
+      if (modo === 'ligado' && !confirm('Ligar o espelho para todas as mentoradas? Toda venda nova passa a gerar nota no seu Dashboard PJ (e entra nos impostos previstos).')) return;
+      const btn = document.getElementById('espelhoSalvar');
+      btn.disabled = true;
+      try { await salvarEspelhoFinanceiro(modo, emails); await renderEspelho(); }
+      catch (err) { alert(msgErro(err)); }
+      finally { btn.disabled = false; }
+    });
 
     document.getElementById('finMesAnterior').addEventListener('click', () => {
       finMesAtual--;

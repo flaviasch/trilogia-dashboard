@@ -6,6 +6,7 @@ const errors = new ErrorReporting({ projectId: 'trilogia-dashboard', reportUnhan
 const { setGlobalOptions }   = require('firebase-functions/v2');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule }         = require('firebase-functions/v2/scheduler');
+const { onDocumentWritten }  = require('firebase-functions/v2/firestore');
 const { defineSecret }       = require('firebase-functions/params');
 
 // Todas as funções deployam em São Paulo (menor latência para usuárias brasileiras)
@@ -5302,6 +5303,17 @@ exports.pagarParcela = onCall({}, async (request) => {
   const cob = cobSnap.data();
   if (cob.pago) throw new HttpsError('failed-precondition', 'Esta cobrança já foi paga.');
 
+  await _aplicarPagamentoCobranca(cobRef, cob, dataPagamento, valorRecebido);
+  return { ok: true };
+});
+
+/**
+ * Efeitos de registrar o pagamento de uma cobrança: marca paga, libera
+ * acesso (clube/dashboard), gera a próxima recorrente e quita contrato
+ * parcelado. Compartilhado entre pagarParcela e o Espelho Financeiro (quando
+ * a Flávia confirma o recebimento no Dashboard PJ).
+ */
+async function _aplicarPagamentoCobranca(cobRef, cob, dataPagamento, valorRecebido) {
   await cobRef.update({ pago: true, dataPagamento, valorRecebido });
 
   // Ativa flags de acesso conforme produto pago (espelha lógica do kiwifyWebhook)
@@ -5356,9 +5368,7 @@ exports.pagarParcela = onCall({}, async (request) => {
         .update({ status: 'quitado' });
     }
   }
-
-  return { ok: true };
-});
+}
 
 /**
  * Edita data e valor de um pagamento já registrado.
@@ -7050,6 +7060,9 @@ exports.deleteNotaEmitida = onCall({}, async (request) => {
   // Firestore não apaga subcoleção junto do documento pai — limpa os
   // recebimentos manualmente antes de excluir a nota.
   const recebSnap = await ref.collection('recebimentos').get();
+  // Nota espelhada do admin: tira o vínculo antes, senão apagar os
+  // recebimentos cancelaria as cobranças das alunas (Espelho Financeiro).
+  await espelhoFinanceiro.desvincularNota(id, snap.data(), recebSnap.docs.map(d => d.data()));
   if (!recebSnap.empty) {
     const batchDel = db.batch();
     recebSnap.docs.forEach(d => batchDel.delete(d.ref));
@@ -7260,6 +7273,77 @@ exports.deleteRecebimento = onCall({}, async (request) => {
   if (!snap.exists) throw new HttpsError('not-found', 'Recebimento não encontrado.');
   if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
   await ref.delete();
+  return { ok: true };
+});
+
+// ─── Espelho Financeiro: admin ↔ Dashboard PJ da Flávia (15/10/2026) ─────────
+// Regras e mecanismo em lib/espelho-financeiro.js. Gatilhos em us-central1
+// porque o Firestore do projeto é nam5 (gatilho precisa estar na região do
+// banco); as callables seguem em southamerica-east1 como o resto.
+const espelhoFinanceiro = require('./lib/espelho-financeiro').criarEspelho({
+  db,
+  FieldValue: admin.firestore.FieldValue,
+  aplicarPagamento: (...args) => _aplicarPagamentoCobranca(...args),
+  regerarImpostos: (...args) => _regerarImpostosPrevistos(...args),
+});
+
+exports.espelhoCobranca = onDocumentWritten({ document: 'cobrancas/{cobId}', region: 'us-central1' }, async (event) => {
+  const antes  = event.data.before.exists ? event.data.before.data() : null;
+  const depois = event.data.after.exists  ? event.data.after.data()  : null;
+  const r = await espelhoFinanceiro.aoMudarCobranca(event.params.cobId, antes, depois);
+  if (!['desligado', 'fora', 'igual', 'optout'].includes(r)) console.log(`[espelho] cobranca ${event.params.cobId}: ${r}`);
+});
+
+exports.espelhoRecebimento = onDocumentWritten({ document: 'notasEmitidas/{notaId}/recebimentos/{recId}', region: 'us-central1' }, async (event) => {
+  const antes  = event.data.before.exists ? event.data.before.data() : null;
+  const depois = event.data.after.exists  ? event.data.after.data()  : null;
+  const r = await espelhoFinanceiro.aoMudarRecebimento(event.params.notaId, event.params.recId, antes, depois);
+  if (!['desligado', 'fora', 'igual', 'optout', 'sem-gemeo'].includes(r)) console.log(`[espelho] recebimento ${event.params.recId}: ${r}`);
+});
+
+/** Estado do espelho (modo + e-mails de teste) e notas que pedem ação na NF. */
+exports.getEspelhoFinanceiro = onCall({}, async (request) => {
+  requireAdmin(request);
+  const config = (await espelhoFinanceiro.lerConfig()) || { modo: 'desligado' };
+  const alertas = await espelhoFinanceiro.listarAlertas();
+  return { modo: config.modo || 'desligado', emailsTeste: config.emailsTeste || [], desde: config.desde || null, alertas };
+});
+
+/**
+ * Liga/desliga o espelho. 'teste' espelha só as mentoradas dos e-mails de
+ * teste; 'ligado' espelha todas. Só entra o que nascer depois de ligar.
+ */
+exports.salvarEspelhoFinanceiro = onCall({}, async (request) => {
+  requireAdmin(request);
+  if (request.auth?.token?.email !== ADMIN_MASTER_EMAIL) throw new HttpsError('permission-denied', 'Só a conta master liga o espelho.');
+  const { modo, emailsTeste } = request.data;
+  if (!['desligado', 'teste', 'ligado'].includes(modo)) throw new HttpsError('invalid-argument', 'modo inválido.');
+  const emails = (Array.isArray(emailsTeste) ? emailsTeste : [])
+    .map(e => String(e || '').trim().toLowerCase()).filter(Boolean).slice(0, 10);
+  if (modo === 'teste' && !emails.length) throw new HttpsError('invalid-argument', 'Informe ao menos um e-mail de mentorada de teste.');
+  const uidsTeste = [];
+  for (const email of emails) {
+    const s = await db.collection('mentoradas').where('email', '==', email).limit(1).get();
+    if (s.empty) throw new HttpsError('not-found', `Nenhuma mentorada com o e-mail ${email}.`);
+    uidsTeste.push(s.docs[0].id);
+  }
+  const ref = db.collection('config').doc('espelhoFinanceiro');
+  const atual = (await ref.get()).data() || {};
+  const agora = new Date().toISOString();
+  const uidPJ = (await admin.auth().getUserByEmail(ADMIN_EMAIL)).uid;
+  const novo = { modo, emailsTeste: emails, uidsTeste, uidPJ, atualizadoEm: agora };
+  // "desde" marca o corte: o que nasceu antes de ligar não entra no espelho.
+  if (modo === 'ligado' && atual.modo !== 'ligado') novo.desde = agora;
+  if (modo !== 'desligado' && (!atual.desdeTeste || !atual.modo || atual.modo === 'desligado')) novo.desdeTeste = agora;
+  await ref.set(novo, { merge: true });
+  return { ok: true };
+});
+
+exports.resolverAlertaEspelho = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { notaId, codigo } = request.data;
+  if (!notaId || !codigo) throw new HttpsError('invalid-argument', 'notaId e codigo obrigatórios.');
+  await espelhoFinanceiro.resolverAlerta(notaId, String(codigo));
   return { ok: true };
 });
 
@@ -10183,6 +10267,7 @@ exports.getRecebimentosPendentesPJ = onCall({}, async (request) => {
       dataPrevista: r.dataPrevista,
       parcelaAtual: r.parcelaAtual || null,
       parcelaTotal: r.parcelaTotal || null,
+      clienteNome: r.clienteNome || null,
       vencido: !!r.dataPrevista && r.dataPrevista < hoje,
     });
   });

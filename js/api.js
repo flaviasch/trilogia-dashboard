@@ -722,6 +722,20 @@ export async function getCobrancas(mes, ano, uid) {
   return adminCall('getCobrancas')({ mes, ano, uid: uid || null });
 }
 
+// Espelho Financeiro admin ↔ Dashboard PJ (15/10/2026): liga/desliga e
+// alertas de NF a cancelar/substituir.
+export async function getEspelhoFinanceiro() {
+  return adminCall('getEspelhoFinanceiro')({});
+}
+
+export async function salvarEspelhoFinanceiro(modo, emailsTeste) {
+  return adminCall('salvarEspelhoFinanceiro')({ modo, emailsTeste });
+}
+
+export async function resolverAlertaEspelho(notaId, codigo) {
+  return adminCall('resolverAlertaEspelho')({ notaId, codigo });
+}
+
 // ─── Impostos previstos (provisionamento a partir de notas emitidas) ─────────
 
 // Retrofit 24/07/2026 (auditoria de segurança): as 3 coleções por trás

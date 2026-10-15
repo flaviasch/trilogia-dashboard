@@ -630,6 +630,8 @@
       document.getElementById('modalOnboardingInfoPJ').classList.add('hidden');
     });
 
+    function escPJ(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
     async function renderNotas() {
       document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
       try { _notasCache = await getNotasEmitidas(uidAtual(), mesAtual, anoAtual); }
@@ -646,7 +648,7 @@
       }
       el.innerHTML = _notasCache.map(n => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:13px;color:var(--text-muted)">Emitida em ${fmtData(n.dataEmissao)}</span>
+          <span style="font-size:13px;color:var(--text-muted)">Emitida em ${fmtData(n.dataEmissao)}${n.clienteNome ? ` · <strong style="font-weight:500">${escPJ(n.clienteNome)}</strong>` : ''}${n.origem === 'espelho-admin' ? ' <span title="Criada pelo espelho com o admin" style="font-size:11px">🔗</span>' : ''}</span>
           <div style="display:flex;align-items:center;gap:10px">
             <strong style="font-size:14px">${brl(n.valor)}</strong>
             <button data-nota-recebimentos="${n.id}" title="Recebimentos" style="background:none;border:1px solid rgba(207,174,101,.3);color:var(--gold);cursor:pointer;font-size:11px;padding:3px 8px;border-radius:4px">💰 Recebimentos</button>

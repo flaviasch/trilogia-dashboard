@@ -338,6 +338,8 @@
 
     let _pendentesCache = [];
 
+    function escPJ(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
     async function renderPendentes() {
       document.getElementById('mesLabel').textContent = `${MESES_NOME[mesAtual - 1]} ${anoAtual}`;
 
@@ -359,7 +361,7 @@
       document.getElementById('pendentesVazio').style.display = 'none';
       tbody.innerHTML = dados.pendentes.map(r => `
         <tr>
-          <td class="td-fin">${FORMA_LABEL[r.formaPagamento] || r.formaPagamento}</td>
+          <td class="td-fin">${FORMA_LABEL[r.formaPagamento] || r.formaPagamento}${r.clienteNome ? `<div style="font-size:11px;color:var(--text-muted)">${escPJ(r.clienteNome)}</div>` : ''}</td>
           <td class="td-fin">${r.parcelaTotal ? `${r.parcelaAtual}/${r.parcelaTotal}` : '—'}</td>
           <td class="td-fin">${fmtData(r.dataPrevista)}</td>
           <td class="td-fin">${r.vencido ? '<span class="badge-vencido">Vencido</span>' : '<span class="badge-avencer">A vencer</span>'}</td>
