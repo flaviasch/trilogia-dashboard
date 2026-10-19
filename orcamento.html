@@ -8122,6 +8122,13 @@
       }
     }
 
+    // App (PWA) volta do segundo plano: refaz o gráfico se a última carga
+    // teve falha ou tem mais de 10 minutos.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible' || !historicoAtual) return;
+      if (_historicoTemErro || Date.now() - _historicoCarregadoEm > 10 * 60 * 1000) refreshGrafico();
+    });
+
     // Atualiza o gráfico em memória (sem re-fetch) — fallback rápido
     function atualizarGraficoAporte() {
       if (!historicoAtual) return;
@@ -8137,21 +8144,49 @@
       renderGrafico(historicoAtual);
     }
 
+    // Achado 19/10/2026, Flávia (app no celular): o gráfico apareceu só com
+    // "Out" e realizado R$0, enquanto o card do mês mostrava R$341 aportados.
+    // As buscas do histórico falharam naquele carregamento e buscarPeriodo
+    // devolve listas vazias em caso de erro — o gráfico tratava isso como
+    // "mês sem dados" e escondia tudo. Agora: (1) falha é marcada (_erro) e
+    // tentada de novo; (2) o mês em tela usa o mesmo dado do card, sem
+    // depender da rede; (3) ao voltar o app pro primeiro plano, re-busca se
+    // a última carga falhou ou ficou velha.
+    let _historicoTemErro = false;
+    let _historicoCarregadoEm = 0;
+
+    async function _buscarMesHistorico(m, ano) {
+      const agora = new Date();
+      if (currentData?.periodo?.mes === m && currentData?.periodo?.ano === ano
+          && m === agora.getMonth() + 1 && ano === agora.getFullYear()) {
+        return currentData;
+      }
+      let data = await buscarPeriodo(m, ano, false).catch(() => ({ _erro: true }));
+      if (data._erro) {
+        await new Promise(r => setTimeout(r, 1500));
+        data = await buscarPeriodo(m, ano, false).catch(() => ({ _erro: true }));
+      }
+      return data;
+    }
+
     async function carregarHistoricoAnual(ano) {
       const mesAtual = new Date().getMonth() + 1;
       const promises = [];
       for (let m = 1; m <= mesAtual; m++) {
         promises.push(
-          buscarPeriodo(m, ano, false)
+          _buscarMesHistorico(m, ano)
             .then(data => {
-              const totalAp = data.aportes.reduce((s, a) => s + a.valor, 0);
-              const temDados = data.receitas.length > 0 || data.despesas.length > 0 || totalAp > 0;
+              if (data._erro) return { mes: m, valor: 0, temDados: false, erro: true };
+              const totalAp = (data.aportes || []).reduce((s, a) => s + a.valor, 0);
+              const temDados = (data.receitas || []).length > 0 || (data.despesas || []).length > 0 || totalAp > 0;
               return { mes: m, valor: totalAp, temDados };
             })
-            .catch(() => ({ mes: m, valor: 0, temDados: false }))
         );
       }
-      return Promise.all(promises);
+      const historico = await Promise.all(promises);
+      _historicoTemErro = historico.some(h => h.erro);
+      _historicoCarregadoEm = Date.now();
+      return historico;
     }
 
     function renderGrafico(historico) {
@@ -8346,7 +8381,7 @@
         return data;
       } catch (err) {
         toast(msgErro(err), 'error');
-        return { periodo: { mes, ano }, receitas: [], despesas: [], aportes: [], transferencias: [] };
+        return { periodo: { mes, ano }, receitas: [], despesas: [], aportes: [], transferencias: [], _erro: true };
       }
     }
 
