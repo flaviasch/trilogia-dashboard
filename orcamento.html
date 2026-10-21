@@ -350,6 +350,16 @@
     .pendencia-value.positive { color: var(--positive); }
     .pendencia-value.negative { color: var(--negative); }
     .pendencia-value.gold { color: var(--gold); }
+    .orcmes-card { margin-bottom: 12px; }
+    .orcmes-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .orcmes-titulo { font-size: 16px; font-weight: 600; color: var(--white); }
+    .orcmes-valores { font-size: 15px; color: var(--text-secondary); }
+    .orcmes-valores strong { color: var(--white); font-weight: 700; }
+    .orcmes-track { position: relative; height: 10px; border-radius: 999px; background: rgba(var(--rgb-fg),0.08); }
+    .orcmes-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+    .orcmes-hoje { position: absolute; top: -4px; bottom: -4px; width: 2px; border-radius: 1px; background: var(--text-secondary); transform: translateX(-1px); }
+    .orcmes-rodape { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--text-muted); }
+    .orcmes-rodape .orcmes-msg { font-weight: 600; }
     #projecaoLista { padding: 4px 16px 0; }
     .projecao-row {
       display: flex;
@@ -1625,6 +1635,10 @@
         </div>
       </div>
     </div>
+
+    <!-- Orçamento do mês (barra de progresso, sempre aberta — fica acima do
+         Saldo Projetado pra não ser empurrada quando ele expande) -->
+    <div class="pendencia-card orcmes-card" id="orcamentoMesSection" style="display:none;" title="Abrir o Planejamento do mês"></div>
 
     <!-- Saldo Projetado (colapsável) -->
     <div class="section" id="projecaoSection" style="display:none;margin-top:12px">
@@ -5284,6 +5298,7 @@
       document.getElementById('btnAddDespesa').addEventListener('click', () => abrirModal('despesa'));
 
       renderFaturas(data);
+      renderBarraOrcamento(data);
 
       // Re-renderiza abas abertas
       if (_tabAtiva === 'planejamento') renderPlanejamento(data, categoriasMes);
@@ -6525,14 +6540,90 @@
       document.getElementById('btnAddDespesa')?.addEventListener('click', () => abrirModal('despesa'));
     }
 
-    // ─── Aba Planejamento ─────────────────────────────────────────────────────
-    function renderPlanejamento(data, cats) {
-      const el = document.getElementById('planejamentoContent');
+    // ─── Barra "Orçamento do mês" (acima do Saldo Projetado) ─────────────────
+    // Gasto comprometido do mês × total planejado (renda × %, ou soma dos
+    // limites quando renda/% não foram definidos) — mesmos números da linha
+    // de total da aba Planejamento.
+    // Gate inicial (regra de deploy: feature nasce restrita ao teste). Após
+    // validar, troque por `true` pra liberar geral.
+    const BARRA_ORCAMENTO_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    function podeVerBarraOrcamento() {
+      return BARRA_ORCAMENTO_ALLOWLIST.includes((auth.currentUser?.email || '').toLowerCase());
+    }
+    function renderBarraOrcamento(data) {
+      const el = document.getElementById('orcamentoMesSection');
       if (!el) return;
+      if (!data?.periodo || !podeVerBarraOrcamento()) { el.style.display = 'none'; return; }
+      const cats = categoriasMes || [];
+      const totalReal = Object.values(agruparGastoPlanejamento(data)).reduce((s, g) => s + g.total, 0);
+      const naoPlan = calcularNaoPlanejado({
+        renda: planejamentoMeta.renda,
+        percentual: planejamentoMeta.percentual,
+        categorias: cats,
+      });
+      const totalPlan = naoPlan.totalPlanejado != null
+        ? naoPlan.totalPlanejado
+        : cats.reduce((s, c) => s + (c.limite || 0), 0);
+      el.style.display = '';
 
+      if (!(totalPlan > 0)) {
+        el.innerHTML = `
+          <div class="orcmes-topo" style="margin-bottom:6px">
+            <span class="orcmes-titulo">Orçamento do mês</span>
+            <span class="orcmes-valores">Gasto até agora: <strong>${brl(totalReal)}</strong></span>
+          </div>
+          <div class="orcmes-rodape" style="margin-top:0">
+            <span style="color:var(--gold)">Defina seu planejamento do mês →</span>
+          </div>`;
+        return;
+      }
+
+      const pct = totalReal / totalPlan * 100;
+      const cor = pct > 100 ? 'var(--negative)' : pct > 80 ? '#f59e0b' : 'var(--positive)';
+      const restante = totalPlan - totalReal;
+      const msg = restante >= 0
+        ? `Ainda pode gastar ${brl(restante)}`
+        : `Passou ${brl(-restante)} do planejado`;
+
+      // Marcador de "onde deveria estar hoje" — só faz sentido no mês vigente.
       const { mes, ano } = data.periodo;
-      const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
+      const hoje = new Date();
+      let marcadorHTML = '', ritmoHTML = '';
+      if (hoje.getFullYear() === ano && hoje.getMonth() + 1 === mes) {
+        const diasNoMes = new Date(ano, mes, 0).getDate();
+        const ritmoPct = hoje.getDate() / diasNoMes * 100;
+        marcadorHTML = `<div class="orcmes-hoje" style="left:${ritmoPct.toFixed(1)}%" title="Hoje: dia ${hoje.getDate()} de ${diasNoMes}"></div>`;
+        ritmoHTML = `<span>${Math.round(pct)}% usado · dia ${hoje.getDate()} de ${diasNoMes} (${Math.round(ritmoPct)}% do mês)</span>`;
+      } else {
+        ritmoHTML = `<span>${Math.round(pct)}% usado</span>`;
+      }
 
+      el.innerHTML = `
+        <div class="orcmes-topo">
+          <span class="orcmes-titulo">Orçamento do mês</span>
+          <span class="orcmes-valores"><strong>${brl(totalReal)}</strong> / ${brl(totalPlan)}</span>
+        </div>
+        <div class="orcmes-track">
+          <div class="orcmes-fill" style="width:${Math.min(pct, 100).toFixed(1)}%;background:${cor}"></div>
+          ${marcadorHTML}
+        </div>
+        <div class="orcmes-rodape">
+          <span class="orcmes-msg" style="color:${cor}">${msg}</span>
+          ${ritmoHTML}
+        </div>`;
+    }
+    document.getElementById('orcamentoMesSection')?.addEventListener('click', () => {
+      document.getElementById('tabBtnPlanejamento')?.click();
+      document.querySelector('.tabs-bar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // ─── Aba Planejamento ─────────────────────────────────────────────────────
+    // Gasto comprometido do mês agrupado por categoria normalizada — mesma
+    // conta da aba Planejamento, extraída pra barra "Orçamento do mês" no
+    // topo (renderBarraOrcamento) usar exatamente o mesmo número, sem duplicar.
+    // Depende de _diffNaoIdentificadoMes/_ehFuturoAtual, preenchidos no render().
+    function agruparGastoPlanejamento(data) {
+      const { mes, ano } = data.periodo;
       // Planejamento acompanha gasto comprometido por categoria: efetivado +
       // pendente + fatura fechada aguardando pagamento. Compra na fatura
       // ABERTA (ciclo em curso, ainda não fechou) NÃO conta no mês da
@@ -6603,6 +6694,17 @@
       if (temAjuste) {
         gruposPorNorm[normCat(CATEGORIA_AJUSTE)] = { total: _valorAjustePlanejamento, labels: { [CATEGORIA_AJUSTE]: 1 } };
       }
+      return gruposPorNorm;
+    }
+
+    function renderPlanejamento(data, cats) {
+      const el = document.getElementById('planejamentoContent');
+      if (!el) return;
+
+      const { mes, ano } = data.periodo;
+      const totalReceita = data.receitas.reduce((s, r) => s + r.valor, 0);
+
+      const gruposPorNorm = agruparGastoPlanejamento(data);
 
       // Inclui categorias com limite definido OU só vinculadas a uma
       // categoria-mãe (sem limite) que ainda não têm despesa neste mês —
@@ -7065,6 +7167,7 @@
         _invalPeriodo(mes, ano);
         categoriasMes = mesclado;
         renderPlanejamento(currentData, categoriasMes);
+        renderBarraOrcamento(currentData);
         toast(adicionadas > 0
           ? `${adicionadas} categoria${adicionadas > 1 ? 's' : ''} de ${nomeMesCurto(mesPrev, anoPrev)} adicionada${adicionadas > 1 ? 's' : ''} — as que você já tinha em ${nomeMesCurto(mes, ano)} foram mantidas.`
           : `Você já tem todas as categorias de ${nomeMesCurto(mesPrev, anoPrev)} — nada novo pra adicionar.`, 'success', 6000);
@@ -7891,6 +7994,7 @@
         await savePlanejamentoMeta(mes, ano, renda, percentual);
         _invalPeriodo(mes, ano);
         planejamentoMeta = { renda, percentual };
+        renderBarraOrcamento(currentData);
         if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
         toast(`Planejado: ${brl(renda * percentual / 100)} (${percentual}% de ${brl(renda)}).`, 'success');
       } catch (err) {
@@ -9092,6 +9196,7 @@
           if (m.mes === currentData.periodo.mes && ano === currentData.periodo.ano) {
             categoriasMes = mesclado;
             planejamentoMeta = { renda: m.rendaPrevisto || null, percentual: null };
+            renderBarraOrcamento(currentData);
             if (_tabAtiva === 'planejamento') renderPlanejamento(currentData, categoriasMes);
           }
         }
