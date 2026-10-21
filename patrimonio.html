@@ -2388,6 +2388,7 @@
 
       const btnSaveDivida = document.getElementById('btnSaveDivida');
       setLoading(btnSaveDivida, true);
+      let dividaNovaSalva = false;
       try {
         if (editandoDividaId) {
           const idx = dividas.findIndex(d => d.id === editandoDividaId);
@@ -2416,6 +2417,7 @@
           };
           dividas.push(nova);
           await saveDivida(nova);
+          dividaNovaSalva = true;
         }
         toast('Dívida salva!', 'success');
         if (!editandoDividaId) registrarEvento('divida_cadastrada');
@@ -2430,7 +2432,13 @@
       // aqui) — mesma função que deletarDivida já usa, evita a tela mostrar
       // números parcialmente desatualizados.
       render(ativos, dividas);
-      // Sem snapshot aqui de propósito — mesmo critério da edição manual de ativo.
+      // Edição de valor de dívida existente segue sem snapshot (mesmo critério
+      // da edição manual de ativo). Cadastro de dívida NOVA reagenda, como a
+      // exclusão: é mudança de estrutura, não ajuste pontual. Sem isso, quem
+      // importa os ativos e depois cadastra as dívidas à mão fica com o mês
+      // gravado com dívidas = 0, e o gráfico de evolução mostra o total de
+      // ativos no lugar do PL (achado 19/10/2026, Isabella).
+      if (dividaNovaSalva) agendarSnapshotHistorico();
 
       fecharModalDivida();
     });
