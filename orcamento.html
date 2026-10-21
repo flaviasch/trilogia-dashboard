@@ -6544,11 +6544,9 @@
     // Gasto comprometido do mês × total planejado (renda × %, ou soma dos
     // limites quando renda/% não foram definidos) — mesmos números da linha
     // de total da aba Planejamento.
-    // Gate inicial (regra de deploy: feature nasce restrita ao teste). Após
-    // validar, troque por `true` pra liberar geral.
-    const BARRA_ORCAMENTO_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    // Liberado pra todas em 21/10/2026 (estava restrito ao teste).
     function podeVerBarraOrcamento() {
-      return BARRA_ORCAMENTO_ALLOWLIST.includes((auth.currentUser?.email || '').toLowerCase());
+      return true;
     }
     function renderBarraOrcamento(data) {
       const el = document.getElementById('orcamentoMesSection');

@@ -767,11 +767,9 @@
     }
     document.getElementById('btnFecharModalRecebimentos').addEventListener('click', () => modalRecebimentos.classList.add('hidden'));
 
-    // "Editar formato" — gate inicial (regra de deploy: feature nasce restrita
-    // ao teste). Após validar, troque por `true` pra liberar geral.
-    const EDITAR_FORMATO_RECEB_ALLOWLIST = ['flaviasch@gmail.com', 'flaschusciman@gmail.com'];
+    // "Editar formato" — liberado pra todas em 21/10/2026 (estava restrito ao teste).
     function podeEditarFormatoReceb() {
-      return EDITAR_FORMATO_RECEB_ALLOWLIST.includes((currentUser?.email || '').toLowerCase());
+      return true;
     }
 
     function renderListaRecebimentos() {
