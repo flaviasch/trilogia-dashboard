@@ -2148,6 +2148,25 @@ async function init(user) {
         });
       }
 
+      // ⓪-n Novidades de Outubro (17/09 a 21/10/2026) — destaques do PF e o
+      // que vale pros dois; os do PJ ganham banner próprio em notas-pj.html.
+      if (!localStorage.getItem('notif_novidades_out2026')) {
+        notifs.unshift({ id: 'novidades-out2026', type: 'novidades', key: 'notif_novidades_out2026', icon: '🍂', _expansivel: true,
+          titulo: 'Outubro chegou com o Dashboard mais preciso',
+          desc: 'Barra do Orçamento do mês, despesa fixa direto na compra do cartão, edição das fixas no Saldo Projetado, faturas mais certinhas e conciliação de reservas com você no controle.',
+          cta: { label: 'Ver as novidades', href: 'orcamento.html' },
+          itens: [
+            { emoji: '🎯', titulo: 'Barra do Orçamento do mês', desc: 'No topo do Orçamento: quanto do planejamento você já usou, quanto ainda pode gastar e um marcador do dia de hoje pra ver se está no ritmo. Um toque abre o Planejamento.' },
+            { emoji: '💳', titulo: 'Despesa fixa na compra do cartão', desc: 'Ao lançar uma compra no cartão, marque "Despesa fixa" e ela já vira recorrente nos próximos meses.' },
+            { emoji: '✏️', titulo: 'Editar fixas no Saldo Projetado', desc: 'Receitas e despesas fixas previstas ganharam botão de editar ali mesmo.' },
+            { emoji: '🧾', titulo: 'Faturas mais certinhas', desc: 'O ajuste de fatura guarda só a diferença, então compras lançadas depois continuam somando. A fatura aberta não conta mais fixa só prevista, e reabrir depois de ajustar voltou a funcionar.' },
+            { emoji: '⚖️', titulo: 'Patrimônio com você no controle', desc: 'Diferença acima de R$ 10 entre ativos e reservas vai pra você decidir, e dívida nova já entra na evolução do patrimônio.' },
+            { emoji: '⏳', titulo: 'Sem número piscando', desc: 'Tela inicial e Orçamento só mostram os valores quando o cálculo completo termina.' },
+            { emoji: '🛡️', titulo: 'Segurança reforçada', desc: 'Auditoria completa de segurança, com mais proteção da sua conta e dos seus dados.' },
+          ],
+        });
+      }
+
       // ① Perfil de investidor — ausente ou > 180 dias sem atualizar
       const perfilKey = `notif_perfil_${mesKey}`;
       if (!localStorage.getItem(perfilKey)) {

@@ -103,6 +103,14 @@
 
     .venc-banner { align-items: center; gap: 12px; background: rgba(248,113,113,.10); border-bottom: 1px solid rgba(248,113,113,.3); padding: 10px 24px; font-size: 13px; color: #f87171; }
     .venc-banner.hidden { display: none; }
+    .novidades-pj { position: relative; background: rgba(207,174,101,0.08); border: 1px solid rgba(207,174,101,0.35); border-radius: 12px; padding: 16px 44px 16px 18px; margin-bottom: 24px; }
+    .novidades-pj-titulo { font-size: 14px; font-weight: 700; color: var(--gold); margin-bottom: 4px; }
+    .novidades-pj-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+    .novidades-pj ul { margin: 10px 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .novidades-pj li { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+    .novidades-pj li strong { color: var(--white); }
+    .novidades-pj-toggle { background: none; border: none; color: var(--gold); font-size: 12px; font-weight: 600; cursor: pointer; padding: 0; margin-top: 8px; font-family: inherit; }
+    .novidades-pj-fechar { position: absolute; top: 10px; right: 12px; background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; line-height: 1; }
     .venc-banner:not(.hidden) { display: flex; }
     .venc-banner button { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; margin-left: auto; }
   </style>
@@ -151,6 +159,22 @@
   <div class="venc-banner hidden" id="vencBanner"></div>
 
   <main>
+    <!-- Novidades de Outubro/2026 (comunicado) — some de vez ao fechar. -->
+    <div class="novidades-pj hidden" id="novidadesPJ">
+      <button class="novidades-pj-fechar" id="btnFecharNovidadesPJ" title="Fechar">×</button>
+      <div class="novidades-pj-titulo">🏢 Novidades no seu Dashboard PJ</div>
+      <div class="novidades-pj-desc">Edite o formato de recebimento da nota de uma vez, gere parcelas com entrada, confirme contas a vencer no mês e veja as Reservas PJ pela média de 6 meses.</div>
+      <ul class="hidden" id="novidadesPJLista">
+        <li>📝 <strong>Editar formato de recebimento:</strong> no modal de Recebimentos, troque forma, parcelas, taxa e data da 1ª parcela de todos os pendentes da nota num passo só. Os já confirmados ficam como estão.</li>
+        <li>🧮 <strong>Parcelas com entrada:</strong> ao gerar as parcelas de uma nota, informe uma entrada com valor e data próprios, e o restante é dividido nas parcelas seguintes.</li>
+        <li>✅ <strong>Contas a vencer no mês:</strong> fixas e parceladas que vencem mais pra frente no mês já aparecem como "A vencer", com botão Confirmar.</li>
+        <li>🏦 <strong>Reservas PJ mais estáveis:</strong> capital de giro e retirada sugerida usam a média dos últimos 6 meses.</li>
+        <li>🔓 <strong>Reabrir fatura depois de ajustar:</strong> um ajuste de fatura não trava mais a reabertura do cartão.</li>
+        <li>🛡️ <strong>Segurança reforçada:</strong> auditoria completa de segurança, com mais proteção da sua conta e dos seus dados.</li>
+      </ul>
+      <button class="novidades-pj-toggle" id="btnVerNovidadesPJ">Ver detalhes ▾</button>
+    </div>
+
     <!-- Checklist de primeiros passos: aparece cheio quando nada foi feito
          ainda, vira card compacto enquanto o setup não está completo, e some
          de vez quando os 4 passos de configuração (tag "setup") terminam. -->
@@ -766,6 +790,26 @@
       modalRecebimentos.classList.remove('hidden');
     }
     document.getElementById('btnFecharModalRecebimentos').addEventListener('click', () => modalRecebimentos.classList.add('hidden'));
+
+    // Banner de novidades Out/2026 — aparece até ela fechar (fica salvo no navegador).
+    const NOVIDADES_PJ_KEY = 'notif_novidades_pj_out2026';
+    (() => {
+      let visto = false;
+      try { visto = localStorage.getItem(NOVIDADES_PJ_KEY) === '1'; } catch (_) {}
+      const box = document.getElementById('novidadesPJ');
+      if (!box || visto) return;
+      box.classList.remove('hidden');
+      document.getElementById('btnVerNovidadesPJ').addEventListener('click', (e) => {
+        const lista = document.getElementById('novidadesPJLista');
+        const abrir = lista.classList.contains('hidden');
+        lista.classList.toggle('hidden', !abrir);
+        e.currentTarget.textContent = abrir ? 'Ocultar detalhes ▴' : 'Ver detalhes ▾';
+      });
+      document.getElementById('btnFecharNovidadesPJ').addEventListener('click', () => {
+        box.classList.add('hidden');
+        try { localStorage.setItem(NOVIDADES_PJ_KEY, '1'); } catch (_) {}
+      });
+    })();
 
     // "Editar formato" — liberado pra todas em 21/10/2026 (estava restrito ao teste).
     function podeEditarFormatoReceb() {

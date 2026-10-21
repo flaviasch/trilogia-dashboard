@@ -1653,6 +1653,74 @@ function emailModoClaroAporteAgo2026(nome) {
   `);
 }
 
+/**
+ * E-mail: tudo que melhorou de 17/09 a 21/10/2026, separado em Dashboard
+ * Pessoal (PF), Dashboard PJ e o que vale pros dois. Só pra ativas.
+ */
+function emailNovidadesOut2026(nome) {
+  const primeiroNome = (nome || 'você').split(' ')[0];
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  const secao = (titulo) =>
+    `<tr><td style="padding:18px 0 6px;">
+      <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Outubro chegou com o Dashboard mais preciso e mais rápido</h2>
+    <p style="${S.p}">Olá, ${primeiroNome}!</p>
+    <p style="${S.p}">
+      Desde o último comunicado, seguimos ajustando o Dashboard a partir do uso real de vocês.
+      Separei os destaques do Dashboard Pessoal e do Dashboard PJ:
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('👤 Dashboard Pessoal (PF) · Orçamento e cartões')}
+      ${item('🎯','Barra do Orçamento do mês','Logo no topo do Orçamento, uma barra mostra quanto do seu planejamento você já usou, quanto ainda pode gastar e um marcador do dia de hoje, pra você ver na hora se está no ritmo. Verde até 80%, amarela perto do limite e vermelha se passar. Um toque nela abre o Planejamento.')}
+      ${item('💳','Despesa fixa direto na compra do cartão','Ao lançar uma compra no cartão, agora tem a opção "Despesa fixa". Ela já vira recorrente nos próximos meses, sem precisar cadastrar de novo em outro lugar.')}
+      ${item('✏️','Editar fixas direto no Saldo Projetado','Receitas e despesas fixas previstas ganharam botão de editar ali mesmo, sem sair da tela.')}
+      ${item('🧾','Ajuste de fatura que acompanha novas compras','O ajuste agora guarda só a diferença em relação ao valor calculado. Se você lançar uma compra depois de ajustar, ela continua somando na fatura.')}
+      ${item('📌','Faturas ainda mais certinhas','A fatura aberta não conta mais despesa fixa só prevista, e o Planejamento passou a considerar a fatura aberta que debita no mês que você está vendo.')}
+      ${item('💰','Aporte com resposta na hora','Ao registrar um aporte, a confirmação aparece imediatamente.')}
+      ${item('📈','Gráfico de aportes mais confiável no celular','Se a conexão falhar no meio do carregamento, o app tenta de novo e atualiza o gráfico quando você volta pra ele.')}
+
+      ${secao('👤 Dashboard Pessoal (PF) · Patrimônio')}
+      ${item('⚖️','Conciliação de reservas com você no controle','Quando os ativos importados e a soma das reservas não batem por mais de R$ 10, você decide onde ajustar. O sistema não distribui mais a diferença sozinho.')}
+      ${item('📉','Dívida nova já entra na evolução do patrimônio','Ao cadastrar uma dívida, o gráfico de evolução passa a mostrar o patrimônio líquido certo do mês.')}
+
+      ${secao('👤 Dashboard Pessoal (PF) · Experiência')}
+      ${item('⏳','Sem número piscando ao abrir','A tela inicial e o Orçamento só mostram os valores quando o cálculo completo termina, com um carregamento novo de três pontinhos dourados.')}
+      ${item('☀️','Tema claro mais legível','Melhoramos o contraste dos botões no Patrimônio.')}
+
+      ${secao('🏢 Dashboard PJ')}
+      ${item('📝','Editar o formato de recebimento da nota de uma vez','No modal de Recebimentos, o botão "Editar formato de recebimento" troca forma, número de parcelas, taxa e data da primeira parcela de todos os recebimentos pendentes da nota num passo só. Os que você já confirmou ficam como estão.')}
+      ${item('🧮','Parcelas com entrada','Ao gerar as parcelas de recebimento de uma nota, agora dá pra informar uma entrada com valor e data próprios, e o restante é dividido nas parcelas seguintes.')}
+      ${item('✅','Contas a vencer no mês com botão Confirmar','Despesas fixas e parceladas que vencem mais pra frente no mês já aparecem como "A vencer", e dá pra confirmar o pagamento antecipado.')}
+      ${item('🏦','Reservas PJ mais estáveis','Capital de giro e retirada sugerida passam a usar a média dos últimos 6 meses, então um mês fora da curva não distorce mais a sugestão.')}
+
+      ${secao('🤝 Nos dois (PF e PJ)')}
+      ${item('🔓','Reabrir fatura depois de ajustar','Um ajuste de fatura não trava mais a reabertura, no cartão pessoal e no da empresa.')}
+      ${item('🛡️','Segurança reforçada','Fizemos uma auditoria completa de segurança: mais proteção contra páginas falsas, limite de tentativas no "esqueci minha senha", backups com alerta automático e exclusão definitiva dos dados quando você pede.')}
+
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Explorar as novidades →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
 function emailNovoConteudoClube(nome, item) {
   const emojiPorTipo = { gravacao: '🎬', documento: '📄', agenda: '🗓️' };
   const labelPorTipo  = { gravacao: 'Nova gravação', documento: 'Novo documento', agenda: 'Novo encontro na agenda' };
@@ -1712,6 +1780,7 @@ module.exports = {
   emailDiaDoCliente,
   emailModoCasal2026,
   emailModoCasalGestaoConjunta2026,
+  emailNovidadesOut2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,

@@ -1487,6 +1487,11 @@ export async function anunciarModoCasalGestaoConjunta2026() {
   return call('anunciarModoCasalGestaoConjunta2026')({});
 }
 
+/** Dispara e-mail de novidades Out/2026 (PF, PJ e nos dois). Admin only. */
+export async function anunciarNovidadesOut2026() {
+  return call('anunciarNovidadesOut2026')({});
+}
+
 /**
  * Reenvia o resumo mensal de agosto/2026 com Despesas/Sobra corrigidas —
  * correção pontual (achado 01/09/2026), não faz parte do fluxo normal.
