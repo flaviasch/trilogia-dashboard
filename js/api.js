@@ -372,6 +372,16 @@ export async function deleteCorretoraPosicao(posicaoId) {
   return call('deleteCorretoraPosicao')({ uid: uidAtual(), posicaoId });
 }
 
+/** Cria (sem declaracaoId) ou substitui uma declaração de IR nomeada. */
+export async function saveIRDeclaracao(itens, nome, declaracaoId) {
+  return call('saveIRDeclaracao')({ uid: uidAtual(), itens, nome, declaracaoId });
+}
+
+/** Remove uma declaração de IR inteira, sem afetar as demais. */
+export async function deleteIRDeclaracao(declaracaoId) {
+  return call('deleteIRDeclaracao')({ uid: uidAtual(), declaracaoId });
+}
+
 /**
  * Soma o valor aportado à classe indicada na aba patrimônio.
  * @param {string} classe  - label exibido na UI (ex: 'RF Pós')

@@ -3427,12 +3427,12 @@ async function _buscarPatrimonioInterno(uid) {
     .collection('patrimonio').doc('dados').get();
   if (docSnap.exists) {
     const { ir = [], corretora = [], dividas = [], atualizadoEm = null } = docSnap.data();
-    return { ativos: consolidarAtivos(ir, corretora), dividas, corretoraPosicoes: agruparPosicoesCorretora(corretora), atualizadoEm };
+    return { ativos: consolidarAtivos(ir, corretora), dividas, corretoraPosicoes: agruparPosicoesCorretora(corretora), irDeclaracoes: agruparDeclaracoesIR(ir), atualizadoEm };
   }
 
   // ── Fallback: Sheets + auto-migra ────────────────────────────────────────
   const sheetId = await getSheetId(db, uid);
-  if (!sheetId) return { ativos: [], dividas: [], corretoraPosicoes: [] };
+  if (!sheetId) return { ativos: [], dividas: [], corretoraPosicoes: [], irDeclaracoes: [] };
   const sheets  = new SheetsClient(sheetId);
   const [ir, corretora, dividas] = await Promise.all([
     sheets.getPatrimonio(), sheets.getInvestimentos(), sheets.getDividas(),
@@ -3441,7 +3441,7 @@ async function _buscarPatrimonioInterno(uid) {
   db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados')
     .set({ ir, corretora, dividas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() })
     .catch(e => console.warn('[getPatrimonio] Falha ao migrar:', e.message));
-  return { ativos: consolidarAtivos(ir, corretora), dividas, corretoraPosicoes: agruparPosicoesCorretora(corretora) };
+  return { ativos: consolidarAtivos(ir, corretora), dividas, corretoraPosicoes: agruparPosicoesCorretora(corretora), irDeclaracoes: agruparDeclaracoesIR(ir) };
 }
 
 exports.getPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
@@ -3544,6 +3544,112 @@ exports.deleteCorretoraPosicao = onCall({ secrets: SECRETS_SHEETS }, async (requ
     if (!sheetId) return;
     return new SheetsClient(sheetId).saveInvestimentos(corretora);
   }).catch(e => console.warn('[deleteCorretoraPosicao] Backup Sheets falhou:', e.message));
+
+  return { ok: true };
+});
+
+/**
+ * Cria ou atualiza UMA declaração de IR nomeada (achado 23/10/2026, Flávia:
+ * casal precisa subir duas declarações sem uma sobrescrever a outra — mesma
+ * lógica das posições da corretora). Sem declaracaoId = declaração nova; com
+ * declaracaoId = substitui só os bens dessa declaração. '__legado__' é o
+ * grupo dos bens antigos sem declaração: salvar nele dá nome a esse grupo.
+ * Espera: { uid, declaracaoId?, nome, itens: [{classe, valor, compartilhado?}] }
+ */
+exports.saveIRDeclaracao = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  _limparCamposTexto(request.data, ['nome']); _limparItensTexto(request.data?.itens, ['classe']); // XSS
+  requireAuth(request);
+  const { uid, declaracaoId, nome, itens } = request.data;
+  requireSelfOrAdmin(request, uid);
+  await checkRateLimit(uid, 'saveIRDeclaracao', 10, 60_000);
+
+  if (!nome || typeof nome !== 'string' || !nome.trim())
+    throw new HttpsError('invalid-argument', 'nome da declaração é obrigatório.');
+  if (!Array.isArray(itens))
+    throw new HttpsError('invalid-argument', 'itens deve ser um array.');
+  if (itens.length > 200)
+    throw new HttpsError('invalid-argument', 'Limite de 200 bens excedido.');
+  for (let i = 0; i < itens.length; i++) {
+    const it = itens[i];
+    if (!it.classe || typeof it.classe !== 'string' || it.classe.trim() === '')
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: classe é obrigatória.`);
+    if (typeof it.valor !== 'number' || isNaN(it.valor) || it.valor < 0)
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: valor deve ser número não-negativo.`);
+    if (it.valor > 100_000_000)
+      throw new HttpsError('invalid-argument', `Item ${i + 1}: valor acima do limite permitido.`);
+    if (it.classe.length > 200) it.classe = it.classe.slice(0, 200);
+  }
+
+  const patRef  = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
+  const idFinal = (typeof declaracaoId === 'string' && declaracaoId) || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const agora   = new Date().toISOString();
+
+  const { ir, corretora, dividas } = await db.runTransaction(async (tx) => {
+    const patSnap  = await tx.get(patRef);
+    const corretora = patSnap.exists ? (patSnap.data().corretora || []) : [];
+    const dividas   = patSnap.exists ? (patSnap.data().dividas   || []) : [];
+    // Remove só os bens dessa MESMA declaração — nunca mexe nas outras.
+    const ir = (patSnap.exists ? (patSnap.data().ir || []) : [])
+      .filter(item => (item.declaracaoId || '__legado__') !== idFinal);
+    ir.push(...itens.filter(it => it.valor > 0).map(it => ({
+      classe: it.classe.trim(), valor: it.valor,
+      ...(it.compartilhado ? { compartilhado: true } : {}),
+      declaracaoId: idFinal, declaracaoNome: nome.trim(), declaracaoAtualizadoEm: agora,
+    })));
+    tx.set(patRef, { ir, corretora, dividas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    return { ir, corretora, dividas };
+  });
+
+  const totalAtivos  = consolidarAtivos(ir, corretora).reduce((s, a) => s + a.valor, 0);
+  const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+  db.collection('mentoradas').doc(uid).update({
+    pl: totalAtivos - totalDividas,
+    dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(e => console.warn('[saveIRDeclaracao] Cache PL falhou:', e.message));
+
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    return new SheetsClient(sheetId).savePatrimonio(ir);
+  }).catch(e => console.warn('[saveIRDeclaracao] Backup Sheets falhou:', e.message));
+
+  return { ok: true, declaracaoId: idFinal };
+});
+
+/**
+ * Remove uma declaração de IR inteira (todos os bens com esse declaracaoId),
+ * sem afetar as demais.
+ */
+exports.deleteIRDeclaracao = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
+  requireAuth(request);
+  const { uid, declaracaoId } = request.data;
+  requireSelfOrAdmin(request, uid);
+  if (!declaracaoId || typeof declaracaoId !== 'string')
+    throw new HttpsError('invalid-argument', 'declaracaoId é obrigatório.');
+
+  const patRef = db.collection('mentoradas').doc(uid).collection('patrimonio').doc('dados');
+  const resultado = await db.runTransaction(async (tx) => {
+    const patSnap = await tx.get(patRef);
+    if (!patSnap.exists) return null;
+    const corretora = patSnap.data().corretora || [];
+    const dividas   = patSnap.data().dividas   || [];
+    const ir = (patSnap.data().ir || []).filter(item => (item.declaracaoId || '__legado__') !== declaracaoId);
+    tx.set(patRef, { ir, corretora, dividas, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    return { ir, corretora, dividas };
+  });
+  if (!resultado) return { ok: true };
+  const { ir, corretora, dividas } = resultado;
+
+  const totalAtivos  = consolidarAtivos(ir, corretora).reduce((s, a) => s + a.valor, 0);
+  const totalDividas = dividas.reduce((s, d) => s + d.saldo, 0);
+  db.collection('mentoradas').doc(uid).update({
+    pl: totalAtivos - totalDividas,
+    dadosAtualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(e => console.warn('[deleteIRDeclaracao] Cache PL falhou:', e.message));
+
+  getSheetId(db, uid).then(sheetId => {
+    if (!sheetId) return;
+    return new SheetsClient(sheetId).savePatrimonio(ir);
+  }).catch(e => console.warn('[deleteIRDeclaracao] Backup Sheets falhou:', e.message));
 
   return { ok: true };
 });
@@ -3848,12 +3954,21 @@ exports.venderBemPatrimonio = onCall({ secrets: SECRETS_SHEETS }, async (request
       const dividas   = patSnap.data().dividas   || [];
 
       // 1) Baixa do bem na declaração de IR — reduz ou remove a linha
-      const idxBem = ir.findIndex(i => i.classe.toLowerCase() === classeBemLC);
-      if (idxBem === -1) {
+      // (a mesma classe pode estar em mais de uma declaração de IR — baixa
+      // linha a linha até cobrir o valor, achado 23/10/2026)
+      if (!ir.some(i => i.classe.toLowerCase() === classeBemLC)) {
         throw new HttpsError('failed-precondition', `Bem "${classeBem}" não encontrado no patrimônio.`);
       }
-      ir[idxBem].valor -= valorBaixa;
-      if (ir[idxBem].valor <= 0.01) ir.splice(idxBem, 1);
+      let restanteBaixa = valorBaixa;
+      for (let k = 0; k < ir.length && restanteBaixa > 0.01; k++) {
+        if (ir[k].classe.toLowerCase() !== classeBemLC) continue;
+        const baixaAqui = Math.min(ir[k].valor, restanteBaixa);
+        ir[k].valor -= baixaAqui;
+        restanteBaixa -= baixaAqui;
+      }
+      for (let k = ir.length - 1; k >= 0; k--) {
+        if (ir[k].classe.toLowerCase() === classeBemLC && ir[k].valor <= 0.01) ir.splice(k, 1);
+      }
 
       // 2) Crédito do valor de venda — corretora tem prioridade, mesma regra do aportePatrimonio
       const idxInv = corretora.findIndex(i => i.classe.toLowerCase() === classeDestinoLC);
@@ -10299,8 +10414,17 @@ exports.getRecebimentosPendentesPJ = onCall({}, async (request) => {
 function consolidarAtivos(patrimonioIR, investimentos) {
   const mapa = {};
 
+  // Mais de uma declaração de IR (casal — achado 23/10/2026) pode repetir a
+  // classe (ex: "Imóveis" nas duas): soma por classe, igual à corretora.
   for (const item of patrimonioIR) {
-    mapa[item.classe] = { ...item, source: 'ir' };
+    const { declaracaoId, declaracaoNome, declaracaoAtualizadoEm, ...resto } = item;
+    const atual = mapa[item.classe];
+    if (atual) {
+      atual.valor += item.valor;
+      if (item.compartilhado) atual.compartilhado = true;
+    } else {
+      mapa[item.classe] = { ...resto, source: 'ir' };
+    }
   }
 
   // `investimentos` pode ter mais de um item pra mesma classe quando vêm de
@@ -10337,6 +10461,22 @@ function agruparPosicoesCorretora(investimentos) {
     ...p,
     total: p.itens.reduce((s, i) => s + i.valor, 0),
   }));
+}
+
+/**
+ * Agrupa o array flat de `ir` (bens com declaracaoId/declaracaoNome) em
+ * declarações nomeadas, pra exibição/gestão na UI. Bens antigos, sem
+ * declaracaoId, caem no grupo '__legado__' — nunca ficam invisíveis.
+ */
+function agruparDeclaracoesIR(ir) {
+  const porDecl = {};
+  for (const item of ir) {
+    const id   = item.declaracaoId || '__legado__';
+    const nome = item.declaracaoNome || 'Meus bens';
+    if (!porDecl[id]) porDecl[id] = { id, nome, itens: [], atualizadoEm: item.declaracaoAtualizadoEm || null };
+    porDecl[id].itens.push({ classe: item.classe, valor: item.valor, ...(item.compartilhado ? { compartilhado: true } : {}) });
+  }
+  return Object.values(porDecl).map(d => ({ ...d, total: d.itens.reduce((s, i) => s + i.valor, 0) }));
 }
 
 function gerarSenhaTemporaria() {

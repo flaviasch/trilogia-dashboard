@@ -638,6 +638,15 @@
       <div id="corretoraPosicoesList" style="display:flex;flex-direction:column;gap:10px;"></div>
     </div>
 
+    <!-- Declarações de IR — mais de uma declaração (casal), sem uma sobrescrever a outra -->
+    <div id="irDeclaracoesSection" style="display:none;margin-bottom:40px;">
+      <div class="section-header">
+        <h2 class="section-title">Declarações de IR</h2>
+        <span class="section-sub">Um card por declaração — o total soma todas na tela principal</span>
+      </div>
+      <div id="irDeclaracoesList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+
     <!-- Modal: importar via IA (substitui o Agente de Patrimônio / Agente de Investimentos do ChatGPT) -->
     <div id="modalImportarPatrimonioIA" class="modal-overlay hidden">
       <div class="modal-card wide">
@@ -648,12 +657,12 @@
           <textarea id="patIaTexto" rows="8" placeholder="Cole aqui o texto..." style="width:100%;box-sizing:border-box;padding:10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
         </div>
         <div id="patIaPosicaoSection" style="display:none;margin-bottom:18px;">
-          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Posição</label>
+          <label id="patIaPosicaoLabel" style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Posição</label>
           <select id="patIaPosicaoSelect" style="width:100%;box-sizing:border-box;padding:9px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;margin-bottom:8px;">
             <option value="">+ Nova posição</option>
           </select>
           <input type="text" id="patIaPosicaoNome" placeholder="Nome da posição (ex: XP - Flávia)" style="width:100%;box-sizing:border-box;padding:9px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
-          <p style="font-size:11px;color:var(--text-muted);margin:6px 0 0;">Casal ou mais de uma corretora? Cada posição fica separada — o total soma todas.</p>
+          <p id="patIaPosicaoDica" style="font-size:11px;color:var(--text-muted);margin:6px 0 0;">Casal ou mais de uma corretora? Cada posição fica separada — o total soma todas.</p>
         </div>
         <div style="text-align:center;margin:10px 0;color:var(--text-muted);font-size:12px;">— ou —</div>
         <div style="margin-bottom:18px;">
@@ -786,6 +795,11 @@
       <div class="field-group">
         <label for="ativoValor">Valor (R$)</label>
         <input type="text" inputmode="numeric" id="ativoValor" placeholder="0" />
+      </div>
+      <div class="field-group" id="campoAtivoDeclaracao" style="display:none;">
+        <label for="ativoDeclaracaoSelect">Declaração de IR</label>
+        <select id="ativoDeclaracaoSelect"></select>
+        <input type="text" id="ativoDeclaracaoNome" placeholder="Nome da declaração (ex: IR 2026 - Flávia)" style="margin-top:8px;" />
       </div>
       <div class="field-group" id="campoAtivoCompartilhado" style="display:none;">
         <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
@@ -943,12 +957,13 @@
     import { auth } from './js/firebase-config.js';
     import {
       getPatrimonio, savePatrimonio, saveCorretoraPosicao, deleteCorretoraPosicao,
+      saveIRDeclaracao, deleteIRDeclaracao,
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
       getReservas, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
       categorizarPatrimonioIA, venderBemPatrimonio,
       getStatusVinculo, getPatrimonioCasal,
-    } from './js/api.js?v=66';
+    } from './js/api.js?v=71';
 
     // Banner de atualização do extrato: mensagem específica se veio de uma
     // retirada de reserva (via ?from=retirada), ou lembrete mensal genérico se
@@ -1284,6 +1299,14 @@
     let dividas  = [];
     let historico = [];
     let corretoraPosicoes = []; // posições nomeadas da corretora (achado 20/07/2026)
+    let irDeclaracoes = [];     // declarações de IR nomeadas (casal — achado 23/10/2026)
+
+    // Várias declarações de IR — gate inicial (regra de deploy: feature nasce
+    // restrita ao teste). Após validar, troque por `true` pra liberar geral.
+    const IR_DECLARACOES_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    function podeUsarDeclaracoesIR() {
+      return IR_DECLARACOES_ALLOWLIST.includes((auth.currentUser?.email || '').toLowerCase());
+    }
 
     async function init(user) {
       const _admin = await isAdmin();
@@ -1298,9 +1321,10 @@
         ativos = _cached.ativos || [];
         dividas = _cached.dividas || [];
         corretoraPosicoes = _cached.corretoraPosicoes || [];
+        irDeclaracoes = _cached.irDeclaracoes || [];
         historico = _cached.historico || [];
         render(ativos, dividas);
-        renderCorretoraPosicoes();
+        renderCorretoraPosicoes(); renderDeclaracoesIR();
         renderLastImport();
         document.getElementById('loadingOverlay').style.display = 'none';
         document.getElementById('mainContent').style.display = 'block';
@@ -1315,14 +1339,15 @@
           ativos  = patrimonioData.value.ativos  || [];
           dividas = patrimonioData.value.dividas || [];
           corretoraPosicoes = patrimonioData.value.corretoraPosicoes || [];
+          irDeclaracoes = patrimonioData.value.irDeclaracoes || [];
         }
         if (hist.status === 'fulfilled') historico = hist.value || [];
-        if (!VIEW_AS_UID) cacheSet(_cacheKey, { ativos, dividas, corretoraPosicoes, historico });
+        if (!VIEW_AS_UID) cacheSet(_cacheKey, { ativos, dividas, corretoraPosicoes, irDeclaracoes, historico });
       } catch (err) {
         if (!_cached) toast(msgErro(err), 'error'); // erro de rede com cache visível fica silencioso
       }
       render(ativos, dividas);
-      renderCorretoraPosicoes();
+      renderCorretoraPosicoes(); renderDeclaracoesIR();
       renderLastImport();
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
@@ -1447,7 +1472,10 @@
 
       // Listeners dos botões de ativo
       lista.querySelectorAll('[data-edit-ativo]').forEach(btn =>
-        btn.addEventListener('click', () => abrirModalAtivo(btn.dataset.editAtivo)));
+        btn.addEventListener('click', () => {
+          if (podeUsarDeclaracoesIR()) abrirBemPelaClasse(btn.dataset.editAtivo);
+          else                         abrirModalAtivo(btn.dataset.editAtivo);
+        }));
       // Ativo de corretora é a soma de 1+ posições — editar essa linha direto
       // não sabe em qual posição mexer, e reescrever tudo a partir do total
       // consolidado perderia os posicaoId/posicaoNome (achado 20/07/2026).
@@ -1986,7 +2014,7 @@
       dividas = data.dividas || [];
       corretoraPosicoes = data.corretoraPosicoes || [];
       render(ativos, dividas);
-      renderCorretoraPosicoes();
+      renderCorretoraPosicoes(); renderDeclaracoesIR();
       snapshotHistorico();
       localStorage.setItem('lastImport_corretora', new Date().toISOString());
       renderLastImport();
@@ -2019,6 +2047,107 @@
         btn.addEventListener('click', () => deletarPosicaoCorretora(btn.dataset.delPosicao, btn.closest('.import-card')?.querySelector('strong')?.textContent || '')));
     }
 
+    // ─── Declarações de IR (casal — achado 23/10/2026) ───────────────────────
+    // Mesma lógica das posições da corretora: cada declaração é salva e
+    // excluída sozinha, sem tocar nas outras; a tela principal soma todas.
+    async function salvarDeclaracaoIR(itens, nome, declaracaoId, { origem = 'import' } = {}) {
+      await saveIRDeclaracao(itens, nome, declaracaoId);
+      const data = await getPatrimonio();
+      ativos  = data.ativos  || [];
+      dividas = data.dividas || [];
+      corretoraPosicoes = data.corretoraPosicoes || [];
+      irDeclaracoes = data.irDeclaracoes || [];
+      render(ativos, dividas);
+      renderCorretoraPosicoes(); renderDeclaracoesIR();
+      if (origem === 'import') {
+        snapshotHistorico();
+        localStorage.setItem('lastImport_ir', new Date().toISOString());
+        renderLastImport();
+        toast(declaracaoId ? `Declaração "${nome}" atualizada!` : `Declaração "${nome}" importada!`, 'success');
+        registrarEvento('patrimonio_atualizado');
+        registrarEvento('ir_importado');
+        conciliarReservas(ativos);
+      }
+    }
+
+    // Abre a edição do bem a partir da lista consolidada, quando dá pra saber
+    // de qual declaração ele é. Se a classe soma mais de uma declaração,
+    // direciona pro card certo. Retorna false quando não abriu.
+    function abrirBemPelaClasse(classe) {
+      const achados = [];
+      irDeclaracoes.forEach(d => d.itens.forEach((it, idx) => { if (it.classe === classe) achados.push({ d, idx }); }));
+      if (achados.length === 1) { abrirModalBemDeclaracao(achados[0].d.id, achados[0].idx); return true; }
+      toast('Esse valor soma bens de mais de uma declaração — edite o bem certo em "Declarações de IR", mais abaixo.', 'info', 6000);
+      document.getElementById('irDeclaracoesSection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return false;
+    }
+
+    function renderDeclaracoesIR() {
+      const section = document.getElementById('irDeclaracoesSection');
+      const list    = document.getElementById('irDeclaracoesList');
+      if (!section || !list) return;
+      if (!podeUsarDeclaracoesIR() || !irDeclaracoes.length) { section.style.display = 'none'; return; }
+      section.style.display = '';
+      list.innerHTML = irDeclaracoes
+        .slice()
+        .sort((a, b) => b.total - a.total)
+        .map(d => `
+          <div class="import-card" style="padding:14px 20px;gap:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+              <div>
+                <strong style="display:block;font-size:13px;color:var(--gold);">${escapeHtml(d.nome)}</strong>
+                <span style="font-size:12px;color:var(--text-muted);">${d.itens.length} ${d.itens.length > 1 ? 'bens' : 'bem'} · ${brl(d.total)}</span>
+              </div>
+              <button class="btn-icon btn-delete" data-del-decl="${escapeHtml(d.id)}" data-nome="${escapeHtml(d.nome)}" title="Excluir declaração">${IC_DELETE}</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${d.itens.map((it, idx) => `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;border-top:1px solid var(--border);padding-top:6px;">
+                  <span style="color:var(--text-secondary);">${escapeHtml(it.classe)}${it.compartilhado ? ' <span style="font-size:11px;color:var(--text-muted);">(do casal)</span>' : ''}</span>
+                  <span style="display:flex;align-items:center;gap:6px;">
+                    <span style="color:var(--white);font-weight:600;">${brl(it.valor)}</span>
+                    <button class="btn-icon" data-edit-bem="${escapeHtml(d.id)}" data-idx="${idx}" title="Editar bem">${IC_EDIT}</button>
+                    <button class="btn-icon btn-delete" data-del-bem="${escapeHtml(d.id)}" data-idx="${idx}" title="Excluir bem">${IC_DELETE}</button>
+                  </span>
+                </div>`).join('')}
+            </div>
+          </div>`)
+        .join('');
+      list.querySelectorAll('[data-edit-bem]').forEach(btn =>
+        btn.addEventListener('click', () => abrirModalBemDeclaracao(btn.dataset.editBem, Number(btn.dataset.idx))));
+      list.querySelectorAll('[data-del-bem]').forEach(btn =>
+        btn.addEventListener('click', () => deletarBemDeclaracao(btn.dataset.delBem, Number(btn.dataset.idx))));
+      list.querySelectorAll('[data-del-decl]').forEach(btn =>
+        btn.addEventListener('click', () => deletarDeclaracaoIR(btn.dataset.delDecl, btn.dataset.nome)));
+    }
+
+    async function deletarBemDeclaracao(declId, idx) {
+      const decl = irDeclaracoes.find(d => d.id === declId);
+      const bem  = decl?.itens[idx];
+      if (!bem) return;
+      if (!(await confirmDelete(`Excluir "${escapeHtml(bem.classe)}" (${brl(bem.valor)}) da declaração "${escapeHtml(decl.nome)}"? Se o bem foi vendido, prefira "Registrar venda", que já credita o valor recebido.`))) return;
+      try {
+        await salvarDeclaracaoIR(decl.itens.filter((_, i) => i !== idx), decl.nome, decl.id, { origem: 'manual' });
+        agendarSnapshotHistorico();
+        toast('Bem excluído.', 'success');
+      } catch (err) { toast(msgErro(err), 'error'); }
+    }
+
+    async function deletarDeclaracaoIR(declId, nome) {
+      if (!(await confirmDelete(`Excluir a declaração "${escapeHtml(nome)}"? Isso remove todos os bens dela.`))) return;
+      try {
+        await deleteIRDeclaracao(declId);
+        const data = await getPatrimonio();
+        ativos  = data.ativos  || [];
+        dividas = data.dividas || [];
+        irDeclaracoes = data.irDeclaracoes || [];
+        render(ativos, dividas);
+        renderDeclaracoesIR();
+        agendarSnapshotHistorico();
+        toast('Declaração excluída.', 'success');
+      } catch (err) { toast(msgErro(err), 'error'); }
+    }
+
     async function deletarPosicaoCorretora(posicaoId, nome) {
       if (!(await confirmDelete(`Excluir a posição "${nome}"? Isso remove todos os ativos importados nela.`))) return;
       await deleteCorretoraPosicao(posicaoId);
@@ -2027,7 +2156,7 @@
       dividas = data.dividas || [];
       corretoraPosicoes = data.corretoraPosicoes || [];
       render(ativos, dividas);
-      renderCorretoraPosicoes();
+      renderCorretoraPosicoes(); renderDeclaracoesIR();
       agendarSnapshotHistorico();
       toast('Posição excluída.', 'success');
     }
@@ -2070,6 +2199,25 @@
             if (!posicaoNomeCsv) { e.target.value = ''; return; }
           }
         }
+        // CSV de IR com declarações ligadas: mesma pergunta, por declaração.
+        const irDeclCsv = tipo === 'ir' && podeUsarDeclaracoesIR();
+        if (irDeclCsv) {
+          if (irDeclaracoes.length) {
+            const opcoes = irDeclaracoes.map((d, i) => `${i + 1}) ${d.nome} (${brl(d.total)})`).join('\n');
+            const escolha = (window.prompt(
+              `Esse CSV é pra atualizar uma declaração existente, ou é uma declaração nova?\n\n${opcoes}\n\nDigite o número da declaração pra ATUALIZAR, ou deixe em branco pra criar uma declaração NOVA.`
+            ) || '').trim();
+            const idx = parseInt(escolha, 10) - 1;
+            if (escolha && !isNaN(idx) && irDeclaracoes[idx]) {
+              posicaoIdCsv   = irDeclaracoes[idx].id;
+              posicaoNomeCsv = irDeclaracoes[idx].nome;
+            }
+          }
+          if (!posicaoIdCsv) {
+            posicaoNomeCsv = (window.prompt('Nome dessa declaração nova (ex: "IR 2026 - Flávia"):') || '').trim();
+            if (!posicaoNomeCsv) { e.target.value = ''; return; }
+          }
+        }
 
         e.target.value = '';
 
@@ -2080,6 +2228,7 @@
           try {
             const itens = parsearCsvPatrimonio(ev.target.result);
             if (tipo === 'corretora') await salvarPosicaoCorretora(itens, posicaoNomeCsv, posicaoIdCsv);
+            else if (irDeclCsv)       await salvarDeclaracaoIR(itens, posicaoNomeCsv, posicaoIdCsv);
             else                      await salvarAtivosImportados(itens, tipo);
           } catch (err) {
             toast(`Erro ao importar CSV: ${msgErro(err)}`, 'error');
@@ -2095,8 +2244,48 @@
     const modalAtivo = document.getElementById('modalAtivo');
     let editandoClasse = null; // classe sendo editada (null = novo)
 
+    let editandoBemDecl = null; // { declId, idx } — bem editado dentro de uma declaração de IR
+
+    // Preenche o seletor "Declaração de IR" do modal de ativo (só com o gate
+    // de declarações ligado). Sem nenhuma declaração ainda, já sugere "Meus bens".
+    function prepararCampoDeclaracao(mostrar) {
+      const campo  = document.getElementById('campoAtivoDeclaracao');
+      const select = document.getElementById('ativoDeclaracaoSelect');
+      const nome   = document.getElementById('ativoDeclaracaoNome');
+      campo.style.display = mostrar ? '' : 'none';
+      if (!mostrar) return;
+      select.innerHTML = irDeclaracoes.map(d => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.nome)} (${brl(d.total)})</option>`).join('') +
+        '<option value="">+ Nova declaração</option>';
+      select.value = irDeclaracoes.length ? irDeclaracoes[0].id : '';
+      nome.value = irDeclaracoes.length ? '' : 'Meus bens';
+      nome.style.display = select.value ? 'none' : '';
+    }
+    document.getElementById('ativoDeclaracaoSelect').addEventListener('change', (e) => {
+      const nome = document.getElementById('ativoDeclaracaoNome');
+      nome.style.display = e.target.value ? 'none' : '';
+      if (!e.target.value) { nome.value = ''; nome.focus(); }
+    });
+
+    // Edita um bem dentro de uma declaração de IR (card "Declarações de IR").
+    function abrirModalBemDeclaracao(declId, idx) {
+      const decl = irDeclaracoes.find(d => d.id === declId);
+      const bem  = decl?.itens[idx];
+      if (!bem) return;
+      editandoClasse  = null;
+      editandoBemDecl = { declId, idx };
+      document.getElementById('modalAtivoTitle').textContent = `Editar bem · ${decl.nome}`;
+      document.getElementById('ativoNome').value = bem.classe;
+      setMoney(document.getElementById('ativoValor'), bem.valor);
+      document.getElementById('ativoCompartilhado').checked = !!bem.compartilhado;
+      prepararCampoDeclaracao(false);
+      modalAtivo.classList.remove('hidden');
+      document.getElementById('ativoNome').focus();
+    }
+
     function abrirModalAtivo(classe = null) {
       editandoClasse = classe;
+      editandoBemDecl = null;
+      prepararCampoDeclaracao(!classe && podeUsarDeclaracoesIR());
       document.getElementById('modalAtivoTitle').textContent = classe ? 'Editar ativo' : 'Novo ativo';
       if (classe) {
         const a = ativos.find(x => x.classe === classe);
@@ -2115,6 +2304,7 @@
     function fecharModalAtivo() {
       modalAtivo.classList.add('hidden');
       editandoClasse = null;
+      editandoBemDecl = null;
     }
 
     // Só grava o IR — corretora agora vive em posições nomeadas separadas
@@ -2124,6 +2314,10 @@
     // achatada, sem os posicaoId/posicaoNome — toda vez que qualquer ativo
     // era editado, mesmo um item do IR).
     async function gravarAtivos() {
+      // Com declarações de IR ligadas, regravar o IR inteiro a partir da lista
+      // consolidada apagaria a separação por declaração — todo caminho de
+      // edição passa por saveIRDeclaracao nesse caso.
+      if (podeUsarDeclaracoesIR()) { console.warn('[patrimonio] gravarAtivos ignorado: declarações de IR ativas'); return; }
       try {
         const ativosIR = ativos.filter(a => a.source !== 'investimentos');
         await savePatrimonio(ativosIR, 'ir');
@@ -2149,6 +2343,44 @@
 
       if (!nome)       { toast('Preencha o nome do ativo.', 'warning'); return; }
       if (valor < 0)   { toast('Preencha um valor válido.', 'warning'); return; }
+
+      // Com declarações de IR: bem novo entra na declaração escolhida; edição
+      // de bem é feita dentro da declaração dele. Nunca regrava o IR inteiro.
+      if (podeUsarDeclaracoesIR() && (editandoBemDecl || !editandoClasse)) {
+        let decl, declNome, itens, ehNovo;
+        if (editandoBemDecl) {
+          decl = irDeclaracoes.find(d => d.id === editandoBemDecl.declId);
+          if (!decl) { toast('Declaração não encontrada, recarregue a página.', 'error'); return; }
+          declNome = decl.nome;
+          itens = decl.itens.map(i => ({ ...i }));
+          itens[editandoBemDecl.idx] = { classe: nome, valor, ...(compartilhado ? { compartilhado: true } : {}) };
+          ehNovo = false;
+        } else {
+          const declId = document.getElementById('ativoDeclaracaoSelect').value;
+          decl = declId ? irDeclaracoes.find(d => d.id === declId) : null;
+          declNome = decl ? decl.nome : document.getElementById('ativoDeclaracaoNome').value.trim();
+          if (!declNome) { toast('Dê um nome pra nova declaração (ex: "IR 2026 - Flávia").', 'warning'); return; }
+          itens = decl ? decl.itens.map(i => ({ ...i })) : [];
+          const existente = itens.find(i => i.classe.toLowerCase() === nome.toLowerCase());
+          if (existente) { existente.valor += valor; if (compartilhado) existente.compartilhado = true; }
+          else           { itens.push({ classe: nome, valor, ...(compartilhado ? { compartilhado: true } : {}) }); }
+          ehNovo = true;
+        }
+        setLoading(btnSaveAtivo, true);
+        try {
+          await salvarDeclaracaoIR(itens, declNome, decl?.id, { origem: 'manual' });
+          fecharModalAtivo();
+          toast(ehNovo ? 'Ativo salvo!' : 'Bem atualizado!', 'success');
+          registrarEvento('patrimonio_atualizado');
+          // Mesmo critério de antes: bem novo reagenda o snapshot, edição de valor não.
+          if (ehNovo) agendarSnapshotHistorico();
+        } catch (err) {
+          toast(msgErro(err), 'error');
+        } finally {
+          setLoading(btnSaveAtivo, false);
+        }
+        return;
+      }
 
       if (editandoClasse) {
         // Edição: pode renomear a classe e/ou alterar o valor
@@ -2195,6 +2427,12 @@
     async function deletarAtivo(classe) {
       const a = ativos.find(x => x.classe === classe);
       if (!a) return;
+      // Com declarações de IR, excluir é dentro da declaração do bem.
+      if (podeUsarDeclaracoesIR() && a.source !== 'investimentos') {
+        toast('Exclua o bem dentro da declaração dele, em "Declarações de IR", mais abaixo.', 'info', 6000);
+        document.getElementById('irDeclaracoesSection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
       // Excluir uma classe com valor reduzia o patrimônio total como
       // efeito colateral — a única saída "de verdade" deve ser uma retirada
       // registrada em Reservas (que já orienta reimportar o extrato depois);
@@ -2692,19 +2930,28 @@
       const posicaoSection = document.getElementById('patIaPosicaoSection');
       const posicaoSelect  = document.getElementById('patIaPosicaoSelect');
       const posicaoNome    = document.getElementById('patIaPosicaoNome');
-      if (modo === 'ativos' && tipoOrigem === 'corretora') {
+      // O mesmo seletor serve pra posição da corretora e, com o gate ligado,
+      // pra declaração de IR (casal — achado 23/10/2026).
+      const ehIRDecl = modo === 'ativos' && tipoOrigem === 'ir' && podeUsarDeclaracoesIR();
+      const gruposSel = ehIRDecl ? irDeclaracoes : corretoraPosicoes;
+      document.getElementById('patIaPosicaoLabel').textContent = ehIRDecl ? 'Declaração' : 'Posição';
+      document.getElementById('patIaPosicaoDica').textContent = ehIRDecl
+        ? 'Casal? Cada declaração fica separada — o total soma todas.'
+        : 'Casal ou mais de uma corretora? Cada posição fica separada — o total soma todas.';
+      posicaoNome.placeholder = ehIRDecl ? 'Nome da declaração (ex: IR 2026 - Flávia)' : 'Nome da posição (ex: XP - Flávia)';
+      if ((modo === 'ativos' && tipoOrigem === 'corretora') || ehIRDecl) {
         posicaoSection.style.display = '';
-        posicaoSelect.innerHTML = '<option value="">+ Nova posição</option>' +
-          corretoraPosicoes.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nome)} (${brl(p.total)})</option>`).join('');
+        posicaoSelect.innerHTML = `<option value="">${ehIRDecl ? '+ Nova declaração' : '+ Nova posição'}</option>` +
+          gruposSel.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nome)} (${brl(p.total)})</option>`).join('');
         // Com exatamente 1 posição já cadastrada, pré-seleciona ela em vez de
         // deixar "+ Nova posição" como padrão — foi assim que uma posição
         // duplicada entrou sem querer (achado 03/09/2026, Flávia): o padrão
         // "nova" some despercebido e a reimportação vira uma segunda posição,
         // dobrando o total. Com 2+ posições existentes, não dá pra adivinhar
         // qual delas atualizar, então mantém "+ Nova posição" como padrão.
-        if (corretoraPosicoes.length === 1) {
-          posicaoSelect.value = corretoraPosicoes[0].id;
-          posicaoNome.value = corretoraPosicoes[0].nome;
+        if (gruposSel.length === 1) {
+          posicaoSelect.value = gruposSel[0].id;
+          posicaoNome.value = gruposSel[0].nome;
           posicaoNome.disabled = true;
         } else {
           posicaoSelect.value = '';
@@ -2720,7 +2967,8 @@
 
     document.getElementById('patIaPosicaoSelect')?.addEventListener('change', (e) => {
       const nomeInput = document.getElementById('patIaPosicaoNome');
-      const selecionada = corretoraPosicoes.find(p => p.id === e.target.value);
+      const ehIRDecl = _patIaModo === 'ativos' && _patIaTipoOrigem === 'ir' && podeUsarDeclaracoesIR();
+      const selecionada = (ehIRDecl ? irDeclaracoes : corretoraPosicoes).find(p => p.id === e.target.value);
       if (selecionada) {
         nomeInput.value = selecionada.nome;
         nomeInput.disabled = true; // atualizar posição existente mantém o nome
@@ -2792,12 +3040,14 @@
         return;
       }
       const ehCorretora = _patIaModo === 'ativos' && _patIaTipoOrigem === 'corretora';
-      const posicaoNomeVal = ehCorretora ? document.getElementById('patIaPosicaoNome').value.trim() : '';
-      if (ehCorretora && !posicaoNomeVal) {
-        toast('Dê um nome pra essa posição (ex: "XP - Flávia").', 'warning');
+      const ehIRDecl    = _patIaModo === 'ativos' && _patIaTipoOrigem === 'ir' && podeUsarDeclaracoesIR();
+      const usaGrupo    = ehCorretora || ehIRDecl;
+      const posicaoNomeVal = usaGrupo ? document.getElementById('patIaPosicaoNome').value.trim() : '';
+      if (usaGrupo && !posicaoNomeVal) {
+        toast(ehIRDecl ? 'Dê um nome pra essa declaração (ex: "IR 2026 - Flávia").' : 'Dê um nome pra essa posição (ex: "XP - Flávia").', 'warning');
         return;
       }
-      const posicaoIdVal = ehCorretora ? (document.getElementById('patIaPosicaoSelect').value || undefined) : undefined;
+      const posicaoIdVal = usaGrupo ? (document.getElementById('patIaPosicaoSelect').value || undefined) : undefined;
 
       setLoading(btn, true, 'Processando…');
       try {
@@ -2843,6 +3093,21 @@
           }
 
           await salvarPosicaoCorretora(itensAgregados, posicaoNomeVal, posicaoIdVal);
+        } else if (ehIRDecl) {
+          // Declaração NOVA que parece a mesma já cadastrada: confirma antes
+          // de somar em dobro (mesma proteção das posições da corretora).
+          if (!posicaoIdVal && irDeclaracoes.length) {
+            const maisParecida = irDeclaracoes
+              .map(d => ({ d, score: _similaridadePosicao(itens, d) }))
+              .sort((a, b) => b.score - a.score)[0];
+            if (maisParecida && maisParecida.score > 0.85) {
+              const confirma = window.confirm(
+                `Essa declaração parece muito parecida com "${maisParecida.d.nome}" (${brl(maisParecida.d.total)}), que você já tem cadastrada.\n\nTem certeza que quer criar uma declaração NOVA? Isso vai SOMAR os dois valores no total.\n\nSe é a mesma declaração atualizada, cancele e escolha "${maisParecida.d.nome}" no campo acima.`
+              );
+              if (!confirma) { toast('Importação cancelada.', 'info'); return; }
+            }
+          }
+          await salvarDeclaracaoIR(itens, posicaoNomeVal, posicaoIdVal);
         } else if (_patIaModo === 'ativos') {
           await salvarAtivosImportados(itens, _patIaTipoOrigem);
         } else {
