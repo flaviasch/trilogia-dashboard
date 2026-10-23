@@ -1301,11 +1301,9 @@
     let corretoraPosicoes = []; // posições nomeadas da corretora (achado 20/07/2026)
     let irDeclaracoes = [];     // declarações de IR nomeadas (casal — achado 23/10/2026)
 
-    // Várias declarações de IR — gate inicial (regra de deploy: feature nasce
-    // restrita ao teste). Após validar, troque por `true` pra liberar geral.
-    const IR_DECLARACOES_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    // Várias declarações de IR — liberado pra todas em 23/10/2026 (estava restrito ao teste).
     function podeUsarDeclaracoesIR() {
-      return IR_DECLARACOES_ALLOWLIST.includes((auth.currentUser?.email || '').toLowerCase());
+      return true;
     }
 
     async function init(user) {
