@@ -2164,7 +2164,9 @@
             ativos[idx].compartilhado = compartilhado;
           }
         }
-      } else {
+      }
+      const ativoNovo = !editandoClasse;
+      if (ativoNovo) {
         // Novo: se já existe, soma (compartilhado prevalece se marcado em qualquer um dos dois)
         const existente = ativos.find(a => a.classe.toLowerCase() === nome.toLowerCase());
         if (existente) { existente.valor += valor; existente.compartilhado = existente.compartilhado || compartilhado; }
@@ -2181,8 +2183,13 @@
       // só o import de CSV/IA disparava evento, então quem preenchia na mão
       // aparecia como "nunca mexeu no patrimônio").
       registrarEvento('patrimonio_atualizado');
-      // Sem snapshot aqui de propósito: edição manual pontual de um ativo não
-      // deve virar um ponto no gráfico de evolução — só CSV/aporte/retirada.
+      // Edição de valor de ativo existente segue sem snapshot (ajuste pontual
+      // não vira ponto no gráfico). Cadastro de ativo NOVO reagenda, igual ao
+      // cadastro de dívida nova: sem isso, quem importa só os financeiros e
+      // cadastra os bens à mão fica com o mês gravado sem os bens, e o gráfico
+      // mostra um PL muito menor que o do Balanço (achado 23/10/2026,
+      // Isabella: Out/26 em -R$ 458.930 com PL real de R$ 356,1k).
+      if (ativoNovo) agendarSnapshotHistorico();
     });
 
     async function deletarAtivo(classe) {
