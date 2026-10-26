@@ -1044,10 +1044,10 @@
       return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
     import { auth } from './js/firebase-config.js';
-    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor, getContaPJ, getStatusVinculo, convidarParceiro, desvincular, getDashboardCasal } from './js/api.js?v=66';
+    import { getDashboard, getDashboardHome, getOrcamento, saveOrcamento, getPatrimonio, getRecorrentes, getCartoes, getFaturaEstados, bootstrapAdmin, aceitarLGPD, savePushSubscription, registrarEvento, msgErro, getFixasPuladasServidor, getContaPJ, getStatusVinculo, convidarParceiro, desvincular, getDashboardCasal, getContas, getSaldosConta } from './js/api.js?v=66';
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
-    import { calcularAgregadosOrcamento } from './js/orcamento-calc.js';
+    import { calcularAgregadosOrcamento, CONTA_PRINCIPAL_ID } from './js/orcamento-calc.js';
     import {
       onAuthStateChanged,
       signOut,
@@ -1517,25 +1517,34 @@ async function init(user) {
         getCartoes(),
         getFaturaEstados(),
         getFixasPuladasServidor().catch(() => ({ fixasPuladas: [] })),
-      ]).then(([orcData, patData, recorrentes, cartoes, faturaEstados, puladasResp]) => {
-        // Mesmo cálculo do Resumo em orcamento.html (js/orcamento-calc.js) —
-        // Despesa/Receita da home batem 100% com Detalhe/Realizado do
-        // Planejamento (achado em 06/07/2026, Flávia: "tem que bater com
-        // Detalhe/Planejamento, incluindo as fixas ainda não lançadas e o
-        // ajuste de lançamentos não identificados").
+        getContas().catch(() => []),
+        getSaldosConta(mes, ano).catch(() => ({})),
+      ]).then(([orcData, patData, recorrentes, cartoes, faturaEstados, puladasResp, contas, saldosConta]) => {
+        // Mesmos números do Resumo em orcamento.html (js/orcamento-calc.js):
+        // receita e despesa já realizadas, e a sobra somando o saldo inicial
+        // da conta (achado 25/10/2026, Luciana: com saldo inicial negativo, a
+        // home mostrava R$ 10.586 de sobra e o Resumo R$ 1.661). Antes a home
+        // usava o critério "comprometido" (com pendentes), de 06/07/2026.
         const orcDataArr = orcData || [];
+        // Saldo inicial consolidado (soma de todas as contas), como o Resumo
+        // no modo consolidado. Usa o valor já travado do mês em saldosConta;
+        // sem valor da conta principal, cai no item-sentinela legado.
+        const _idsContas = (contas && contas.length ? contas : [{ id: CONTA_PRINCIPAL_ID }]).map(c => c.id);
+        const _saldos = saldosConta || {};
+        let saldoInicial = _idsContas.reduce((s, id) => s + (Number(_saldos[id]) || 0), 0);
+        if (!(CONTA_PRINCIPAL_ID in _saldos)) {
+          saldoInicial += orcDataArr.find(i => i.tipo === 'receita' && i.categoria === '__saldo_conta__')?.valor || 0;
+        }
         const dataOrc = {
           periodo: { mes, ano },
-          saldoConta: 0, // não afeta receita/despesa comprometida
+          saldoConta: saldoInicial,
           receitas: orcDataArr.filter(i => i.tipo === 'receita' && i.categoria !== '__saldo_conta__'),
           despesas: orcDataArr.filter(i => i.tipo === 'despesa'),
           aportes: orcDataArr.filter(i => i.tipo === 'aporte'),
         };
-        const { receitaComprometida: receita, despesaComprometida: despesa, totalAp: aporte } = calcularAgregadosOrcamento({
+        const { totalReceita: receita, despesaCaixa: despesa, totalAp: aporte, sobra, sobraPct } = calcularAgregadosOrcamento({
           data: dataOrc, cartoes: cartoes || [], faturaEstados: faturaEstados || {}, recorrentes: recorrentes || [], fixasPuladas: puladasResp?.fixasPuladas || [],
         });
-        const sobra   = receita - despesa;
-        const sobraPct = receita > 0 ? (sobra / receita) * 100 : 0;
 
         const elReceita = document.getElementById('receita');
         const elDespesa = document.getElementById('despesa');
@@ -1545,7 +1554,7 @@ async function init(user) {
         if (elSobra)   { elSobra.textContent = brl(sobra); elSobra.className = sobra >= 0 ? 'positive' : 'negative'; }
         const sub1 = document.getElementById('receitaSub'); if (sub1) sub1.textContent = `${NOMES_MESES_F2[mes-1]} de ${ano}`;
         const sub2 = document.getElementById('despesaSub'); if (sub2) sub2.textContent = `${pct((despesa/receita)*100)} da receita`;
-        const sub3 = document.getElementById('sobraSub');   if (sub3) sub3.textContent = `${pct(sobraPct)} da receita`;
+        const sub3 = document.getElementById('sobraSub');   if (sub3) sub3.textContent = `${pct(sobraPct)} do total disponível`;
 
         // Atualiza cards de patrimônio
         if (patData) {
