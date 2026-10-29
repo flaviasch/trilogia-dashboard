@@ -1721,6 +1721,36 @@ function emailNovidadesOut2026(nome) {
   `);
 }
 
+/**
+ * E-mail: aviso de atualização da Política de Privacidade do site (29/10/2026)
+ * — Pixel da Meta só com consentimento, aviso de cookies. A própria política
+ * (seção 11) promete avisar por e-mail em alterações relevantes. Só pra ativas.
+ */
+function emailPoliticaPrivacidadeOut2026(nome) {
+  const primeiroNome = (nome || 'você').split(' ')[0];
+  return layout(`
+    <h2 style="${S.h2}">Atualizamos nossa Política de Privacidade</h2>
+    <p style="${S.p}">Olá, ${primeiroNome}!</p>
+    <p style="${S.p}">
+      Passando para avisar que atualizamos a Política de Privacidade do nosso site.
+    </p>
+    <p style="${S.p}">
+      O que mudou: passamos a usar o Pixel da Meta (Facebook e Instagram) para medir
+      as visitas ao site e mostrar nossos conteúdos a quem já passou por lá. Ele só é
+      ativado se você clicar em "Aceitar" no aviso de cookies que aparece no site. Se
+      preferir recusar, nada é carregado, e você pode mudar sua escolha quando quiser
+      pelo link "Alterar minha escolha de cookies", na própria Política.
+    </p>
+    <p style="${S.p}">
+      Nada muda na forma como cuidamos dos seus dados pessoais, nas suas respostas de
+      formulário ou nos seus direitos pela LGPD.
+    </p>
+    <a href="https://flaviaschusciman.com/privacidade/" style="${S.btn}">Ler a Política completa</a>
+    <p style="${S.p}">Qualquer dúvida, é só responder este e-mail.</p>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
 function emailNovoConteudoClube(nome, item) {
   const emojiPorTipo = { gravacao: '🎬', documento: '📄', agenda: '🗓️' };
   const labelPorTipo  = { gravacao: 'Nova gravação', documento: 'Novo documento', agenda: 'Novo encontro na agenda' };
@@ -1781,6 +1811,7 @@ module.exports = {
   emailModoCasal2026,
   emailModoCasalGestaoConjunta2026,
   emailNovidadesOut2026,
+  emailPoliticaPrivacidadeOut2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,

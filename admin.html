@@ -664,6 +664,12 @@
 
       <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:28px;max-height:60vh;overflow-y:auto;padding-right:4px;">
         <div style="background:rgba(207,174,101,0.1);border:1px solid rgba(207,174,101,0.4);border-radius:10px;padding:16px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🔒 Atualizamos nossa Política de Privacidade <span style="font-size:11px;font-weight:400;color:#CFAE65;">Novo</span></div>
+          <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Aviso da atualização da Política do site: Pixel da Meta só com consentimento, aviso de cookies e como mudar a escolha. Com botão para a Política completa.</div>
+          <button id="btnDispararPoliticaPrivacidadeOut2026" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
+          <span id="statusPoliticaPrivacidadeOut2026" style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-left:10px;"></span>
+        </div>
+        <div style="background:rgba(207,174,101,0.1);border:1px solid rgba(207,174,101,0.4);border-radius:10px;padding:16px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🍂 Novidades de Outubro (PF e PJ) <span style="font-size:11px;font-weight:400;color:#CFAE65;">Novo</span></div>
           <div style="font-size:12px;color:rgba(var(--rgb-fg),0.45);margin-bottom:12px;">Tudo de 17/09 a 21/10, separado em Dashboard Pessoal, Dashboard PJ e nos dois: barra do Orçamento do mês, despesa fixa na compra do cartão, editar fixas no Saldo Projetado, conciliação de reservas, editar formato de recebimento das notas PJ, parcelas com entrada e mais.</div>
           <button id="btnDispararNovidadesOut2026" style="background:#CFAE65;color:var(--navy);border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Disparar agora →</button>
@@ -2314,7 +2320,7 @@
              criarPlanilha, getNotionCRM, getMinhaJornada, getMateriaisJornadaAdmin, salvarMaterialJornadaAdmin,
              getClubeContent, saveClubeItem, deleteClubeItem,
              getLeads, saveLead, updateLead, deleteLead,
-             syncDiagnostico, bootstrapNotionPageIds, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, anunciarNovidadesJun2026Completo, anunciarJornadaDashboard, anunciarNovidadesJul2026, anunciarNovidadesJul2026Completo, anunciarNovidadesAgo2026Completo, anunciarModoClaroAgo2026, anunciarDiaDoCliente2026, anunciarModoCasal2026, anunciarModoCasalGestaoConjunta2026, anunciarNovidadesOut2026, anunciarBalancoJul2026, anunciarMultiplasContasJul2026, anunciarRaioXJul2026, anunciarPatrimonioIAJul2026, corrigirRelatorioAgosto2026, comunicadoTecnico, migrarOrcamento, getAnalytics,
+             syncDiagnostico, bootstrapNotionPageIds, anunciarNovidades, anunciarNovidadesJun2026, anunciarNovidadesJun2026v3, anunciarNovidadesJun2026Completo, anunciarJornadaDashboard, anunciarNovidadesJul2026, anunciarNovidadesJul2026Completo, anunciarNovidadesAgo2026Completo, anunciarModoClaroAgo2026, anunciarDiaDoCliente2026, anunciarModoCasal2026, anunciarModoCasalGestaoConjunta2026, anunciarNovidadesOut2026, anunciarPoliticaPrivacidadeOut2026, anunciarBalancoJul2026, anunciarMultiplasContasJul2026, anunciarRaioXJul2026, anunciarPatrimonioIAJul2026, corrigirRelatorioAgosto2026, comunicadoTecnico, migrarOrcamento, getAnalytics,
              getAdmins, addAdmin, removeAdmin, getBackupStatus, listarCasais,
              enviarPushManual, saveMissaoMes, getComunicadosStatus,
              editarVencimento,
@@ -2322,7 +2328,7 @@
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
              getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ,
-             msgErro } from './js/api.js?v=70';
+             msgErro } from './js/api.js?v=72';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -2426,6 +2432,14 @@
           el.textContent = `✅ Enviado em ${fmt(status.modoCasal2026.enviadoEm)} · ${status.modoCasal2026.enviados} destinatários`;
           el.style.color = '#4ade80';
           const btn = document.getElementById('btnDispararModoCasal2026');
+          btn.textContent = 'Reenviar →';
+          btn.style.background = 'rgba(207,174,101,0.15)';
+        }
+        if (status.politicaPrivacidadeOut2026?.enviadoEm) {
+          const el = document.getElementById('statusPoliticaPrivacidadeOut2026');
+          el.textContent = `✅ Enviado em ${fmt(status.politicaPrivacidadeOut2026.enviadoEm)} · ${status.politicaPrivacidadeOut2026.enviados} destinatários`;
+          el.style.color = '#4ade80';
+          const btn = document.getElementById('btnDispararPoliticaPrivacidadeOut2026');
           btn.textContent = 'Reenviar →';
           btn.style.background = 'rgba(207,174,101,0.15)';
         }
@@ -2723,6 +2737,23 @@
       btn.disabled = true; btn.textContent = '⏳ Enviando...'; status.textContent = '';
       try {
         const res = await anunciarDiaDoCliente2026();
+        btn.textContent = '✓ Enviado!'; btn.style.background = '#4ade80';
+        status.textContent = `${res.enviados} e-mails enviados${res.erros > 0 ? `, ${res.erros} erros` : ''}`;
+        status.style.color = res.erros > 0 ? '#f87171' : '#4ade80';
+      } catch (err) {
+        btn.textContent = 'Disparar agora →'; btn.disabled = false;
+        status.textContent = 'Erro: ' + (err.message || 'tente novamente');
+        status.style.color = '#f87171';
+      }
+    });
+
+    document.getElementById('btnDispararPoliticaPrivacidadeOut2026')?.addEventListener('click', async () => {
+      if (!confirm('Disparar o aviso "Atualizamos nossa Política de Privacidade" para TODAS as mentoradas ativas?')) return;
+      const btn    = document.getElementById('btnDispararPoliticaPrivacidadeOut2026');
+      const status = document.getElementById('statusPoliticaPrivacidadeOut2026');
+      btn.disabled = true; btn.textContent = '⏳ Enviando...'; status.textContent = '';
+      try {
+        const res = await anunciarPoliticaPrivacidadeOut2026();
         btn.textContent = '✓ Enviado!'; btn.style.background = '#4ade80';
         status.textContent = `${res.enviados} e-mails enviados${res.erros > 0 ? `, ${res.erros} erros` : ''}`;
         status.style.color = res.erros > 0 ? '#f87171' : '#4ade80';

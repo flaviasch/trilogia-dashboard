@@ -68,6 +68,7 @@ const {
   emailModoCasal2026,
   emailModoCasalGestaoConjunta2026,
   emailNovidadesOut2026,
+  emailPoliticaPrivacidadeOut2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
@@ -11199,6 +11200,35 @@ exports.anunciarNovidadesOut2026 = onCall({ secrets: SECRETS_EMAIL }, async (req
   }
   await db.collection('config').doc('comunicados').set(
     { novidadesOut2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+/**
+ * Aviso de atualização da Política de Privacidade do site (29/10/2026).
+ * Só pra ativas.
+ */
+exports.anunciarPoliticaPrivacidadeOut2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Atualizamos nossa Política de Privacidade',
+        html:    emailPoliticaPrivacidadeOut2026(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarPoliticaPrivacidadeOut2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { politicaPrivacidadeOut2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };
