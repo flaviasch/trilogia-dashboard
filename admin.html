@@ -1737,6 +1737,7 @@
               <option>OCP</option>
               <option>Grupo VIP</option>
               <option>Diagnóstico</option>
+              <option>Palestra</option>
               <option>Outro</option>
             </select>
           </div>
@@ -6372,7 +6373,9 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       if (o.includes('diagnostico') || o.includes('diagnóstico')) return 'Diagnóstico';
       if (o.includes('indicacao') || o.includes('indicação')) return 'Indicação';
       if (o.includes('oferta direta')) return 'Oferta Direta';
-      if (['instagram','live','radio','rádio','whatsapp','email','podcast','youtube'].some(s => o.includes(s))) return 'Social Selling';
+      // Palestra conta como Social Selling, igual à Live: contato vindo de
+      // conteúdo apresentado ao vivo (incluída em 29/10/2026).
+      if (['instagram','live','radio','rádio','whatsapp','email','podcast','youtube','palestra'].some(s => o.includes(s))) return 'Social Selling';
       return 'Outros';
     }
 
