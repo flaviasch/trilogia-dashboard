@@ -7211,6 +7211,11 @@
     }
 
     // ─── Aba Gráficos ─────────────────────────────────────────────────────────
+    const GRUPO_SEM_MAE = 'Sem categoria-mãe';
+    function grupoGraficoCategoria(cat) {
+      return categoriaParaMaeResolvida(cat, categoriasMes) || GRUPO_SEM_MAE;
+    }
+
     function renderGraficos(data) {
       const el = document.getElementById('graficosContent');
       if (!el) return;
@@ -7221,11 +7226,16 @@
       // compras do ciclo ainda em curso; achado 09/08/2026: mas o mês em que
       // a fatura vai debitar precisa contar). totalDespesa deriva da própria
       // soma das fatias, pra sempre bater 100% com o gráfico.
+      // Agrupado por categoria-mãe (achado 29/10/2026, Flávia: "esse gráfico
+      // deve ser sobre categoria mãe" — por subcategoria eram dezenas de
+      // fatias). Mesma resolução de mãe do Planejamento; sem mãe cai num
+      // grupo único em vez de virar uma fatia por categoria.
       const _mesKeyAtualGraf = `${data.periodo.ano}-${String(data.periodo.mes).padStart(2, '0')}`;
       const porCat = {};
       data.despesas.forEach(d => {
         if (d._faturaAberta && d.fatura !== _mesKeyAtualGraf) return;
-        porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor;
+        const g = grupoGraficoCategoria(d.categoria);
+        porCat[g] = (porCat[g] || 0) + d.valor;
       });
       const cats    = Object.keys(porCat).sort((a, b) => porCat[b] - porCat[a]);
       const valores = cats.map(c => porCat[c]);
@@ -7239,7 +7249,7 @@
         <div class="graficos-grid">
           <div class="grafico-card">
             <div class="grafico-header">
-              <h2 class="grafico-title">Despesas por categoria</h2>
+              <h2 class="grafico-title">Despesas por categoria-mãe</h2>
               <span class="grafico-sub">${MESES[mes-1]} ${ano}</span>
             </div>
             ${cats.length > 0
@@ -7249,7 +7259,7 @@
           </div>
           <div class="grafico-card">
             <div class="grafico-header">
-              <h2 class="grafico-title">Tendência por categoria</h2>
+              <h2 class="grafico-title">Tendência por categoria-mãe</h2>
               <span class="grafico-sub" id="tendenciaStatus" style="font-size:12px;color:var(--text-muted)">carregando...</span>
             </div>
             <div id="tendenciaTabela"></div>
@@ -7318,7 +7328,8 @@
           const _mesKeyAtualTend = `${data.periodo.ano}-${String(data.periodo.mes).padStart(2, '0')}`;
           data.despesas.forEach(d => {
             if (d._faturaAberta && d.fatura !== _mesKeyAtualTend) return;
-            r[d.categoria] = (r[d.categoria] || 0) + d.valor;
+            const g = grupoGraficoCategoria(d.categoria);
+            r[g] = (r[g] || 0) + d.valor;
           });
           return r;
         });
@@ -7339,7 +7350,7 @@
         tabelaEl.innerHTML = `
           <table class="tend-table">
             <thead><tr>
-              <th style="text-align:left">Categoria</th>
+              <th style="text-align:left">Categoria-mãe</th>
               ${meses3.map(m => `<th>${m.label}</th>`).join('')}
               <th></th>
             </tr></thead>
