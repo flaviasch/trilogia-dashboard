@@ -84,6 +84,14 @@ export function diasEsperadosRecorrente(r, mes, ano) {
     const antesDoInicio = ano < r.anoInicio || (ano === r.anoInicio && mes < r.mesInicio);
     if (antesDoInicio) return [];
   }
+  // Recorrência por tempo determinado: depois do mês final não gera mais
+  // ocorrência (achado 29/10/2026, Flávia: fixa de 2 meses, out e nov,
+  // continuava projetada em dez, jan... porque mesesRestantes só diminuía
+  // ao lançar cada mês e a projeção ignorava o limite).
+  if (r.anoFim != null && r.mesFim != null) {
+    const depoisDoFim = ano > r.anoFim || (ano === r.anoFim && mes > r.mesFim);
+    if (depoisDoFim) return [];
+  }
   const freq = r.frequencia || 'mensal';
   if (freq === 'semanal')   return diasSemanaNoMes(ano, mes, r.dia);
   if (freq === 'quinzenal') return [r.dia, r.dia + 14].filter(d => d >= 1 && d <= 31);

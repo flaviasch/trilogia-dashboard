@@ -93,6 +93,13 @@ test('diasEsperadosRecorrente', async (t) => {
   await t.test('mensal retorna só o dia configurado', () => {
     assert.deepEqual(diasEsperadosRecorrente({ frequencia: 'mensal', dia: 14 }, 7, 2026), [14]);
   });
+  await t.test('por tempo determinado: nada depois do mês final', () => {
+    const r = { frequencia: 'mensal', dia: 5, mesInicio: 10, anoInicio: 2026, mesFim: 11, anoFim: 2026 };
+    assert.deepEqual(diasEsperadosRecorrente(r, 10, 2026), [5]);
+    assert.deepEqual(diasEsperadosRecorrente(r, 11, 2026), [5]);
+    assert.deepEqual(diasEsperadosRecorrente(r, 12, 2026), []);
+    assert.deepEqual(diasEsperadosRecorrente(r, 1, 2027), []);
+  });
   await t.test('quinzenal retorna dia e dia+14', () => {
     assert.deepEqual(diasEsperadosRecorrente({ frequencia: 'quinzenal', dia: 4 }, 7, 2026), [4, 18]);
   });

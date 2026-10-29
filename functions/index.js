@@ -2593,6 +2593,21 @@ exports.saveRecorrente = onCall(async (request) => {
   const mesesRestantes = Number.isInteger(recorrente.mesesRestantes) && recorrente.mesesRestantes >= 0
     ? recorrente.mesesRestantes : null;
 
+  // Mês final da recorrência por tempo determinado (achado 29/10/2026: a
+  // projeção dos meses futuros ignorava mesesRestantes, que só diminui ao
+  // lançar cada mês — uma fixa de 2 meses aparecia para sempre). Mês final
+  // explícito (ex: o cliente reenviando o registro inteiro ao lançar um mês)
+  // é mantido; sem ele, conta mesesRestantes a partir do mês-base (início da
+  // recorrência na criação, mês atual numa edição). Sem prazo = sem fim.
+  const fimInformado = Number.isInteger(recorrente.mesFim) && recorrente.mesFim >= 1 && recorrente.mesFim <= 12
+    && Number.isInteger(recorrente.anoFim) && recorrente.anoFim >= 2020 && recorrente.anoFim <= 2100;
+  const calcularFim = (mesBase, anoBase) => {
+    if (mesesRestantes == null) return { mesFim: null, anoFim: null };
+    if (fimInformado) return { mesFim: recorrente.mesFim, anoFim: recorrente.anoFim };
+    const total = anoBase * 12 + (mesBase - 1) + Math.max(mesesRestantes, 1) - 1;
+    return { mesFim: (total % 12) + 1, anoFim: Math.floor(total / 12) };
+  };
+
   const col = db.collection('mentoradas').doc(uid).collection('recorrentes');
   const dados = {
     tipo,
@@ -2610,7 +2625,8 @@ exports.saveRecorrente = onCall(async (request) => {
   if (recorrente.id) {
     // mesInicio/anoInicio nunca mudam numa edição — só valem na criação, senão
     // editar valor/descrição empurraria o início da recorrência pra frente.
-    await col.doc(recorrente.id).update(dados);
+    const agoraEd = new Date();
+    await col.doc(recorrente.id).update({ ...dados, ...calcularFim(agoraEd.getMonth() + 1, agoraEd.getFullYear()) });
     return { id: recorrente.id };
   } else {
     // Recorrente só vale a partir do mês em que foi criada — sem isso, uma
@@ -2624,7 +2640,7 @@ exports.saveRecorrente = onCall(async (request) => {
       ? recorrente.mesInicio : hoje.getMonth() + 1;
     const anoInicio = Number.isInteger(recorrente.anoInicio) && recorrente.anoInicio >= 2020 && recorrente.anoInicio <= 2100
       ? recorrente.anoInicio : hoje.getFullYear();
-    const ref = await col.add({ ...dados, mesInicio, anoInicio, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
+    const ref = await col.add({ ...dados, ...calcularFim(mesInicio, anoInicio), mesInicio, anoInicio, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
     return { id: ref.id };
   }
 });

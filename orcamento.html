@@ -4586,6 +4586,7 @@
       // virtuais até confirmação manual.
       const _recorrentesCarregadas = carregarRecorrentes();
       _recorrentesCarregadas.then(async () => {
+        await migrarFimRecorrentesLegadas(mes, ano).catch(() => {});
         if (await autoLancarFixasCartao(mes, ano)) {
           // Espera qualquer salvamento já enfileirado (ex: a usuária confirmou/
           // lançou uma despesa fixa pendente enquanto isso rodava) terminar de
@@ -5793,6 +5794,25 @@
         if (_fechadaAlvoPorCartao[cartaoId] !== faturaKey) return;
         if (cartoesAtivos.some(c => c.id === cartaoId)) gruposFechada[key] = [];
       });
+      // Fatura-alvo sem itens na janela do mês em tela (ex: vendo novembro,
+      // a fatura fechada é a de outubro): busca os itens no documento do
+      // próprio mês da fatura. Sem isso o "calculado" ficava R$ 0 e, com
+      // ajuste em delta (ajusteValor), o card mostrava só o ajuste como
+      // total (achado 29/10/2026, Flávia: Bradesco/XP/Sem Parar de outubro
+      // certos vendo outubro e errados vendo novembro).
+      await Promise.all(Object.keys(gruposFechada).map(async key => {
+        if (gruposFechada[key].length) return;
+        const [cartaoId, faturaKey] = key.split('_');
+        const [fAno, fMes] = (faturaKey || '').split('-').map(Number);
+        if (!fAno || !fMes || (fMes === data.periodo.mes && fAno === data.periodo.ano)) return;
+        try {
+          const pd = await buscarPeriodo(fMes, fAno, false);
+          gruposFechada[key] = [
+            ...(pd.despesas || []).filter(d => d.cartao && d.cartaoId === cartaoId && d.fatura === faturaKey),
+            ...(pd.receitas || []).filter(r => r.cartao && r.cartaoId === cartaoId && r.fatura === faturaKey),
+          ];
+        } catch (_) { /* mantém vazio: cai no fallback de valorPago abaixo */ }
+      }));
       const cartaoIdsDeFechada = new Set(Object.keys(gruposFechada).map(k => k.split('_')[0]));
       const fechadaKeysPorCartao = {}; // cartaoId → [chaves cartaoId_fatura]
       Object.keys(gruposFechada).forEach(key => {
@@ -11379,6 +11399,44 @@
         _materializandoFixa.delete(chaveEmCurso);
       }
     }
+    // Recorrência por tempo determinado: mês final (mesFim/anoFim) gravado no
+    // registro, pra projeção dos meses futuros parar nele (achado 29/10/2026,
+    // Flávia: fixa de 2 meses continuava aparecendo em dez, jan...). Ao lançar
+    // um mês de uma recorrência antiga, sem mês final, ele passa a ser o mês
+    // lançado + os meses que ainda restam.
+    function _fimAoLancar(r, mes, ano, novoMeses) {
+      if (r.mesFim != null && r.anoFim != null) return {};
+      const fim = ano * 12 + (mes - 1) + Math.max(novoMeses, 0);
+      return { mesFim: (fim % 12) + 1, anoFim: Math.floor(fim / 12) };
+    }
+
+    // Recorrências por tempo determinado criadas antes de 29/10/2026 não têm
+    // mês final. Calcula uma vez, no mês vigente: os meses que restam contam a
+    // partir deste mês (ou do próximo, se este já foi lançado), ou do mês de
+    // início, se a recorrência ainda nem começou.
+    async function migrarFimRecorrentesLegadas(mes, ano) {
+      const hoje = new Date();
+      if (mes !== hoje.getMonth() + 1 || ano !== hoje.getFullYear()) return;
+      const legadas = (_recorrentes || []).filter(r => r.ativo && r.mesesRestantes != null && r.mesFim == null);
+      if (!legadas.length) return;
+      const atual = ano * 12 + (mes - 1);
+      let mudou = false;
+      for (const r of legadas) {
+        const inicio = (r.anoInicio != null && r.mesInicio != null) ? r.anoInicio * 12 + (r.mesInicio - 1) : atual;
+        let base = Math.max(atual, inicio);
+        if (base === atual) {
+          const itens = ((r.tipo || 'despesa') === 'receita' ? currentData.receitas : currentData.despesas) || [];
+          if (itens.some(i => i.recorrenteId === r.id)) base += 1;
+        }
+        const fim = base + Math.max(r.mesesRestantes, 1) - 1;
+        try {
+          await saveRecorrente({ ...r, mesFim: (fim % 12) + 1, anoFim: Math.floor(fim / 12) });
+          mudou = true;
+        } catch (_) { /* tenta de novo no próximo carregamento */ }
+      }
+      if (mudou) await carregarRecorrentes();
+    }
+
     async function _materializarFixaPendenteImpl(recorrenteId, dia, { comoPendente = false } = {}) {
       const r = _recorrentes.find(x => x.id === recorrenteId);
       if (!r) return;
@@ -11415,7 +11473,7 @@
         await salvarEAtualizar();
         if (r.mesesRestantes != null) {
           const novoMeses = r.mesesRestantes - 1;
-          await saveRecorrente({ ...r, mesesRestantes: novoMeses, ativo: novoMeses > 0 });
+          await saveRecorrente({ ...r, ..._fimAoLancar(r, mes, ano, novoMeses), mesesRestantes: novoMeses, ativo: novoMeses > 0 });
           await carregarRecorrentes();
         }
         render(currentData);
@@ -11459,7 +11517,7 @@
 
       if (r.mesesRestantes != null) {
         const novoMeses = r.mesesRestantes - 1;
-        await saveRecorrente({ ...r, mesesRestantes: novoMeses, ativo: novoMeses > 0 });
+        await saveRecorrente({ ...r, ..._fimAoLancar(r, mes, ano, novoMeses), mesesRestantes: novoMeses, ativo: novoMeses > 0 });
         await carregarRecorrentes();
       }
 
