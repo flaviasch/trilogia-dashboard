@@ -6909,13 +6909,26 @@
       // "presente") não informa nada, diferente da soma de subcategorias
       // reais de um grupo. Fica só uma legenda avisando como agrupar, com as
       // linhas já visíveis logo abaixo (achado 05/08/2026).
-      const soltas = _porGrupo['soltas'] || [];
+      // "Lançamentos não identificados" não é categoria (não tem ✎ nem +) —
+      // fica fora da lista de soltas, com legenda própria, senão a legenda
+      // "toque em ✎" apontava pra uma linha sem botão nenhum (achado
+      // 29/10/2026, Flávia).
+      const _ehLinhaAjuste = li => normCat(li.cat) === normCat(CATEGORIA_AJUSTE);
+      const soltas = (_porGrupo['soltas'] || []).filter(li => !_ehLinhaAjuste(li));
+      const linhaAjusteSolta = (_porGrupo['soltas'] || []).find(_ehLinhaAjuste);
       const linhaLegendaSoltas = soltas.length
         ? `<tr class="plan-row" style="cursor:default">
              <td colspan="5" style="padding:10px 16px 6px;color:var(--text-muted);font-size:11px;font-style:italic;border-top:1px solid var(--border)">
-               Categorias sem grupo — toque em ✎ em qualquer uma abaixo pra agrupar numa categoria-mãe
+               Categorias sem grupo: toque em ✎ ou + numa delas pra definir o limite ou agrupar numa categoria-mãe
              </td>
            </tr>`
+        : '';
+      const blocoAjuste = linhaAjusteSolta
+        ? `<tr class="plan-row" style="cursor:default">
+             <td colspan="5" style="padding:10px 16px 6px;color:var(--text-muted);font-size:11px;font-style:italic;border-top:1px solid var(--border)">
+               Diferença calculada, não editável: o que saiu da conta ou das faturas e não está lançado em nenhuma categoria. Diminui conforme você lança ou corrige esses gastos.
+             </td>
+           </tr>` + linhaAjusteSolta.html
         : '';
 
       // Categoria-mãe não precisa ser uma das 13 fixas — a mentorada pode
@@ -6943,6 +6956,7 @@
           return _linhaCabecalhoGrupo(mae, idGrupo, itens) + itens.map(li => li.html).join('');
         }),
         linhaLegendaSoltas + soltas.map(li => li.html).join(''),
+        blocoAjuste,
       ].join('');
 
       // Linha "Não planejado" — só a sobra do planejado sem categoria (achado
