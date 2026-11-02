@@ -4750,7 +4750,19 @@
       // ④ Regularidade
       const ptsRegularidade = (data.receitas.length > 0 || data.despesas.length > 0) ? 100 : 0;
 
-      const score = Math.round(ptsSobra * 0.30 + ptsAporte * 0.35 + ptsOrcamento * 0.25 + ptsRegularidade * 0.10);
+      // Aporte neutro até o dia 28 do mês corrente (achado 02/11/2026, Flávia:
+      // score 25 no dia 2 só porque o aporte, que costuma sair no fim do mês,
+      // ainda não tinha sido registrado). Enquanto neutro, o aporte sai da
+      // conta e os outros pesos são reescalados. Passa a contar no dia 28 ou
+      // assim que qualquer aporte do mês for lançado, efetivado ou pendente.
+      // Mesma regra de calcularScoreMes no servidor.
+      const _hojeScore = new Date();
+      const aporteNeutro = data.periodo
+        && data.periodo.mes === _hojeScore.getMonth() + 1 && data.periodo.ano === _hojeScore.getFullYear()
+        && _hojeScore.getDate() < 28 && totalAporte <= 0;
+      const score = aporteNeutro
+        ? Math.round((ptsSobra * 0.30 + ptsOrcamento * 0.25 + ptsRegularidade * 0.10) / 0.65)
+        : Math.round(ptsSobra * 0.30 + ptsAporte * 0.35 + ptsOrcamento * 0.25 + ptsRegularidade * 0.10);
 
       let nivel, cor, emoji;
       if (score >= 80)      { nivel = 'Excelente';         cor = '#CFAE65'; emoji = '⭐'; }
@@ -4758,7 +4770,7 @@
       else if (score >= 40) { nivel = 'Em construção';      cor = '#f59e0b'; emoji = '🟡'; }
       else                  { nivel = 'Atenção necessária'; cor = '#f87171'; emoji = '🔴'; }
 
-      return { score, nivel, cor, emoji, componentes: { sobra: ptsSobra, aporte: ptsAporte, orcamento: ptsOrcamento, regularidade: ptsRegularidade } };
+      return { score, nivel, cor, emoji, aporteNeutro, componentes: { sobra: ptsSobra, aporte: ptsAporte, orcamento: ptsOrcamento, regularidade: ptsRegularidade } };
     }
 
     function renderScore(data) {

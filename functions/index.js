@@ -395,7 +395,7 @@ async function sendPushToAtivas(payload) {
  * abaixo devem continuar batendo com calcularScore() em orcamento.html —
  * cobertos por testes em functions/test/score.test.js.
  */
-function calcularScoreMes(orcItens, reservas, cats) {
+function calcularScoreMes(orcItens, reservas, cats, { aporteNeutro = false } = {}) {
   const receita      = orcItens.filter(i => i.tipo === 'receita').reduce((s, i) => s + i.valor, 0);
   const despesa      = orcItens.filter(i => i.tipo === 'despesa').reduce((s, i) => s + i.valor, 0);
   const totalAporte  = orcItens.filter(i => i.tipo === 'aporte' ).reduce((s, i) => s + i.valor, 0);
@@ -440,6 +440,14 @@ function calcularScoreMes(orcItens, reservas, cats) {
   // ④ Regularidade
   const ptsRegularidade = (receita > 0 || despesa > 0) ? 100 : 0;
 
+  // Aporte neutro até o dia 28 do mês corrente (achado 02/11/2026, Flávia:
+  // score 25 no dia 2 só porque o aporte, que costuma sair no fim do mês,
+  // ainda não tinha sido registrado). Enquanto neutro, o aporte sai da conta
+  // e os outros pesos são reescalados. Passa a contar no dia 28 ou assim que
+  // qualquer aporte do mês for lançado, efetivado ou pendente.
+  if (aporteNeutro && totalAporte <= 0) {
+    return Math.round((ptsSobra * 0.30 + ptsOrcamento * 0.25 + ptsRegularidade * 0.10) / 0.65);
+  }
   return Math.round(ptsSobra * 0.30 + ptsAporte * 0.35 + ptsOrcamento * 0.25 + ptsRegularidade * 0.10);
 }
 
@@ -855,7 +863,9 @@ exports.getDashboardHome = onCall(async (request) => {
     scoreCalculado = scoreMes;
     scoreChaveCalculado = scoreChave;
   } else {
-    scoreCalculado = orcItens.length > 0 ? calcularScoreMes(orcItens, reservas, cats) : null;
+    scoreCalculado = orcItens.length > 0
+      ? calcularScoreMes(orcItens, reservas, cats, { aporteNeutro: Number(hoje().slice(8, 10)) < 28 })
+      : null;
     scoreChaveCalculado = scoreCalculado != null ? mesAtual : null;
     if (scoreCalculado != null) {
       docSnap.ref.update({ scoreMes: scoreCalculado, scoreChave: scoreChaveCalculado })

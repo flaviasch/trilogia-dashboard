@@ -87,3 +87,21 @@ test('calcularScoreMes — componente Regularidade (peso 10%)', async (t) => {
     assert.ok(score > 0);
   });
 });
+
+test('calcularScoreMes — aporte neutro até o dia 28 (mês corrente)', async (t) => {
+  await t.test('sem nenhum aporte: aporte sai da conta e os pesos são reescalados', () => {
+    const score = calcularScoreMes([receita(1000), despesa(850)], [{ aporte: 500 }], [], { aporteNeutro: true });
+    // sobra 15% → 50; orçamento neutro 75; regularidade 100
+    assert.equal(score, Math.round((50 * 0.30 + 75 * 0.25 + 100 * 0.10) / 0.65));
+  });
+
+  await t.test('com algum aporte lançado: aporte volta a contar normalmente', () => {
+    const score = calcularScoreMes([receita(1000), despesa(850), aporte(100)], [{ aporte: 500 }], [], { aporteNeutro: true });
+    assert.equal(score, Math.round(50 * 0.30 + 20 * 0.35 + 75 * 0.25 + 100 * 0.10));
+  });
+
+  await t.test('sem a opção (mês passado ou depois do dia 28): regra antiga', () => {
+    const score = calcularScoreMes([receita(1000), despesa(850)], [{ aporte: 500 }], []);
+    assert.equal(score, Math.round(50 * 0.30 + 0 * 0.35 + 75 * 0.25 + 100 * 0.10));
+  });
+});
