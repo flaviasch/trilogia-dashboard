@@ -576,6 +576,7 @@ export const bootstrapAdmin = call('bootstrapAdmin');
 
 export const getMentoradas = adminCall('getMentoradas');
 export const previewFechamentoMensal = adminCall('previewFechamentoMensal');
+export const enviarFechamentoMensalAvulso = adminCall('enviarFechamentoMensalAvulso');
 
 /**
  * @param {{ nome, email, inicio, perfil, produto, valorMensal, formaPagamento, dataExpiracao }} dados

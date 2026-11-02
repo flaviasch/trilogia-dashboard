@@ -10761,6 +10761,50 @@ exports.previewFechamentoMensal = onCall({ secrets: [...SECRETS_EMAIL, sAnthropi
 });
 
 /**
+ * Disparo avulso do fechamento de um mês para todas as ativas (só admin).
+ * Usado quando o e-mail do dia 1 já saiu no modelo antigo (achado 02/11/2026:
+ * o fechamento de outubro foi liberado no dia 2). Não reenvia para quem já
+ * recebeu o fechamento desse mês (fechamentoMesRef), então pode ser repetido
+ * com segurança se cair no meio.
+ * Espera: { mes, ano }
+ */
+exports.enviarFechamentoMensalAvulso = onCall({ secrets: [...SECRETS_EMAIL, sAnthropic], timeoutSeconds: 540, memory: '512MiB' }, async (request) => {
+  requireAdmin(request);
+  const mes = Number(request.data?.mes);
+  const ano = Number(request.data?.ano);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12 || !Number.isInteger(ano) || ano < 2020)
+    throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
+  const chave = `${ano}-${String(mes).padStart(2, '0')}`;
+  const nomeMes = nomeMesPt(mes, ano);
+  const agora = new Date();
+  const resultado = { enviados: 0, jaRecebido: 0, semDados: 0, erros: 0, semEmail: 0 };
+  for (const m of await getAtivas()) {
+    if (!m.email) { resultado.semEmail++; continue; }
+    if (m.fechamentoMesRef === chave) { resultado.jaRecebido++; continue; }
+    try {
+      const f = await _montarFechamentoMensal(m.id, mes, ano, agora);
+      if (!f) { resultado.semDados++; continue; }
+      await sendEmail({
+        to:      m.email,
+        subject: `Seu fechamento de ${nomeMes}`,
+        html:    emailFechamentoMensal(m.nome || 'mentorada', f.dados, f.texto),
+      });
+      await db.collection('mentoradas').doc(m.id).update({
+        fechamentoEnviadoEm:   admin.firestore.FieldValue.serverTimestamp(),
+        fechamentoMesRef:      chave,
+        fechamentoTextoOrigem: f.origem,
+      });
+      resultado.enviados++;
+    } catch (err) {
+      console.warn(`[enviarFechamentoMensalAvulso] Falha para ${m.id}:`, err.message);
+      resultado.erros++;
+    }
+  }
+  console.log(`[enviarFechamentoMensalAvulso] ${chave}:`, JSON.stringify(resultado));
+  return { ok: true, mes: chave, ...resultado };
+});
+
+/**
  * Dia 1 de cada mês às 08h (Brasília):
  *   • Lembrete de orçamento (todas as ativas)
  *   • Renovação de perfil (perfil ausente ou > 180 dias)
