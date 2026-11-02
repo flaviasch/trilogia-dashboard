@@ -90,6 +90,7 @@ const {
   emailRetencaoDia7,
   emailRelatorioMensal,
   emailFechamentoMensal,
+  emailConviteRetomar,
   emailComunicadoTecnico,
   emailUpgradeDashboard,
 } = require('./lib/mailer');
@@ -10768,22 +10769,32 @@ exports.previewFechamentoMensal = onCall({ secrets: [...SECRETS_EMAIL, sAnthropi
  * com segurança se cair no meio.
  * Espera: { mes, ano }
  */
-exports.enviarFechamentoMensalAvulso = onCall({ secrets: [...SECRETS_EMAIL, sAnthropic], timeoutSeconds: 540, memory: '512MiB' }, async (request) => {
-  requireAdmin(request);
-  const mes = Number(request.data?.mes);
-  const ano = Number(request.data?.ano);
-  if (!Number.isInteger(mes) || mes < 1 || mes > 12 || !Number.isInteger(ano) || ano < 2020)
-    throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
+async function _enviarFechamentoMesTodas(mes, ano) {
   const chave = `${ano}-${String(mes).padStart(2, '0')}`;
   const nomeMes = nomeMesPt(mes, ano);
+  const proxMes = mes === 12 ? 1 : mes + 1;
+  const nomeMesAtual = nomeMesPt(proxMes, mes === 12 ? ano + 1 : ano);
   const agora = new Date();
-  const resultado = { enviados: 0, jaRecebido: 0, semDados: 0, erros: 0, semEmail: 0 };
+  const resultado = { enviados: 0, convites: 0, jaRecebido: 0, erros: 0, semEmail: 0 };
   for (const m of await getAtivas()) {
     if (!m.email) { resultado.semEmail++; continue; }
-    if (m.fechamentoMesRef === chave) { resultado.jaRecebido++; continue; }
+    if (m.fechamentoMesRef === chave || m.conviteRetomarMesRef === chave) { resultado.jaRecebido++; continue; }
     try {
       const f = await _montarFechamentoMensal(m.id, mes, ano, agora);
-      if (!f) { resultado.semDados++; continue; }
+      if (!f) {
+        // Sem lançamentos no mês: convite para retomar no lugar do fechamento.
+        await sendEmail({
+          to:      m.email,
+          subject: 'Que tal retomar o seu mês?',
+          html:    emailConviteRetomar(m.nome || 'mentorada', nomeMes, nomeMesAtual),
+        });
+        await db.collection('mentoradas').doc(m.id).update({
+          conviteRetomarEnviadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          conviteRetomarMesRef:    chave,
+        });
+        resultado.convites++;
+        continue;
+      }
       await sendEmail({
         to:      m.email,
         subject: `Seu fechamento de ${nomeMes}`,
@@ -10796,13 +10807,34 @@ exports.enviarFechamentoMensalAvulso = onCall({ secrets: [...SECRETS_EMAIL, sAnt
       });
       resultado.enviados++;
     } catch (err) {
-      console.warn(`[enviarFechamentoMensalAvulso] Falha para ${m.id}:`, err.message);
+      console.warn(`[fechamentoAvulso] Falha para ${m.id}:`, err.message);
       resultado.erros++;
     }
   }
-  console.log(`[enviarFechamentoMensalAvulso] ${chave}:`, JSON.stringify(resultado));
+  console.log(`[fechamentoAvulso] ${chave}:`, JSON.stringify(resultado));
+  await db.collection('config').doc('comunicados').set(
+    { [`fechamentoAvulso_${chave}`]: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), ...resultado } },
+    { merge: true }
+  );
   return { ok: true, mes: chave, ...resultado };
+}
+
+exports.enviarFechamentoMensalAvulso = onCall({ secrets: [...SECRETS_EMAIL, sAnthropic], timeoutSeconds: 540, memory: '512MiB' }, async (request) => {
+  requireAdmin(request);
+  const mes = Number(request.data?.mes);
+  const ano = Number(request.data?.ano);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12 || !Number.isInteger(ano) || ano < 2020)
+    throw new HttpsError('invalid-argument', 'mes e ano são obrigatórios.');
+  return _enviarFechamentoMesTodas(mes, ano);
 });
+
+// Disparo único do fechamento de outubro/2026, rodado à mão pelo Cloud
+// Scheduler (gcloud scheduler jobs run) em 02/11/2026. O horário agendado é
+// só um marcador; repetir é seguro porque quem já recebeu é pulado.
+exports.fechamentoAvulsoOut2026 = onSchedule(
+  { schedule: '0 9 2 11 *', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, sAnthropic], timeoutSeconds: 540, memory: '512MiB' },
+  async () => { await _enviarFechamentoMesTodas(10, 2026); }
+);
 
 /**
  * Dia 1 de cada mês às 08h (Brasília):
@@ -10834,6 +10866,7 @@ exports.notifDia1 = onSchedule(
       // Fechamento Mensal (projeto fechamento-mensal). Só entra se a config ligar
       // para esta pessoa. Qualquer falha cai no e-mail antigo logo abaixo.
       let fechamentoEnviado = false;
+      let conviteRetomar = false;
       if (_usarNovoFechamento(cfgFechamento, m)) {
         try {
           const f = await _montarFechamentoMensal(m.id, mesPrevNum, anoPrev, agora);
@@ -10852,6 +10885,9 @@ exports.notifDia1 = onSchedule(
               fechamentoTextoOrigem: f.origem,
             }).catch(e => console.warn(`[notifDia1] Falha ao registrar envio do fechamento para ${m.id}:`, e.message));
             console.log(`[notifDia1] fechamento montado para ${maskEmail(m.email)} (texto: ${f.origem}, prioridade: ${f.dados.prioridade.codigo})`);
+          } else {
+            // Mês sem lançamentos: convite para retomar no lugar do lembrete genérico.
+            conviteRetomar = true;
           }
         } catch (err) {
           console.warn(`[notifDia1] Fechamento falhou para ${m.id}, usando o e-mail antigo:`, err.message);
@@ -10913,8 +10949,20 @@ exports.notifDia1 = onSchedule(
         console.warn(`[notifDia1] Erro ao gerar relatório para ${m.id}:`, err.message);
       }
 
+      if (conviteRetomar) {
+        tarefas.push(sendEmail({
+          to:      m.email,
+          subject: 'Que tal retomar o seu mês?',
+          html:    emailConviteRetomar(m.nome || 'mentorada', nomeMesPrev, nomesMes),
+        }));
+        db.collection('mentoradas').doc(m.id).update({
+          conviteRetomarEnviadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          conviteRetomarMesRef:    `${anoPrev}-${String(mesPrevNum).padStart(2, '0')}`,
+        }).catch(e => console.warn(`[notifDia1] Falha ao registrar convite para ${m.id}:`, e.message));
+      }
+
       // Lembrete de orçamento — todas as ativas
-      if (!fechamentoEnviado) tarefas.push(sendEmail({
+      if (!fechamentoEnviado && !conviteRetomar) tarefas.push(sendEmail({
         to:      m.email,
         subject: `Registre o orçamento de ${nomesMes}`,
         html:    emailLembreteOrcamento(m.nome || 'mentorada', nomesMes),

@@ -164,6 +164,34 @@ function emailLembreteOrcamento(nome, nomeMes) {
 }
 
 /**
+ * E-mail: convite para retomar, para quem ficou um mês sem lançamentos e por
+ * isso não tem fechamento (achado 02/11/2026, Flávia: "oportunidade de convite
+ * para retomar"). Tom acolhedor, sem culpa. Substitui o lembrete genérico de
+ * orçamento para essas pessoas quando o fechamento está ligado.
+ */
+function emailConviteRetomar(nome, nomeMesPrev, nomeMesAtual) {
+  const primeiroNome = String(nome || '').trim().split(/\s+/)[0] || 'mentorada';
+  return layout(`
+    <h2 style="${S.h2}">Que tal retomar o seu mês?</h2>
+    <p style="${S.p}">Olá, ${primeiroNome}!</p>
+    <p style="${S.p}">
+      ${nomeMesPrev.charAt(0).toUpperCase() + nomeMesPrev.slice(1)} passou sem lançamentos no seu Dashboard,
+      então não tenho o seu fechamento para te mandar desta vez. Acontece, e não precisa
+      recomeçar do zero.
+    </p>
+    <p style="${S.p}">Em uns 10 minutos dá para colocar <strong>${nomeMesAtual}</strong> de pé:</p>
+    <p style="${S.p}">
+      1. Abra o Orçamento e confira o saldo inicial da sua conta.<br>
+      2. Lance a sua renda e as despesas fixas, ou importe o extrato pelo Raio-X.<br>
+      3. Pronto. No dia 1º você recebe o seu fechamento, com a prioridade do mês.
+    </p>
+    <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">Retomar meu orçamento</a>
+    <p style="${S.p}">Se quiser ajuda para retomar, é só responder este e-mail.</p>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
+/**
  * E-mail: lembrete de aporte mensal.
  * @param {string} nome    — nome da mentorada
  * @param {string} nomeMes — ex. "maio de 2026"
@@ -1952,5 +1980,6 @@ module.exports = {
   emailRetencaoDia7,
   emailRelatorioMensal,
   emailFechamentoMensal,
+  emailConviteRetomar,
   emailUpgradeDashboard,
 };
