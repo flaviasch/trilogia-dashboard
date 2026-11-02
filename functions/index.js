@@ -10828,13 +10828,6 @@ exports.enviarFechamentoMensalAvulso = onCall({ secrets: [...SECRETS_EMAIL, sAnt
   return _enviarFechamentoMesTodas(mes, ano);
 });
 
-// Disparo único do fechamento de outubro/2026, rodado à mão pelo Cloud
-// Scheduler (gcloud scheduler jobs run) em 02/11/2026. O horário agendado é
-// só um marcador; repetir é seguro porque quem já recebeu é pulado.
-exports.fechamentoAvulsoOut2026 = onSchedule(
-  { schedule: '0 9 2 11 *', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, sAnthropic], timeoutSeconds: 540, memory: '512MiB' },
-  async () => { await _enviarFechamentoMesTodas(10, 2026); }
-);
 
 /**
  * Dia 1 de cada mês às 08h (Brasília):
