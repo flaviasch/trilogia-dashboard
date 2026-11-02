@@ -1610,6 +1610,8 @@ async function init(user) {
         document.getElementById('ativos').textContent  = brl(at2);
         document.getElementById('dividas').textContent = brl(dv2);
         document.getElementById('pl').textContent      = brl(pl3);
+        // Fase 2 falhou: decide o card de configuração com o dado aproximado.
+        checkOnboarding(data);
       });
 
       return true;   // sucesso
@@ -1729,7 +1731,10 @@ async function init(user) {
       });
       renderReservas(reservasFormatadas);
 
-      checkOnboarding(data);
+      // Provisório: dado do cache/servidor ainda sem o cálculo completo do
+      // orçamento (Fase 2). O card de configuração só aparece com o dado real,
+      // senão ele surgia e sumia em seguida (achado 02/11/2026, Flávia).
+      checkOnboarding(data, { provisorio: true });
       renderNotificacoes(data);
 
       if (data.assinaturaClube) {
@@ -1769,7 +1774,7 @@ async function init(user) {
     }
 
     // ─── Onboarding ──────────────────────────────
-    function checkOnboarding(data) {
+    function checkOnboarding(data, { provisorio = false } = {}) {
       const temPerfil     = !!data.perfil?.perfil;
       const temPatrimonio = (data.patrimonio?.ativos || 0) > 0 || localStorage.getItem('patrimonio_sem_ativos') === '1';
       const temReservas   = (data.reservas || []).length > 0;
@@ -1837,7 +1842,9 @@ async function init(user) {
         // carregado) e a Fase 2 descobre que já está tudo completo, o card
         // precisa sumir — sem o else, ele ficava preso visível pra sempre
         // (achado em 05/07/2026).
-        if (setupDone < setupSteps.length) {
+        if (provisorio) {
+          // Mantém como está (oculto no primeiro carregamento) até a Fase 2.
+        } else if (setupDone < setupSteps.length) {
           renderSetupProgress(setupSteps, setupDone);
           document.getElementById('setupProgress').style.display = 'block';
         } else {
