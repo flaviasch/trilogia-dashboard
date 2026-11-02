@@ -1268,7 +1268,7 @@ function emailFechamentoMensal(nome, d, textoLeitura) {
 
   return layout(`
     <h2 style="${S.h2}">Seu fechamento de ${esc(d.mesNome)}</h2>
-    <p style="${S.p}">Olá, ${esc(nome)}! Esta é a leitura do seu mês.</p>
+    <p style="${S.p}">Olá, ${esc(String(nome || '').trim().split(/\s+/)[0] || 'mentorada')}! Esta é a leitura do seu mês.</p>
     <p style="${S.p}">${esc(textoLeitura)}</p>
 
     ${blocoNota}
