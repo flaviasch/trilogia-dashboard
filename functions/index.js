@@ -89,9 +89,11 @@ const {
   emailRetencaoDia3,
   emailRetencaoDia7,
   emailRelatorioMensal,
+  emailFechamentoMensal,
   emailComunicadoTecnico,
   emailUpgradeDashboard,
 } = require('./lib/mailer');
+const fechamentoLib = require('./lib/fechamento');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -5112,7 +5114,9 @@ exports.deletePushSubscription = onCall({}, async (request) => {
  * Retorna todos os dados pessoais da usuária em formato estruturado.
  * LGPD Art. 18, inciso V: direito à portabilidade dos dados.
  * Inclui: conta, orçamento (todos os meses), patrimônio, investimentos,
- *         dívidas, reservas e perfil de investidor.
+ *         dívidas, reservas e perfil de investidor, mais todas as demais
+ *         subcoleções da usuária (outrasColecoes) e o vínculo de casal.
+ *         Dados do Dashboard PJ têm exportação própria (Ajuda → Seus dados).
  */
 exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) => {
   const auth = requireAuth(request);
@@ -5164,6 +5168,39 @@ exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) 
     perfil = await new SheetsClient(conta.sheetId).getPerfil().catch(() => null);
   }
 
+  // Demais subcoleções da usuária (cartões, contas, saldos, recorrentes, faturas,
+  // scores, decisões, categorias aprendidas, jornada, config etc.). Dinâmico via
+  // listCollections() para não ficar defasado quando surgir subcoleção nova
+  // (auditoria 19/10/2026: a lista fixa deixava a exportação incompleta).
+  const _serializar = (v) => {
+    if (v === null || v === undefined) return v;
+    if (typeof v.toDate === 'function') return v.toDate().toISOString();
+    if (Array.isArray(v)) return v.map(_serializar);
+    if (typeof v === 'object') {
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, _serializar(x)]));
+    }
+    return v;
+  };
+  const jaExportadas = new Set(['orcamento', 'patrimonio', 'reservas', 'perfil']);
+  const outrasColecoes = {};
+  const subcolecoes = await db.collection('mentoradas').doc(uid).listCollections();
+  for (const col of subcolecoes) {
+    if (jaExportadas.has(col.id)) continue;
+    const snap = await col.get();
+    outrasColecoes[col.id] = snap.docs.map(d => ({ id: d.id, ..._serializar(d.data()) }));
+  }
+
+  // Modo Casal: só os metadados do vínculo da própria usuária (nunca os dados do parceiro).
+  const [casaisA, casaisB] = await Promise.all([
+    db.collection('casais').where('uidA', '==', uid).get(),
+    db.collection('casais').where('uidB', '==', uid).get(),
+  ]);
+  const casais = [...casaisA.docs, ...casaisB.docs].map(d => ({
+    casalId: d.id,
+    status:  d.data().status || null,
+    papel:   d.data().uidA === uid ? 'A' : 'B',
+  }));
+
   return {
     exportadoEm: new Date().toISOString(),
     conta: {
@@ -5180,6 +5217,8 @@ exports.exportarMeusDados = onCall({ secrets: SECRETS_SHEETS }, async (request) 
     dividas:        dividas      || [],
     reservas:       reservas     || [],
     perfil:         perfil       || null,
+    outrasColecoes,
+    casais,
   };
 });
 
@@ -10567,13 +10606,157 @@ async function lerEngajamento(uid, { mesKey, anoKey } = {}) {
 
 // SECRETS_EMAIL já definido no topo do arquivo
 
+// ─── FECHAMENTO MENSAL (projeto fechamento-mensal, fase 03) ─────────────────
+//
+// Evolução do e-mail do dia 1 (notifDia1). Fica DESLIGADO por padrão: sem o
+// documento config/fechamentoMensal, tudo se comporta como antes. Modos:
+//   { modo: 'off' }                                   → e-mail antigo para todas
+//   { modo: 'teste', emailsTeste: ['a@b.com'] }       → fechamento novo só para esses e-mails
+//   { modo: 'on' }                                    → fechamento novo para todas as ativas
+// Se montar o fechamento falhar para uma pessoa, ela recebe o e-mail antigo.
+
+async function _lerCfgFechamento() {
+  try {
+    const snap = await db.collection('config').doc('fechamentoMensal').get();
+    return snap.exists ? (snap.data() || {}) : {};
+  } catch (err) {
+    console.warn('[fechamento] Falha ao ler config, seguindo no modo off:', err.message);
+    return {};
+  }
+}
+
+function _usarNovoFechamento(cfg, m) {
+  const modo = cfg && cfg.modo;
+  if (modo === 'on') return true;
+  if (modo === 'teste') {
+    const lista = Array.isArray(cfg.emailsTeste) ? cfg.emailsTeste.map(e => String(e).trim().toLowerCase()) : [];
+    return lista.includes(String(m.email || '').trim().toLowerCase());
+  }
+  return false;
+}
+
+/**
+ * Receita, despesa, aporte e sobra de um mês, com a MESMA reconciliação e o MESMO
+ * calcularAgregadosOrcamento que o resumo antigo do notifDia1 usa. O bloco é
+ * duplicado de propósito (o caminho antigo ficou intocado enquanto o fechamento
+ * está em teste). Depois de validado, unificar os dois nesta função.
+ * Nunca somar itens brutos aqui: foi o bug de 01/09/2026 (R$10,5 mil de diferença).
+ */
+async function _orcResumoMes(uid, mes, ano, agora) {
+  const itens = await _buscarItensOrcamento(uid, mes, ano);
+  if (!itens.length) return { itens, orc: null };
+  const [cartoesSnap, faturaEstadosSnap, recorrentesSnap] = await Promise.all([
+    db.collection('mentoradas').doc(uid).collection('cartoes').get(),
+    db.collection('mentoradas').doc(uid).collection('faturaEstados').get(),
+    db.collection('mentoradas').doc(uid).collection('recorrentes').get(),
+  ]);
+  const cartoes = cartoesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const faturaEstadosMap = {};
+  faturaEstadosSnap.forEach(d => { faturaEstadosMap[d.id] = d.data(); });
+  const recorrentes = recorrentesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const agregados = calcularAgregadosOrcamento({
+    data: {
+      periodo: { mes, ano },
+      saldoConta: 0, // igual ao caminho antigo: sem histórico de saldo em conta acessível aqui
+      receitas: itens.filter(i => i.tipo === 'receita'),
+      despesas: itens.filter(i => i.tipo === 'despesa'),
+      aportes: itens.filter(i => i.tipo === 'aporte'),
+      transferencias: itens.filter(i => i.tipo === 'transferencia'),
+    },
+    cartoes, faturaEstados: faturaEstadosMap, recorrentes,
+    fixasPuladas: [], // "puladas" só existe no localStorage do navegador
+    agora,
+  });
+  return {
+    itens,
+    orc: { receita: agregados.totalReceita, despesa: agregados.despesaCaixa, aporte: agregados.totalAp, sobra: agregados.sobra },
+  };
+}
+
+/**
+ * Monta o fechamento de um mês para uma pessoa. Retorna null se o mês não tem
+ * lançamentos (quem chama mantém o comportamento antigo: só o lembrete).
+ * Reservas são lidas direto do Firestore, sem o fallback do Sheets de
+ * _buscarReservasInterno, porque notifDia1 não tem os secrets do Sheets.
+ */
+async function _montarFechamentoMensal(uid, mes, ano, agora) {
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  const prevMes = mes === 1 ? 12 : mes - 1;
+  const prevAno = mes === 1 ? ano - 1 : ano;
+  const prevKey = `${prevAno}-${String(prevMes).padStart(2, '0')}`;
+  const proxMes = mes === 12 ? 1 : mes + 1;
+  const proxAno = mes === 12 ? ano + 1 : ano;
+
+  const { itens, orc } = await _orcResumoMes(uid, mes, ano, agora);
+  if (!orc || !(orc.receita > 0 || orc.despesa > 0)) return null;
+
+  const base = db.collection('mentoradas').doc(uid);
+  const [scoreSnap, scorePrevSnap, planSnap, reservasSnap, mentoradaSnap] = await Promise.all([
+    base.collection('scores').doc(mesKey).get(),
+    base.collection('scores').doc(prevKey).get(),
+    base.collection('planejamento').doc(mesKey).get(),
+    base.collection('reservas').get(),
+    base.get(),
+  ]);
+  const reservas = reservasSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+  const cats = planSnap.exists ? (planSnap.data().categorias || []) : [];
+  const md = mentoradaSnap.exists ? mentoradaSnap.data() : {};
+
+  const nota = fechamentoLib.resumoNota(
+    scoreSnap.exists ? scoreSnap.data() : null,
+    scorePrevSnap.exists ? scorePrevSnap.data() : null,
+    calcularScoreMes(itens, reservas, cats),
+  );
+  const proximoMesNome = nomeMesPt(proxMes, proxAno);
+  const dados = fechamentoLib.montarDados({
+    mesNome: nomeMesPt(mes, ano),
+    mesAtualNome: proximoMesNome,
+    proximoMesNome,
+    orc,
+    pl: md.pl || 0,
+    totalReservas: md.totalReservas || 0,
+    nota,
+    categorias: fechamentoLib.categoriasEstouradas(itens, cats, _normCat),
+    reserva: fechamentoLib.resumoReservas(reservas),
+  });
+  const { texto, origem } = await fechamentoLib.gerarTextoLeitura(
+    dados,
+    (d) => fechamentoLib.chamarHaiku(d, { apiKey: sAnthropic.value(), fetchFn: fetch }),
+    (msg) => console.warn(`[fechamento] ${msg}`),
+  );
+  return { dados, texto, origem };
+}
+
+/**
+ * Pré-visualização do fechamento (só admin). Devolve os dados e o HTML. Com
+ * enviar:true, manda a prévia SOMENTE para o e-mail do próprio admin que chamou,
+ * nunca para a mentorada.
+ * Espera: { uid, mes, ano, enviar? }
+ */
+exports.previewFechamentoMensal = onCall({ secrets: [...SECRETS_EMAIL, sAnthropic] }, async (request) => {
+  requireAdmin(request);
+  const { uid, mes, ano, enviar } = request.data || {};
+  if (!uid || !mes || !ano) throw new HttpsError('invalid-argument', 'uid, mes e ano são obrigatórios.');
+  const snap = await db.collection('mentoradas').doc(uid).get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Mentorada não encontrada.');
+  const f = await _montarFechamentoMensal(uid, Number(mes), Number(ano), new Date());
+  if (!f) return { ok: true, vazio: true };
+  const html = emailFechamentoMensal(snap.data().nome || 'mentorada', f.dados, f.texto);
+  if (enviar === true) {
+    const destino = request.auth && request.auth.token && request.auth.token.email;
+    if (!destino) throw new HttpsError('failed-precondition', 'Seu login não tem e-mail para receber a prévia.');
+    await sendEmail({ to: destino, subject: `[PRÉVIA] Fechamento de ${f.dados.mesNome}`, html });
+  }
+  return { ok: true, origemTexto: f.origem, dados: f.dados, html };
+});
+
 /**
  * Dia 1 de cada mês às 08h (Brasília):
  *   • Lembrete de orçamento (todas as ativas)
  *   • Renovação de perfil (perfil ausente ou > 180 dias)
  */
 exports.notifDia1 = onSchedule(
-  { schedule: '0 8 1 * *', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, ...SECRETS_PUSH] },
+  { schedule: '0 8 1 * *', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, ...SECRETS_PUSH, sAnthropic] },
   comMonitoramento('notifDia1', async () => {
     if (await jaExecutouHoje('notifDia1')) return;
     const agora   = new Date();
@@ -10586,6 +10769,7 @@ exports.notifDia1 = onSchedule(
     const anoPrev    = mes === 1 ? ano - 1 : ano;
     const mesKeyPrev = `${anoPrev}-${String(mesPrevNum).padStart(2, '0')}`;
     const nomeMesPrev = nomeMesPt(mesPrevNum, anoPrev);
+    const cfgFechamento = await _lerCfgFechamento();
 
     const mentoradas = await getAtivas();
 
@@ -10593,12 +10777,39 @@ exports.notifDia1 = onSchedule(
       if (!m.email) continue;
       const tarefas = [];
 
+      // Fechamento Mensal (projeto fechamento-mensal). Só entra se a config ligar
+      // para esta pessoa. Qualquer falha cai no e-mail antigo logo abaixo.
+      let fechamentoEnviado = false;
+      if (_usarNovoFechamento(cfgFechamento, m)) {
+        try {
+          const f = await _montarFechamentoMensal(m.id, mesPrevNum, anoPrev, agora);
+          if (f) {
+            tarefas.push(sendEmail({
+              to:      m.email,
+              subject: `Seu fechamento de ${nomeMesPrev}`,
+              html:    emailFechamentoMensal(m.nome || 'mentorada', f.dados, f.texto),
+            }));
+            fechamentoEnviado = true;
+            // Registro para as métricas (retorno depois do e-mail). registrarAcesso guarda só o
+            // último acesso, então o instante do envio precisa ficar gravado aqui.
+            db.collection('mentoradas').doc(m.id).update({
+              fechamentoEnviadoEm:   admin.firestore.FieldValue.serverTimestamp(),
+              fechamentoMesRef:      `${anoPrev}-${String(mesPrevNum).padStart(2, '0')}`,
+              fechamentoTextoOrigem: f.origem,
+            }).catch(e => console.warn(`[notifDia1] Falha ao registrar envio do fechamento para ${m.id}:`, e.message));
+            console.log(`[notifDia1] fechamento montado para ${maskEmail(m.email)} (texto: ${f.origem}, prioridade: ${f.dados.prioridade.codigo})`);
+          }
+        } catch (err) {
+          console.warn(`[notifDia1] Fechamento falhou para ${m.id}, usando o e-mail antigo:`, err.message);
+        }
+      }
+
       // Relatório do mês anterior — mesma reconciliação de itens (entre
       // meses, ciclo de fatura) e mesmo cálculo de despesa/sobra que
       // orcamento.html usa (getOrcamento + orcamento-calc-shared), pra não
       // divergir do que a mentorada vê no dashboard (achado 01/09/2026).
       try {
-        const itens = await _buscarItensOrcamento(m.id, mesPrevNum, anoPrev);
+        const itens = fechamentoEnviado ? [] : await _buscarItensOrcamento(m.id, mesPrevNum, anoPrev);
         if (itens.length > 0) {
           const [cartoesSnap, faturaEstadosSnap, recorrentesSnap] = await Promise.all([
             db.collection('mentoradas').doc(m.id).collection('cartoes').get(),
@@ -10649,7 +10860,7 @@ exports.notifDia1 = onSchedule(
       }
 
       // Lembrete de orçamento — todas as ativas
-      tarefas.push(sendEmail({
+      if (!fechamentoEnviado) tarefas.push(sendEmail({
         to:      m.email,
         subject: `Registre o orçamento de ${nomesMes}`,
         html:    emailLembreteOrcamento(m.nome || 'mentorada', nomesMes),
@@ -13009,13 +13220,13 @@ function normalizarTelefone(tel) {
 
 function mapProdutoDiagnostico(produtoIndicado) {
   const p = (produtoIndicado || '').toLowerCase();
-  if (p.includes('mentoria')) return 'Mentoria Trilogia R$4.700';
+  if (p.includes('mentoria') || p.includes('sessão') || p.includes('sessao') || p.includes('diagnóstico') || p.includes('diagnostico')) return 'Mentoria Trilogia R$4.700';
   if (p.includes('jornada'))  return 'Jornada Domine R$197';
   if (p.includes('combo'))    return 'Combo Dashboard + Clube R$97/mês';
   if (p.includes('clube'))    return 'Clube Trilogia (Fundadoras R$67/mês)';
   if (p.includes('dashboard') && !p.includes('combo')) return 'Dashboard Trilogia R$67/mês';
-  if (p.includes('reserva'))  return 'Reserva que Rende R$247';
   if (p.includes('mapa'))     return 'Mapa da Reserva R$67';
+  if (p.includes('reserva'))  return 'Reserva que Rende R$247';
   if (p.includes('raio'))     return 'Raio-X Financeiro R$67';
   return '';
 }

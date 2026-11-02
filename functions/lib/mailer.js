@@ -1179,6 +1179,127 @@ function emailRelatorioMensal(nome, nomeMes, orc, pl, totalReservas, notaCorreca
   `);
 }
 
+// ─── Fechamento Mensal (projeto fechamento-mensal, fase 03) ───────────────────
+
+/**
+ * Fechamento Mensal: substitui o resumo do dia 1 quando o modo está ligado.
+ * Recebe os dados já calculados por lib/fechamento.js (montarDados) e o texto de
+ * leitura (IA validada ou texto-padrão). Nenhum cálculo acontece aqui.
+ * NÃO altera emailRelatorioMensal, que a reemissão manual ainda usa.
+ */
+function emailFechamentoMensal(nome, d, textoLeitura) {
+  const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const FONT = "font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;";
+  const rotulo = (t) => `<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;${FONT}">${t}</div>`;
+  const secao = (titulo, corpo) => `
+    <div style="margin:22px 0 0;">
+      <div style="font-size:13px;font-weight:700;color:#0D2B45;margin-bottom:8px;${FONT}">${titulo}</div>
+      ${corpo}
+    </div>`;
+  const card = (label, valor, cor) => `
+    <td style="width:50%;padding:4px;">
+      <div style="background:#f8fafc;border-radius:10px;padding:14px;border-left:3px solid ${cor};">
+        ${rotulo(label)}
+        <div style="font-size:18px;font-weight:700;color:${cor};${FONT}">${valor}</div>
+      </div>
+    </td>`;
+  const pEsc = (t) => `<p style="${S.p}margin:0 0 8px;">${esc(t)}</p>`;
+
+  const sobraCor = d.orc.sobra >= 0 ? '#16a34a' : '#dc2626';
+
+  // Nota do mês
+  let blocoNota = '';
+  if (d.nota) {
+    const v = d.nota.variacao;
+    const linhaVar = v == null ? '' : v === 0
+      ? `<div style="font-size:13px;color:#6b7280;${FONT}">Igual à nota do mês anterior.</div>`
+      : `<div style="font-size:13px;color:${v > 0 ? '#16a34a' : '#dc2626'};font-weight:600;${FONT}">${v > 0 ? '▲' : '▼'} ${Math.abs(v)} ${Math.abs(v) === 1 ? 'ponto' : 'pontos'} em relação ao mês anterior</div>`;
+    const linhaDest = d.nota.destaque
+      ? `<div style="font-size:12px;color:#6b7280;margin-top:4px;${FONT}">O que mais mexeu: ${esc(d.nota.destaque.nome)}, de ${d.nota.destaque.de} para ${d.nota.destaque.para}.</div>`
+      : '';
+    blocoNota = `
+    <div style="background:#0D2B45;border-radius:10px;padding:18px 20px;margin:18px 0 0;">
+      <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:.05em;${FONT}">Nota do mês${d.nota.estimada ? ' (estimada)' : ''}</div>
+      <div style="font-size:34px;font-weight:700;color:#CFAE65;margin:4px 0;${FONT}">${d.nota.valor}</div>
+      ${linhaVar.replace('color:#16a34a', 'color:#86efac').replace('color:#dc2626', 'color:#fca5a5').replace('color:#6b7280', 'color:rgba(255,255,255,0.7)')}
+      ${linhaDest.replace('color:#6b7280', 'color:rgba(255,255,255,0.6)')}
+      ${d.nota.estimada ? `<div style="font-size:11px;color:rgba(255,255,255,0.55);margin-top:6px;${FONT}">Abra o Orçamento no Dashboard para confirmar a nota do mês.</div>` : ''}
+    </div>`;
+  }
+
+  // Orçamento
+  let blocoOrc;
+  if (!d.categorias.temLimites) {
+    blocoOrc = pEsc('Defina limites por categoria na aba Orçamento e o fechamento passa a mostrar aqui onde o mês pesou.');
+  } else if (d.categorias.estouradas.length === 0) {
+    blocoOrc = pEsc('Todas as categorias com limite ficaram dentro do planejado.');
+  } else {
+    blocoOrc = d.categorias.estouradas.map(c => `
+      <div style="background:#f8fafc;border-radius:8px;padding:10px 14px;margin-bottom:6px;">
+        <div style="font-size:14px;font-weight:600;color:#0D2B45;${FONT}">${esc(c.nome)}</div>
+        <div style="font-size:12px;color:#6b7280;${FONT}">Gasto ${brl(c.gasto)} para um limite de ${brl(c.limite)}, ${brl(c.excesso)} acima.</div>
+      </div>`).join('');
+  }
+
+  // Reserva
+  const r = d.reserva;
+  let blocoRes;
+  if (!r.existe) {
+    blocoRes = pEsc('Cadastre sua reserva com meta e aporte mensal na aba Reservas e o fechamento passa a mostrar o prazo aqui.');
+  } else if (r.completa) {
+    blocoRes = pEsc(`Suas metas de reserva estão completas: ${brl(r.totalAcumulado)} de ${brl(r.totalMeta)}.`);
+  } else {
+    const f = r.foco;
+    const prazo = r.prazoMeses != null
+      ? `No aporte planejado de ${brl(f.aporte)} por mês, faltam cerca de ${r.prazoMeses} ${r.prazoMeses === 1 ? 'mês' : 'meses'}.`
+      : 'Defina um aporte mensal para ver o prazo.';
+    const aporteLinha = d.aportePlanejado > 0
+      ? `Aporte do mês: ${brl(d.aporteReal)} realizado para ${brl(d.aportePlanejado)} planejado.`
+      : '';
+    blocoRes = `
+      <div style="background:#f8fafc;border-radius:8px;padding:14px;">
+        <div style="font-size:14px;font-weight:600;color:#0D2B45;margin-bottom:6px;${FONT}">${esc(f.nome)}: ${f.percentual}% da meta</div>
+        <div style="background:#e5e7eb;border-radius:6px;height:8px;"><div style="width:${f.percentual}%;background:#CFAE65;height:8px;border-radius:6px;"></div></div>
+        <div style="font-size:12px;color:#6b7280;margin-top:6px;${FONT}">${brl(f.acumulado)} de ${brl(f.meta)}</div>
+        <div style="font-size:13px;color:#4b5563;margin-top:8px;${FONT}">${esc(prazo)}</div>
+        ${aporteLinha ? `<div style="font-size:12px;color:#6b7280;margin-top:4px;${FONT}">${esc(aporteLinha)}</div>` : ''}
+      </div>`;
+  }
+
+  return layout(`
+    <h2 style="${S.h2}">Seu fechamento de ${esc(d.mesNome)}</h2>
+    <p style="${S.p}">Olá, ${esc(nome)}! Esta é a leitura do seu mês.</p>
+    <p style="${S.p}">${esc(textoLeitura)}</p>
+
+    ${blocoNota}
+
+    ${secao('Os números do mês', `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;"><tr>
+      ${card('Receita', brl(d.orc.receita), '#0D2B45')}
+      ${card('Despesas', brl(d.orc.despesa), '#dc2626')}
+    </tr></table>
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      ${card('Sobra do mês', brl(d.orc.sobra), sobraCor)}
+      ${card('Aporte efetivado', d.orc.aporte > 0 ? brl(d.orc.aporte) : 'Nenhum', d.orc.aporte > 0 ? '#16a34a' : '#9ca3af')}
+    </tr></table>
+    ${d.pl > 0 ? `<p style="${S.pSmall}margin-top:10px;">Patrimônio líquido: ${brl(d.pl)}${d.totalReservas > 0 ? ` · Total em reservas: ${brl(d.totalReservas)}` : ''}</p>` : ''}`)}
+
+    ${secao('Onde o orçamento pesou', blocoOrc)}
+
+    ${secao('Sua reserva', blocoRes)}
+
+    <div style="background:#fffbeb;border-left:3px solid #CFAE65;border-radius:8px;padding:14px 16px;margin:22px 0 0;">
+      <div style="font-size:11px;color:#92400e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;${FONT}">Prioridade para ${esc(d.proximoMesNome)}</div>
+      <div style="font-size:15px;font-weight:600;color:#0D2B45;line-height:1.5;${FONT}">${esc(d.prioridade.texto)}</div>
+    </div>
+
+    <div style="margin-top:26px;">
+      <a href="https://dashboard.flaviaschusciman.com/orcamento.html" style="${S.btn}">Registrar o orçamento de ${esc(d.mesAtualNome)} →</a>
+    </div>
+    <p style="${S.pSmall}"><a href="https://dashboard.flaviaschusciman.com" style="color:#6b7280;">Abrir meu Dashboard</a></p>
+  `);
+}
+
 // ─── Retenção (série de alerta de pagamento) ──────────────────────────────────
 
 /**
@@ -1830,5 +1951,6 @@ module.exports = {
   emailRetencaoDia3,
   emailRetencaoDia7,
   emailRelatorioMensal,
+  emailFechamentoMensal,
   emailUpgradeDashboard,
 };

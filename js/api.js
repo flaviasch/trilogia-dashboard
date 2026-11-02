@@ -575,6 +575,7 @@ export function parsearCsvDividas(csvText) {
 export const bootstrapAdmin = call('bootstrapAdmin');
 
 export const getMentoradas = adminCall('getMentoradas');
+export const previewFechamentoMensal = adminCall('previewFechamentoMensal');
 
 /**
  * @param {{ nome, email, inicio, perfil, produto, valorMensal, formaPagamento, dataExpiracao }} dados
