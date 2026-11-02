@@ -1542,9 +1542,10 @@ async function init(user) {
           despesas: orcDataArr.filter(i => i.tipo === 'despesa'),
           aportes: orcDataArr.filter(i => i.tipo === 'aporte'),
         };
-        const { totalReceita: receita, despesaCaixa: despesa, totalAp: aporte, sobra, sobraPct } = calcularAgregadosOrcamento({
+        const { totalReceita: receita, despesaCaixa: despesa, totalAp: aporte, sobra, sobraPct, receitaComprometida } = calcularAgregadosOrcamento({
           data: dataOrc, cartoes: cartoes || [], faturaEstados: faturaEstados || {}, recorrentes: recorrentes || [], fixasPuladas: puladasResp?.fixasPuladas || [],
         });
+        const temLancamentos = receitaComprometida > 0 || dataOrc.despesas.length > 0;
 
         const elReceita = document.getElementById('receita');
         const elDespesa = document.getElementById('despesa');
@@ -1573,7 +1574,7 @@ async function init(user) {
         // Atualiza onboarding com dados completos
         checkOnboarding({
           ...data,
-          orcamento:  { receita, despesa, sobra, aporte, mes, ano },
+          orcamento:  { receita, despesa, sobra, aporte, mes, ano, temLancamentos },
           patrimonio: { ativos: (patData?.ativos || []).reduce((s, a) => s + a.valor, 0), dividas: 0, pl: 0 },
         });
 
@@ -1584,7 +1585,7 @@ async function init(user) {
             if (raw2) {
               const parsed2 = JSON.parse(raw2);
               const saved = parsed2._d || {};
-              saved.orcamento = { receita, despesa, sobra, aporte, mes, ano };
+              saved.orcamento = { receita, despesa, sobra, aporte, mes, ano, temLancamentos };
               localStorage.setItem(_ck, JSON.stringify({ _d: saved, _exp: parsed2._exp || Date.now() + 3_600_000 }));
             }
           } catch (_) {}
@@ -1772,7 +1773,11 @@ async function init(user) {
       const temPerfil     = !!data.perfil?.perfil;
       const temPatrimonio = (data.patrimonio?.ativos || 0) > 0 || localStorage.getItem('patrimonio_sem_ativos') === '1';
       const temReservas   = (data.reservas || []).length > 0;
-      const temOrcamento  = (data.orcamento?.receita || 0) > 0;
+      // Desde 26/10/2026 a receita da home é só a que já entrou (caixa); no
+      // começo do mês, com a renda ainda a receber, ela é zero. O passo conta
+      // como feito se o mês tem qualquer receita ou despesa lançada (achado
+      // 02/11/2026, Flávia: onboarding voltou a aparecer com planejamento feito).
+      const temOrcamento  = (data.orcamento?.receita || 0) > 0 || !!data.orcamento?.temLancamentos;
       const temAporte     = (data.orcamento?.aporte  || 0) > 0;
 
       const steps = [
