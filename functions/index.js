@@ -452,6 +452,18 @@ function calcularScoreMes(orcItens, reservas, cats, { aporteNeutro = false } = {
   return Math.round(ptsSobra * 0.30 + ptsAporte * 0.35 + ptsOrcamento * 0.25 + ptsRegularidade * 0.10);
 }
 
+// achado 03/11/2026, Flávia: print em PNG da posição da corretora falhava na
+// importação com IA. O front manda o arquivo como veio e o servidor rotulava
+// toda imagem como image/jpeg; a API da Anthropic confere e recusa (400).
+// Lê o tipo real pelos primeiros bytes do base64.
+function tipoImagemBase64(base64) {
+  if (base64.startsWith('iVBORw0KGgo')) return 'image/png';
+  if (base64.startsWith('/9j/'))        return 'image/jpeg';
+  if (base64.startsWith('R0lGOD'))      return 'image/gif';
+  if (base64.startsWith('UklGR'))       return 'image/webp';
+  throw new HttpsError('invalid-argument', 'Formato de imagem não suportado. Envie em PNG ou JPG (um print da tela serve).');
+}
+
 // achado 30/07/2026, Flávia: fatura que só fecha dia 30 aparecia com o mês
 // seguinte já "aberto" um dia antes da hora. Causa: toISOString() é sempre
 // UTC, e o Cloud Functions roda em UTC — entre 21h e 23h59 no horário de
@@ -1798,7 +1810,7 @@ Regras obrigatórias:
       ? { type: 'text', text: conteudoEfetivo }
       : tipoEfetivo === 'pdf'
         ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: conteudoEfetivo } }
-        : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: conteudoEfetivo } };
+        : { type: 'image', source: { type: 'base64', media_type: tipoImagemBase64(conteudoEfetivo), data: conteudoEfetivo } };
 
     let respostaIA;
     try {
@@ -2164,7 +2176,7 @@ Regras obrigatórias:
       ? { type: 'text', text: conteudo }
       : tipoConteudo === 'pdf'
         ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: conteudo } }
-        : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: conteudo } };
+        : { type: 'image', source: { type: 'base64', media_type: tipoImagemBase64(conteudo), data: conteudo } };
 
     let respostaIA;
     try {
@@ -10353,7 +10365,7 @@ Regras obrigatórias:
       ? { type: 'text', text: conteudoEfetivo }
       : tipoEfetivo === 'pdf'
         ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: conteudoEfetivo } }
-        : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: conteudoEfetivo } };
+        : { type: 'image', source: { type: 'base64', media_type: tipoImagemBase64(conteudoEfetivo), data: conteudoEfetivo } };
 
     let respostaIA;
     try {
