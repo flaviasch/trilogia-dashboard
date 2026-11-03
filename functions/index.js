@@ -824,9 +824,9 @@ exports.getDashboardHome = onCall(async (request) => {
   // financeiro do PF de graça, que é um produto separado. achado 26/07/2026,
   // Flávia: "não deveria [continuar acessando o PF]" testando com PJ ativo).
   // Admin (viewAsUid) sempre passa, pra poder inspecionar a conta.
-  const hoje = agora.toISOString().slice(0, 10);
+  const hojeISO = agora.toISOString().slice(0, 10);
   const semAssinaturaAtiva = assinaturaDashboard !== true && assinaturaClube !== true;
-  const mentoriaAcabou = mentoriaEncerrada === true || (dataExpiracao && dataExpiracao <= hoje);
+  const mentoriaAcabou = mentoriaEncerrada === true || (dataExpiracao && dataExpiracao <= hojeISO);
   const acessoExpirado = !isAdminUser && semAssinaturaAtiva && mentoriaAcabou;
   if (acessoExpirado) {
     return { acessoBloqueado: true, nome: nome || null, inicio: inicio || null, lgpdAceite: lgpdAceite || false };
