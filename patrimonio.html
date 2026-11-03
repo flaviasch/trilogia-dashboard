@@ -3067,7 +3067,7 @@
           tipoConteudo = 'texto';
         }
 
-        const { itens } = await categorizarPatrimonioIA(conteudo, tipoConteudo, _patIaModo, _patIaTipoOrigem);
+        const { itens, cotacoes = [] } = await categorizarPatrimonioIA(conteudo, tipoConteudo, _patIaModo, _patIaTipoOrigem);
 
         if (ehCorretora) {
           // Itens vêm um a um, com confiança da classificação — revisa os
@@ -3091,6 +3091,14 @@
           }
 
           await salvarPosicaoCorretora(itensAgregados, posicaoNomeVal, posicaoIdVal);
+          // Transparência da conversão: qual PTAX o servidor usou (achado 03/11/2026).
+          if (cotacoes.length) {
+            const txt = cotacoes.map(c => {
+              const [a, m, d] = c.data.split('-');
+              return `${c.moeda} a R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} (PTAX ${d}/${m}/${a})`;
+            }).join(', ');
+            toast(`Posição salva. Valores convertidos para reais: ${txt}.`, 'success', 8000);
+          }
         } else if (ehIRDecl) {
           // Declaração NOVA que parece a mesma já cadastrada: confirma antes
           // de somar em dobro (mesma proteção das posições da corretora).

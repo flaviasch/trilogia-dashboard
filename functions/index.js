@@ -464,6 +464,42 @@ function tipoImagemBase64(base64) {
   throw new HttpsError('invalid-argument', 'Formato de imagem não suportado. Envie em PNG ou JPG (um print da tela serve).');
 }
 
+// achado 03/11/2026, Flávia: posição em dólar era convertida pela IA com uma
+// cotação "de memória" (chute, variando de uma importação pra outra). Agora a
+// IA devolve o valor na moeda original e o servidor converte pela PTAX de
+// fechamento do Banco Central (cotação de compra, a mesma convenção da Receita
+// para bens no exterior). Pega o último boletim dos últimos 10 dias, o que
+// cobre fim de semana, feriado e o horário antes do fechamento (~13h).
+const _cachePtax = new Map(); // moeda -> { valor, data, exp }
+async function cotacaoPtax(moeda) {
+  const cache = _cachePtax.get(moeda);
+  if (cache && cache.exp > Date.now()) return cache;
+  const [a, m, d] = hoje().split('-').map(Number);
+  const fim = new Date(Date.UTC(a, m - 1, d));
+  const ini = new Date(fim.getTime() - 10 * 86_400_000);
+  const fmt = (dt) => `${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}-${dt.getUTCFullYear()}`;
+  const url = 'https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/'
+    + 'CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)'
+    + `?@moeda='${moeda}'&@dataInicial='${fmt(ini)}'&@dataFinalCotacao='${fmt(fim)}'`
+    + "&$format=json&$filter=tipoBoletim%20eq%20'Fechamento'";
+  let ultimo;
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const lista = (await resp.json())?.value || [];
+    ultimo = lista[lista.length - 1];
+  } catch (err) {
+    console.error(`[cotacaoPtax] Falha ao buscar PTAX ${moeda}:`, err.message);
+  }
+  const valor = Number(ultimo?.cotacaoCompra);
+  if (!Number.isFinite(valor) || valor <= 0) {
+    throw new HttpsError('unavailable', `Não consegui buscar a cotação oficial (${moeda}) no Banco Central agora. Tente de novo em alguns minutos.`);
+  }
+  const resultado = { valor, data: String(ultimo.dataHoraCotacao).slice(0, 10), exp: Date.now() + 3_600_000 };
+  _cachePtax.set(moeda, resultado);
+  return resultado;
+}
+
 // achado 30/07/2026, Flávia: fatura que só fecha dia 30 aparecia com o mês
 // seguinte já "aberto" um dia antes da hora. Causa: toISOString() é sempre
 // UTC, e o Cloud Functions roda em UTC — entre 21h e 23h59 no horário de
@@ -2150,13 +2186,13 @@ Regras obrigatórias:
 - Use o saldo bruto/atual disponível, não valores históricos.
 - Ignore linhas de total/subtotal/resumo.
 - NÃO agregue itens de nomes diferentes numa linha só, mesmo que a classe pareça igual — cada ativo/fundo do documento vira um item individual próprio (com seu nome), mesmo que dois acabem na mesma classe. A soma final por classe é feita depois, fora deste passo.
-- Se algum ativo estiver em dólar, euro ou outra moeda estrangeira, converta para reais usando a cotação aproximada do dia de hoje (${new Date().toISOString().slice(0, 10)}) antes de somar — nunca deixe valores em moeda estrangeira misturados com reais no mesmo total.
-- "valor" sempre positivo, tipo número (não string), com ponto decimal, já em reais.
+- NÃO converta moeda. Se o ativo estiver em dólar, euro ou outra moeda estrangeira, devolva o "valor" na moeda ORIGINAL do documento e informe a moeda em "moeda" (código ISO de 3 letras: "USD", "EUR"...). A conversão para reais pela cotação oficial é feita depois, fora deste passo. Ativos em reais: "moeda": "BRL".
+- "valor" sempre positivo, tipo número (não string), com ponto decimal, na moeda indicada em "moeda".
 - "nome": nome do ativo/fundo como aparece no documento (curto, até 80 caracteres).
 - "cnpj": CNPJ do fundo, SE aparecer no documento (comum em posições de corretora, geralmente perto do nome do ativo) — só dígitos, sem pontuação. Se não aparecer, use string vazia "". NUNCA invente um CNPJ que você não viu no documento.
 - "confianca": "alta" quando você tem certeza razoável da classe real (inclusive por reconhecer o fundo/gestora), "baixa" quando está no melhor palpite (documento ambíguo, fundo desconhecido, ou rótulo regulatório pode não bater com a estratégia real).
 - Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só). Formato:
-  {"itens": [{"nome": "<nome do ativo/fundo>", "cnpj": "<somente dígitos, ou \"\">", "classe": "<nome da classe>", "valor": <número>, "confianca": "alta"|"baixa"}, ...]}`)
+  {"itens": [{"nome": "<nome do ativo/fundo>", "cnpj": "<somente dígitos, ou \"\">", "classe": "<nome da classe>", "valor": <número>, "moeda": "<BRL|USD|EUR|...>", "confianca": "alta"|"baixa"}, ...]}`)
       : `Você extrai dívidas e financiamentos a partir de documentos ou texto descrevendo passivos de usuárias brasileiras (financiamentos, empréstimos, faturas de cartão em aberto).
 
 Para cada dívida, identifique:
@@ -2237,7 +2273,23 @@ Regras obrigatórias:
     }
 
     let itens;
+    const cotacoes = [];
     if (modo === 'ativos' && origem === 'corretora') {
+      // Moeda estrangeira → reais pela PTAX (ver cotacaoPtax).
+      const moedas = new Set();
+      itensBrutos.forEach(it => {
+        const moeda = typeof it.moeda === 'string' ? it.moeda.trim().toUpperCase() : 'BRL';
+        it.moeda = /^[A-Z]{3}$/.test(moeda) ? moeda : 'BRL';
+        if (it.moeda !== 'BRL') moedas.add(it.moeda);
+      });
+      for (const moeda of moedas) {
+        const { valor, data } = await cotacaoPtax(moeda);
+        cotacoes.push({ moeda, valor, data });
+      }
+      itensBrutos.forEach(it => {
+        const cot = cotacoes.find(c => c.moeda === it.moeda);
+        if (cot) it.valor = Math.round(Number(it.valor) * cot.valor * 100) / 100;
+      });
       // Corretora: item a item (não agregado), com nome do fundo/ativo e
       // confiança da classificação — rótulo legal (FIM/FIC) nem sempre bate
       // com a estratégia real do fundo. Baixa confiança fica pra usuária
@@ -2276,8 +2328,8 @@ Regras obrigatórias:
       });
     }
 
-    console.log(`[categorizarPatrimonioIA] uid=${uid} modo=${modo} — ${itens.length} itens extraídos via IA (tipoConteudo=${tipoConteudo})`);
-    return { itens };
+    console.log(`[categorizarPatrimonioIA] uid=${uid} modo=${modo} — ${itens.length} itens extraídos via IA (tipoConteudo=${tipoConteudo})${cotacoes.length ? ` cotacoes=${JSON.stringify(cotacoes)}` : ''}`);
+    return { itens, cotacoes };
   },
 );
 
