@@ -2256,7 +2256,12 @@ Regras obrigatórias:
     const textoResposta = respostaIA?.content?.[0]?.text || '';
     let itensBrutos;
     try {
-      const limpo = textoResposta.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+      // A IA às vezes manda o JSON num bloco ```json e um comentário depois
+      // (ex.: arquivo sem nenhum ativo → {"itens": []} + explicação). Usa só
+      // o bloco, pra cair na mensagem "Nenhum ativo..." e não na genérica
+      // (achado 03/11/2026, Flávia escolheu um print errado).
+      const bloco = textoResposta.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const limpo = (bloco ? bloco[1] : textoResposta).trim();
       const respostaParsed = JSON.parse(limpo);
       if (!respostaParsed || !Array.isArray(respostaParsed.itens)) throw new Error('resposta não tem "itens" como array');
       itensBrutos = respostaParsed.itens;
