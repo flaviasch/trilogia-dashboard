@@ -390,7 +390,7 @@
       <div class="perfil-atual-label">Seu perfil atual</div>
       <div class="perfil-nome" id="perfilNome">—</div>
       <div class="perfil-desc" id="perfilDesc">—</div>
-      <div class="perfil-alocacao-title">Alocação sugerida para reservas de longo prazo</div>
+      <div class="perfil-alocacao-title">Alocação sugerida para reservas acima de 10 anos</div>
       <div class="perfil-bar-track" id="perfilBar"></div>
       <div class="perfil-legenda" id="perfilLegenda"></div>
     </div>
@@ -486,7 +486,7 @@
     import { toast, setLoading } from './js/ui.js';
     import { cacheGet, cacheSet } from './js/page-cache.js';
     import { isAdmin } from './js/admin-guard.js';
-    import { ALOCACAO_PERFIL, mesesAte } from './js/investidor-calc.js';
+    import { ALOCACAO_PERFIL, mesesAte, ehSempreLiquido, alocacaoLongoPrazo } from './js/investidor-calc.js?v=2';
     import {
       onAuthStateChanged,
       signOut
@@ -678,7 +678,10 @@
     function renderImpactoReservas(reservas, oldPerfilKey, newPerfilKey) {
       const box    = document.getElementById('impactoBox');
       const lista  = document.getElementById('impactoLista');
-      const longos = reservas.filter(r => { const m = mesesAte(r.dataMeta); return m !== null && m > 120; });
+      // Objetivos acima de 4 anos dependem do perfil: 4-10 anos usam a carteira de
+      // renda fixa do perfil, acima de 10 anos a carteira completa do perfil.
+      const longos = reservas.filter(r => { if (ehSempreLiquido(r.nome)) return false; const m = mesesAte(r.dataMeta); return m !== null && m > 48; });
+      const alocDoPrazo = (meses, perfilKey) => meses <= 120 ? alocacaoLongoPrazo(perfilKey) : PERFIS[perfilKey]?.alocacao;
 
       if (!longos.length) { box.style.display = 'none'; return; }
 
@@ -694,6 +697,8 @@
       lista.innerHTML = longos.map(r => {
         const meses  = mesesAte(r.dataMeta);
         const anos   = Math.round(meses / 12);
+        const oldAlocR = oldAloc ? alocDoPrazo(meses, oldPerfilKey) : null;
+        const newAlocR = alocDoPrazo(meses, newPerfilKey);
         const dataFmt = r.dataMeta
           ? new Date(r.dataMeta + '-01T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
           : '—';
@@ -707,13 +712,13 @@
               ${oldAloc ? `
                 <div class="impacto-side">
                   <div class="impacto-side-label">Antes · ${oldNome}</div>
-                  ${miniBar(oldAloc)}
+                  ${miniBar(oldAlocR)}
                 </div>
                 <div class="impacto-arrow">→</div>
               ` : ''}
               <div class="impacto-side">
                 <div class="impacto-side-label">${oldAloc ? `Depois · ${newNome}` : `Alocação · ${newNome}`}</div>
-                ${miniBar(newAloc)}
+                ${miniBar(newAlocR)}
               </div>
             </div>
           </div>`;

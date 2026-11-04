@@ -50,6 +50,42 @@ export const ALOCACAO_MEDIO_PRAZO = [
   { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
 ];
 
+// ─── Longo prazo (4 a 10 anos, 49–120 meses) por perfil ─────────────────────
+// Política da Flávia (04/11/2026). Só renda fixa nessa faixa; o perfil muda o
+// peso entre pós e inflação. Sem perfil preenchido → nenhuma carteira
+// (a mentorada precisa preencher o perfil, igual à faixa acima de 10 anos).
+export const ALOCACAO_LONGO_PRAZO = {
+  conservador: [
+    { label: 'RF Pós',      pct: 70, cor: '#60a5fa' },
+    { label: 'RF Inflação', pct: 25, cor: '#34d399' },
+    { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
+  ],
+  moderado: [
+    { label: 'RF Pós',      pct: 60, cor: '#60a5fa' },
+    { label: 'RF Inflação', pct: 35, cor: '#34d399' },
+    { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
+  ],
+  arrojado: [
+    { label: 'RF Pós',      pct: 60, cor: '#60a5fa' },
+    { label: 'RF Inflação', pct: 35, cor: '#34d399' },
+    { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
+  ],
+};
+
+/** Carteira de 4 a 10 anos para o perfil, ou null se não houver perfil. */
+export function alocacaoLongoPrazo(perfil) {
+  return ALOCACAO_LONGO_PRAZO[perfil] || null;
+}
+
+// ─── Reservas que são sempre liquidez ────────────────────────────────────────
+// Regra da Flávia (04/11/2026): reserva de emergência ou de liquidez (e
+// quitação de dívida, saúde, correções) é tratada como prazo de até 1 ano,
+// 100% RF Pós com liquidez diária, mesmo que leve anos para ser formada.
+// Reconhecida pelo nome. Usada em reservas.html, perfil.html e index.html.
+export function ehSempreLiquido(nome) {
+  return /emerg[eê]ncia|liquidez|quita[cç]|d[ií]vida|sa[uú]de|corre[cç][aã]/i.test(nome || '');
+}
+
 // ─── Cálculo de prazo ─────────────────────────────────────────────────────────
 
 /**

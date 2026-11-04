@@ -1048,6 +1048,7 @@
     import { isAdmin } from './js/admin-guard.js';
     import { toast, setLoading } from './js/ui.js';
     import { calcularAgregadosOrcamento, CONTA_PRINCIPAL_ID } from './js/orcamento-calc.js';
+    import { ehSempreLiquido } from './js/investidor-calc.js?v=2';
     import {
       onAuthStateChanged,
       signOut,
@@ -1727,6 +1728,8 @@ async function init(user) {
           mesesRestantes = Math.max(0, Math.round((alvo - hoje) / (1000 * 60 * 60 * 24 * 30)));
           dataMeta = `${NOMES_MESES[dMes - 1]} de ${dAno}`;
         }
+        // Emergência/liquidez: sempre bucket de até 1 ano (regra em investidor-calc.js)
+        if (ehSempreLiquido(r.nome)) mesesRestantes = 0;
         return { ...r, mesesRestantes, dataMeta };
       });
       renderReservas(reservasFormatadas);

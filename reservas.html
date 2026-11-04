@@ -847,7 +847,7 @@
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { cacheGet, cacheSet } from './js/page-cache.js';
     import { isAdmin } from './js/admin-guard.js';
-    import { ALOCACAO_PERFIL, ALOCACAO_CURTO_PRAZO, ALOCACAO_MEDIO_PRAZO, mesesAte, mesesEntre } from './js/investidor-calc.js';
+    import { ALOCACAO_PERFIL, ALOCACAO_CURTO_PRAZO, ALOCACAO_MEDIO_PRAZO, mesesAte, mesesEntre, ehSempreLiquido, alocacaoLongoPrazo } from './js/investidor-calc.js?v=2';
     import {
       onAuthStateChanged,
       signOut
@@ -970,10 +970,8 @@
     // mesesAte/mesesEntre vêm de js/investidor-calc.js — mesmo cálculo usado
     // em perfil.html (aritmética de mês-calendário).
 
-    /** Retorna verdadeiro se o nome indica reserva de emergência */
-    function ehSempreLiquido(nome) {
-      return /emerg[eê]ncia|quita[cç]|d[ií]vida|sa[uú]de|corre[cç][aã]/i.test(nome || '');
-    }
+    // ehSempreLiquido vem de js/investidor-calc.js (emergência, liquidez,
+    // quitação, saúde, correções → sempre bucket de até 1 ano).
 
     /**
      * Meses a usar para a lógica de alocação.
@@ -1027,13 +1025,12 @@
         { label: 'RF Inflação', pct: 25, cor: '#34d399' },
         { label: 'RF Pré',      pct:  5, cor: '#a78bfa' },
       ];
-      // Longo prazo (4-10 anos): moderado sem RV e Internacional (redistribuído para RF Pós)
-      if (meses <= 120) return [
-        { label: 'RF Pós',       pct: 62.5, cor: '#60a5fa' },
-        { label: 'RF Inflação',  pct: 25,   cor: '#34d399' },
-        { label: 'RF Pré',       pct:  5,   cor: '#a78bfa' },
-        { label: 'Multimercado', pct:  7.5, cor: '#fb7185' },
-      ];
+      // Longo prazo (4-10 anos): só renda fixa, peso conforme o perfil
+      // (tabela em investidor-calc.js). Sem perfil → pede o preenchimento.
+      if (meses <= 120) {
+        return alocacaoLongoPrazo(perfilInvestidor)
+          || [{ label: 'Defina seu perfil de investidor', pct: 100, cor: '#c084fc' }];
+      }
       // Muito longo prazo (> 10 anos): usa perfil do investidor
       if (perfilInvestidor && ALOCACAO_PERFIL[perfilInvestidor]) {
         return ALOCACAO_PERFIL[perfilInvestidor];
@@ -1084,6 +1081,13 @@
 
     // ─── Legenda de alocação dinâmica ───────────
     function atualizarLegenda() {
+      // 4-10 anos: carteira de renda fixa do perfil (sem perfil, mantém o texto do HTML)
+      const elLP = document.getElementById('legendaLongoPrazo');
+      const lp = alocacaoLongoPrazo(perfilInvestidor);
+      if (elLP && lp) {
+        const nomeLP = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' }[perfilInvestidor];
+        elLP.textContent = `${nomeLP}: ${lp.map(i => `${i.pct}% ${i.label.replace('RF ', '')}`).join(' · ')}`;
+      }
       if (perfilInvestidor && ALOCACAO_PERFIL[perfilInvestidor]) {
         const itens = ALOCACAO_PERFIL[perfilInvestidor];
         const resumo = itens.slice(0, 4)
@@ -1092,9 +1096,7 @@
         const sufixo = itens.length > 4 ? ' …' : '';
         const nomePerfil = { conservador: 'Conservador', moderado: 'Moderado', arrojado: 'Arrojado' }[perfilInvestidor] || perfilInvestidor;
         const texto = `${nomePerfil}: ${resumo}${sufixo}`;
-        const elLP   = document.getElementById('legendaLongoPrazo');
         const elMLPP = document.getElementById('legendaMuitoLongo');
-        if (elLP)   elLP.textContent   = texto;
         if (elMLPP) elMLPP.textContent = texto;
       }
       // Se perfil não definido, mantém o texto padrão do HTML
@@ -1567,8 +1569,13 @@
       if (meses <= 48) {
         return { itens: ALOCACAO_MEDIO_PRAZO, temComparativo: true };
       }
-      // Longo prazo (4-10 anos) e muito longo prazo (> 10 anos):
-      // usa perfil do investidor se disponível
+      // Longo prazo (4-10 anos): renda fixa conforme o perfil (sem perfil → nada)
+      if (meses <= 120) {
+        const itens = alocacaoLongoPrazo(perfilInvestidor);
+        if (!itens) return { itens: [], temComparativo: false };
+        return { itens, temComparativo: itens.length > 1 };
+      }
+      // Muito longo prazo (> 10 anos): usa perfil do investidor se disponível
       const perfil = perfilInvestidor ? ALOCACAO_PERFIL[perfilInvestidor] : null;
       if (!perfil) return { itens: [], temComparativo: false };
       return { itens: perfil, temComparativo: perfil.length > 1 };
@@ -2040,7 +2047,7 @@
     // Utilitário: transfere saldo para reserva de longo prazo (cria se não existir)
     async function transferirParaLP(excluirId, saldo) {
       if (saldo <= 0) return;
-      let lp = reservas.find(r => r.id !== excluirId && mesesAte(r.dataMeta) > 120);
+      let lp = reservas.find(r => r.id !== excluirId && !ehSempreLiquido(r.nome) && mesesAte(r.dataMeta) > 120);
       if (lp) {
         const idx = reservas.findIndex(r => r.id === lp.id);
         reservas[idx] = { ...lp, acumulado: (lp.acumulado || 0) + saldo };
@@ -2116,7 +2123,7 @@
       document.getElementById('posNaoConcluido').style.display = concluido ? 'none' : '';
       document.getElementById('avisoConcluidoLP').style.display = concluido ? '' : 'none';
       if (concluido) {
-        const lp = reservas.find(r => r.id !== posRetiradaId && mesesAte(r.dataMeta) > 120);
+        const lp = reservas.find(r => r.id !== posRetiradaId && !ehSempreLiquido(r.nome) && mesesAte(r.dataMeta) > 120);
         const saldo = posRetiradaSaldo;
         let texto;
         if (saldo > 0) {
