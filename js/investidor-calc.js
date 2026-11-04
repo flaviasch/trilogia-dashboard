@@ -17,22 +17,21 @@ export const ALOCACAO_PERFIL = {
     { label: 'RF Inflação', pct: 25,   cor: '#34d399' },
     { label: 'RF Pré',      pct:  5,   cor: '#a78bfa' },
   ],
+  // Moderado e arrojado revisados pela Flávia em 04/11/2026 (Multimercado saiu).
   moderado: [
-    { label: 'RF Pós',         pct: 52.5, cor: '#60a5fa' },
-    { label: 'RF Inflação',    pct: 25,   cor: '#34d399' },
-    { label: 'RF Pré',         pct:  5,   cor: '#a78bfa' },
-    { label: 'Multimercado',   pct:  7.5, cor: '#fb7185' },
+    { label: 'RF Pós',         pct: 50,   cor: '#60a5fa' },
+    { label: 'RF Inflação',    pct: 30,   cor: '#34d399' },
+    { label: 'RF Pré',         pct: 10,   cor: '#a78bfa' },
     { label: 'Renda Variável', pct:  5,   cor: '#f59e0b' },
     { label: 'Internacional',  pct:  5,   cor: '#22d3ee' },
   ],
   arrojado: [
-    { label: 'RF Pós',         pct: 20,  cor: '#60a5fa' },
-    { label: 'RF Inflação',    pct: 25,  cor: '#34d399' },
-    { label: 'RF Pré',         pct:  5,  cor: '#a78bfa' },
-    { label: 'Multimercado',   pct: 15,  cor: '#fb7185' },
-    { label: 'Renda Variável', pct: 15,  cor: '#f59e0b' },
-    { label: 'Internacional',  pct: 15,  cor: '#22d3ee' },
-    { label: 'Alternativos',   pct:  5,  cor: '#c084fc' },
+    { label: 'RF Pós',         pct: 22.5, cor: '#60a5fa' },
+    { label: 'RF Inflação',    pct: 30,   cor: '#34d399' },
+    { label: 'RF Pré',         pct: 10,   cor: '#a78bfa' },
+    { label: 'Renda Variável', pct: 15,   cor: '#f59e0b' },
+    { label: 'Internacional',  pct: 17.5, cor: '#22d3ee' },
+    { label: 'Alternativos',   pct:  5,   cor: '#c084fc' },
   ],
 };
 
