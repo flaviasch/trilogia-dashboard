@@ -289,6 +289,26 @@ function coletarNumerosPermitidos(obj, acc = []) {
 
 const PRODUTOS = /\b(CDB|LCI|LCA|Tesouro|a[cç][oõ]es|a[cç][aã]o|fundos?|FIIs?|cripto\w*|bitcoin|previd[eê]ncia|corretora|banco|cons[oó]rcio|financiamento|empr[eé]stimo)\b/i;
 
+function coletarTextosDosDados(obj, acc = []) {
+  if (obj == null) return acc;
+  if (typeof obj === 'string') { if (obj.trim().length >= 3) acc.push(obj.trim()); return acc; }
+  if (Array.isArray(obj)) { obj.forEach(o => coletarTextosDosDados(o, acc)); return acc; }
+  if (typeof obj === 'object') { Object.values(obj).forEach(o => coletarTextosDosDados(o, acc)); }
+  return acc;
+}
+
+/** Remove do texto (sem diferenciar maiúsculas) os nomes que aparecem nos dados. */
+function semNomesDosDados(texto, dados) {
+  let t = String(texto || '');
+  coletarTextosDosDados(dados)
+    .sort((x, y) => y.length - x.length)
+    .forEach(nome => {
+      const esc = nome.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      t = t.replace(new RegExp(esc, 'gi'), ' ');
+    });
+  return t;
+}
+
 /** Valida o texto da IA contra os dados. Retorna { ok, texto, motivo }. */
 function validarTextoIA(textoBruto, dados) {
   let texto = String(textoBruto || '').trim().replace(/^["“]|["”]$/g, '').trim();
@@ -299,7 +319,11 @@ function validarTextoIA(textoBruto, dados) {
   if (/[*#_`!]/.test(texto)) return { ok: false, motivo: 'marcação ou exclamação' };
   if (/\p{Extended_Pictographic}/u.test(texto)) return { ok: false, motivo: 'emoji' };
   if (/https?:\/\//i.test(texto)) return { ok: false, motivo: 'link' };
-  if (PRODUTOS.test(texto)) return { ok: false, motivo: 'menção a produto financeiro' };
+  // Nomes que vêm dos próprios dados da pessoa (categoria "Financiamento",
+  // reserva "Fundo da viagem") não são recomendação de produto: tira esses
+  // nomes antes de procurar produto financeiro (achado 02/11/2026, Luciana:
+  // texto rejeitado só por citar a categoria Financiamento dela).
+  if (PRODUTOS.test(semNomesDosDados(texto, dados))) return { ok: false, motivo: 'menção a produto financeiro' };
   const permitidos = coletarNumerosPermitidos(dados);
   const variantes = new Set();
   permitidos.forEach(n => { variantes.add(n); variantes.add(Math.round(n)); variantes.add(Math.round(Math.abs(n))); });

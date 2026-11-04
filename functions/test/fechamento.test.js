@@ -179,3 +179,13 @@ test('chamarHaiku: envia só dados saneados, sem nome da pessoa, e respeita erro
   await assert.rejects(F.chamarHaiku(d, { apiKey: 'k', fetchFn: async () => ({ ok: false, status: 500 }) }));
   await assert.rejects(F.chamarHaiku(d, { apiKey: '', fetchFn: async () => ({}) }));
 });
+
+test('validarTextoIA: aceita nome de categoria da própria pessoa que parece produto', () => {
+  const d = { ...dadosExemplo(), categorias: { estouradas: [{ nome: 'Financiamento', limite: 1000, gasto: 1200, excesso: 200 }] } };
+  const t = 'Em setembro de 2026 você recebeu R$ 7.500,00 e gastou R$ 6.900,00. A categoria Financiamento passou R$ 200,00 do limite. A prioridade do mês seguinte está logo abaixo.';
+  assert.equal(F.validarTextoIA(t, d).ok, true);
+  // Sem a categoria nos dados, a mesma palavra continua bloqueada.
+  const r = F.validarTextoIA(t.replace('A categoria Financiamento passou R$ 200,00 do limite.', 'Vale olhar um financiamento.'), dadosExemplo());
+  assert.equal(r.ok, false);
+  assert.match(r.motivo, /produto financeiro/);
+});
