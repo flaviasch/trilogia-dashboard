@@ -427,6 +427,15 @@
     .item-row:hover { border-color: rgba(var(--rgb-fg),0.14); }
     .item-row + .item-row { margin-top: 4px; }
 
+    /* Receitas por categoria (Resumo): cabeçalho clicável + itens recuados */
+    .rec-grupo + .rec-grupo { margin-top: 4px; }
+    .rec-grupo > summary { list-style: none; cursor: pointer; }
+    .rec-grupo > summary::-webkit-details-marker { display: none; }
+    .rec-grupo-seta { display: inline-block; width: 14px; color: var(--text-muted); transition: transform 0.15s; }
+    .rec-grupo[open] .rec-grupo-seta { transform: rotate(90deg); }
+    .rec-grupo-itens { margin: 4px 0 0 16px; display: flex; flex-direction: column; gap: 4px; }
+    .rec-grupo-itens .item-row { background: transparent; padding: 10px 16px; }
+
     .item-categoria {
       font-size: 14px;
       color: var(--white);
@@ -5196,7 +5205,7 @@
       // aparecem mas o total zera" (achado 14/07/2026).
       const recList = document.getElementById('receitasList');
       const recOrdenadas = data.receitas.filter(r => pertenceAConta(r, _contaAtivaId)).sort((a, b) => b.valor - a.valor);
-      recList.innerHTML = recOrdenadas.map((r) => {
+      const _linhaReceita = (r) => {
           const idxOriginal = data.receitas.indexOf(r);
           const p   = totalReceita > 0 ? (r.valor / totalReceita) * 100 : 0;
           const sub = [r.data ? formatData(r.data) : null, r.descricao || null].filter(Boolean).join(' · ');
@@ -5222,13 +5231,65 @@
                 <button class="btn-item del" data-del-rec="${idxOriginal}" title="Excluir">${IC_DEL}</button>
               </div>
             </div>`;
-        }).join('') +
+        };
+      // Receitas consolidadas por categoria, com os lançamentos dentro de um
+      // "expandir" (pedido da Flávia, 04/11/2026). Agrupa pela categoria
+      // normalizada, igual às despesas; rótulo = grafia mais frequente.
+      let _receitasHTML;
+      if (podeVerReceitasPorCategoria()) {
+        const gruposRec = {};
+        recOrdenadas.forEach(r => {
+          const norm = normCat(r.categoria);
+          if (!gruposRec[norm]) gruposRec[norm] = { itens: [], total: 0, pendentes: 0, labels: {} };
+          const g = gruposRec[norm];
+          g.itens.push(r);
+          g.total += r.valor;
+          if (isPendenteEfetivo(r)) g.pendentes++;
+          g.labels[r.categoria] = (g.labels[r.categoria] || 0) + 1;
+        });
+        _receitasHTML = Object.entries(gruposRec)
+          .sort((a, b) => b[1].total - a[1].total)
+          .map(([norm, g]) => {
+            const label = Object.entries(g.labels).sort((a, b) => b[1] - a[1])[0][0];
+            const p = totalReceita > 0 ? (g.total / totalReceita) * 100 : 0;
+            const sub = [
+              `${g.itens.length} lançamento${g.itens.length > 1 ? 's' : ''}`,
+              g.pendentes ? `${g.pendentes} pendente${g.pendentes > 1 ? 's' : ''}` : null,
+            ].filter(Boolean).join(' · ');
+            return `
+              <details class="rec-grupo" data-rec-grupo="${escapeHtml(norm)}"${_receitasAbertas.has(norm) ? ' open' : ''}>
+                <summary class="item-row rec-grupo-head">
+                  <div>
+                    <div class="item-categoria"><span class="rec-grupo-seta">▸</span>${escapeHtml(label)}</div>
+                    <div class="item-fonte">${escapeHtml(sub)}</div>
+                  </div>
+                  <div class="item-bar-col">
+                    <div class="item-bar-track"><div class="item-bar-fill receita" style="width:${p}%"></div></div>
+                    <div class="item-pct">${p.toFixed(1)}% da receita</div>
+                  </div>
+                  <div class="item-value receita">${brl(g.total)}</div>
+                  <div class="item-actions"></div>
+                </summary>
+                <div class="rec-grupo-itens">${g.itens.map(_linhaReceita).join('')}</div>
+              </details>`;
+          }).join('');
+      } else {
+        _receitasHTML = recOrdenadas.map(_linhaReceita).join('');
+      }
+      recList.innerHTML = _receitasHTML +
         `<div class="total-row">
           <span class="total-label">Total receitas</span>
           <span class="total-value receita">${brl(totalReceita)}</span>
         </div>
         <button class="btn-add-item" id="btnAddReceita">+ Adicionar receita</button>`;
 
+      // Lembra quais categorias estavam abertas (a lista é redesenhada a cada
+      // edição/exclusão e sem isso tudo fecharia de novo).
+      recList.querySelectorAll('details[data-rec-grupo]').forEach(det =>
+        det.addEventListener('toggle', () => {
+          if (det.open) _receitasAbertas.add(det.dataset.recGrupo);
+          else _receitasAbertas.delete(det.dataset.recGrupo);
+        }));
       recList.querySelectorAll('[data-edit-rec]').forEach(btn =>
         btn.addEventListener('click', () => abrirModal('receita', +btn.dataset.editRec)));
       recList.querySelectorAll('[data-del-rec]').forEach(btn =>
@@ -6571,6 +6632,15 @@
         btn.addEventListener('click', () => abrirModal('despesa', null, btn.dataset.cat)));
       document.getElementById('btnAddDespesa')?.addEventListener('click', () => abrirModal('despesa'));
     }
+
+    // ─── Receitas por categoria no Resumo (04/11/2026) ───────────────────────
+    // Em teste: só nas contas da Flávia até ela validar; as demais seguem
+    // vendo a lista plana. Para liberar, trocar por `return true`.
+    const RECEITAS_CATEGORIA_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    function podeVerReceitasPorCategoria() {
+      return RECEITAS_CATEGORIA_ALLOWLIST.includes((auth.currentUser?.email || '').toLowerCase());
+    }
+    const _receitasAbertas = new Set();
 
     // ─── Barra "Orçamento do mês" (acima do Saldo Projetado) ─────────────────
     // Gasto comprometido do mês × total planejado (renda × %, ou soma dos
