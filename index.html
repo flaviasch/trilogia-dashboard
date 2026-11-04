@@ -2172,6 +2172,27 @@ async function init(user) {
         });
       }
 
+      // ⓪-o Novidades de Novembro (22/10 a 04/11/2026): destaques do PF e o
+      // que vale pros dois. Sem banner PJ (só a importação com IA).
+      if (!localStorage.getItem('notif_novidades_nov2026')) {
+        notifs.unshift({ id: 'novidades-nov2026', type: 'novidades', key: 'notif_novidades_nov2026', icon: '🌱', _expansivel: true,
+          titulo: 'Novembro chegou com novidades',
+          desc: 'Receitas agrupadas por categoria, gráficos por categoria-mãe, reserva de emergência sempre com liquidez e várias declarações de IR sem sobrepor.',
+          cta: { label: 'Ver as novidades', href: 'orcamento.html' },
+          itens: [
+            { emoji: '💰', titulo: 'Receitas por categoria', desc: 'No Resumo do Orçamento, cada categoria de receita vira uma linha com o total. Um toque abre os lançamentos dela.' },
+            { emoji: '🥧', titulo: 'Gráficos por categoria-mãe', desc: 'Pizza e tendência somam as subcategorias dentro da categoria-mãe, como no Planejamento.' },
+            { emoji: '🗓️', titulo: 'Fixa com prazo para sozinha', desc: 'Fixa por tempo determinado deixa de aparecer depois do último mês.' },
+            { emoji: '✍️', titulo: 'Saldo inicial respeitado', desc: 'O saldo inicial que você digita não é mais trocado pelo ajuste automático.' },
+            { emoji: '🟰', titulo: 'Tela inicial igual ao Orçamento', desc: 'Receita, despesa e sobra usam o mesmo cálculo do Resumo, com o saldo inicial das contas.' },
+            { emoji: '📈', titulo: 'Score mais justo', desc: 'Até o dia 28, ou até o primeiro aporte do mês, o aporte não pesa contra a sua nota.' },
+            { emoji: '🛟', titulo: 'Nova política das reservas', desc: 'Reserva de emergência sempre com liquidez diária, objetivos de 4 a 10 anos conforme o seu perfil e carteiras de longo prazo revisadas.' },
+            { emoji: '💑', titulo: 'Patrimônio mais completo', desc: 'Várias declarações de IR sem sobrepor, moeda estrangeira pela PTAX do Banco Central e bem cadastrado à mão entrando na evolução.' },
+            { emoji: '🤖', titulo: 'Importação com IA mais paciente', desc: 'Arquivos grandes podem levar alguns minutos, e agora o Dashboard espera até o fim.' },
+          ],
+        });
+      }
+
       // ⓪-n Novidades de Outubro (17/09 a 21/10/2026) — destaques do PF e o
       // que vale pros dois; os do PJ ganham banner próprio em notas-pj.html.
       if (!localStorage.getItem('notif_novidades_out2026')) {

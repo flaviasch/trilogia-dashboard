@@ -1871,6 +1871,71 @@ function emailNovidadesOut2026(nome) {
 }
 
 /**
+ * E-mail: novidades de 22/10 a 04/11/2026 (Dashboard Pessoal e o que vale
+ * pros dois). Só pra ativas. Texto em comunicado-nov2026-rascunho.md.
+ */
+function emailNovidadesNov2026(nome) {
+  const primeiroNome = (nome || 'você').split(' ')[0];
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  const secao = (titulo) =>
+    `<tr><td style="padding:18px 0 6px;">
+      <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Seu Dashboard ficou mais claro, do orçamento aos investimentos</h2>
+    <p style="${S.p}">Olá, ${primeiroNome}!</p>
+    <p style="${S.p}">
+      Nas últimas semanas fizemos uma série de melhorias a partir do uso de vocês.
+      Separei os destaques:
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('👤 Dashboard Pessoal (PF) · Orçamento')}
+      ${item('💰','Receitas agrupadas por categoria','No Resumo, cada categoria de receita aparece numa linha só, com o total e o quanto representa da sua renda. Um toque abre os lançamentos daquela categoria, com editar e excluir ali mesmo.')}
+      ${item('🥧','Gráficos por categoria-mãe','A pizza e a tendência dos Gráficos agora somam as subcategorias dentro da categoria-mãe, do mesmo jeito que o Planejamento. A leitura fica bem mais limpa.')}
+      ${item('🗓️','Fixa com prazo para sozinha','Uma despesa ou receita fixa por tempo determinado (um parcelamento, um curso, um contrato) deixa de aparecer depois do último mês, sem você precisar desligar.')}
+      ${item('✍️','Seu saldo inicial é respeitado','Quando você digita o saldo inicial de uma conta, o ajuste automático não troca mais esse valor.')}
+      ${item('💳','Fatura de outro mês com os itens certos','Ao olhar uma fatura fechada de outro mês, ela mostra as compras dela, e não só o ajuste.')}
+
+      ${secao('👤 Dashboard Pessoal (PF) · Tela inicial')}
+      ${item('🟰','Números iguais aos do Orçamento','Receita, despesa e sobra da tela inicial usam o mesmo cálculo do Resumo do Orçamento, incluindo o saldo inicial das contas.')}
+      ${item('📈','Score mais justo no começo do mês','Até o dia 28, ou até você registrar o primeiro aporte do mês, o aporte não pesa contra a sua nota.')}
+
+      ${secao('👤 Dashboard Pessoal (PF) · Reservas e investimentos')}
+      ${item('🛟','Reserva de emergência sempre com liquidez','Reserva de emergência ou de liquidez agora recebe sempre a carteira de curto prazo (100% renda fixa pós com liquidez diária), mesmo que leve anos para ser formada.')}
+      ${item('🧭','Objetivos de 4 a 10 anos conforme o seu perfil','A carteira sugerida para esse prazo passou a acompanhar o seu perfil de investidor. Se você ainda não preencheu o perfil, o Dashboard pede o preenchimento antes de sugerir.')}
+      ${item('🌱','Carteiras de longo prazo revisadas','As carteiras sugeridas para objetivos acima de 10 anos foram atualizadas nos perfis moderado e arrojado.')}
+
+      ${secao('👤 Dashboard Pessoal (PF) · Patrimônio')}
+      ${item('💑','Várias declarações de IR, sem sobrepor','Dá para importar mais de uma declaração (a sua e a do seu par, por exemplo), cada uma no seu card, e o patrimônio soma tudo.')}
+      ${item('💵','Investimento em dólar ou euro pela cotação oficial','Posições em moeda estrangeira são convertidas pela PTAX do Banco Central, e a tela mostra a cotação usada.')}
+      ${item('📉','Bem cadastrado à mão entra na evolução','Ao cadastrar um ativo novo, o gráfico de evolução do patrimônio passa a incluir esse bem no mês.')}
+
+      ${secao('🤝 Nos dois (PF e PJ)')}
+      ${item('🤖','Importação com IA mais paciente','Extratos e relatórios grandes podem levar alguns minutos para a IA ler. Agora o Dashboard espera até o fim, em vez de mostrar erro no meio do caminho, no pessoal e no PJ.')}
+
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Explorar as novidades →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
+/**
  * E-mail: aviso de atualização da Política de Privacidade do site (29/10/2026)
  * — Pixel da Meta só com consentimento, aviso de cookies. A própria política
  * (seção 11) promete avisar por e-mail em alterações relevantes. Só pra ativas.
@@ -1960,6 +2025,7 @@ module.exports = {
   emailModoCasal2026,
   emailModoCasalGestaoConjunta2026,
   emailNovidadesOut2026,
+  emailNovidadesNov2026,
   emailPoliticaPrivacidadeOut2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,

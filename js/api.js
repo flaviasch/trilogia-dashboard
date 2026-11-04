@@ -1508,6 +1508,11 @@ export async function anunciarNovidadesOut2026() {
   return call('anunciarNovidadesOut2026')({});
 }
 
+/** Dispara e-mail de novidades Nov/2026 (PF e nos dois). Admin only. */
+export async function anunciarNovidadesNov2026() {
+  return call('anunciarNovidadesNov2026')({});
+}
+
 /** Dispara o aviso de atualização da Política de Privacidade (out/2026). Admin only. */
 export async function anunciarPoliticaPrivacidadeOut2026() {
   return call('anunciarPoliticaPrivacidadeOut2026')({});
