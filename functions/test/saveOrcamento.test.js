@@ -28,9 +28,10 @@ test('saveOrcamento', async (t) => {
 
   await t.test('achado 04/07/2026: bloqueia salvamento que apagaria todos os itens de um tipo', async () => {
     const uid = uidTeste();
-    // Estado inicial: 3 despesas + 1 receita
+    // Estado inicial: 3 despesas + 2 receitas. Desde 04/08/2026 o tipo só
+    // conta como "perdido" quando havia 2+ itens dele antes (ver teste abaixo).
     await fns.saveOrcamento.run({
-      data: { uid, mes: MES, ano: ANO, itens: [despesa('Moradia', 1680), despesa('Outros', 378), despesa('Saúde', 2530), receita('Salário', 21800)] },
+      data: { uid, mes: MES, ano: ANO, itens: [despesa('Moradia', 1680), despesa('Outros', 378), despesa('Saúde', 2530), receita('Salário', 21800), receita('Aluguel recebido', 2000)] },
       auth: auth(uid),
     });
 
@@ -45,7 +46,24 @@ test('saveOrcamento', async (t) => {
 
     // Confirma que o dado original permanece intacto no Firestore
     const snap = await db.collection('mentoradas').doc(uid).collection('orcamento').doc('2026-07').get();
-    assert.equal(snap.data().itens.length, 4);
+    assert.equal(snap.data().itens.length, 5);
+  });
+
+  await t.test('achado 04/08/2026: apagar o ÚNICO item de um tipo é exclusão normal, não é bloqueado', async () => {
+    const uid = uidTeste();
+    await fns.saveOrcamento.run({
+      data: { uid, mes: MES, ano: ANO, itens: [despesa('Moradia', 1680), despesa('Outros', 378), despesa('Saúde', 2530), receita('Salário', 21800)] },
+      auth: auth(uid),
+    });
+
+    const res = await fns.saveOrcamento.run({
+      data: { uid, mes: MES, ano: ANO, itens: [despesa('Moradia', 1680), despesa('Outros', 378), despesa('Saúde', 2530)] },
+      auth: auth(uid),
+    });
+    assert.equal(res.ok, true);
+
+    const snap = await db.collection('mentoradas').doc(uid).collection('orcamento').doc('2026-07').get();
+    assert.equal(snap.data().itens.length, 3);
   });
 
   await t.test('bloqueia encolhimento maior que 50% mesmo sem perder um tipo inteiro', async () => {
