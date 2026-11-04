@@ -6634,11 +6634,9 @@
     }
 
     // ─── Receitas por categoria no Resumo (04/11/2026) ───────────────────────
-    // Em teste: só nas contas da Flávia até ela validar; as demais seguem
-    // vendo a lista plana. Para liberar, trocar por `return true`.
-    const RECEITAS_CATEGORIA_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    // Liberado pra todas em 04/11/2026 (estava restrito ao teste).
     function podeVerReceitasPorCategoria() {
-      return RECEITAS_CATEGORIA_ALLOWLIST.includes((auth.currentUser?.email || '').toLowerCase());
+      return true;
     }
     const _receitasAbertas = new Set();
 
