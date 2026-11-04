@@ -133,13 +133,19 @@ test('diasFaltantesRecorrente', async (t) => {
 });
 
 test('fixas puladas (localStorage)', async (t) => {
+  // addFixaPulada poda entradas de 2+ meses antes da data REAL de hoje, então
+  // chaves gravadas por estes testes usam o mês corrente (datas fixas como
+  // 2026-08-11 "venceram" e passaram a ser podadas em nov/2026).
+  const agoraReal = new Date();
+  const chaveAtual = (id, dia) => chaveFixaPulada(id, agoraReal.getFullYear(), agoraReal.getMonth() + 1, dia);
   await t.test('chaveFixaPulada monta a chave esperada', () => {
     assert.equal(chaveFixaPulada('rec1', 2026, 8, 11), 'rec1_2026-08-11');
   });
   await t.test('addFixaPulada persiste e getFixasPuladas lê de volta', () => {
     localStorage.clear();
-    addFixaPulada('rec1_2026-08-11');
-    assert.deepEqual(getFixasPuladas(), ['rec1_2026-08-11']);
+    const chave = chaveAtual('rec1', 11);
+    addFixaPulada(chave);
+    assert.deepEqual(getFixasPuladas(), [chave]);
   });
   await t.test('achado 06/07/2026: pular um mês futuro não é descartado na hora', () => {
     localStorage.clear();
@@ -152,10 +158,11 @@ test('fixas puladas (localStorage)', async (t) => {
     localStorage.clear();
     const antiga = chaveFixaPulada('recX', 2020, 1, 1); // bem no passado
     localStorage.setItem('_fixasPuladas', JSON.stringify([antiga]));
-    addFixaPulada('recY_2026-07-06');
+    const recente = chaveAtual('recY', 6);
+    addFixaPulada(recente);
     const atuais = getFixasPuladas();
     assert.ok(!atuais.includes(antiga));
-    assert.ok(atuais.includes('recY_2026-07-06'));
+    assert.ok(atuais.includes(recente));
   });
 });
 
@@ -352,7 +359,9 @@ test('calcularAgregadosOrcamento', async (t) => {
   await t.test('recorrente pulada neste mês não gera fixaVirtual', () => {
     localStorage.clear();
     const chave = chaveFixaPulada('r1', 2026, 7, 20);
-    addFixaPulada(chave);
+    // Grava direto (sem addFixaPulada), senão a poda pela data real de hoje
+    // apagaria a chave de jul/2026; o cálculo usa agora: HOJE (jul/2026).
+    localStorage.setItem('_fixasPuladas', JSON.stringify([chave]));
     const data = periodo([]);
     const recorrentes = [{ id: 'r1', ativo: true, cartao: false, categoria: 'Assinaturas', valor: 60, dia: 20, frequencia: 'mensal' }];
     const r = calcularAgregadosOrcamento({ data, recorrentes, agora: HOJE });
