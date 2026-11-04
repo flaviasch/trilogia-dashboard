@@ -1751,7 +1751,7 @@ async function _gravarOrcamento({ uid, mes, ano, itens, permitirReducao }) {
  * Firestore — só extrai e categoriza. Ver dashboard/raio-x-no-dashboard/BLUEPRINT.md.
  */
 exports.categorizarExtratoIA = onCall(
-  { secrets: [sAnthropic], timeoutSeconds: 120, memory: '512MiB' },
+  { secrets: [sAnthropic], timeoutSeconds: 300, memory: '512MiB' },
   async (request) => {
     const auth = requireAuth(request);
     const { uid, conteudo, tipoConteudo, nomesCartoes } = request.data;
@@ -2106,7 +2106,7 @@ async function _aplicarClasseConhecida(itens) {
  * Esta função NÃO grava no Firestore — só extrai e categoriza.
  */
 exports.categorizarPatrimonioIA = onCall(
-  { secrets: [sAnthropic], timeoutSeconds: 120, memory: '512MiB' },
+  { secrets: [sAnthropic], timeoutSeconds: 300, memory: '512MiB' },
   async (request) => {
     const auth = requireAuth(request);
     const { uid, conteudo, tipoConteudo, modo, origem } = request.data;
@@ -10364,7 +10364,7 @@ async function _sugerirMatchesExtratoPJ(uid, itensBrutos) {
 }
 
 exports.categorizarExtratoPJIA = onCall(
-  { secrets: [sAnthropic], timeoutSeconds: 120, memory: '512MiB' },
+  { secrets: [sAnthropic], timeoutSeconds: 300, memory: '512MiB' },
   async (request) => {
     const { uid, conteudo, tipoConteudo } = request.data;
     requireSelfOrAdmin(request, uid);
@@ -10457,7 +10457,11 @@ Regras obrigatórias:
       }
       const textoResposta = json?.content?.[0]?.text || '';
       // Remove eventuais cercas de markdown (```json ... ```) que o modelo às vezes inclui.
-      const limpo = textoResposta.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+      // Às vezes vem um comentário depois do bloco ```json (achado 04/11/2026,
+      // extrato PJ da Isabella: "Unexpected non-whitespace character after
+      // JSON"). Usa só o bloco, igual ao categorizarPatrimonioIA.
+      const bloco = textoResposta.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const limpo = (bloco ? bloco[1] : textoResposta).trim();
       respostaIA = JSON.parse(limpo);
     } catch (err) {
       if (err instanceof HttpsError) throw err;

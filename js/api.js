@@ -56,8 +56,12 @@ async function _logoutImediato() {
 }
 
 // Chamadas de mentorada: unauthenticated → tenta renovar, falha → login.
-function call(nome) {
-  const fn = httpsCallable(functions, nome);
+// opcoes: repassadas ao httpsCallable (ex: { timeout } nas chamadas de IA,
+// que passam dos 70 s do padrão com arquivo grande: achado 04/11/2026, extrato
+// PJ da Isabella levava ~104 s e a tela desistia com deadline-exceeded).
+const TIMEOUT_IA_MS = 310_000; // um pouco acima do timeoutSeconds 300 do servidor
+function call(nome, opcoes) {
+  const fn = httpsCallable(functions, nome, opcoes);
   return async (dados) => {
     try {
       const result = await fn(dados);
@@ -125,8 +129,8 @@ async function _logoutImediatoPJ() {
   await signOut(auth).catch(() => {});
   window.location.href = 'login-pj.html';
 }
-function callPJ(nome) {
-  const fn = httpsCallable(functions, nome);
+function callPJ(nome, opcoes) {
+  const fn = httpsCallable(functions, nome, opcoes);
   return async (dados) => {
     try {
       const result = await fn(dados);
@@ -311,7 +315,7 @@ export async function getReservasCasal(casalId) {
  * @returns {Promise<{itens: Array}>} mesmo formato de parsearCsvRaioX — usar do mesmo jeito.
  */
 export async function categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoes = []) {
-  return call('categorizarExtratoIA')({ uid: uidAtual(), conteudo, tipoConteudo, nomesCartoes });
+  return call('categorizarExtratoIA', { timeout: TIMEOUT_IA_MS })({ uid: uidAtual(), conteudo, tipoConteudo, nomesCartoes });
 }
 
 /**
@@ -342,7 +346,7 @@ export async function salvarCategoriaAprendida(descricao, categoria) {
  *   chamar saveDivida, igual já se faz com o resultado do CSV).
  */
 export async function categorizarPatrimonioIA(conteudo, tipoConteudo, modo, origem) {
-  return call('categorizarPatrimonioIA')({ uid: uidAtual(), conteudo, tipoConteudo, modo, origem });
+  return call('categorizarPatrimonioIA', { timeout: TIMEOUT_IA_MS })({ uid: uidAtual(), conteudo, tipoConteudo, modo, origem });
 }
 
 /**
@@ -989,7 +993,7 @@ export async function registrarDistribuicaoLucroPJ(uid, valor) {
 
 // Importação de extrato/fatura com IA (28/07/2026)
 export async function categorizarExtratoPJIA(uid, conteudo, tipoConteudo) {
-  return callPJ('categorizarExtratoPJIA')({ uid, conteudo, tipoConteudo });
+  return callPJ('categorizarExtratoPJIA', { timeout: TIMEOUT_IA_MS })({ uid, conteudo, tipoConteudo });
 }
 
 // Entradas de caixa que não são venda (aporte de sócio, reembolso, outro) —
