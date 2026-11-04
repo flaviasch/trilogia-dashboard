@@ -2777,7 +2777,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor, getStatusVinculo, getOrcamentoCasal } from './js/api.js?v=75';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor, getStatusVinculo, getOrcamentoCasal } from './js/api.js?v=76';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -4259,7 +4259,7 @@
       // Grava na coleção de saldo por conta — não mexe no array de itens do
       // orçamento (o saldo em conta não é mais lançado como item sentinela).
       const { mes, ano } = currentData.periodo;
-      try { await saveSaldoConta(mes, ano, _contaAtivaId || CONTA_PRINCIPAL_ID, valor); }
+      try { await saveSaldoConta(mes, ano, _contaAtivaId || CONTA_PRINCIPAL_ID, valor, { manual: true }); }
       catch (e) { toast(msgErro(e), 'error'); }
     };
     window._cancelarSaldoConta = () => {
@@ -8682,7 +8682,10 @@
       const valorEsperado = await calcularCarryoverEsperado(mes, ano, contaAlvo, sessaoAnterior);
       if (Math.abs(valorSalvo - valorEsperado) <= 0.01) return;
 
-      await saveSaldoConta(mes, ano, contaAlvo, valorEsperado).catch(() => {});
+      // Saldo digitado pela usuária fica: o servidor ignora o ajuste automático
+      // (ignorado: true) e a tela não troca o valor (achado 04/11/2026).
+      const resAjuste = await saveSaldoConta(mes, ano, contaAlvo, valorEsperado).catch(() => null);
+      if (!resAjuste || resAjuste.ignorado) return;
       if (currentData?.periodo?.mes === mes && currentData?.periodo?.ano === ano
           && (_contaAtivaId || CONTA_PRINCIPAL_ID) === contaAlvo) {
         currentData.saldoConta = valorEsperado;

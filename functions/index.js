@@ -3466,11 +3466,15 @@ exports.getSaldosConta = onCall(async (request) => {
 /**
  * Atualiza o saldo inicial de UMA conta no mês, via transaction (merge no
  * servidor — não sobrescreve o saldo de outras contas salvo em paralelo).
- * Espera: { uid, mes, ano, contaId, valor }
+ * Espera: { uid, mes, ano, contaId, valor, manual? }
+ *
+ * manual: true = a usuária digitou o valor; ele fica marcado em `manuais` e o
+ * ajuste automático (carryover/divergência, manual ausente) não sobrescreve
+ * mais (achado 04/11/2026, Flávia: saldo da Isabella voltava ao navegar).
  */
 exports.saveSaldoConta = onCall(async (request) => {
   requireAuth(request);
-  const { uid, mes, ano, contaId, valor } = request.data;
+  const { uid, mes, ano, contaId, valor, manual } = request.data;
   requireSelfOrAdmin(request, uid);
   await checkRateLimit(uid, 'saveSaldoConta', 30, 60_000); // 30/min — carryover automático pode disparar em background
 
@@ -3480,16 +3484,20 @@ exports.saveSaldoConta = onCall(async (request) => {
   const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
   const ref = db.collection('mentoradas').doc(uid).collection('saldosConta').doc(mesKey);
 
+  let ignorado = false;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const saldosAtuais = snap.exists ? (snap.data().saldos || {}) : {};
+    const manuaisAtuais = snap.exists ? (snap.data().manuais || {}) : {};
+    if (manual !== true && manuaisAtuais[contaId]) { ignorado = true; return; }
     tx.set(ref, {
       saldos: { ...saldosAtuais, [contaId]: valor },
+      manuais: manual === true ? { ...manuaisAtuais, [contaId]: true } : manuaisAtuais,
       atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
     });
   });
 
-  return { ok: true };
+  return { ok: true, ignorado };
 });
 
 // ─── CATEGORIAS GLOBAIS (legacy — mantido para compatibilidade) ───────────────

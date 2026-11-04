@@ -1721,9 +1721,13 @@ export async function getSaldosConta(mes, ano) {
   return res?.saldos || {};
 }
 
-/** Atualiza o saldo inicial de UMA conta no mês (merge no servidor). */
-export async function saveSaldoConta(mes, ano, contaId, valor) {
-  return call('saveSaldoConta')({ uid: uidAtual(), mes, ano, contaId, valor });
+/**
+ * Atualiza o saldo inicial de UMA conta no mês (merge no servidor).
+ * { manual: true } quando a usuária digitou o valor: o ajuste automático não
+ * sobrescreve mais (o servidor responde ignorado: true nesses casos).
+ */
+export async function saveSaldoConta(mes, ano, contaId, valor, { manual = false } = {}) {
+  return call('saveSaldoConta')({ uid: uidAtual(), mes, ano, contaId, valor, manual });
 }
 
 // ─── Categorias globais (legacy) ─────────────────────────────────────────────
