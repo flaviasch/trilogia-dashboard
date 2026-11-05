@@ -2309,9 +2309,17 @@ Regras obrigatórias:
         const nome = typeof it.nome === 'string' && it.nome.trim() ? it.nome.trim().slice(0, 80) : classe;
         const confianca = it.confianca === 'baixa' ? 'baixa' : 'alta';
         const cnpj = typeof it.cnpj === 'string' ? it.cnpj.replace(/\D/g, '') : '';
-        return { nome, classe, valor, confianca, ...(cnpj ? { cnpj } : {}) };
+        return { nome, classe, valor, confianca, moeda: it.moeda, ...(cnpj ? { cnpj } : {}) };
       });
       itens = await _aplicarClasseConhecida(itens);
+      // Ativo em moeda estrangeira é Internacional, mesmo que seja ação/ETF
+      // (a IA e o padrão de nome "Ações" mandavam pra Renda Variável — achado
+      // 05/11/2026, Flávia: posição "XP Internacional" inteira caiu em RV).
+      // Exceção: cripto/ouro cotados em dólar continuam Alternativos.
+      itens = itens.map(({ moeda, ...item }) =>
+        moeda && moeda !== 'BRL' && item.classe !== 'Alternativos'
+          ? { ...item, classe: 'Internacional', confianca: 'alta' }
+          : item);
     } else if (modo === 'ativos') {
       itens = itensBrutos.map((it, i) => {
         const valor = Number(it.valor);

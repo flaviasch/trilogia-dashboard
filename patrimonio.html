@@ -1865,21 +1865,28 @@
      * direcionar" pra decisão manual, sem tentar adivinhar). Versão anterior
      * distribuía sozinha até 15%/30% do total das reservas — removido.
      */
-    const CLASSES_FINANCEIRAS = new Set(['pos', 'infl', 'pre', 'rv', 'mm', 'int']);
+    // Mesmo critério do painel de cobertura em reservas.html (inclui
+    // Alternativos). A classe salva é o nome ("RF Pós (liquidez diária)"),
+    // não o código — comparar direto com 'pos' dava sempre zero e a
+    // conciliação nunca disparava (achado 05/11/2026, Flávia: reservas
+    // passaram o patrimônio em R$ 10.958 sem nenhum aviso na importação).
+    const CLASSES_FINANCEIRAS = new Set(['pos', 'infl', 'pre', 'rv', 'mm', 'int', 'alt']);
 
     async function conciliarReservas(ativosAtuais) {
       const totalImportado = ativosAtuais
-        .filter(a => CLASSES_FINANCEIRAS.has(a.classe))
+        .filter(a => CLASSES_FINANCEIRAS.has(classeBaseId(a.classe)))
         .reduce((s, a) => s + a.valor, 0);
       if (totalImportado === 0) return;
 
       let reservas;
       try { reservas = await getReservas(); } catch { return; }
 
-      const ativas = (reservas || []).filter(r => r.acumulado > 0 && r.acumulado < r.meta);
-      if (ativas.length === 0) return;
+      // Todas as reservas com saldo, inclusive as concluídas: o dinheiro delas
+      // também está no patrimônio (mesma conta do painel de cobertura).
+      const comSaldo = (reservas || []).filter(r => r.acumulado > 0);
+      if (comSaldo.length === 0) return;
 
-      const totalReservas = ativas.reduce((s, r) => s + r.acumulado, 0);
+      const totalReservas = comSaldo.reduce((s, r) => s + r.acumulado, 0);
       if (totalReservas === 0) return;
 
       const delta = totalImportado - totalReservas;
