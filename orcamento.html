@@ -598,6 +598,11 @@
        e parece que nada acontece"). !important pra sobrepor a cor inline do
        glifo (ex: style="color:var(--positive)" no botão de confirmar). */
     .btn-item:disabled { opacity: .4; cursor: wait; color: var(--text-muted) !important; pointer-events: none; }
+    /* Botão-ícone processando (_btnSpin, 05/11/2026): spinner dourado e
+       visível. O @keyframes spin não existia em lugar nenhum, então o
+       spinner do setLoading ficava parado. */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-item.carregando:disabled { opacity: 1; color: var(--gold) !important; border-color: var(--border-gold); }
 
     /* ─── Botão adicionar na seção ──────────── */
     .btn-add-item {
@@ -3941,6 +3946,33 @@
       }
     });
 
+    // Spinner nos botões-ícone das linhas (✓ ✎ ⏭ ✕) — pedido da Flávia,
+    // 05/11/2026: clicar não dava retorno visual nenhum e parecia travado.
+    // Usa o setLoading do ui.js sem texto (botão só com ícone), com o
+    // spinner centralizado.
+    function _btnSpin(btn, on) {
+      if (!btn) return;
+      setLoading(btn, on, '');
+      btn.classList.toggle('carregando', on);
+      if (on) {
+        btn.style.opacity = '';
+        if (btn.firstElementChild) btn.firstElementChild.style.marginRight = '0';
+      }
+    }
+    // Para ações que só abrem um modal ou redesenham a lista na hora: mostra
+    // o spinner, deixa o navegador pintar e só então executa. Evita clique
+    // duplo (botão desabilitado) e devolve o botão ao normal no fim.
+    async function _comSpinner(btn, fn) {
+      if (!btn || btn.disabled) return;
+      _btnSpin(btn, true);
+      // rAF não dispara com a aba em segundo plano: o setTimeout garante
+      // que a ação nunca fica esperando.
+      await new Promise(r => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 60); });
+      try { return await fn(); }
+      catch (err) { toast(msgErro(err), 'error'); }
+      finally { _btnSpin(btn, false); }
+    }
+
     async function excluirItem(tipo, idx, btn) {
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
       const item  = lista[idx];
@@ -3952,7 +3984,7 @@
       // desabilitar o botão não dava nenhum sinal visual). Sem texto porque
       // é um botão-ícone pequeno numa linha de tabela — texto quebraria o
       // layout, só o spinner já resolve a sensação de "travou".
-      if (btn) setLoading(btn, true, '');
+      _btnSpin(btn, true);
       // Item vinculado a uma recorrente ATIVA (não-cartão): excluir sozinho
       // não basta — no próximo render, diasFaltantesRecorrente vê o dia sem
       // ocorrência de novo e regenera o placeholder virtual (✓/⏭) pra esse
@@ -3970,7 +4002,7 @@
       if (!ok) {
         // salvarEAtualizar já mostrou o toast de erro — não mostra "Excluído"
         // em cima disso, senão fica contraditório (achado 14/08/2026).
-        if (btn) setLoading(btn, false);
+        _btnSpin(btn, false);
         return;
       }
       if (_recorrenteAtivo && _diaItem) {
@@ -3997,7 +4029,8 @@
       const lista = tipo === 'receita' ? currentData.receitas : currentData.despesas;
       const item = lista[idx];
       if (item) {
-        if (btn) btn.disabled = true; // feedback imediato — sem isso parecia que nada acontecia (achado 10/07/2026)
+        if (btn?.disabled) return;
+        _btnSpin(btn, true); // feedback imediato — sem isso parecia que nada acontecia (achado 10/07/2026)
         delete item.pendente;
         item.confirmado = true;
         // Se a data ainda está no futuro, confirmar significa "aconteceu agora":
@@ -4016,7 +4049,8 @@
         if (!item.recorrenteId && item.data && new Date(item.data + 'T00:00:00') > hoje) {
           item.data = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
         }
-        await salvarEAtualizar();
+        const ok = await salvarEAtualizar();
+        if (!ok) { _btnSpin(btn, false); return; } // erro já avisado por toast
         toast('Confirmado.', 'success');
       }
     }
@@ -5133,7 +5167,7 @@
         projecaoListaEl.querySelectorAll('[data-proj-editar]').forEach(btn =>
           btn.addEventListener('click', () => {
             const [tipo, idx] = btn.dataset.projEditar.split(':');
-            abrirModal(tipo, +idx);
+            _comSpinner(btn, () => abrirModal(tipo, +idx));
           }));
         projecaoListaEl.querySelectorAll('[data-proj-excluir]').forEach(btn =>
           btn.addEventListener('click', () => {
@@ -5142,7 +5176,7 @@
           }));
         projecaoListaEl.querySelectorAll('[data-proj-fatura]').forEach(btn =>
           btn.addEventListener('click', () => {
-            abrirModalConfirmarPagamento(btn.dataset.projFatura, parseFloat(btn.dataset.projFaturaTotal), btn.dataset.projFaturaNome, btn.dataset.projFaturaMes);
+            _comSpinner(btn, () => abrirModalConfirmarPagamento(btn.dataset.projFatura, parseFloat(btn.dataset.projFaturaTotal), btn.dataset.projFaturaNome, btn.dataset.projFaturaMes));
           }));
         projecaoListaEl.querySelectorAll('[data-proj-materializar]').forEach(btn =>
           btn.addEventListener('click', () => {
@@ -5157,7 +5191,7 @@
         projecaoListaEl.querySelectorAll('[data-proj-pular]').forEach(btn =>
           btn.addEventListener('click', () => {
             const [recorrenteId, dia] = btn.dataset.projPular.split(':');
-            pularFixaMes(recorrenteId, +dia);
+            _comSpinner(btn, () => pularFixaMes(recorrenteId, +dia));
           }));
       }
 
@@ -5291,7 +5325,7 @@
           else _receitasAbertas.delete(det.dataset.recGrupo);
         }));
       recList.querySelectorAll('[data-edit-rec]').forEach(btn =>
-        btn.addEventListener('click', () => abrirModal('receita', +btn.dataset.editRec)));
+        btn.addEventListener('click', () => _comSpinner(btn, () => abrirModal('receita', +btn.dataset.editRec))));
       recList.querySelectorAll('[data-del-rec]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec, btn)));
       document.getElementById('btnAddReceita').addEventListener('click', () => abrirModal('receita'));
@@ -6252,11 +6286,11 @@
       };
 
       el.querySelectorAll('[data-edit-desp]').forEach(btn =>
-        btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
+        btn.addEventListener('click', () => _comSpinner(btn, () => abrirModal('despesa', +btn.dataset.editDesp))));
       el.querySelectorAll('[data-del-desp]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp, btn)));
       el.querySelectorAll('[data-edit-rec]').forEach(btn =>
-        btn.addEventListener('click', () => abrirModal('receita', +btn.dataset.editRec)));
+        btn.addEventListener('click', () => _comSpinner(btn, () => abrirModal('receita', +btn.dataset.editRec))));
       el.querySelectorAll('[data-del-rec]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('receita', +btn.dataset.delRec, btn)));
       el.querySelectorAll('[data-add-cartao]').forEach(btn =>
@@ -6602,19 +6636,19 @@
         <button class="btn-add-item" id="btnAddDespesa">+ Nova categoria de despesa</button>`;
 
       despList.querySelectorAll('[data-edit-desp]').forEach(btn =>
-        btn.addEventListener('click', () => abrirModal('despesa', +btn.dataset.editDesp)));
+        btn.addEventListener('click', () => _comSpinner(btn, () => abrirModal('despesa', +btn.dataset.editDesp))));
       despList.querySelectorAll('[data-edit-rec]').forEach(btn =>
-        btn.addEventListener('click', () => abrirModalEditRecorrente(+btn.dataset.editRec, btn.dataset.recId)));
+        btn.addEventListener('click', () => _comSpinner(btn, () => abrirModalEditRecorrente(+btn.dataset.editRec, btn.dataset.recId))));
       despList.querySelectorAll('[data-del-desp]').forEach(btn =>
         btn.addEventListener('click', () => excluirItem('despesa', +btn.dataset.delDesp, btn)));
       despList.querySelectorAll('[data-confirmar-pend]').forEach(btn =>
         btn.addEventListener('click', () => confirmarPendente('despesa', +btn.dataset.confirmarPend, btn)));
       despList.querySelectorAll('[data-cancelar-parcela]').forEach(btn =>
-        btn.addEventListener('click', () => cancelarParcelamentoUI(btn.dataset.cancelarParcela)));
+        btn.addEventListener('click', () => cancelarParcelamentoUI(btn.dataset.cancelarParcela, btn)));
       despList.querySelectorAll('[data-materializar-virtual]').forEach(btn =>
         btn.addEventListener('click', () => {
           const [recorrenteId, dia] = btn.dataset.materializarVirtual.split(':');
-          materializarFixaPendente(recorrenteId, +dia);
+          materializarFixaPendente(recorrenteId, +dia, btn);
         }));
       despList.querySelectorAll('[data-editar-virtual]').forEach(btn =>
         btn.addEventListener('click', () => {
@@ -6624,7 +6658,7 @@
       despList.querySelectorAll('[data-pular-virtual]').forEach(btn =>
         btn.addEventListener('click', () => {
           const [recorrenteId, dia] = btn.dataset.pularVirtual.split(':');
-          pularFixaMes(recorrenteId, +dia);
+          _comSpinner(btn, () => pularFixaMes(recorrenteId, +dia));
         }));
       despList.querySelectorAll('.btn-set-limite').forEach(btn =>
         btn.addEventListener('click', (e) => { e.stopPropagation(); abrirModalLimite(btn.dataset.cat); }));
@@ -11472,12 +11506,12 @@
       // achado 23/07/2026: clique dava "ok" sem erro visível, mas o item não
       // sumia, mesmo problema de feedback ausente já achado no modal em
       // 14/07/2026).
-      if (btn) btn.disabled = true;
+      _btnSpin(btn, true);
       try {
         await _materializarFixaPendenteImpl(recorrenteId, dia);
       } catch (err) {
         toast(msgErro(err), 'error');
-        if (btn) btn.disabled = false;
+        _btnSpin(btn, false);
       } finally {
         _materializandoFixa.delete(chaveEmCurso);
       }
@@ -11492,7 +11526,7 @@
       const chaveEmCurso = 'editar:' + recorrenteId + ':' + dia;
       if (_materializandoFixa.has(chaveEmCurso)) return;
       _materializandoFixa.add(chaveEmCurso);
-      if (btn) btn.disabled = true;
+      _btnSpin(btn, true);
       try {
         await _materializarFixaPendenteImpl(recorrenteId, dia, { comoPendente: true });
         const { mes, ano } = currentData.periodo;
@@ -11502,8 +11536,8 @@
         if (idx >= 0) abrirModal(tipo === 'receita' ? 'receita' : 'despesa', idx);
       } catch (err) {
         toast(msgErro(err), 'error');
-        if (btn) btn.disabled = false;
       } finally {
+        _btnSpin(btn, false);
         _materializandoFixa.delete(chaveEmCurso);
       }
     }
@@ -12281,9 +12315,10 @@
       }
     }
 
-    async function cancelarParcelamentoUI(parcelamentoId) {
+    async function cancelarParcelamentoUI(parcelamentoId, btn) {
       if (!parcelamentoId) return;
       if (!confirm('Cancelar todas as parcelas futuras deste parcelamento? As parcelas já passadas serão mantidas.')) return;
+      _btnSpin(btn, true);
       try {
         const result = await cancelarParcelamento(uidAtual(), parcelamentoId);
         const { mes, ano } = currentData.periodo;
@@ -12293,6 +12328,8 @@
         toast(`${result.removidas || 0} parcela(s) futura(s) cancelada(s).`, 'success');
       } catch (e) {
         toast(msgErro(e), 'error');
+      } finally {
+        _btnSpin(btn, false);
       }
     }
 
