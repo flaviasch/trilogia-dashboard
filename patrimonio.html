@@ -960,7 +960,7 @@
       saveIRDeclaracao, deleteIRDeclaracao,
       saveDivida, deleteDivida, parsearCsvPatrimonio, parsearCsvDividas, PATRIMONIO_COR,
       getHistoricoPatrimonio, upsertHistoricoPatrimonio,
-      getReservas, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
+      getReservas, saveReserva, setViewAsUid, registrarEvento, msgErro, getNivelAcesso,
       categorizarPatrimonioIA, venderBemPatrimonio,
       getStatusVinculo, getPatrimonioCasal,
     } from './js/api.js?v=75';
@@ -2012,8 +2012,49 @@
     // Salva uma posição nomeada da corretora — usado tanto pela importação
     // com IA quanto pelo CSV, pra dar suporte a mais de uma posição (casal,
     // mais de uma corretora) sem uma sobrescrever a outra (achado 20/07/2026).
+    // ─── Oscilação de mercado → reserva de longo prazo (05/11/2026, em teste)
+    // Atualizar uma posição que já existe muda o valor pela variação dos
+    // ativos, não por dinheiro novo. Essa diferença vai direto pra reserva
+    // de prazo mais longo (> 10 anos) ainda em andamento, que é onde estão
+    // RV/Internacional/Alternativos. Posição nova, excluída ou retirada
+    // continuam no fluxo manual de conciliarReservas (regra de 01/10/2026).
+    const OSCILACAO_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    function podeAjustarOscilacao() {
+      return OSCILACAO_ALLOWLIST.includes((auth.currentUser?.email || '').toLowerCase());
+    }
+
+    async function absorverOscilacaoNaReservaLP(delta, nomePosicao) {
+      if (!podeAjustarOscilacao() || Math.abs(delta) < 0.01) return;
+      let reservas;
+      try { reservas = await getReservas(); } catch { return; }
+      const limite = new Date();
+      limite.setFullYear(limite.getFullYear() + 10);
+      const limiteYM = limite.toISOString().slice(0, 7);
+      const lp = (reservas || [])
+        .filter(r => r.acumulado < r.meta && (r.dataMeta || '') > limiteYM)
+        .sort((a, b) => (b.dataMeta || '').localeCompare(a.dataMeta || ''))[0];
+      if (!lp) return; // sem reserva de longo prazo: fica pro aviso manual
+
+      const novoAcumulado = Math.round(Math.max(0, Math.min(lp.meta, (lp.acumulado || 0) + delta)) * 100) / 100;
+      const aplicado = novoAcumulado - (lp.acumulado || 0);
+      if (Math.abs(aplicado) < 0.01) return;
+      try {
+        await saveReserva({ ...lp, acumulado: novoAcumulado });
+      } catch (err) {
+        console.warn('[oscilacao] Falha ao ajustar reserva:', err);
+        return;
+      }
+      const sinal = aplicado > 0 ? '+' : '−';
+      toast(`Oscilação de ${sinal}${brl(Math.abs(aplicado))} em "${nomePosicao}" ajustada na reserva "${lp.nome}".`, 'info', 6000);
+    }
+
     async function salvarPosicaoCorretora(itens, nome, posicaoId) {
+      const anterior = posicaoId ? corretoraPosicoes.find(p => p.id === posicaoId) : null;
       await saveCorretoraPosicao(itens, nome, posicaoId);
+      if (anterior) {
+        const totalNovo = itens.reduce((s, i) => s + (Number(i.valor) || 0), 0);
+        await absorverOscilacaoNaReservaLP(totalNovo - (anterior.total || 0), nome);
+      }
       const data = await getPatrimonio();
       ativos  = data.ativos  || [];
       dividas = data.dividas || [];
