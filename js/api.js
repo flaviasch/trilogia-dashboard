@@ -1513,6 +1513,11 @@ export async function anunciarNovidadesNov2026() {
   return call('anunciarNovidadesNov2026')({});
 }
 
+/** Dispara e-mail da política de investimentos revisada (nov/2026). Admin only. */
+export async function anunciarPoliticaInvestimentosNov2026() {
+  return call('anunciarPoliticaInvestimentosNov2026')({});
+}
+
 /** Dispara o aviso de atualização da Política de Privacidade (out/2026). Admin only. */
 export async function anunciarPoliticaPrivacidadeOut2026() {
   return call('anunciarPoliticaPrivacidadeOut2026')({});

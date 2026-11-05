@@ -69,6 +69,7 @@ const {
   emailModoCasalGestaoConjunta2026,
   emailNovidadesOut2026,
   emailNovidadesNov2026,
+  emailPoliticaInvestimentosNov2026,
   emailPoliticaPrivacidadeOut2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
@@ -11640,6 +11641,35 @@ exports.anunciarNovidadesNov2026 = onCall({ secrets: SECRETS_EMAIL }, async (req
   }
   await db.collection('config').doc('comunicados').set(
     { novidadesNov2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+/**
+ * Política de investimentos revisada depois das eleições (05/11/2026).
+ * Só pra ativas.
+ */
+exports.anunciarPoliticaInvestimentosNov2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Revisamos a política de investimentos dos seus objetivos',
+        html:    emailPoliticaInvestimentosNov2026(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarPoliticaInvestimentosNov2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { politicaInvestimentosNov2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
     { merge: true }
   );
   return { ok: true, enviados, erros };

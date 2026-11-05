@@ -1936,6 +1936,73 @@ function emailNovidadesNov2026(nome) {
 }
 
 /**
+ * E-mail: política de investimentos revisada depois das eleições
+ * (05/11/2026). Mesmos números de js/investidor-calc.js. Só pra ativas.
+ * Texto em comunicado-politica-nov2026-rascunho.md.
+ */
+function emailPoliticaInvestimentosNov2026(nome) {
+  const primeiroNome = (nome || 'você').split(' ')[0];
+  const F = "font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;";
+  const bloco = (emoji, titulo, corpo) =>
+    `<tr><td style="padding:12px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#0D2B45;${F}">${titulo}</p>
+          ${corpo}
+        </td>
+      </tr></table>
+    </td></tr>`;
+  const txt = (t) => `<p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;${F}">${t}</p>`;
+  const linha = (perfil, carteira) =>
+    `<p style="margin:3px 0 0;font-size:12px;color:#374151;line-height:1.5;${F}"><strong>${perfil}:</strong> ${carteira}</p>`;
+  const passo = (n, t) =>
+    `<p style="margin:0 0 6px;font-size:13px;color:#374151;line-height:1.55;${F}"><strong style="color:#0D2B45;">${n}.</strong> ${t}</p>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Depois das eleições, revisamos a carteira sugerida dos seus objetivos</h2>
+    <p style="${S.p}">Olá, ${primeiroNome}!</p>
+    <p style="${S.p}">
+      Passado o período eleitoral, fiz uma revisão completa da política de investimentos que o
+      Dashboard usa para sugerir a carteira de cada objetivo. A revisão já está valendo, e a tela de
+      Reservas mostra a nova sugestão para cada um dos seus objetivos.
+    </p>
+    <p style="${S.p}">
+      O motivo: um cenário novo pede uma carteira mais protegida contra a inflação e menos dependente
+      de um único ciclo político e econômico. Por isso reforçamos a renda fixa ligada à inflação e a
+      prefixada, ampliamos a diversificação internacional nos perfis que aceitam mais risco e retiramos
+      o Multimercado das carteiras sugeridas.
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+      <tr><td style="padding:14px 0 4px;">
+        <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;${F}">O que mudou</p>
+      </td></tr>
+      ${bloco('🛟','Reserva de emergência sempre com liquidez', txt('Reserva de emergência ou de liquidez recebe sempre 100% em renda fixa pós-fixada com liquidez diária, mesmo que leve anos para ser formada. Esse dinheiro precisa estar disponível no dia em que você precisar.'))}
+      ${bloco('🧭','Objetivos de 4 a 10 anos: só renda fixa, conforme o seu perfil',
+        linha('Conservador','70% pós-fixado · 25% inflação · 5% prefixado') +
+        linha('Moderado e arrojado','60% pós-fixado · 35% inflação · 5% prefixado') +
+        `<p style="margin:6px 0 0;font-size:12px;color:#6b7280;line-height:1.55;${F}">Antes, essa faixa tinha a mesma carteira para todos os perfis, com uma parte em Multimercado.</p>`)}
+      ${bloco('🌱','Objetivos acima de 10 anos',
+        linha('Conservador','sem mudança (70% pós-fixado · 25% inflação · 5% prefixado)') +
+        linha('Moderado','50% pós-fixado · 30% inflação · 10% prefixado · 5% renda variável · 5% internacional') +
+        linha('Arrojado','22,5% pós-fixado · 30% inflação · 10% prefixado · 15% renda variável · 17,5% internacional · 5% alternativos'))}
+      ${bloco('📋','Perfil de investidor obrigatório', txt('Para objetivos acima de 4 anos, o Dashboard só sugere carteira depois que você preenche o perfil de investidor. Se o seu perfil ainda não está preenchido, ou tem mais de 6 meses, vale fazer agora: leva poucos minutos.'))}
+    </table>
+
+    <p style="margin:18px 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;${F}">O que fazer agora</p>
+    ${passo(1, 'Abra a tela de <strong>Reservas</strong> e veja a carteira sugerida de cada objetivo, com o comparativo entre o sugerido e o que você tem hoje.')}
+    ${passo(2, 'Não é preciso vender tudo para se ajustar. Na maioria dos casos, o caminho é direcionar os <strong>próximos aportes</strong> para as classes que estão abaixo do sugerido.')}
+    ${passo(3, 'Se a diferença for grande ou você tiver dúvida, traga para o nosso próximo encontro.')}
+
+    <a href="https://dashboard.flaviaschusciman.com/reservas.html" style="${S.btn}">
+      Ver meus objetivos →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
+/**
  * E-mail: aviso de atualização da Política de Privacidade do site (29/10/2026)
  * — Pixel da Meta só com consentimento, aviso de cookies. A própria política
  * (seção 11) promete avisar por e-mail em alterações relevantes. Só pra ativas.
@@ -2026,6 +2093,7 @@ module.exports = {
   emailModoCasalGestaoConjunta2026,
   emailNovidadesOut2026,
   emailNovidadesNov2026,
+  emailPoliticaInvestimentosNov2026,
   emailPoliticaPrivacidadeOut2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,

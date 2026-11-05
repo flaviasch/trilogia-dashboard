@@ -2172,6 +2172,22 @@ async function init(user) {
         });
       }
 
+      // ⓪-p Política de investimentos revisada depois das eleições (05/11/2026).
+      if (!localStorage.getItem('notif_politica_invest_nov2026')) {
+        notifs.unshift({ id: 'politica-invest-nov2026', type: 'novidades', key: 'notif_politica_invest_nov2026', icon: '🧭', _expansivel: true,
+          titulo: 'Política de investimentos revisada',
+          desc: 'Depois das eleições, revisamos a carteira sugerida dos seus objetivos. Veja o que mudou e como ajustar com os próximos aportes.',
+          cta: { label: 'Ver meus objetivos', href: 'reservas.html' },
+          itens: [
+            { emoji: '🛟', titulo: 'Reserva de emergência', desc: 'Sempre 100% pós-fixado com liquidez diária, mesmo que leve anos para ser formada.' },
+            { emoji: '🧭', titulo: 'Objetivos de 4 a 10 anos', desc: 'Só renda fixa. Conservador 70% pós · 25% inflação · 5% pré; moderado e arrojado 60% pós · 35% inflação · 5% pré.' },
+            { emoji: '🌱', titulo: 'Objetivos acima de 10 anos', desc: 'Moderado e arrojado revisados, com mais inflação, prefixado e internacional, e sem Multimercado. Conservador sem mudança.' },
+            { emoji: '📋', titulo: 'Perfil obrigatório', desc: 'Objetivos acima de 4 anos só recebem carteira depois que você preenche o perfil de investidor.' },
+            { emoji: '💡', titulo: 'Como ajustar', desc: 'Não é preciso vender tudo: direcione os próximos aportes para as classes abaixo do sugerido.' },
+          ],
+        });
+      }
+
       // ⓪-o Novidades de Novembro (22/10 a 04/11/2026): destaques do PF e o
       // que vale pros dois. Sem banner PJ (só a importação com IA).
       if (!localStorage.getItem('notif_novidades_nov2026')) {
