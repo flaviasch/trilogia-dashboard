@@ -820,6 +820,11 @@ export async function definirAcessoPJ(uid, ativo) {
   return adminCall('definirAcessoPJ')({ uid, ativo });
 }
 
+// Admin-only — cria o login PJ e manda o e-mail de boas-vindas (06/11/2026).
+export async function criarContaPJ(nome, email) {
+  return adminCall('criarContaPJ')({ nome, email });
+}
+
 // Admin-only — lista todas as contas PJ pro painel admin (achado 29/07/2026).
 export async function getContasPJTodas() {
   return adminCall('getContasPJTodas')({});
@@ -1558,8 +1563,8 @@ export async function marcarLicaoCasa({ blockId, checked, uid }) {
 }
 
 /** Envia link de redefinição de senha via Gmail (substitui sendPasswordResetEmail do Firebase). */
-export async function solicitarRedefinicaoSenha(email) {
-  return call('solicitarRedefinicaoSenha')({ email });
+export async function solicitarRedefinicaoSenha(email, destino) {
+  return call('solicitarRedefinicaoSenha')({ email, ...(destino ? { destino } : {}) });
 }
 
 /** Edita o vencimento de uma cobrança pendente. Admin only. */

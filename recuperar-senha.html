@@ -156,12 +156,16 @@
     <button class="btn" id="btnEnviar">Enviar link de recuperação</button>
 
     <div class="back">
-      <a href="login.html">Voltar para o login</a>
+      <a href="login.html" id="linkVoltarLogin">Voltar para o login</a>
     </div>
   </div>
 
   <script type="module">
-    import { solicitarRedefinicaoSenha } from './js/api.js?v=62';
+    import { solicitarRedefinicaoSenha } from './js/api.js?v=79';
+
+    // Veio do login PJ (?pj=1): o link do e-mail e o "voltar" levam pro login PJ.
+    const veioDoPJ = new URLSearchParams(location.search).get('pj') === '1';
+    if (veioDoPJ) document.getElementById('linkVoltarLogin').href = 'login-pj.html';
 
     const btn = document.getElementById('btnEnviar');
     const msgEl = document.getElementById('msg');
@@ -180,7 +184,7 @@
       btn.disabled = true;
       btn.textContent = 'Enviando...';
       try {
-        await solicitarRedefinicaoSenha(email);
+        await solicitarRedefinicaoSenha(email, veioDoPJ ? 'pj' : undefined);
         showMsg('Link enviado! Verifique sua caixa de entrada.', 'success');
         btn.textContent = 'Link enviado';
       } catch (err) {

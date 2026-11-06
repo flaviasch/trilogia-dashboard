@@ -529,6 +529,29 @@ function emailConviteUsuarioSecundarioPJ(nomeUsuario, nomeEmpresa, linkSenha) {
  * @param {string} linkSenha — link gerado pelo Firebase para definir senha
  */
 function emailBoasVindas(nome, contexto = 'mentoria') {
+  // Já tem login (ex: mentorada PF que ganhou o PJ): entra com a mesma senha,
+  // então não faz sentido mandar criar senha (06/11/2026).
+  if (contexto === 'dashboard-pj-existente') {
+    return layout(`
+      <h2 style="${S.h2}">Bem-vinda ao Dashboard PJ</h2>
+      <p style="${S.p}">Olá, ${nome}!</p>
+      <p style="${S.p}">
+        Seu acesso ao Dashboard PJ está liberado. Você entra com o
+        <strong>mesmo e-mail e a mesma senha</strong> que já usa no Trilogia Dashboard.
+      </p>
+      <a href="https://dashboard.flaviaschusciman.com/login-pj.html" style="${S.btn}">
+        Acessar o Dashboard PJ
+      </a>
+      <p style="${S.p}">
+        No primeiro acesso, você vai preencher um cadastro rápido da sua empresa
+        (nome, CNPJ opcional e regime tributário) antes de começar a usar.
+      </p>
+      <p style="${S.pSmall}">
+        Se não lembrar a senha, clique em "Esqueci minha senha" na tela de login.
+        Qualquer dúvida, fale diretamente com a Flávia pelo WhatsApp.
+      </p>
+    `);
+  }
   const linkLogin = contexto === 'dashboard-pj'
     ? 'https://dashboard.flaviaschusciman.com/login-pj.html'
     : 'https://dashboard.flaviaschusciman.com/login.html';

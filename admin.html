@@ -1852,6 +1852,7 @@
           <h1>Dashboard PJ</h1>
           <p>Todas as contas PJ (empresas das mentoradas), independente de terem Dashboard PF.</p>
         </div>
+        <button class="btn-nova-mentorada" id="btnNovaContaPJ">+ Nova conta PJ</button>
       </div>
 
       <div class="kpi-row">
@@ -2224,6 +2225,31 @@
     </div>
   </div>
 
+  <!-- Modal nova conta PJ (06/11/2026): cria o login e manda o e-mail de
+       boas-vindas; a empresa é cadastrada pela própria usuária no 1º acesso -->
+  <div class="modal-overlay hidden" id="modalNovaPJ">
+    <div class="modal-card" style="max-width:460px">
+      <h2 class="modal-title">Nova conta PJ</h2>
+      <div class="field-group">
+        <label for="pjNome">Nome da usuária</label>
+        <input type="text" id="pjNome" placeholder="Nome completo" />
+      </div>
+      <div class="field-group">
+        <label for="pjEmail">E-mail</label>
+        <input type="email" id="pjEmail" placeholder="email@exemplo.com" />
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);line-height:1.5;margin:4px 0 0">
+        Ela recebe um e-mail para criar a senha. No primeiro acesso, cadastra a empresa
+        (nome, CNPJ e regime) e só então aparece na lista. Se o e-mail já tiver login no
+        Dashboard PF, ela entra com a mesma senha.
+      </p>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarNovaPJ">Cancelar</button>
+        <button class="btn-save" id="btnSalvarNovaPJ">Criar e enviar e-mail</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal editar contrato -->
   <div class="modal-overlay hidden" id="modalEditarContrato">
     <div class="modal-card" style="max-width:480px;overflow-y:auto;max-height:90vh">
@@ -2340,8 +2366,8 @@
              getTributosConfig, saveTributoConfig, deleteTributoConfig, trocarRegimeTributarioPJ, getTrocasRegimePJ,
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
-             getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ,
-             msgErro } from './js/api.js?v=78';
+             getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ, criarContaPJ,
+             msgErro } from './js/api.js?v=79';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -4916,6 +4942,52 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       } finally {
         btnSalvar.disabled = false;
         btnSalvar.textContent = 'Criar conta';
+      }
+    });
+
+    // ─── Nova conta PJ (06/11/2026) ─────
+    function fecharModalNovaPJ() {
+      document.getElementById('modalNovaPJ').classList.add('hidden');
+      document.getElementById('pjNome').value = '';
+      document.getElementById('pjEmail').value = '';
+    }
+    document.getElementById('btnNovaContaPJ').addEventListener('click', () =>
+      document.getElementById('modalNovaPJ').classList.remove('hidden'));
+    document.getElementById('btnCancelarNovaPJ').addEventListener('click', fecharModalNovaPJ);
+    document.getElementById('modalNovaPJ').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('modalNovaPJ')) fecharModalNovaPJ();
+    });
+    document.getElementById('btnSalvarNovaPJ').addEventListener('click', async () => {
+      const nome  = document.getElementById('pjNome').value.trim();
+      const email = document.getElementById('pjEmail').value.trim();
+      if (!nome || !email) { alert('Nome e e-mail são obrigatórios.'); return; }
+      const btn = document.getElementById('btnSalvarNovaPJ');
+      btn.disabled = true;
+      btn.textContent = 'Criando…';
+      try {
+        const r = await criarContaPJ(nome, email);
+        fecharModalNovaPJ();
+        const comoEntra = r?.jaTinhaLogin
+          ? 'Esse e-mail já tinha login no Dashboard PF, então ela entra no PJ com a mesma senha.'
+          : 'Ela cria a própria senha pelo "Primeiro acesso" na tela de login PJ.';
+        if (r?.emailEnviado) {
+          alert(`E-mail de boas-vindas PJ enviado para ${email}.
+
+${comoEntra}
+
+A conta aparece nesta lista depois que ela cadastrar a empresa.`);
+        } else {
+          alert(`Login criado, mas o e-mail NÃO foi enviado.
+
+Erro: ${r?.emailErro || 'desconhecido'}
+
+Peça para ela entrar em dashboard.flaviaschusciman.com/login-pj.html e clicar em "Primeiro acesso".`);
+        }
+      } catch (err) {
+        alert(`Erro ao criar conta PJ: ${msgErro(err)}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Criar e enviar e-mail';
       }
     });
 

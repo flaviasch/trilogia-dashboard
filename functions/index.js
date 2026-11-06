@@ -4995,10 +4995,14 @@ exports.solicitarRedefinicaoSenha = onCall({ secrets: SECRETS_EMAIL }, async (re
 
   try {
     const userRecord = await admin.auth().getUserByEmail(emailNorm);
-    const link = await admin.auth().generatePasswordResetLink(userRecord.email, {
-      url: 'https://dashboard.flaviaschusciman.com/login.html',
-    });
+    // Volta pro login PJ quando veio do login PJ, ou quando a pessoa não tem
+    // PF (conta PJ avulsa, admin ou Kiwify): antes, quem criava a senha pelo
+    // PJ caía no login PF e não conseguia entrar (06/11/2026).
     const snap = await db.collection('mentoradas').doc(userRecord.uid).get();
+    const voltarPJ = request.data?.destino === 'pj' || !snap.exists;
+    const link = await admin.auth().generatePasswordResetLink(userRecord.email, {
+      url: `https://dashboard.flaviaschusciman.com/${voltarPJ ? 'login-pj.html' : 'login.html'}`,
+    });
     const nome = snap.exists ? (snap.data().nome || userRecord.displayName || 'mentorada') : (userRecord.displayName || 'mentorada');
     await sendEmail({
       to: userRecord.email,
@@ -8871,6 +8875,57 @@ exports.definirAcessoPJ = onCall({}, async (request) => {
   if (!snap.exists) throw new HttpsError('not-found', 'Esta conta ainda não tem onboarding PJ.');
   await ref.update({ ativo });
   return { ok: true };
+});
+
+/**
+ * Cria o acesso ao Dashboard PJ pelo admin (06/11/2026, Flávia: igual ao
+ * "Nova mentorada" do PF). Só cria o login (Auth) e manda o e-mail de
+ * boas-vindas PJ: a empresa (contasPJ) nasce no primeiro acesso, quando a
+ * usuária preenche onboarding-pj.html (nome, CNPJ, regime e aceite LGPD),
+ * mesmo caminho da compra avulsa pela Kiwify. Se a pessoa já tem login (ex:
+ * mentorada PF), não cria nada novo: só manda o e-mail, porque ela entra no
+ * PJ com a mesma senha.
+ */
+exports.criarContaPJ = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const nome  = String(request.data?.nome || '').trim();
+  const email = String(request.data?.email || '').trim().toLowerCase();
+  if (!nome || !email || !email.includes('@'))
+    throw new HttpsError('invalid-argument', 'Nome e e-mail válido são obrigatórios.');
+  if (email === ADMIN_MASTER_EMAIL.toLowerCase())
+    throw new HttpsError('permission-denied', 'Operação não permitida para o e-mail admin.');
+
+  let userRecord = await admin.auth().getUserByEmail(email).catch(() => null);
+  const jaTinhaLogin = !!userRecord;
+  if (userRecord) {
+    const pjSnap = await db.collection('contasPJ').doc(userRecord.uid).get();
+    if (pjSnap.exists)
+      throw new HttpsError('already-exists', 'Esse e-mail já tem empresa cadastrada no Dashboard PJ.');
+    if (userRecord.customClaims?.pjOwnerUid)
+      throw new HttpsError('failed-precondition', 'Esse e-mail é de um usuário secundário de outra empresa.');
+  } else {
+    userRecord = await admin.auth().createUser({
+      email,
+      displayName: nome,
+      password: gerarSenhaTemporaria(),
+      emailVerified: false,
+    });
+  }
+
+  let emailEnviado = false;
+  let emailErro    = null;
+  try {
+    await sendEmail({
+      to:      email,
+      subject: 'Bem-vinda ao Dashboard PJ',
+      html:    emailBoasVindas(nome, jaTinhaLogin ? 'dashboard-pj-existente' : 'dashboard-pj'),
+    });
+    emailEnviado = true;
+  } catch (err) {
+    emailErro = err.message;
+    console.error(`[criarContaPJ] Falha no e-mail de boas-vindas PJ para ${maskEmail(email)}:`, err.message);
+  }
+  return { uid: userRecord.uid, jaTinhaLogin, emailEnviado, emailErro };
 });
 
 /**
