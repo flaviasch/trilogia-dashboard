@@ -11451,13 +11451,10 @@
     // Aqui só conta como "já lançada" um item do PRÓPRIO mês, ligado pelo
     // recorrenteId, ou um legado sem vínculo do mesmo cartão e mesmo valor.
     // Regra da Flávia: despesa no cartão é sempre efetiva, nunca "prevista".
-    const _FIXA_CARTAO_V2_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
-    function _fixaCartaoV2Ativa() {
-      const user = auth.currentUser;
-      if (!user) return false;
-      try { if (uidAtual() !== user.uid) return false; } catch (_) { return false; } // nunca no "ver como"
-      return _FIXA_CARTAO_V2_ALLOWLIST.includes((user.email || '').toLowerCase());
-    }
+    // Liberado para todas em 06/11/2026, depois da validação da Flávia na
+    // tela (Bradesco/XP batendo com o banco). Vale também no "ver como":
+    // o caminho antigo é o que tinha o bug do mês alternado.
+    function _fixaCartaoV2Ativa() { return true; }
     function _diasFaltantesFixaCartao(r, despesasArr, mes, ano) {
       const prefixo = `${ano}-${String(mes).padStart(2, '0')}-`;
       const doMes = (despesasArr || []).filter(d => {
