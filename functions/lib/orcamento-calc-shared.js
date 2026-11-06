@@ -65,6 +65,10 @@ function diasEsperadosRecorrente(r, mes, ano) {
   const freq = r.frequencia || 'mensal';
   if (freq === 'semanal')   return diasSemanaNoMes(ano, mes, r.dia);
   if (freq === 'quinzenal') return [r.dia, r.dia + 14].filter(d => d >= 1 && d <= 31);
+  // Anual: uma ocorrência por ano, no mês escolhido (mesAnual). Sem
+  // mesAnual, cai no mês de início (06/11/2026, Flávia: despesa fixa que
+  // vence uma vez por ano não tinha essa opção).
+  if (freq === 'anual') return mes === (r.mesAnual || r.mesInicio) ? [r.dia] : [];
   return [r.dia];
 }
 

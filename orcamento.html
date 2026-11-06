@@ -2239,7 +2239,11 @@
             </select>
             <div id="fixaDiaHint" style="display:none;font-size:10px;color:var(--text-muted);margin-top:3px;"></div>
           </div>
-          <div>
+          <div id="fgFixaMesAnual" style="display:none;">
+            <label for="fixaMesAnual" style="font-size:12px;color:var(--text-secondary);">Mês *</label>
+            <select id="fixaMesAnual" style="width:100%;margin-top:4px;padding:8px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;"><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
+          </div>
+          <div id="fgFixaLimitadoWrap">
             <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;margin-top:2px;user-select:none;">
               <input type="checkbox" id="fixaLimitado" style="accent-color:var(--gold);width:14px;height:14px;" />
               Por tempo determinado
@@ -3605,6 +3609,11 @@
       const dia  = _calcFixaDia(freq, document.getElementById('mData')?.value);
       if (freq === 'semanal')        hint.textContent = `Repete toda ${NOMES_DIA_SEMANA[dia]}.`;
       else if (freq === 'quinzenal') hint.textContent = `Repete nos dias ${dia} e ${dia + 14} de cada mês.`;
+      else if (freq === 'anual') {
+        const dataL = document.getElementById('mData')?.value;
+        const mesL  = dataL ? parseInt(dataL.split('-')[1], 10) : new Date().getMonth() + 1;
+        hint.textContent = `Repete todo ano em ${dia} de ${MESES[mesL - 1]}.`;
+      }
       else                           hint.textContent = `Repete todo dia ${dia} de cada mês.`;
     }
 
@@ -3615,6 +3624,7 @@
         document.getElementById('mFixaCartao').checked = false;
         document.getElementById('mFixaCartaoSelecionado').style.display = 'none';
       } else {
+        _sincronizarOpcaoAnual(document.getElementById('mFixaFrequencia'));
         atualizarFixaFrequenciaHint();
       }
     }
@@ -3803,6 +3813,10 @@
         const fixaCartaoIdOM   = fixaCartaoOM ? (document.getElementById('mFixaCartaoSelecionado')?.value || '') : '';
         const fixaFrequenciaOM = document.getElementById('mFixaFrequencia')?.value || 'mensal';
         const fixaDiaOM        = _calcFixaDia(fixaFrequenciaOM, data);
+        if (recorrPrazoOM && fixaFrequenciaOM === 'anual') {
+          toast('Recorrência anual não tem prazo: use "Despesa fixa".', 'warning');
+          return;
+        }
         if (fixaCartaoOM && !fixaCartaoIdOM) {
           toast('Selecione o cartão da despesa fixa.', 'warning');
           return;
@@ -3830,7 +3844,7 @@
               mesInicio: itemMesData, anoInicio: itemAnoData,
             });
             await carregarRecorrentes();
-            if (fixaFrequenciaOM !== 'mensal') {
+            if (fixaFrequenciaOM === 'semanal' || fixaFrequenciaOM === 'quinzenal') {
               const diasDoMesOM = fixaFrequenciaOM === 'semanal'
                 ? diasSemanaNoMes(itemAnoData, itemMesData, fixaDiaOM)
                 : [fixaDiaOM, fixaDiaOM + 14].filter(dd => dd >= 1 && dd <= 31);
@@ -3887,6 +3901,10 @@
       const fixaCartaoId   = fixaCartao ? (document.getElementById('mFixaCartaoSelecionado')?.value || '') : '';
       const fixaFrequencia = document.getElementById('mFixaFrequencia')?.value || 'mensal';
       const fixaDia        = _calcFixaDia(fixaFrequencia, data);
+      if (recorrPrazo && fixaFrequencia === 'anual') {
+        toast('Recorrência anual não tem prazo: use "Despesa fixa".', 'warning');
+        return;
+      }
       if (fixaCartao && !fixaCartaoId) {
         toast('Selecione o cartão da despesa fixa.', 'warning');
         return;
@@ -3915,7 +3933,7 @@
           // Semanal/quinzenal têm mais de uma ocorrência no mês — o lançamento
           // que acabou de ser salvo cobre só uma data, completa as outras do
           // mesmo mês (senão fica faltando até o próximo mês auto-lançar).
-          if (fixaFrequencia !== 'mensal') {
+          if (fixaFrequencia === 'semanal' || fixaFrequencia === 'quinzenal') {
             const { mes: mesAtualP, ano: anoAtualP } = currentData.periodo;
             const diasDoMes = fixaFrequencia === 'semanal'
               ? diasSemanaNoMes(anoAtualP, mesAtualP, fixaDia)
@@ -5812,7 +5830,7 @@
         const jaNaFatura = gruposAberta[c.id] || [];
         const virtuais = [];
         (_recorrentes || [])
-          .filter(r => r.ativo && r.cartao && r.cartaoId === c.id && (r.tipo || 'despesa') === 'despesa' && (r.frequencia || 'mensal') === 'mensal')
+          .filter(r => r.ativo && r.cartao && r.cartaoId === c.id && (r.tipo || 'despesa') === 'despesa' && ['mensal', 'anual'].includes(r.frequencia || 'mensal'))
           .forEach(r => {
             // Acha o mês-calendário cuja ocorrência mensal cairia nessa
             // fatura — testa o próprio mês da fatura e até 2 meses antes
@@ -11455,6 +11473,31 @@
     // tela (Bradesco/XP batendo com o banco). Vale também no "ver como":
     // o caminho antigo é o que tinha o bug do mês alternado.
     function _fixaCartaoV2Ativa() { return true; }
+
+    // ── Despesa fixa anual (06/11/2026, em teste) ───────────────────────────
+    // Uma ocorrência por ano, no mês mesAnual. A opção "Anual" só aparece para
+    // a conta master e a de teste; nunca no "ver como".
+    const _FIXA_ANUAL_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    function _fixaAnualAtiva() {
+      const user = auth.currentUser;
+      if (!user) return false;
+      try { if (uidAtual() !== user.uid) return false; } catch (_) { return false; }
+      return _FIXA_ANUAL_ALLOWLIST.includes((user.email || '').toLowerCase());
+    }
+    function _sincronizarOpcaoAnual(sel) {
+      if (!sel) return;
+      const opt = sel.querySelector('option[value="anual"]');
+      if (_fixaAnualAtiva()) {
+        if (!opt) {
+          const o = document.createElement('option');
+          o.value = 'anual'; o.textContent = 'Anual (uma vez por ano)';
+          sel.appendChild(o);
+        }
+      } else if (opt) {
+        if (sel.value === 'anual') sel.value = 'mensal';
+        opt.remove();
+      }
+    }
     function _diasFaltantesFixaCartao(r, despesasArr, mes, ano) {
       const prefixo = `${ano}-${String(mes).padStart(2, '0')}-`;
       const doMes = (despesasArr || []).filter(d => {
@@ -11781,6 +11824,7 @@
       const freq = r.frequencia || 'mensal';
       if (freq === 'semanal')   return `Semanal · ${_nomeSemanaFixa[r.dia] || '?'}`;
       if (freq === 'quinzenal') return `Quinzenal · dias ${r.dia} e ${r.dia + 14}`;
+      if (freq === 'anual')     return `Anual · ${r.dia} de ${MESES[(r.mesAnual || r.mesInicio || 1) - 1]}`;
       return `Mensal · dia ${r.dia}`;
     }
     function _infoPrazoFixa(r) {
@@ -11825,6 +11869,7 @@
       const padrao = ['Moradia','Alimentação','Transporte','Saúde','Educação','Lazer','Assinaturas','Pessoal','Outros'];
       const todas = [...new Set([...padrao, ...cats, ...catsPlanejamento])].sort();
       sel.innerHTML = todas.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      _sincronizarOpcaoAnual(document.getElementById('fixaFrequencia'));
       document.getElementById('formFixa').classList.add('hidden');
       document.getElementById('modalFixas').classList.remove('hidden');
       _lockBody();
@@ -11840,6 +11885,13 @@
       const selSemana = document.getElementById('fixaDiaSemana');
       const label     = document.getElementById('fixaDiaLabel');
       const hint      = document.getElementById('fixaDiaHint');
+      const ehAnual   = freq === 'anual';
+      document.getElementById('fgFixaMesAnual').style.display = ehAnual ? '' : 'none';
+      document.getElementById('fgFixaLimitadoWrap').style.display = ehAnual ? 'none' : '';
+      if (ehAnual) {
+        document.getElementById('fixaLimitado').checked = false;
+        document.getElementById('fgFixaMeses').style.display = 'none';
+      }
       if (freq === 'semanal') {
         inputDia.style.display  = 'none';
         selSemana.style.display = '';
@@ -11868,6 +11920,7 @@
       document.getElementById('fixaValor').value            = '';
       document.getElementById('fixaDescricao').value        = '';
       document.getElementById('fixaFrequencia').value       = 'mensal';
+      document.getElementById('fixaMesAnual').value         = String(currentData?.periodo?.mes || new Date().getMonth() + 1);
       document.getElementById('fixaDia').value              = '';
       document.getElementById('fixaDiaSemana').selectedIndex = 0;
       document.getElementById('fixaLimitado').checked       = false;
@@ -11890,6 +11943,7 @@
           document.getElementById('fixaDescricao').value = r.descricao || '';
           const freq = r.frequencia || 'mensal';
           document.getElementById('fixaFrequencia').value = freq;
+          if (freq === 'anual') document.getElementById('fixaMesAnual').value = String(r.mesAnual || r.mesInicio || 1);
           atualizarFixaDiaUI(freq);
           if (freq === 'semanal') {
             document.getElementById('fixaDiaSemana').value = String(r.dia ?? 1);
@@ -11919,8 +11973,9 @@
       const frequencia = document.getElementById('fixaFrequencia').value || 'mensal';
       const cartao     = document.getElementById('fixaCartao').checked;
       const cartaoId   = cartao ? (document.getElementById('fixaCartaoSelecionado')?.value || '') : '';
-      const limitado   = document.getElementById('fixaLimitado').checked;
+      const limitado   = frequencia !== 'anual' && document.getElementById('fixaLimitado').checked;
       const mesesRestantes = limitado ? parseInt(document.getElementById('fixaMeses').value, 10) : null;
+      const mesAnual   = frequencia === 'anual' ? parseInt(document.getElementById('fixaMesAnual').value, 10) : null;
 
       let dia;
       if (frequencia === 'semanal') {
@@ -11946,7 +12001,7 @@
       const btnSalvar = document.getElementById('btnSalvarFixa');
       setLoading(btnSalvar, true);
       try {
-        await saveRecorrente({ id, tipo: 'despesa', categoria, valor, descricao, dia, frequencia, mesesRestantes, ativo: true, cartao, cartaoId });
+        await saveRecorrente({ id, tipo: 'despesa', categoria, valor, descricao, dia, frequencia, mesesRestantes, ativo: true, cartao, cartaoId, ...(mesAnual ? { mesAnual } : {}) });
         await carregarRecorrentes();
         renderListaFixas();
         mostrarToast('Despesa fixa salva!');

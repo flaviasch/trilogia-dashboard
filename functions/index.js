@@ -2671,7 +2671,7 @@ exports.saveRecorrente = onCall(async (request) => {
   if (typeof recorrente.valor !== 'number' || recorrente.valor < 0 || recorrente.valor > 10_000_000)
     throw new HttpsError('invalid-argument', 'valor inválido.');
 
-  const frequencia = ['semanal', 'quinzenal', 'mensal'].includes(recorrente.frequencia) ? recorrente.frequencia : 'mensal';
+  const frequencia = ['semanal', 'quinzenal', 'mensal', 'anual'].includes(recorrente.frequencia) ? recorrente.frequencia : 'mensal';
   const minDia = frequencia === 'semanal' ? 0 : 1;
   const maxDia = frequencia === 'quinzenal' ? 14 : 28;
   if (!Number.isInteger(recorrente.dia) || recorrente.dia < minDia || recorrente.dia > maxDia)
@@ -2682,7 +2682,16 @@ exports.saveRecorrente = onCall(async (request) => {
   // receita (não existe "receita no cartão de crédito").
   const tipo = recorrente.tipo === 'receita' ? 'receita' : 'despesa';
   const cartao = tipo === 'despesa' && recorrente.cartao === true;
-  const mesesRestantes = Number.isInteger(recorrente.mesesRestantes) && recorrente.mesesRestantes >= 0
+  // Anual (06/11/2026): uma vez por ano, no mês mesAnual. Sem prazo: o
+  // "tempo determinado" conta meses lançados, não faz sentido para anual.
+  const ehAnual = frequencia === 'anual';
+  // Em teste: só a conta master e a de teste podem criar/editar anual.
+  const FIXA_ANUAL_TESTE = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+  if (ehAnual && !FIXA_ANUAL_TESTE.includes(String(request.auth?.token?.email || '').toLowerCase()))
+    throw new HttpsError('permission-denied', 'Recorrência anual ainda não disponível.');
+  const mesAnualInformado = Number.isInteger(recorrente.mesAnual) && recorrente.mesAnual >= 1 && recorrente.mesAnual <= 12
+    ? recorrente.mesAnual : null;
+  const mesesRestantes = !ehAnual && Number.isInteger(recorrente.mesesRestantes) && recorrente.mesesRestantes >= 0
     ? recorrente.mesesRestantes : null;
 
   // Mês final da recorrência por tempo determinado (achado 29/10/2026: a
@@ -2709,6 +2718,7 @@ exports.saveRecorrente = onCall(async (request) => {
     dia:        recorrente.dia,
     frequencia,
     mesesRestantes,
+    mesAnual:   ehAnual ? (mesAnualInformado || new Date().getMonth() + 1) : null,
     ativo:      recorrente.ativo !== false,
     cartao,
     cartaoId:   cartao ? String(recorrente.cartaoId || '').slice(0, 200) : '',
@@ -2732,6 +2742,7 @@ exports.saveRecorrente = onCall(async (request) => {
       ? recorrente.mesInicio : hoje.getMonth() + 1;
     const anoInicio = Number.isInteger(recorrente.anoInicio) && recorrente.anoInicio >= 2020 && recorrente.anoInicio <= 2100
       ? recorrente.anoInicio : hoje.getFullYear();
+    if (ehAnual && !mesAnualInformado) dados.mesAnual = mesInicio;
     const ref = await col.add({ ...dados, ...calcularFim(mesInicio, anoInicio), mesInicio, anoInicio, criadoEm: admin.firestore.FieldValue.serverTimestamp() });
     return { id: ref.id };
   }
