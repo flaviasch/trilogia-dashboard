@@ -11442,9 +11442,14 @@
         if (!d.recorrenteId) return true;
         const r = _recorrentes.find(x => x.id === d.recorrenteId);
         if (!r) return true;
-        const dia = parseInt((d.data || '').split('-')[2], 10);
-        if (isNaN(dia)) return true;
-        return diasEsperadosRecorrente(r, mes, ano).includes(dia);
+        // Confere contra o mês da DATA do item, não o mês em tela: item de
+        // cartão gravado no mês da fatura (ou emprestado) pode ter data do
+        // mês anterior. Achado 06/11/2026: vendo dezembro, a Microsoft de
+        // 05/11 (fixa até novembro) sumia da fatura porque dezembro não
+        // esperava ocorrência dela.
+        const [aI, mI, dia] = (d.data || '').split('-').map(n => parseInt(n, 10));
+        if (isNaN(dia) || isNaN(aI) || isNaN(mI)) return true;
+        return diasEsperadosRecorrente(r, mI, aI).includes(dia);
       });
       return data.despesas.length !== antes;
     }
@@ -11532,57 +11537,102 @@
       const ehPassado = ano < hoje.getFullYear() || (ano === hoje.getFullYear() && mes < hoje.getMonth() + 1);
       if (!ehPassado && _removerOcorrenciasDiaDesatualizado(currentData)) mudou = true;
 
-      const v2 = _fixaCartaoV2Ativa();
-      // v2: nunca lança em mês passado nem em fatura já fechada. Essas
-      // faturas já foram conferidas/ajustadas contra o banco, e um item novo
-      // nelas mudaria um total já fechado.
-      const pendentes = (v2 && ehPassado) ? [] : _recorrentes
-        .filter(r => r.ativo && r.cartao)
-        .map(r => {
-          const cartaoObj = _cartoes.find(c => c.id === r.cartaoId);
-          let dias = v2
-            ? _diasFaltantesFixaCartao(r, currentData.despesas, currentData.periodo.mes, currentData.periodo.ano)
-            : diasFaltantesRecorrente(r, currentData.despesas, currentData.periodo.mes, currentData.periodo.ano);
-          if (v2) {
-            dias = dias.filter(d => {
-              if (_fixasPuladasServidor.includes(chaveFixaPulada(r.id, ano, mes, d))) return false;
-              if (!cartaoObj?.diaCorte) return true;
-              const dataStr = `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-              return _faturaEstado(cartaoObj, sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1)) !== 'fechada';
-            });
-          }
-          return { r, diasFaltantes: dias };
-        })
-        .filter(({ diasFaltantes }) => diasFaltantes.length > 0);
-
-      if (!pendentes.length) {
+      // ── Fixa de cartão gravada no mês da FATURA (06/11/2026, 2ª correção) ──
+      // Achado 06/11/2026, Flávia: depois da correção do mês alternado, as
+      // fixas apareceram dobradas no Detalhe e no Planejamento. Esses dois
+      // mostram compra de cartão no mês em que a fatura é paga. A fixa era
+      // gravada no mês da COMPRA (ex: 01/11, fatura de dezembro, no doc de
+      // novembro) e aparecia de novo em dezembro, emprestada pela fatura.
+      // Agora a ocorrência é gravada no doc do mês da fatura, igual à compra
+      // avulsa e ao "✓ Lançar". Lança duas faturas: a do mês em tela e a
+      // aberta de cada cartão (para a aba Faturas bater com o banco mesmo sem
+      // a usuária abrir o mês seguinte). Nunca em mês passado nem em fatura
+      // fechada: essas já foram conferidas/ajustadas contra o banco.
+      if (ehPassado) {
         if (mudou) await salvarEAtualizar();
         return mudou;
       }
+      const pad2 = n => String(n).padStart(2, '0');
+      const keyTela = `${ano}-${pad2(mes)}`;
+      const hojeStr = `${hoje.getFullYear()}-${pad2(hoje.getMonth() + 1)}-${pad2(hoje.getDate())}`;
+      const fixasCartao = _recorrentes.filter(r => r.ativo && r.cartao && (r.tipo || 'despesa') === 'despesa');
+      const novosTela = [];
+      const outrasFaturas = {}; // "YYYY-MM" → [recorrentes], fatura aberta ≠ mês em tela
+      for (const r of fixasCartao) {
+        const c = _cartoes.find(x => x.id === r.cartaoId);
+        novosTela.push(..._fixasCartaoFaltantesNaFatura(r, c, currentData.despesas, keyTela));
+        if (c?.diaCorte) {
+          const kAberta = sugerirFatura(hojeStr, c.diaCorte, c.diaVencimento || 1);
+          if (kAberta !== keyTela) (outrasFaturas[kAberta] ||= []).push(r);
+        }
+      }
 
-      const faturaAtual = `${ano}-${String(mes).padStart(2, '0')}`;
-      const novos = [];
-      for (const { r, diasFaltantes } of pendentes) {
-        const cartaoObj = _cartoes.find(c => c.id === r.cartaoId);
-        for (const d of diasFaltantes) {
-          const dataStr = `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          novos.push({
+      // Fatura aberta de outro mês: lê o doc dela agora (com os emprestados)
+      // e grava lá. Não mexe em currentData (é outro mês).
+      for (const [k, recs] of Object.entries(outrasFaturas)) {
+        try {
+          const [kAno, kMes] = k.split('-').map(Number);
+          const itensK = await getOrcamento(kMes, kAno);
+          const novosK = recs.flatMap(r => _fixasCartaoFaltantesNaFatura(r, _cartoes.find(x => x.id === r.cartaoId), itensK, k));
+          if (!novosK.length) continue;
+          const base = itensK.filter(i => i._sourceMes == null);
+          await saveOrcamento(kMes, kAno, [...base, ...novosK]);
+          _invalPeriodo(kMes, kAno);
+          mudou = true;
+        } catch (e) { console.warn('[fixa cartão fatura aberta]', e?.message); }
+      }
+
+      if (!novosTela.length) {
+        if (mudou) await salvarEAtualizar();
+        return mudou;
+      }
+      currentData.despesas.push(...novosTela);
+      await salvarEAtualizar();
+      return true;
+    }
+
+    // Ocorrências de uma fixa de cartão que caem na fatura `faturaKey` e
+    // ainda não existem em `itens` (lista do mês da fatura, com emprestados).
+    // A compra pode ser de até 2 meses antes (corte + vencimento). Existe =
+    // mesmo recorrenteId e mesma data, ou legado sem vínculo do mesmo cartão,
+    // categoria, valor e data.
+    function _fixasCartaoFaltantesNaFatura(r, cartaoObj, itens, faturaKey) {
+      if (cartaoObj?.diaCorte && _faturaEstado(cartaoObj, faturaKey) === 'fechada') return [];
+      const pad2 = n => String(n).padStart(2, '0');
+      const [kAno, kMes] = faturaKey.split('-').map(Number);
+      const out = [];
+      for (let back = 0; back <= 2; back++) {
+        let m = kMes - back, a = kAno;
+        while (m < 1) { m += 12; a -= 1; }
+        diasEsperadosRecorrente(r, m, a).forEach(dia => {
+          const dataStr = `${a}-${pad2(m)}-${pad2(dia)}`;
+          const fatura = cartaoObj?.diaCorte
+            ? sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1)
+            : `${a}-${pad2(m)}`;
+          if (fatura !== faturaKey) return;
+          if (_fixasPuladasServidor.includes(chaveFixaPulada(r.id, a, m, dia))) return;
+          // Legado sem vínculo (ex: linha importada do banco, que cai em outro
+          // dia): basta mesmo cartão, mesma fatura, categoria e valor.
+          const existe = (itens || []).some(d => d.tipo !== 'receita' && (d.recorrenteId
+            ? d.recorrenteId === r.id && d.data === dataStr
+            : (!!d.cartao && d.cartaoId === r.cartaoId && d.fatura === fatura && d.categoria === r.categoria
+               && Math.abs((Number(d.valor) || 0) - (Number(r.valor) || 0)) < 0.01)));
+          if (existe || out.some(o => o.data === dataStr)) return;
+          out.push({
             categoria:    r.categoria,
             tipo:         'despesa',
             valor:        r.valor,
             descricao:    r.descricao || '',
             data:         dataStr,
             cartao:       true,
-            fatura:       cartaoObj?.diaCorte ? sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1) : faturaAtual,
+            fatura,
             cartaoId:     r.cartaoId || '',
             origem:       'recorrente',
             recorrenteId: r.id,
           });
-        }
+        });
       }
-      currentData.despesas.push(...novos);
-      await salvarEAtualizar();
-      return true;
+      return out;
     }
 
 
