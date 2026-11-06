@@ -5823,7 +5823,9 @@
               const diaTeste = Math.min(r.dia || 1, 28); // dia seguro em qualquer mês, só pra testar o mapeamento de fatura
               const dataTeste = `${aCand}-${String(mCand).padStart(2, '0')}-${String(diaTeste).padStart(2, '0')}`;
               if (sugerirFatura(dataTeste, c.diaCorte, c.diaVencimento || 1) !== key) continue;
-              diasFaltantesRecorrente(r, jaNaFatura.concat(virtuais), mCand, aCand).forEach(dia => {
+              (_fixaCartaoV2Ativa()
+                ? _diasFaltantesFixaCartao(r, jaNaFatura.concat(virtuais), mCand, aCand)
+                : diasFaltantesRecorrente(r, jaNaFatura.concat(virtuais), mCand, aCand)).forEach(dia => {
                 if (_fixasPuladasServidor.includes(chaveFixaPulada(r.id, aCand, mCand, dia))) return;
                 virtuais.push({
                   categoria: r.categoria, descricao: r.descricao || '', valor: r.valor,
@@ -9047,8 +9049,29 @@
           .map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.contaId ? { contaId: d.contaId } : {}), ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.pendente ? { pendente: true } : {}), ...(d.confirmado ? { confirmado: true } : {}), ...(d.parcelamentoId ? { parcelamentoId: d.parcelamentoId, parcelaAtual: d.parcelaAtual, parcelasTotal: d.parcelasTotal } : {}) })),
       ];
 
+      // Fixa de cartão já lançada (recorrenteId) + a mesma cobrança vinda no
+      // arquivo do banco = duplicata (06/11/2026, em teste). Fica o lançamento
+      // da fixa, que a importação preserva sempre; sai a linha importada de
+      // mesmo cartão, mesma fatura e mesmo valor, uma para uma.
+      let itensImportar = itensNormalizados;
+      let fixasJaLancadas = 0;
+      if (escopo?.tipo === 'cartao' && _fixaCartaoV2Ativa()) {
+        // dadosAlvo inteiro, inclusive itens emprestados (_sourceMes): a fixa
+        // fica gravada no mês da data dela, que pode ser anterior ao mês da
+        // fatura (ex: fixa de 01/11 na fatura de dezembro).
+        const livres = dadosAlvo.despesas.filter(p => p.recorrenteId && p.cartao && p.cartaoId === escopo.cartaoId);
+        itensImportar = itensNormalizados.filter(i => {
+          if (i.tipo !== 'despesa') return true;
+          const idx = livres.findIndex(p => p.fatura === i.fatura && Math.abs(p.valor - i.valor) < 0.01);
+          if (idx < 0) return true;
+          livres.splice(idx, 1);
+          fixasJaLancadas++;
+          return false;
+        });
+      }
+
       // Salva todos os itens normalmente (fixa entra como lançamento regular)
-      const itens = [...itensNormalizados.map(({ fixa: _f, ...i }) => ({ ...i, origem: origemTag })), ...preservar];
+      const itens = [...itensImportar.map(({ fixa: _f, ...i }) => ({ ...i, origem: origemTag })), ...preservar];
       await saveOrcamento(mesSalvar, anoSalvar, itens, true); // substituição intencional (nova importação)
       _invalPeriodo(mesSalvar, anoSalvar);
 
@@ -9058,6 +9081,9 @@
         toast(`${origemLabel} importado com sucesso!`, 'success');
       } else {
         toast(`${origemLabel} importado para ${MESES[mesSalvar - 1]} de ${anoSalvar} ✓`, 'success');
+      }
+      if (fixasJaLancadas > 0) {
+        toast(`${fixasJaLancadas} despesa${fixasJaLancadas > 1 ? 's fixas' : ' fixa'} do cartão já estava${fixasJaLancadas > 1 ? 'm' : ''} lançada${fixasJaLancadas > 1 ? 's' : ''} e não ${fixasJaLancadas > 1 ? 'foram duplicadas' : 'foi duplicada'}.`, 'info', 6000);
       }
 
       registrarEvento(eventoNome);
@@ -11411,6 +11437,38 @@
     // Sempre entra no mês exibido (não redireciona pelo dia de corte, ao
     // contrário de um lançamento avulso de cartão) — a fixa é sobre "este mês
     // tem esse gasto", não sobre em qual fatura ele tecnicamente cai.
+    // ── Fixa de cartão: vínculo estrito (06/11/2026, em teste) ──────────────
+    // Achado 06/11/2026, Flávia: Bradesco/XP abaixo do banco. As fixas de
+    // cartão eram lançadas num mês sim, outro não (ago, out, dez lançados;
+    // set, nov, jan nunca). Duas causas em diasFaltantesRecorrente, que só
+    // compara o DIA:
+    //  1. O mês em tela traz itens emprestados de outros meses (_sourceMes,
+    //     parcelas da mesma fatura). O lançamento de 01/10 (fatura de nov)
+    //     ocupava o "dia 1" de novembro, e novembro nunca era lançado.
+    //  2. O vínculo por categoria aceitava qualquer item da mesma categoria
+    //     no mesmo dia, até de conta corrente ou de outro valor ("Google
+    //     cloud" R$ 28 bloqueava Viagem, Invest. empresa e Clube sabrina).
+    // Aqui só conta como "já lançada" um item do PRÓPRIO mês, ligado pelo
+    // recorrenteId, ou um legado sem vínculo do mesmo cartão e mesmo valor.
+    // Regra da Flávia: despesa no cartão é sempre efetiva, nunca "prevista".
+    const _FIXA_CARTAO_V2_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    function _fixaCartaoV2Ativa() {
+      const user = auth.currentUser;
+      if (!user) return false;
+      try { if (uidAtual() !== user.uid) return false; } catch (_) { return false; } // nunca no "ver como"
+      return _FIXA_CARTAO_V2_ALLOWLIST.includes((user.email || '').toLowerCase());
+    }
+    function _diasFaltantesFixaCartao(r, despesasArr, mes, ano) {
+      const prefixo = `${ano}-${String(mes).padStart(2, '0')}-`;
+      const doMes = (despesasArr || []).filter(d => {
+        if (!(d.data || '').startsWith(prefixo)) return false;
+        if (d.recorrenteId) return d.recorrenteId === r.id;
+        return d.categoria === r.categoria && !!d.cartao && d.cartaoId === r.cartaoId
+          && Math.abs((Number(d.valor) || 0) - (Number(r.valor) || 0)) < 0.01;
+      });
+      return diasFaltantesRecorrente(r, doMes, mes, ano);
+    }
+
     async function autoLancarFixasCartao(mes, ano) {
       // Reativado 17/07/2026 — estava desligada desde 03/07/2026 por
       // "causar duplicação em produção", mas a causa raiz real era
@@ -11434,9 +11492,27 @@
       const ehPassado = ano < hoje.getFullYear() || (ano === hoje.getFullYear() && mes < hoje.getMonth() + 1);
       if (!ehPassado && _removerOcorrenciasDiaDesatualizado(currentData)) mudou = true;
 
-      const pendentes = _recorrentes
+      const v2 = _fixaCartaoV2Ativa();
+      // v2: nunca lança em mês passado nem em fatura já fechada. Essas
+      // faturas já foram conferidas/ajustadas contra o banco, e um item novo
+      // nelas mudaria um total já fechado.
+      const pendentes = (v2 && ehPassado) ? [] : _recorrentes
         .filter(r => r.ativo && r.cartao)
-        .map(r => ({ r, diasFaltantes: diasFaltantesRecorrente(r, currentData.despesas, currentData.periodo.mes, currentData.periodo.ano) }))
+        .map(r => {
+          const cartaoObj = _cartoes.find(c => c.id === r.cartaoId);
+          let dias = v2
+            ? _diasFaltantesFixaCartao(r, currentData.despesas, currentData.periodo.mes, currentData.periodo.ano)
+            : diasFaltantesRecorrente(r, currentData.despesas, currentData.periodo.mes, currentData.periodo.ano);
+          if (v2) {
+            dias = dias.filter(d => {
+              if (_fixasPuladasServidor.includes(chaveFixaPulada(r.id, ano, mes, d))) return false;
+              if (!cartaoObj?.diaCorte) return true;
+              const dataStr = `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+              return _faturaEstado(cartaoObj, sugerirFatura(dataStr, cartaoObj.diaCorte, cartaoObj.diaVencimento || 1)) !== 'fechada';
+            });
+          }
+          return { r, diasFaltantes: dias };
+        })
         .filter(({ diasFaltantes }) => diasFaltantes.length > 0);
 
       if (!pendentes.length) {
