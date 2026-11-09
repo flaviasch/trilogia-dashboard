@@ -825,6 +825,11 @@ export async function criarContaPJ(nome, email) {
   return adminCall('criarContaPJ')({ nome, email });
 }
 
+// Admin-only — corrige nome da empresa, CNPJ e nome da usuária (09/11/2026).
+export async function editarContaPJ(uid, dados) {
+  return adminCall('editarContaPJ')({ uid, ...dados });
+}
+
 // Admin-only — lista todas as contas PJ pro painel admin (achado 29/07/2026).
 export async function getContasPJTodas() {
   return adminCall('getContasPJTodas')({});

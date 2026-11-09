@@ -2250,6 +2250,33 @@
     </div>
   </div>
 
+  <!-- Modal editar conta PJ (09/11/2026): corrige nome da empresa, CNPJ e
+       nome da usuária. Regime fica fora (tem fluxo próprio de troca) -->
+  <div class="modal-overlay hidden" id="modalEditarPJ">
+    <div class="modal-card" style="max-width:460px">
+      <h2 class="modal-title">Editar conta PJ</h2>
+      <div class="field-group">
+        <label for="epjEmpresa">Nome da empresa</label>
+        <input type="text" id="epjEmpresa" maxlength="150" />
+      </div>
+      <div class="field-group">
+        <label for="epjCnpj">CNPJ (opcional)</label>
+        <input type="text" id="epjCnpj" inputmode="numeric" placeholder="00.000.000/0000-00" />
+      </div>
+      <div class="field-group">
+        <label for="epjNome">Nome da usuária</label>
+        <input type="text" id="epjNome" maxlength="150" />
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);line-height:1.5;margin:4px 0 0">
+        O regime tributário não muda aqui: a própria usuária troca em Impostos, em "Trocar de regime".
+      </p>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelarEditarPJ">Cancelar</button>
+        <button class="btn-save" id="btnSalvarEditarPJ">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal editar contrato -->
   <div class="modal-overlay hidden" id="modalEditarContrato">
     <div class="modal-card" style="max-width:480px;overflow-y:auto;max-height:90vh">
@@ -2366,8 +2393,8 @@
              getTributosConfig, saveTributoConfig, deleteTributoConfig, trocarRegimeTributarioPJ, getTrocasRegimePJ,
              getNotasEmitidas, saveNotaEmitida, deleteNotaEmitida,
              getImpostosPrevistos, editarValorImpostoPrevisto, marcarImpostoPago, deleteImpostoPrevisto,
-             getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ, criarContaPJ,
-             msgErro } from './js/api.js?v=79';
+             getContaPJ, definirAcessoPJ, getContasPJTodas, excluirContaPJ, criarContaPJ, editarContaPJ,
+             msgErro } from './js/api.js?v=80';
 
     console.log('%c[admin] ✅ v14 carregado', 'color:#CFAE65;font-weight:bold');
 
@@ -3932,6 +3959,7 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
           <td class="td-fin" style="text-align:center">${c.ativo === false ? '<span class="badge-vencido">Inativa</span>' : '<span class="badge-pago">Ativa</span>'}</td>
           <td class="td-fin" style="text-align:center;white-space:nowrap">
             <button class="btn-acao" style="padding:5px 12px;font-size:12px" data-ver-pj="${c.uid}">Ver dashboard PJ</button>
+            <button class="btn-acao btn-secundario" style="padding:5px 12px;font-size:12px;margin-left:6px" data-editar-pj="${c.uid}">✎ Editar</button>
             ${c.lgpdAceitePJ ? `<button class="btn-acao btn-secundario" style="padding:5px 12px;font-size:12px;margin-left:6px" data-comprovante-pj="${c.uid}">📄 Comprovante</button>` : ''}
             <button class="btn-acao danger" style="padding:5px 12px;font-size:12px;margin-left:6px" data-excluir-pj="${c.uid}" data-nome-pj="${_escPJ(c.nomeEmpresa) || c.uid}">Excluir conta</button>
           </td>
@@ -3939,6 +3967,10 @@ A titular declarou: <em>"Li e concordo com o uso dos meus dados conforme descrit
 
       tbody.querySelectorAll('[data-ver-pj]').forEach(b => b.addEventListener('click', () => {
         window.location.href = `notas-pj.html?viewAs=${b.dataset.verPj}`;
+      }));
+
+      tbody.querySelectorAll('[data-editar-pj]').forEach(b => b.addEventListener('click', () => {
+        abrirModalEditarPJ(b.dataset.editarPj);
       }));
 
       tbody.querySelectorAll('[data-comprovante-pj]').forEach(b => b.addEventListener('click', () => {
@@ -4942,6 +4974,47 @@ A titular declarou: <em>"Li e estou ciente de como os dados da minha empresa sã
       } finally {
         btnSalvar.disabled = false;
         btnSalvar.textContent = 'Criar conta';
+      }
+    });
+
+    // ─── Editar conta PJ (09/11/2026) ─────
+    let _uidEditandoPJ = null;
+    function abrirModalEditarPJ(uid) {
+      const c = _contasPJCache.find(x => x.uid === uid);
+      if (!c) return;
+      _uidEditandoPJ = uid;
+      document.getElementById('epjEmpresa').value = c.nomeEmpresa || '';
+      document.getElementById('epjCnpj').value    = c.cnpj || '';
+      document.getElementById('epjNome').value    = c.nome || '';
+      document.getElementById('modalEditarPJ').classList.remove('hidden');
+    }
+    function fecharModalEditarPJ() {
+      document.getElementById('modalEditarPJ').classList.add('hidden');
+      _uidEditandoPJ = null;
+    }
+    document.getElementById('btnCancelarEditarPJ').addEventListener('click', fecharModalEditarPJ);
+    document.getElementById('modalEditarPJ').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('modalEditarPJ')) fecharModalEditarPJ();
+    });
+    document.getElementById('btnSalvarEditarPJ').addEventListener('click', async () => {
+      if (!_uidEditandoPJ) return;
+      const nomeEmpresa = document.getElementById('epjEmpresa').value.trim();
+      const cnpj        = document.getElementById('epjCnpj').value.replace(/\D/g, '');
+      const nomeUsuaria = document.getElementById('epjNome').value.trim();
+      if (!nomeEmpresa) { alert('O nome da empresa é obrigatório.'); return; }
+      if (cnpj && cnpj.length !== 14) { alert('O CNPJ precisa ter 14 dígitos (ou fique em branco).'); return; }
+      const btn = document.getElementById('btnSalvarEditarPJ');
+      btn.disabled = true;
+      btn.textContent = 'Salvando…';
+      try {
+        await editarContaPJ(_uidEditandoPJ, { nomeEmpresa, cnpj, nomeUsuaria });
+        fecharModalEditarPJ();
+        await renderPJTodas();
+      } catch (err) {
+        alert(`Erro ao salvar: ${msgErro(err)}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Salvar';
       }
     });
 

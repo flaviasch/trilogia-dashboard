@@ -8929,6 +8929,33 @@ exports.criarContaPJ = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
 });
 
 /**
+ * Edição pelo admin dos dados cadastrais da conta PJ (09/11/2026, Flávia: a
+ * Lica cadastrou o nome errado). Mexe só em nome da empresa, CNPJ e nome da
+ * usuária (displayName no Auth). Regime fica de fora de propósito: troca de
+ * regime tem fluxo próprio com vigência (trocarRegimeTributarioPJ).
+ */
+exports.editarContaPJ = onCall({}, async (request) => {
+  requireAdmin(request);
+  const { uid } = request.data || {};
+  if (!uid) throw new HttpsError('invalid-argument', 'uid é obrigatório.');
+  const nomeEmpresa = String(request.data.nomeEmpresa || '').trim();
+  const nomeUsuaria = String(request.data.nomeUsuaria || '').trim();
+  const cnpjLimpo   = String(request.data.cnpj || '').replace(/\D/g, '');
+  if (!nomeEmpresa) throw new HttpsError('invalid-argument', 'Nome da empresa é obrigatório.');
+  if (cnpjLimpo && cnpjLimpo.length !== 14) throw new HttpsError('invalid-argument', 'CNPJ deve ter 14 dígitos.');
+
+  const ref = db.collection('contasPJ').doc(uid);
+  if (!(await ref.get()).exists) throw new HttpsError('not-found', 'Conta PJ não encontrada.');
+  await ref.update({
+    nomeEmpresa: nomeEmpresa.slice(0, 150),
+    cnpj: cnpjLimpo || null,
+    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  if (nomeUsuaria) await admin.auth().updateUser(uid, { displayName: nomeUsuaria.slice(0, 150) });
+  return { ok: true };
+});
+
+/**
  * true se o uid tem conta PJ com acesso ativo (ativo !== false — contas
  * criadas antes deste campo existir contam como ativas por padrão).
  * Usado pra decidir se `verificarExpiracoes`/webhook Kiwify podem desabilitar
