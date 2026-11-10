@@ -424,6 +424,24 @@
     .fj-dicas-lista li:last-child { border-bottom: none; }
     .fj-dicas-lista li::before { content: '•'; position: absolute; left: 4px; color: var(--gold); }
 
+    /* ─── Mural de desejos (encontro 4) ─────── */
+    .md-bloco-titulo { font-size: 13px; font-weight: 600; color: var(--gold); margin-bottom: 8px; }
+    .md-prompt {
+      background: var(--navy-dark); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px; margin: 0 0 10px; max-height: 260px; overflow-y: auto;
+      -webkit-overflow-scrolling: touch; white-space: pre-wrap; word-wrap: break-word;
+      font-family: 'Inter', sans-serif; font-size: 12px; line-height: 1.55; color: var(--text-secondary);
+    }
+    .md-copiar.copiado { background: var(--positive); color: var(--navy); }
+    .md-copiar-info { font-size: 11px; color: var(--text-muted); text-align: center; margin: 6px 0 22px; }
+    .md-passos { margin: 0 0 16px; padding-left: 20px; }
+    .md-passos li { font-size: 13px; line-height: 1.6; color: var(--text-secondary); padding: 4px 0; }
+    .md-texto { font-size: 13px; line-height: 1.6; color: var(--text-secondary); margin-bottom: 12px; }
+    .md-whatsapp {
+      display: block; text-align: center; text-decoration: none; margin: 4px 0 18px;
+      background: #25D366; color: #0b2e1a;
+    }
+
     /* ─── Bottom nav ─────────────────────────── */
     .bottom-nav {
       display: none; position: fixed; bottom: 0; left: 0; right: 0;
@@ -880,6 +898,63 @@
     </div>
   </div>
 
+  <!-- Modal: Mural de desejos (encontro 4, gate de teste) -->
+  <div class="fj-modal-backdrop" id="modalMuralDesejos">
+    <div class="fj-modal fj-modal-largo">
+      <div class="fj-modal-titulo">Mural de desejos</div>
+      <div class="fj-modal-desc">Tarefa do encontro 4. Leva cerca de 20 minutos.</div>
+
+      <div class="md-bloco-titulo">Prompt do mural</div>
+      <pre class="md-prompt" id="mdPrompt">Quero criar um mural de desejos (vision board) personalizado sobre o meu futuro.
+
+ETAPA 1. Antes de gerar qualquer imagem, me faça estas perguntas, todas de uma vez, e espere minhas respostas:
+1. Qual é o meu propósito, em uma frase?
+2. Quais são as 6 áreas da vida que quero incluir no mural? (exemplos: carreira, finanças, casa, família, viagens, saúde, estudos, projeto pessoal)
+3. Para cada área, qual é o desejo concreto, em uma ou duas frases curtas?
+4. Quais 5 palavras resumem a vida que quero construir?
+5. Que frase quero no rodapé, no tom de afirmação?
+6. Quais 5 lembretes diários quero ver todos os dias?
+7. Como é a minha aparência e o meu estilo, para as cenas ilustrarem alguém parecida comigo?
+8. Quais paletas e ambientes me agradam? (exemplos: tons de bege, madeira, plantas, luz quente)
+
+ETAPA 2. Com as minhas respostas, gere uma imagem única, horizontal (proporção 3:2), com este estilo:
+- Mural em formato de colagem, sobre um fundo de papel bege claro, com textura suave.
+- Título grande no topo, em letra cursiva manuscrita elegante, com as 5 palavras-chave logo abaixo, em letras maiúsculas pequenas e espaçadas.
+- Entre 8 e 10 blocos distribuídos pelo mural: cartões de papel rasgado, post-its, folhas de caderno com espiral, polaroids, um passaporte, uma janela de avião, um caderno aberto com xícara e vela.
+- Cada área da vida vira um cartão com título curto em destaque (fundo rosa suave ou verde sálvia) e um texto de no máximo 25 palavras.
+- Fotos realistas e cinematográficas ilustrando cada desejo, com luz quente e cores suaves. Pessoa de costas ou de perfil, sem foco em rosto.
+- Detalhes de composição: pinos, fitas, clipes, uma planta ao fundo, uma lâmpada de mesa, um vaso de lavanda.
+- Um cartão rosa com a lista de lembretes diários.
+- Frase de afirmação no rodapé, em cursiva.
+- Paleta: bege, off-white, rosa antigo, verde sálvia, madeira e toques de azul-marinho.
+- Atmosfera acolhedora, sofisticada, inspiradora e organizada.
+
+REGRAS DE TEXTO:
+- Escreva todo o texto em português do Brasil, com acentuação correta.
+- Use exatamente as palavras que eu informei, sem inventar frases novas.
+- Se algum texto sair com erro, refaça a imagem corrigindo apenas o texto.</pre>
+      <button class="fj-btn fj-btn-primario md-copiar" id="mdBtnCopiar" type="button" style="width:100%">Copiar prompt</button>
+      <div class="md-copiar-info" id="mdCopiarInfo">Copia o texto inteiro, do começo ao fim.</div>
+
+      <div class="md-bloco-titulo">Mural de desejos: como fazer</div>
+      <ol class="md-passos">
+        <li>Abra o ChatGPT (versão gratuita ou paga) e comece uma conversa nova.</li>
+        <li>Copie o prompt do bloco acima e cole na conversa.</li>
+        <li>O ChatGPT vai fazer 8 perguntas. Responda todas de uma vez, com calma. Quanto mais específica a resposta, mais o mural terá a sua cara.</li>
+        <li>Ele vai gerar a imagem. Confira os textos com atenção, principalmente acentos e palavras.</li>
+        <li>Se algum texto sair errado, escreva: "Refaça a imagem corrigindo apenas o texto" e diga qual palavra está errada. Pode repetir até acertar.</li>
+        <li>Quando estiver como você quer, salve a imagem e envie para a Flávia pelo WhatsApp antes do próximo encontro.</li>
+      </ol>
+      <a class="fj-btn md-whatsapp" id="mdBtnWhatsapp" target="_blank" rel="noopener" href="https://wa.me/5511995658658?text=Oi%2C%20Fl%C3%A1via!%20Segue%20o%20meu%20mural%20de%20desejos.">Enviar para a Flávia pelo WhatsApp</a>
+      <p class="md-texto">Antes de responder as perguntas, pense no que você quer de verdade, não no que parece certo. Se uma área da sua vida não te empolga, deixe de fora.</p>
+      <p class="md-texto">Para cada desejo do mural, anote ao lado quanto ele custa e em quanto tempo você quer realizá-lo. Esses números não precisam estar na imagem. Vamos usar no próximo encontro.</p>
+
+      <div class="fj-modal-acoes">
+        <button class="fj-btn fj-btn-secundario" id="mdBtnFechar" type="button" style="flex:none; width:100%">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <nav class="bottom-nav">
     <a href="index.html" class="bnav-item">
       <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -1086,6 +1161,13 @@
         desc: 'Uma tarefa por dia pra construir consciência financeira na prática.',
       },
       {
+        id: 'mural-desejos',
+        titulo: 'Mural de desejos',
+        desc: 'Tarefa do encontro 4: crie com o ChatGPT um mural com a vida que você quer construir.',
+        semStatusPadrao: true,
+        soTeste: true,
+      },
+      {
         id: 'mapa-liberdade',
         titulo: 'Mapa da Liberdade Financeira',
         desc: 'Simule se o seu planejamento hoje te leva até a liberdade financeira — objetivos, casal e cenários completos.',
@@ -1109,6 +1191,8 @@
         semStatusPadrao: true,
       },
     ];
+
+    const FERRAMENTAS_TESTE_EMAILS = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
 
     function brlSimples(v) {
       return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -1136,8 +1220,12 @@
         console.warn('Erro ao carregar materiais da jornada:', err.message);
       }
 
+      // Gate de teste: ferramentas com soTeste só aparecem para as contas da Flávia
+      // (o e-mail é de quem está logada, então vale também no "ver como").
+      const _emailAtual = (auth.currentUser?.email || '').toLowerCase();
+      const _contaTeste = FERRAMENTAS_TESTE_EMAILS.includes(_emailAtual);
       const grid = document.getElementById('ferramentasGrid');
-      grid.innerHTML = FERRAMENTAS.map(f => {
+      grid.innerHTML = FERRAMENTAS.filter(f => !f.soTeste || _contaTeste).map(f => {
         if (f.semStatusPadrao) {
           return `
             <div class="ferramenta-card" data-ferramenta="${f.id}">
@@ -1190,6 +1278,7 @@
       if (id === 'decisao-financeira')    { document.getElementById('modalDecisaoFinanceira').classList.add('aberto'); carregarHistoricoDecisoes(); }
       if (id === 'dicas-anti-impulso')    document.getElementById('modalDicasAntiImpulso').classList.add('aberto');
       if (id === 'isf')                   document.getElementById('modalISF').classList.add('aberto');
+      if (id === 'mural-desejos')         document.getElementById('modalMuralDesejos').classList.add('aberto');
     }
 
     // Atualiza o badge de status no card da grade sem precisar recarregar a página.
@@ -2192,6 +2281,62 @@
     document.getElementById('modalDicasAntiImpulso').addEventListener('click', e => {
       if (e.target === document.getElementById('modalDicasAntiImpulso')) e.currentTarget.classList.remove('aberto');
     });
+
+    // ── Mural de desejos (conteúdo estático + copiar prompt) ──
+    {
+      const modalMd = document.getElementById('modalMuralDesejos');
+      const btnCopiar = document.getElementById('mdBtnCopiar');
+      const info = document.getElementById('mdCopiarInfo');
+      const textoPrompt = () => document.getElementById('mdPrompt').textContent;
+
+      // Fallback para navegadores sem Clipboard API (iOS antigo, WebView, http).
+      function copiarFallback(texto) {
+        const ta = document.createElement('textarea');
+        ta.value = texto;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.left = '0';
+        ta.style.opacity = '0'; ta.style.fontSize = '16px'; // 16px evita zoom no iOS
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, texto.length);
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+      }
+
+      function mostrarCopiado(ok) {
+        if (ok) {
+          btnCopiar.textContent = 'Copiado ✓';
+          btnCopiar.classList.add('copiado');
+          info.textContent = 'Prompt inteiro copiado. Agora é só colar no ChatGPT.';
+        } else {
+          btnCopiar.textContent = 'Copiar prompt';
+          info.textContent = 'Não consegui copiar. Toque e segure no texto acima, escolha "Selecionar tudo" e depois "Copiar".';
+        }
+        clearTimeout(btnCopiar._t);
+        btnCopiar._t = setTimeout(() => {
+          btnCopiar.textContent = 'Copiar prompt';
+          btnCopiar.classList.remove('copiado');
+          info.textContent = 'Copia o texto inteiro, do começo ao fim.';
+        }, ok ? 3000 : 8000);
+      }
+
+      btnCopiar.addEventListener('click', () => {
+        const texto = textoPrompt();
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(texto)
+            .then(() => mostrarCopiado(true))
+            .catch(() => mostrarCopiado(copiarFallback(texto)));
+        } else {
+          mostrarCopiado(copiarFallback(texto));
+        }
+      });
+
+      document.getElementById('mdBtnFechar').addEventListener('click', () => modalMd.classList.remove('aberto'));
+      modalMd.addEventListener('click', e => { if (e.target === modalMd) modalMd.classList.remove('aberto'); });
+    }
 
     async function init() {
       let data;
