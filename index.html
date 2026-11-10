@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
   <script>/* Modo celular (em teste): abre direto no Orçamento, antes de desenhar a home */try{var _q=new URLSearchParams(location.search);if(!!localStorage.getItem('celModoTeste')&&(window.matchMedia('(max-width: 767px)').matches||screen.width<768)&&!_q.has('home')&&localStorage.getItem('clubeOnlyMode')!=='1'&&!_q.has('viewAs')&&(!localStorage.getItem('viewAsUid')||localStorage.getItem('viewAsUid')===localStorage.getItem('celModoTeste'))&&sessionStorage.getItem('celAbriuOrcamento')!=='1'){sessionStorage.setItem('celAbriuOrcamento','1');location.replace('orcamento.html');}}catch(e){}</script><script>/* Modo celular (em teste): esconde a barra antiga desde o 1o desenho; flag celModoTeste gravada por js/cel-nav.js e orcamento.html */try{if(!!localStorage.getItem('celModoTeste')&&(window.matchMedia('(max-width: 767px)').matches||screen.width<768)&&(!localStorage.getItem('viewAsUid')||localStorage.getItem('viewAsUid')===localStorage.getItem('celModoTeste'))){document.documentElement.classList.add('cel-pre');}}catch(e){}</script><style>html.cel-pre .bottom-nav{display:none!important}</style><script>/* Celular: esconde a barra de baixo até o login ser conferido (js/cel-nav.js e orcamento.html liberam) */try{if((window.matchMedia('(max-width: 767px)').matches||screen.width<768)){var _hn=document.documentElement;_hn.classList.add('nav-pendente');setTimeout(function(){_hn.classList.remove('nav-pendente')},5000);}}catch(e){}</script><style>html.nav-pendente .bottom-nav{visibility:hidden!important}</style>
+  <script>/* Tema 2026 (em teste): marca (uid) gravada por js/tema.js */try{var _tn=localStorage.getItem('temaNovoTeste'),_tv=localStorage.getItem('viewAsUid');if(_tn&&(!_tv||_tv===_tn||/\/admin\.html$/.test(location.pathname))&&!/[?&]viewAs=/.test(location.search))document.documentElement.classList.add('tema-novo');}catch(e){}</script>
   <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <meta charset="UTF-8" />
   <!-- Segurança (auditoria 01/10/2026, item 7): GitHub Pages não envia headers, então a CSP vai por meta
@@ -731,6 +732,8 @@
     pointer-events: none;
   }
 </style>
+<!-- Tema 2026 (10/11/2026, em teste): só vale com html.tema-novo -->
+<link rel="stylesheet" href="css/tema-2026.css?v=8" />
 </head>
 <body>
 
@@ -3053,6 +3056,7 @@ async function init(user) {
   </script>
 
 <script src="js/theme.js" defer></script>
+<script type="module" src="js/tema.js?v=5"></script>
 <!-- FAB_FADE_ON_SCROLL -->
 <script>
   (function () {

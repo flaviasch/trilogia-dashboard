@@ -1,0 +1,339 @@
+/* ─── Tema 2026 (10/11/2026, em teste) ─────────────────────────────────
+   Leva para o dashboard inteiro a identidade do modo celular do Orçamento
+   (bloco "Modo celular simplificado" em orcamento.html): cartões
+   arredondados com fundo suave em vez de bordas, números grandes, abas em
+   pílula com a ativa dourada, botões maiores e mais respiro.
+
+   NÍVEL 1: só visual. Nada de layout, nada de cálculo.
+   Só vale com a classe html.tema-novo, ligada por js/tema.js para a
+   allowlist de teste (nunca no "ver como"). Sem a classe, nada muda.
+   Tudo dentro de @media screen: impressão/PDF continuam como sempre.
+   Não sobrescreve as classes .cel-* do modo celular simples.
+   ──────────────────────────────────────────────────────────────────── */
+
+@media screen {
+
+  html.tema-novo {
+    --tn-fg: var(--rgb-fg, 255,255,255);
+    --tn-card: rgba(var(--tn-fg), 0.05);
+    --tn-card-2: rgba(var(--tn-fg), 0.035);
+    --tn-card-hover: rgba(var(--tn-fg), 0.075);
+    --tn-linha: rgba(var(--tn-fg), 0.06);
+    --tn-r: 16px;
+    --tn-r-sm: 12px;
+    --tn-navy-txt: #0D2B45;   /* texto sobre dourado: fixo, também no tema claro */
+  }
+
+  /* ── Cartões: fundo suave, sem borda, cantos 16px ───────────────────── */
+  html.tema-novo .resumo-card,
+  html.tema-novo .pendencia-card,
+  html.tema-novo .grafico-card,
+  html.tema-novo .plan-table-wrap,
+  html.tema-novo .score-widget,
+  html.tema-novo .cat-group,
+  html.tema-novo .aporte-strip,
+  html.tema-novo .ritmo-box,
+  html.tema-novo .notif-info-box {
+    background: var(--tn-card);
+    border-color: transparent;
+    border-radius: var(--tn-r);
+  }
+  html.tema-novo .resumo-card.destaque { background: rgba(207,174,101,0.10); border-color: transparent; }
+  html.tema-novo .pendencia-card:hover { background: var(--tn-card-hover); border-color: transparent; }
+
+  /* Seções que abrem e fecham (Receitas / Despesas) */
+  html.tema-novo .section-header.expansivel {
+    background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r);
+  }
+  html.tema-novo .section-header.expansivel:hover { background: var(--tn-card-hover); border-color: transparent; }
+  html.tema-novo .section-header.expansivel.aberta { border-radius: var(--tn-r) var(--tn-r) 0 0; }
+  html.tema-novo .section-body-col {
+    background: var(--tn-card); border-color: transparent; border-radius: 0 0 var(--tn-r) var(--tn-r);
+  }
+
+  /* Linhas de itens: sem borda, separadas pelo fundo */
+  html.tema-novo .item-row {
+    background: var(--tn-card-2); border-color: transparent; border-radius: var(--tn-r-sm);
+  }
+  html.tema-novo .item-row:hover { background: var(--tn-card-hover); border-color: transparent; }
+  html.tema-novo .rec-grupo-itens .item-row { background: transparent; }
+  html.tema-novo .plan-row td,
+  html.tema-novo .projecao-row { border-color: var(--tn-linha); }
+
+  /* Caixa da sobra e avisos: cantos maiores */
+  html.tema-novo .sobra-box,
+  html.tema-novo .velocidade-box,
+  html.tema-novo .alertas-banner,
+  html.tema-novo .upload-banner { border-radius: var(--tn-r); }
+
+  /* ── Abas em pílula, a ativa dourada ────────────────────────────────── */
+  html.tema-novo .tabs-bar {
+    background: var(--tn-card); border-color: transparent; border-radius: 14px; padding: 4px;
+  }
+  html.tema-novo .tab-btn { border-radius: 10px; }
+  html.tema-novo .tab-btn.active { background: var(--gold); color: var(--tn-navy-txt); font-weight: 600; }
+  html.tema-novo .tab-btn:hover:not(.active) { color: var(--white); }
+
+  /* Seletor de mês */
+  html.tema-novo .period-selector {
+    background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r-sm);
+  }
+  html.tema-novo .period-label { border-color: transparent; }
+  html.tema-novo .period-btn { padding: 10px 14px; }
+
+  /* ── Botões: cantos 12px, área de toque ~44px ───────────────────────── */
+  html.tema-novo .btn-save,
+  html.tema-novo .btn-cancel,
+  html.tema-novo .btn-upload,
+  html.tema-novo .aporte-strip-btn,
+  html.tema-novo .btn-copiar-mes,
+  html.tema-novo .btn-acao,
+  html.tema-novo .btn-add-item {
+    border-radius: var(--tn-r-sm);
+    min-height: 44px;
+  }
+  html.tema-novo .btn-save,
+  html.tema-novo .btn-upload,
+  html.tema-novo .aporte-strip-btn { color: var(--tn-navy-txt); font-weight: 600; }
+  html.tema-novo .upload-banner.compacto .btn-upload { min-height: 0; color: var(--gold); }
+  /* .btn-acao muda de papel conforme a tela: no Orçamento é botão discreto,
+     no admin é botãozinho de tabela e no PJ é o botão dourado principal. */
+  html.tema-novo.tn-orcamento .btn-acao { background: var(--tn-card); border-color: transparent; }
+  html.tema-novo.tn-orcamento .btn-acao:hover { background: var(--tn-card-hover); }
+  html.tema-novo .btn-add-item { border-style: dashed; }
+  html.tema-novo .btn-item { border-radius: 8px; }
+
+  /* ── Campos e modais ────────────────────────────────────────────────── */
+  html.tema-novo .field-group input,
+  html.tema-novo .field-group select,
+  html.tema-novo .aporte-strip-input,
+  html.tema-novo .reserva-aporte-input,
+  html.tema-novo .classe-select { border-radius: 10px; }
+  html.tema-novo .field-group input,
+  html.tema-novo .field-group select { min-height: 44px; }
+  html.tema-novo .modal-card { border-color: transparent; }
+  html.tema-novo .cat-dropdown { border-radius: var(--tn-r-sm); }
+  html.tema-novo .suporte-popover { border-radius: var(--tn-r); }
+
+  /* Selos e barrinhas mais redondos */
+  html.tema-novo .resumo-pct,
+  html.tema-novo .alertas-pct,
+  html.tema-novo .ritmo-status { border-radius: 20px; }
+  html.tema-novo .score-comp { border-radius: var(--tn-r-sm); }
+
+  /* ── Home (index.html) ──────────────────────────────────────────────── */
+  html.tema-novo .budget-card,
+  html.tema-novo .pat-item,
+  html.tema-novo .reserva-card,
+  html.tema-novo .step-card,
+  html.tema-novo .setup-progress,
+  html.tema-novo .notif-card,
+  html.tema-novo .empty-state {
+    background: var(--tn-card);
+    border-color: transparent;
+    border-radius: var(--tn-r);
+  }
+  html.tema-novo .step-card:hover { background: var(--tn-card-hover); border-color: transparent; }
+  /* Sinais de situação continuam visíveis, só mais suaves */
+  html.tema-novo .step-card.done { background: rgba(74,222,128,0.06); }
+  html.tema-novo .notif-card.novidades { background: rgba(207,174,101,0.08); }
+  html.tema-novo .empty-state { border: 1px dashed rgba(var(--tn-fg), 0.12); }
+  html.tema-novo .notif-item,
+  html.tema-novo .setup-proximo,
+  html.tema-novo .welcome-order-note { border-radius: var(--tn-r-sm); }
+  html.tema-novo .step-cta { border-radius: var(--tn-r-sm); min-height: 44px; padding: 11px 20px; color: var(--tn-navy-txt); }
+  html.tema-novo .step-cta.feito { color: var(--positive); }
+  html.tema-novo .btn-aceitar-lgpd { border-radius: var(--tn-r-sm); color: var(--tn-navy-txt); }
+  html.tema-novo .modal-lgpd-card { border-radius: 20px 20px 0 0; }
+  /* Cartões com estilo escrito direto no HTML (pontuação, casal, missão) */
+  html.tema-novo #cardScore,
+  html.tema-novo #cardVinculoCasal {
+    background: var(--tn-card) !important; border-radius: var(--tn-r) !important;
+  }
+  html.tema-novo #missaoCard { border-radius: var(--tn-r) !important; }
+  html.tema-novo .budget-card .card-label,
+  html.tema-novo .pat-item .pat-label,
+  html.tema-novo .card-label,
+  html.tema-novo .pat-label {
+    text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-secondary);
+  }
+
+  /* ── Patrimônio (patrimonio.html) ───────────────────────────────────── */
+  html.tema-novo .balanco-card,
+  html.tema-novo .barras-card,
+  html.tema-novo .evolucao-card,
+  html.tema-novo .alloc-bar-wrap {
+    background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r);
+  }
+  html.tema-novo .import-card { background: rgba(207,174,101,0.10); border-color: transparent; border-radius: var(--tn-r); }
+  html.tema-novo .ativo-row,
+  html.tema-novo .divida-row {
+    background: var(--tn-card-2); border-color: transparent; border-radius: var(--tn-r-sm);
+  }
+  html.tema-novo .ativo-row:hover,
+  html.tema-novo .divida-row:hover { background: var(--tn-card-hover); border-color: transparent; }
+  html.tema-novo .btn-import { border-radius: var(--tn-r-sm); min-height: 44px; color: var(--tn-navy-txt); font-weight: 600; }
+  html.tema-novo .btn-add-divida { border-radius: var(--tn-r-sm); min-height: 44px; }
+  html.tema-novo .btn-icon { border-radius: 8px; }
+  html.tema-novo .parcela-chip.paga { color: var(--tn-navy-txt); }
+
+  /* ── Admin (admin.html) ─────────────────────────────────────────────── */
+  html.tema-novo .kpi-card,
+  html.tema-novo .detalhe-card,
+  html.tema-novo .alerta-item,
+  html.tema-novo .contrato-card,
+  html.tema-novo .adm-enc-card {
+    background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r);
+  }
+  html.tema-novo .adm-enc-item.ativo .adm-enc-card { border-color: var(--border-gold); }
+  html.tema-novo .kpi-label,
+  html.tema-novo .detalhe-card-label {
+    text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-secondary);
+  }
+  /* Abas do topo e filtros em pílula, a ativa dourada */
+  html.tema-novo .nav-tab { border-radius: 20px; }
+  html.tema-novo .nav-tab.ativo { background: var(--gold); color: #0D2B45; font-weight: 600; }
+  html.tema-novo .filter-btn { border-radius: 20px; }
+  html.tema-novo .filter-btn.ativo { background: var(--gold); border-color: var(--gold); color: #0D2B45; font-weight: 600; }
+  /* Linhas da tabela de mentoradas: fundo suave e cantos maiores */
+  html.tema-novo.tema-admin tbody tr { background: var(--tn-card); }
+  html.tema-novo.tema-admin tbody tr:hover { background: var(--tn-card-hover); }
+  html.tema-novo.tema-admin tbody td:first-child { border-radius: var(--tn-r-sm) 0 0 var(--tn-r-sm); }
+  html.tema-novo.tema-admin tbody td:last-child { border-radius: 0 var(--tn-r-sm) var(--tn-r-sm) 0; }
+  html.tema-novo .search-wrap input,
+  html.tema-novo .nota-area { border-radius: var(--tn-r-sm); }
+  html.tema-novo .btn-salvar-nota { border-radius: var(--tn-r-sm); min-height: 44px; color: #0D2B45; font-weight: 600; }
+  /* No admin, .btn-acao são botõezinhos dentro da tabela: ficam compactos */
+  html.tema-novo.tema-admin .btn-acao {
+    min-height: 0; background: transparent; border-color: var(--border); border-radius: 8px;
+  }
+
+  /* ── Metas / Reservas (reservas.html) ───────────────────────────────── */
+  html.tema-novo .reserva-card {
+    background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r);
+  }
+  html.tema-novo .reserva-card:hover { background: var(--tn-card-hover); border-color: transparent; }
+  /* Meta completa (verde) e em alerta (âmbar) seguem sinalizadas */
+  html.tema-novo .reserva-card.completa { background: rgba(74,222,128,0.06); border-color: rgba(74,222,128,0.25); }
+  html.tema-novo .reserva-card.alerta { border-color: rgba(251,191,36,0.3); }
+  html.tema-novo .legenda-alocacao { background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r-sm); }
+  html.tema-novo .alocacao-box { background: rgba(207,174,101,0.10); border-color: transparent; border-radius: var(--tn-r-sm); }
+  html.tema-novo .retirada-saldo,
+  html.tema-novo .opcao-card { background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r-sm); }
+  html.tema-novo .opcao-card:hover { border-color: var(--gold); }
+  html.tema-novo .btn-nova-reserva,
+  html.tema-novo .btn-usar-saldo { border-radius: var(--tn-r-sm); min-height: 44px; color: var(--tn-navy-txt); font-weight: 600; }
+
+  /* ── Perfil (perfil.html) ───────────────────────────────────────────── */
+  html.tema-novo .perfil-atual,
+  html.tema-novo .resultado-card { border-radius: var(--tn-r); }
+  html.tema-novo.tn-perfil .perfil-atual,
+  html.tema-novo.tn-perfil .resultado-card { background: rgba(207,174,101,0.08); border-color: transparent; }
+  html.tema-novo .opcao-label { background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r-sm); }
+  html.tema-novo .opcao-label:hover,
+  html.tema-novo .opcao-label:has(input:checked) { background: var(--gold-dim); border-color: var(--border-gold); }
+  html.tema-novo .impacto-item { background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r-sm); }
+  html.tema-novo .btn-avancar,
+  html.tema-novo .btn-confirmar,
+  html.tema-novo .btn-renovar { border-radius: var(--tn-r-sm); min-height: 44px; color: var(--tn-navy-txt); font-weight: 600; }
+  html.tema-novo .btn-voltar,
+  html.tema-novo .btn-refazer { border-radius: var(--tn-r-sm); min-height: 44px; }
+
+  /* ── Jornada (jornada.html) ─────────────────────────────────────────── */
+  html.tema-novo .encontro-card,
+  html.tema-novo .ferramenta-card {
+    background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r);
+  }
+  html.tema-novo .encontro-card:hover,
+  html.tema-novo .ferramenta-card:hover { background: var(--tn-card-hover); border-color: transparent; }
+  html.tema-novo .encontro-item.ativo .encontro-card { border-color: var(--border-gold); }
+  html.tema-novo .card-pendentes,
+  html.tema-novo .fj-resultado { border-color: transparent; border-radius: var(--tn-r); }
+  html.tema-novo .fj-modal { border-radius: 20px; }
+  html.tema-novo .fj-btn { border-radius: var(--tn-r-sm); min-height: 44px; }
+  html.tema-novo .fj-btn-primario { color: var(--tn-navy-txt); font-weight: 600; }
+  html.tema-novo .fj-quiz-opcao,
+  html.tema-novo .fj-radio-opcao { border-radius: var(--tn-r-sm); }
+
+  /* ── Clube (clube.html) ─────────────────────────────────────────────── */
+  html.tema-novo .card-gravacao,
+  html.tema-novo .doc-item,
+  html.tema-novo .agenda-item {
+    background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r);
+  }
+  html.tema-novo .card-gravacao:hover,
+  html.tema-novo .doc-item:hover,
+  html.tema-novo .agenda-item:hover { background: var(--tn-card-hover); border-color: transparent; }
+  html.tema-novo .btn-assistir { border-radius: var(--tn-r-sm); min-height: 40px; color: var(--tn-navy-txt); font-weight: 600; }
+  html.tema-novo .btn-acessar { border-radius: var(--tn-r-sm); min-height: 40px; }
+  html.tema-novo #buscaClube { border-radius: var(--tn-r-sm); }
+
+  /* ── Mapa da Liberdade (liberdade.html) ─────────────────────────────── */
+  html.tema-novo.tn-liberdade .card { background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r); }
+  html.tema-novo.tn-liberdade .resultado-card { border-color: transparent; }
+  html.tema-novo.tn-liberdade .tabs {
+    background: var(--tn-card); border-bottom: none; border-radius: 14px; padding: 4px;
+  }
+  html.tema-novo.tn-liberdade .tab-btn { border-bottom: none; border-radius: 10px; }
+  html.tema-novo.tn-liberdade .tab-btn.ativa { background: var(--gold); color: var(--tn-navy-txt); }
+  html.tema-novo.tn-liberdade .tab-btn:hover:not(.ativa) { color: var(--white); }
+  html.tema-novo.tn-liberdade .field input,
+  html.tema-novo.tn-liberdade .field select { border-radius: 10px; min-height: 44px; }
+  html.tema-novo .btn-primario { border-radius: var(--tn-r-sm); min-height: 44px; color: var(--tn-navy-txt); font-weight: 600; }
+  html.tema-novo .modal-card-ajuda { border-radius: 20px; }
+
+  /* ── Ajuda (ajuda.html) ─────────────────────────────────────────────── */
+  html.tema-novo .agent-card { background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r); }
+  html.tema-novo .agent-header { background: rgba(var(--tn-fg), 0.03); border-bottom-color: var(--tn-linha); }
+  html.tema-novo .agent-when { border-color: transparent; border-radius: var(--tn-r-sm); }
+  html.tema-novo .btn-agent { border-radius: var(--tn-r-sm); min-height: 44px; color: var(--tn-navy-txt); font-weight: 600; }
+
+  /* ── Dashboard PJ (*-pj.html) ───────────────────────────────────────── */
+  html.tema-novo .card-lista,
+  html.tema-novo .cartao-card,
+  html.tema-novo .dre-card,
+  html.tema-novo .saldo-card,
+  html.tema-novo .suporte-card,
+  html.tema-novo.tn-pj .card:not(.card-ouro) {
+    background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r);
+  }
+  html.tema-novo.tn-pj .card-ouro { border-color: transparent; border-radius: var(--tn-r); }
+  html.tema-novo .login-card { border-color: transparent; border-radius: 20px; }
+  /* Menu do topo em pílula, o item ativo dourado */
+  html.tema-novo .nav-pj a { border-radius: 20px; padding: 6px 12px; }
+  html.tema-novo .nav-pj a.ativo { background: var(--gold); color: #0D2B45; }
+  html.tema-novo .btn-mes { background: var(--tn-card); border-color: transparent; border-radius: var(--tn-r-sm); min-height: 40px; }
+  html.tema-novo.tn-pj .btn-acao { border-radius: var(--tn-r-sm); color: var(--tn-navy-txt); font-weight: 600; }
+  html.tema-novo .btn-novo,
+  html.tema-novo .btn-salvar,
+  html.tema-novo .btn-login,
+  html.tema-novo .btn-lgpd-confirmar { border-radius: var(--tn-r-sm); min-height: 44px; color: var(--tn-navy-txt); font-weight: 600; }
+  html.tema-novo .tipo-toggle button { border-radius: var(--tn-r-sm); }
+  html.tema-novo .import-item { border-radius: var(--tn-r-sm); }
+
+  /* ── Tipografia: rótulos leves, números grandes ─────────────────────── */
+  html.tema-novo .resumo-label,
+  html.tema-novo .pendencia-label {
+    text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-secondary);
+  }
+}
+
+/* Só no computador/tablet: no celular os cartões do resumo são compactos
+   de propósito (3 colunas), então tamanhos e cantos de modal ficam como estão. */
+@media screen and (min-width: 641px) {
+  html.tema-novo .page-title { font-size: 30px; }
+  html.tema-novo .resumo-card { padding: 22px 24px; }
+  html.tema-novo .resumo-label { font-size: 13px; margin-bottom: 8px; }
+  html.tema-novo .resumo-value { font-size: 32px; font-weight: 600; letter-spacing: -0.5px; }
+  html.tema-novo .pendencia-label { font-size: 13px; }
+  html.tema-novo .pendencia-value { font-size: 22px; font-weight: 600; }
+  html.tema-novo .tab-btn { padding: 10px 18px; }
+  html.tema-novo .modal-card { border-radius: 20px; }
+  /* Home */
+  html.tema-novo .card-label,
+  html.tema-novo .pat-label { font-size: 13px; }
+  html.tema-novo .card-value { font-size: 26px; }
+  html.tema-novo .pat-value { font-size: 30px; font-weight: 600; }
+  html.tema-novo .budget-card,
+  html.tema-novo .pat-item { padding: 22px 24px; }
+}

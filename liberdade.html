@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+  <script>/* Tema 2026 (em teste): marca (uid) gravada por js/tema.js */try{var _tn=localStorage.getItem('temaNovoTeste'),_tv=localStorage.getItem('viewAsUid');if(_tn&&(!_tv||_tv===_tn||/\/admin\.html$/.test(location.pathname))&&!/[?&]viewAs=/.test(location.search))document.documentElement.classList.add('tema-novo');}catch(e){}</script>
   <script>/* Modo celular (em teste): esconde a barra antiga desde o 1o desenho; flag celModoTeste gravada por js/cel-nav.js e orcamento.html */try{if(!!localStorage.getItem('celModoTeste')&&(window.matchMedia('(max-width: 767px)').matches||screen.width<768)&&(!localStorage.getItem('viewAsUid')||localStorage.getItem('viewAsUid')===localStorage.getItem('celModoTeste'))){document.documentElement.classList.add('cel-pre');}}catch(e){}</script><style>html.cel-pre .bottom-nav{display:none!important}</style><script>/* Celular: esconde a barra de baixo até o login ser conferido (js/cel-nav.js e orcamento.html liberam) */try{if((window.matchMedia('(max-width: 767px)').matches||screen.width<768)){var _hn=document.documentElement;_hn.classList.add('nav-pendente');setTimeout(function(){_hn.classList.remove('nav-pendente')},5000);}}catch(e){}</script><style>html.nav-pendente .bottom-nav{visibility:hidden!important}</style>
   <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <meta charset="UTF-8" />
@@ -261,6 +262,8 @@
   <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js" crossorigin="anonymous" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js" crossorigin="anonymous" defer></script>
+<!-- Tema 2026 (10/11/2026, em teste): só vale com html.tema-novo -->
+<link rel="stylesheet" href="css/tema-2026.css?v=8" />
 </head>
 <body>
 
@@ -1400,5 +1403,6 @@
 <script src="js/theme.js" defer></script>
   <!-- Barra única do modo celular (10/11/2026, em teste) -->
   <script type="module" src="js/cel-nav.js?v=5"></script>
+<script type="module" src="js/tema.js?v=5"></script>
 </body>
 </html>
