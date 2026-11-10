@@ -1,7 +1,7 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <script>/* Modo celular (em teste): esconde a barra antiga desde o 1o desenho; flag celModoTeste gravada por js/cel-nav.js e orcamento.html */try{if(localStorage.getItem('celModoTeste')==='1'&&window.matchMedia('(max-width: 767px)').matches&&!localStorage.getItem('viewAsUid')){document.documentElement.classList.add('cel-pre');}}catch(e){}</script><style>html.cel-pre .bottom-nav{display:none!important}</style><script>/* Celular: esconde a barra de baixo até o login ser conferido (js/cel-nav.js e orcamento.html liberam) */try{if(window.matchMedia('(max-width: 767px)').matches){var _hn=document.documentElement;_hn.classList.add('nav-pendente');setTimeout(function(){_hn.classList.remove('nav-pendente')},5000);}}catch(e){}</script><style>html.nav-pendente .bottom-nav{visibility:hidden!important}</style>
+  <script>/* Modo celular (em teste): esconde a barra antiga desde o 1o desenho; flag celModoTeste gravada por js/cel-nav.js e orcamento.html */try{if(!!localStorage.getItem('celModoTeste')&&window.matchMedia('(max-width: 767px)').matches&&(!localStorage.getItem('viewAsUid')||localStorage.getItem('viewAsUid')===localStorage.getItem('celModoTeste'))){document.documentElement.classList.add('cel-pre');}}catch(e){}</script><style>html.cel-pre .bottom-nav{display:none!important}</style><script>/* Celular: esconde a barra de baixo até o login ser conferido (js/cel-nav.js e orcamento.html liberam) */try{if(window.matchMedia('(max-width: 767px)').matches){var _hn=document.documentElement;_hn.classList.add('nav-pendente');setTimeout(function(){_hn.classList.remove('nav-pendente')},5000);}}catch(e){}</script><style>html.nav-pendente .bottom-nav{visibility:hidden!important}</style>
   <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <meta charset="UTF-8" />
   <!-- Segurança (auditoria 01/10/2026, item 7): GitHub Pages não envia headers, então a CSP vai por meta
@@ -3270,6 +3270,6 @@
   })();
 </script>
   <!-- Barra única do modo celular (10/11/2026, em teste) -->
-  <script type="module" src="js/cel-nav.js?v=3"></script>
+  <script type="module" src="js/cel-nav.js?v=4"></script>
 </body>
 </html>

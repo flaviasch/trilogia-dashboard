@@ -9,14 +9,21 @@ import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/f
 const ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
 const mq = window.matchMedia('(max-width: 767px)');
 
-function emVerComo() {
+// "Ver como" de verdade = admin olhando OUTRA conta. Uma marca viewAsUid
+// antiga com o próprio uid (sobra de uso anterior) não conta e é apagada:
+// era ela que fazia a home do celular mostrar a barra antiga (10/11/2026).
+function emVerComo(user = auth.currentUser) {
   try {
-    return !!localStorage.getItem('viewAsUid') || new URLSearchParams(location.search).has('viewAs');
+    if (new URLSearchParams(location.search).has('viewAs')) return true;
+    const v = localStorage.getItem('viewAsUid');
+    if (!v) return false;
+    if (user && v === user.uid) { localStorage.removeItem('viewAsUid'); return false; }
+    return true;
   } catch (_) { return false; }
 }
 
 export function celNavAtivo(user = auth.currentUser) {
-  return !!user && mq.matches && !emVerComo() && ALLOWLIST.includes((user.email || '').toLowerCase());
+  return !!user && mq.matches && !emVerComo(user) && ALLOWLIST.includes((user.email || '').toLowerCase());
 }
 
 const ICONES = {
@@ -92,9 +99,9 @@ function montar() {
 // das telas leem isso para esconder a barra antiga e abrir direto no
 // Orçamento, antes do login ser conferido (evita a home piscar).
 export function marcarModoTeste(user = auth.currentUser) {
-  if (!user || emVerComo()) return;
+  if (!user || emVerComo(user)) return;
   try {
-    if (ALLOWLIST.includes((user.email || '').toLowerCase())) localStorage.setItem('celModoTeste', '1');
+    if (ALLOWLIST.includes((user.email || '').toLowerCase())) localStorage.setItem('celModoTeste', user.uid);
     else localStorage.removeItem('celModoTeste');
   } catch (_) {}
 }
