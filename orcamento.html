@@ -9539,7 +9539,9 @@
     // extrato de conta só substitui os importados entre a primeira e a última
     // data do arquivo. Fatura de cartão continua substituindo a fatura inteira
     // (parcelas antigas têm data de compra de meses atrás).
-    const _IMPORT_PERIODO_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    // Luciana incluída em 10/11/2026 a pedido da Flávia (ela importa o extrato
+    // em partes ao longo do mês; vira a primeira usuária real a testar).
+    const _IMPORT_PERIODO_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br', 'lucianakawahara@gmail.com'];
     function _importPorPeriodoAtivo() {
       const user = auth.currentUser;
       if (!user) return false;
