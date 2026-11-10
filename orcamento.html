@@ -3170,6 +3170,7 @@
     }
     function _modoCelAtivo() { return _celMQ.matches && _modoCelGate() && !_celCompleto(); }
     function _aplicarModoCel() {
+      if (_celMQ.matches && _modoCelGate()) _celLerParam();
       const ativo = _modoCelAtivo();
       document.body.classList.toggle('modo-cel', ativo);
       document.body.classList.toggle('cel-completo', !ativo && _celMQ.matches && _modoCelGate() && _celCompleto());
@@ -3444,8 +3445,22 @@
         { rotulo: '💰 Patrimônio', fn: () => { location.href = 'patrimonio.html'; } },
         { rotulo: '🧭 Jornada', fn: () => { location.href = 'jornada.html'; } },
         { rotulo: '👤 Perfil de investidor', fn: () => { location.href = 'perfil.html'; } },
+        ...(document.getElementById('linkClube') && getComputedStyle(document.getElementById('linkClube')).display !== 'none'
+          ? [{ rotulo: '⭐ Clube', fn: () => { location.href = 'clube.html'; } }] : []),
         { rotulo: '❓ Ajuda', fn: () => { location.href = 'ajuda.html'; } },
       ]);
+    }
+    // Atalhos do "Mais" das outras telas (js/cel-nav.js): orcamento.html?cel=...
+    // Lido uma vez, no primeiro desenho do modo celular.
+    let _celParamLido = false;
+    function _celLerParam() {
+      if (_celParamLido) return;
+      _celParamLido = true;
+      const p = new URLSearchParams(location.search).get('cel');
+      if (!p) return;
+      history.replaceState(null, '', location.pathname);
+      if (p === 'faturas') { _celAba = 'faturas'; try { sessionStorage.removeItem('celModoCompleto'); } catch (_) {} }
+      else if (p === 'graficos' || p === 'anual' || p === 'completo') setTimeout(() => _celSairSimples(p === 'completo' ? 'resumo' : p), 0);
     }
 
     document.getElementById('celApp')?.addEventListener('click', e => {
