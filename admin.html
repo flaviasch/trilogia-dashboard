@@ -2,7 +2,7 @@
 <!-- v3 -->
 <html lang="pt-BR">
 <head>
-  <script>/* Tema 2026 (em teste): marca (uid) gravada por js/tema.js */try{var _tn=localStorage.getItem('temaNovoTeste'),_tv=localStorage.getItem('viewAsUid');if(_tn&&(!_tv||_tv===_tn||/\/admin\.html$/.test(location.pathname))&&!/[?&]viewAs=/.test(location.search))document.documentElement.classList.add('tema-novo');}catch(e){}</script>
+  <script>/* Tema 2026: marca gravada por js/tema.js */try{if(localStorage.getItem('temaNovoTeste'))document.documentElement.classList.add('tema-novo');}catch(e){}</script>
   <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <meta charset="UTF-8" />
   <!-- Segurança (auditoria 01/10/2026, item 7): GitHub Pages não envia headers, então a CSP vai por meta
@@ -630,8 +630,8 @@
 
   <script>window.sentryOnLoad=function(){Sentry.init({environment:location.hostname==='dashboard.flaviaschusciman.com'?'production':'development',tracesSampleRate:0,allowUrls:['dashboard.flaviaschusciman.com','localhost'],ignoreErrors:['Script error.','Script error','Non-Error promise rejection captured']});};</script>
   <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
-<!-- Tema 2026 (10/11/2026, em teste): só vale com html.tema-novo -->
-<link rel="stylesheet" href="css/tema-2026.css?v=8" />
+<!-- Tema 2026 (10/11/2026): só vale com html.tema-novo -->
+<link rel="stylesheet" href="css/tema-2026.css?v=9" />
 </head>
 <body>
 
@@ -7179,6 +7179,6 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
     }
   </script>
 <script src="js/theme.js" defer></script>
-<script type="module" src="js/tema.js?v=5"></script>
+<script type="module" src="js/tema.js?v=6"></script>
 </body>
 </html>

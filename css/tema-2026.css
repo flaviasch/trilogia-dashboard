@@ -1,12 +1,12 @@
-/* ─── Tema 2026 (10/11/2026, em teste) ─────────────────────────────────
+/* ─── Tema 2026 (10/11/2026; testado com a Flávia e liberado para todas) ─
    Leva para o dashboard inteiro a identidade do modo celular do Orçamento
    (bloco "Modo celular simplificado" em orcamento.html): cartões
    arredondados com fundo suave em vez de bordas, números grandes, abas em
    pílula com a ativa dourada, botões maiores e mais respiro.
 
    NÍVEL 1: só visual. Nada de layout, nada de cálculo.
-   Só vale com a classe html.tema-novo, ligada por js/tema.js para a
-   allowlist de teste (nunca no "ver como"). Sem a classe, nada muda.
+   Só vale com a classe html.tema-novo, ligada por js/tema.js para
+   qualquer conta logada. Sem a classe, nada muda.
    Tudo dentro de @media screen: impressão/PDF continuam como sempre.
    Não sobrescreve as classes .cel-* do modo celular simples.
    ──────────────────────────────────────────────────────────────────── */
