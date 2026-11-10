@@ -3164,7 +3164,7 @@
       const user = auth.currentUser;
       if (!user) return false;
       try { if (uidAtual() !== user.uid) return false; } catch (_) { return false; } // nunca no "ver como"
-      return _CEL_ALLOWLIST.includes((user.email || '').toLowerCase());
+      return localStorage.getItem('clubeOnlyMode') !== '1'; // liberado para todas em 10/11/2026
     }
     function _celCompleto() {
       try { return sessionStorage.getItem('celModoCompleto') === '1'; } catch (_) { return false; }
@@ -3177,11 +3177,13 @@
         const _vA = localStorage.getItem('viewAsUid'); // marca antiga com o próprio uid não é ver como (10/11/2026)
         if (u && _vA === u.uid) localStorage.removeItem('viewAsUid');
         if (u && (!_vA || _vA === u.uid)) {
-          if (_CEL_ALLOWLIST.includes((u.email || '').toLowerCase())) localStorage.setItem('celModoTeste', u.uid);
+          if (localStorage.getItem('clubeOnlyMode') !== '1') localStorage.setItem('celModoTeste', u.uid);
           else localStorage.removeItem('celModoTeste');
         }
       } catch (_) {}
       document.documentElement.classList.remove('nav-pendente'); // libera a barra (ver <head>)
+      const _metasNav = document.querySelector('#celBottomNav a[href="reservas.html"]'); // Raio-X não tem Metas
+      if (_metasNav) _metasNav.style.display = localStorage.getItem('nivelAcesso') === 'raio-x' ? 'none' : '';
       if (_celMQ.matches && _modoCelGate()) _celLerParam();
       const ativo = _modoCelAtivo();
       document.body.classList.toggle('modo-cel', ativo);
@@ -3502,14 +3504,15 @@
     }
 
     function _celMenuMais() {
+      const _rx = localStorage.getItem('nivelAcesso') === 'raio-x'; // degustação: só o Orçamento
       _celSheet('Mais', [
         { rotulo: '💳 Faturas do cartão', fn: () => { _celAba = 'faturas'; _celRerender(); window.scrollTo(0, 0); } },
         { rotulo: '📊 Gráficos', fn: () => _celSairSimples('graficos') },
         { rotulo: '📅 Análise do ano', fn: () => _celSairSimples('anual') },
         { rotulo: '🧾 Orçamento completo', fn: () => _celSairSimples('resumo') },
-        { rotulo: '💰 Patrimônio', fn: () => { location.href = 'patrimonio.html'; } },
-        { rotulo: '🧭 Jornada', fn: () => { location.href = 'jornada.html'; } },
-        { rotulo: '👤 Perfil de investidor', fn: () => { location.href = 'perfil.html'; } },
+        ...(_rx ? [] : [{ rotulo: '💰 Patrimônio', fn: () => { location.href = 'patrimonio.html'; } }]),
+        ...(_rx ? [] : [{ rotulo: '🧭 Jornada', fn: () => { location.href = 'jornada.html'; } }]),
+        ...(_rx ? [] : [{ rotulo: '👤 Perfil de investidor', fn: () => { location.href = 'perfil.html'; } }]),
         ...(document.getElementById('linkClube') && getComputedStyle(document.getElementById('linkClube')).display !== 'none'
           ? [{ rotulo: '⭐ Clube', fn: () => { location.href = 'clube.html'; } }] : []),
         { rotulo: '❓ Ajuda', fn: () => { location.href = 'ajuda.html'; } },

@@ -1,13 +1,17 @@
-// Barra de baixo única do modo celular simplificado (10/11/2026, em teste).
+// Barra de baixo única do modo celular simplificado.
 // Pedido da Flávia: no celular, os mesmos 4 botões (Início, Orçamento, Metas,
-// Mais) em todas as telas; o "Mais" reúne o que saiu da barra. Só para a
-// allowlist de teste, nunca no "ver como". O Orçamento tem a sua própria
-// (#celBottomNav em orcamento.html) com o mesmo desenho e a mesma lista.
+// Mais) em todas as telas; o "Mais" reúne o que saiu da barra. Liberado para
+// todas em 10/11/2026 (antes só allowlist de teste). Nunca no "ver como" nem
+// para quem só tem o Clube; na degustação do Raio-X só aparecem as telas do
+// Orçamento. O Orçamento tem a sua própria (#celBottomNav em orcamento.html)
+// com o mesmo desenho e a mesma lista.
 import { auth } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
-const ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
 const mq = window.matchMedia('(max-width: 767px)');
+const ls = k => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+const soClube = () => ls('clubeOnlyMode') === '1';
+export const ehRaioX = () => ls('nivelAcesso') === 'raio-x';
 
 // "Ver como" de verdade = admin olhando OUTRA conta. Uma marca viewAsUid
 // antiga com o próprio uid (sobra de uso anterior) não conta e é apagada:
@@ -23,7 +27,7 @@ function emVerComo(user = auth.currentUser) {
 }
 
 export function celNavAtivo(user = auth.currentUser) {
-  return !!user && mq.matches && !emVerComo(user) && ALLOWLIST.includes((user.email || '').toLowerCase());
+  return !!user && mq.matches && !emVerComo(user) && !soClube();
 }
 
 const ICONES = {
@@ -38,14 +42,13 @@ const ICONES = {
 export function itensMais() {
   const clube = document.getElementById('linkClube');
   const temClube = !!clube && getComputedStyle(clube).display !== 'none';
+  const completo = !ehRaioX(); // degustação do Raio-X: só o Orçamento
   return [
     ['💳 Faturas do cartão', 'orcamento.html?cel=faturas'],
     ['📊 Gráficos', 'orcamento.html?cel=graficos'],
     ['📅 Análise do ano', 'orcamento.html?cel=anual'],
     ['🧾 Orçamento completo', 'orcamento.html?cel=completo'],
-    ['💰 Patrimônio', 'patrimonio.html'],
-    ['🧭 Jornada', 'jornada.html'],
-    ['👤 Perfil de investidor', 'perfil.html'],
+    ...(completo ? [['💰 Patrimônio', 'patrimonio.html'], ['🧭 Jornada', 'jornada.html'], ['👤 Perfil de investidor', 'perfil.html']] : []),
     ...(temClube ? [['⭐ Clube', 'clube.html']] : []),
     ['❓ Ajuda', 'ajuda.html'],
   ];
@@ -89,7 +92,7 @@ function montar() {
   nav.innerHTML = `
     <a href="index.html?home=1" class="${ativo === 'inicio' ? 'ativo' : ''}">${ICONES.inicio}Início</a>
     <a href="orcamento.html">${ICONES.orcamento}Orçamento</a>
-    <a href="reservas.html" class="${ativo === 'metas' ? 'ativo' : ''}">${ICONES.metas}Metas</a>
+    ${ehRaioX() ? '' : `<a href="reservas.html" class="${ativo === 'metas' ? 'ativo' : ''}">${ICONES.metas}Metas</a>`}
     <button type="button" class="${ativo === 'mais' ? 'ativo' : ''}">${ICONES.mais}Mais</button>`;
   nav.querySelector('button').addEventListener('click', () => abrirMais());
   document.body.appendChild(nav);
@@ -101,7 +104,7 @@ function montar() {
 export function marcarModoTeste(user = auth.currentUser) {
   if (!user || emVerComo(user)) return;
   try {
-    if (ALLOWLIST.includes((user.email || '').toLowerCase())) localStorage.setItem('celModoTeste', user.uid);
+    if (!soClube()) localStorage.setItem('celModoTeste', user.uid);
     else localStorage.removeItem('celModoTeste');
   } catch (_) {}
 }
