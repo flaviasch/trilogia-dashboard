@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+  <script>/* Modo celular (em teste): esconde a barra antiga desde o 1o desenho; flag celModoTeste gravada por js/cel-nav.js e orcamento.html */try{if(localStorage.getItem('celModoTeste')==='1'&&window.matchMedia('(max-width: 767px)').matches&&!localStorage.getItem('viewAsUid')){document.documentElement.classList.add('cel-pre');}}catch(e){}</script><style>html.cel-pre .bottom-nav{display:none!important}</style>
   <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <meta charset="UTF-8" />
   <!-- Segurança (auditoria 01/10/2026, item 7): GitHub Pages não envia headers, então a CSP vai por meta
@@ -3170,6 +3171,14 @@
     }
     function _modoCelAtivo() { return _celMQ.matches && _modoCelGate() && !_celCompleto(); }
     function _aplicarModoCel() {
+      // Mesma marca de js/cel-nav.js (lida pelos scripts do <head>).
+      try {
+        const u = auth.currentUser;
+        if (u && !localStorage.getItem('viewAsUid')) {
+          if (_CEL_ALLOWLIST.includes((u.email || '').toLowerCase())) localStorage.setItem('celModoTeste', '1');
+          else localStorage.removeItem('celModoTeste');
+        }
+      } catch (_) {}
       if (_celMQ.matches && _modoCelGate()) _celLerParam();
       const ativo = _modoCelAtivo();
       document.body.classList.toggle('modo-cel', ativo);

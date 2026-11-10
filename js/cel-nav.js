@@ -88,7 +88,19 @@ function montar() {
   document.body.appendChild(nav);
 }
 
+// Marca no aparelho que esta pessoa usa o modo celular: os scripts no <head>
+// das telas leem isso para esconder a barra antiga e abrir direto no
+// Orçamento, antes do login ser conferido (evita a home piscar).
+export function marcarModoTeste(user = auth.currentUser) {
+  if (!user || emVerComo()) return;
+  try {
+    if (ALLOWLIST.includes((user.email || '').toLowerCase())) localStorage.setItem('celModoTeste', '1');
+    else localStorage.removeItem('celModoTeste');
+  } catch (_) {}
+}
+
 function aplicar() {
+  marcarModoTeste();
   const on = celNavAtivo();
   document.body.classList.toggle('cel-nav-global', on);
   if (on) montar();

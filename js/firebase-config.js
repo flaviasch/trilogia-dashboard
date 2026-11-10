@@ -21,7 +21,7 @@ export const functions = getFunctions(app, 'southamerica-east1');
 // de signOut (botão, token expirado, conta PJ desativada). Remove cache de
 // respostas financeiras, SMS bancário pendente e o "ver como" do admin.
 const PREFIXOS_LOCAIS = ['dash_v1_', 'pcache_v1_'];
-const CHAVES_LOCAIS   = ['sms_pendentes', 'viewAsUid'];
+const CHAVES_LOCAIS   = ['sms_pendentes', 'viewAsUid', 'celModoTeste'];
 export function limparDadosLocais() {
   try {
     const remover = [];
