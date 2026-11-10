@@ -3219,8 +3219,8 @@
           <div class="cel-mini" style="cursor:default"><div class="cel-rot" style="color:var(--negative)">↓ Saiu</div><div class="v">${brl(c.totalDespesa)}</div></div>
         </div>
         <div class="cel-grid2">
-          <button type="button" class="cel-btn-gold" data-cel-acao="gasto">+ Gasto</button>
-          <button type="button" class="cel-btn-out" data-cel-acao="entrada">+ Entrada</button>
+          <button type="button" class="cel-btn-gold" data-cel-acao="gasto">+ Despesa</button>
+          <button type="button" class="cel-btn-out" data-cel-acao="entrada">+ Receita</button>
         </div>
         <div class="cel-grid2">
           ${temCartao ? `<button type="button" class="cel-mini" data-cel-acao="faturas"><div class="cel-rot">💳 Faturas abertas</div><div class="v" id="celFatValor">${fat == null ? '…' : brl(fat)}</div></button>` : ''}
@@ -3359,22 +3359,64 @@
         </div>`;
     }
 
+    // Tela simples de Faturas (10/11/2026, pedido da Flávia: o card levava à
+    // tela completa e ficava fora de contexto). Números vêm de renderFaturas
+    // (window._celFaturas); pagar usa o mesmo modal de confirmar pagamento.
+    const _celFatExpandidas = new Set();
+    function _celHtmlFaturas() {
+      const f = window._celFaturas;
+      const topo = `<button type="button" class="cel-link" style="text-align:left;padding:4px 2px 10px" data-cel-aba="resumo">← Voltar ao resumo</button>
+        <div style="font-size:18px;font-weight:600;margin:0 2px 10px">Faturas do cartão</div>`;
+      if (!f) return `${topo}<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:24px 0">Carregando…</div>`;
+      const linhaItem = d => `<div style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;${d.virtual ? 'opacity:.7' : ''}">
+          <span style="min-width:0">${escapeHtml(d.descricao || d.categoria || '')}<span style="display:block;font-size:11px;color:var(--text-muted)">${d.data ? escapeHtml(formatData(d.data)) : ''}${d.virtual ? ' · fixa prevista' : ''}</span></span>
+          <span style="white-space:nowrap;${d.tipo === 'receita' ? 'color:var(--positive)' : ''}">${d.tipo === 'receita' ? '− ' : ''}${brl(d.valor)}</span></div>`;
+      const bloco = (k, nome, mesNome, sub, total, itens, extra) => {
+        const aberto = _celFatExpandidas.has(k);
+        return `<div class="cel-card" style="padding:12px 14px">
+          <button type="button" data-cel-fatexp="${escapeHtml(k)}" style="display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;color:inherit;font:inherit;padding:0;text-align:left;cursor:pointer">
+            <span><span style="font-size:15px;font-weight:600">💳 ${escapeHtml(nome)}</span> <span style="font-size:12px;color:var(--text-muted)">${escapeHtml(mesNome)}</span>
+              <span style="display:block;font-size:11px;color:var(--text-secondary);margin-top:2px">${sub}</span></span>
+            <span style="font-size:16px;font-weight:600;white-space:nowrap">${brl(total)} <span style="color:var(--text-muted);font-size:12px">${aberto ? '▴' : '▾'}</span></span>
+          </button>
+          ${extra || ''}
+          ${aberto ? `<div style="margin-top:8px">${itens.length ? itens.map(linhaItem).join('') : '<div style="font-size:12px;color:var(--text-muted);padding:8px 0">Nenhuma compra lançada ainda.</div>'}</div>` : ''}
+        </div>`;
+      };
+      const fechadas = f.fechadas.filter(x => x.estado !== 'paga_total' || x.total > 0);
+      const htmlFe = fechadas.map(x => {
+        const pago = x.estado === 'paga_total';
+        const status = pago ? '<span style="color:var(--positive)">✓ Paga</span>' : x.estado === 'paga_parcial' ? '<span style="color:#fbbf24">◑ Paga em parte</span>' : '<span style="color:var(--negative)">A pagar</span>';
+        const btn = pago ? '' : `<button type="button" class="cel-btn-gold" style="margin-top:10px;padding:11px 0;font-size:14px" data-cel-pagar="${escapeHtml(x.estadoKey)}" data-total="${x.total}" data-nome="${escapeHtml(x.nome)}" data-mes="${escapeHtml(x.mesNome)}" data-antecipado="${x.antecipado || 0}">Confirmar pagamento</button>`;
+        return bloco('fe_' + x.estadoKey, x.nome, x.mesNome, `${status}${x.vcto ? ' · ' + escapeHtml(x.vcto) : ''}`, x.total, x.itens, btn);
+      }).join('');
+      const htmlAb = f.abertas.map(x => bloco('ab_' + x.cartaoId, x.nome, x.mesNome, escapeHtml(x.subLabel || 'Aberta'), x.total, x.itens)).join('');
+      const totAb = f.abertas.reduce((s, x) => s + x.total, 0);
+      return `${topo}
+        ${htmlFe ? `<div class="cel-rot" style="margin:4px 2px 6px">Fechadas · para pagar</div>${htmlFe}` : ''}
+        <div class="cel-rot" style="display:flex;justify-content:space-between;margin:10px 2px 6px"><span>Abertas · ainda acumulando</span><span>${brl(totAb)}</span></div>
+        ${htmlAb || '<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:16px 0">Nenhuma fatura aberta.</div>'}
+        <button type="button" class="cel-btn-out" style="margin-top:6px" data-cel-acao="cartaoNova">+ Compra no cartão</button>`;
+    }
+
     function _celRerender() {
       const el = document.getElementById('celApp');
       if (!el || !_celCtx || !currentData || !document.body.classList.contains('modo-cel')) return;
       // Faz o lápis do Planejado e as confirmações redesenharem esta tela.
       _tabAtiva = _celAba === 'planejado' ? 'planejamento' : 'resumo';
       const abas = [['resumo', 'Resumo'], ['lancamentos', 'Lançamentos'], ['planejado', 'Planejado']];
-      const corpo = _celAba === 'lancamentos' ? _celHtmlLancamentos() : _celAba === 'planejado' ? _celHtmlPlanejado() : _celHtmlResumo();
+      const corpo = _celAba === 'lancamentos' ? _celHtmlLancamentos() : _celAba === 'planejado' ? _celHtmlPlanejado()
+        : _celAba === 'faturas' ? _celHtmlFaturas() : _celHtmlResumo();
       const focoBusca = document.activeElement?.id === 'celBusca';
       el.innerHTML = `<div class="cel-tabs">${abas.map(([k, l]) => `<button type="button" class="cel-tab${_celAba === k ? ' ativo' : ''}" data-cel-aba="${k}">${l}</button>`).join('')}</div>${corpo}`;
       if (focoBusca) { const b = document.getElementById('celBusca'); b?.focus(); b?.setSelectionRange(b.value.length, b.value.length); }
-      // Total das faturas abertas: renderFaturas calcula; roda uma vez por versão dos dados.
-      if (_celAba === 'resumo' && (_cartoes || []).some(x => x.ativo)) {
+      // Faturas: renderFaturas calcula; roda uma vez por versão dos dados.
+      if ((_celAba === 'resumo' || _celAba === 'faturas') && (_cartoes || []).some(x => x.ativo)) {
         const k = `${currentData.periodo.mes}-${currentData.periodo.ano}-${_dataGen}`;
         if (k !== _celFatKey) {
           _celFatKey = k;
           carregarFaturaEstados().then(() => renderFaturas(currentData)).then(() => {
+            if (_celAba === 'faturas') { _celRerender(); return; }
             const v = document.getElementById('celFatValor');
             if (v && window._celTotalAbertas != null) v.textContent = brl(window._celTotalAbertas);
           }).catch(() => {});
@@ -3395,7 +3437,7 @@
     }
     function _celMenuMais() {
       _celSheet('Mais', [
-        { rotulo: '💳 Faturas do cartão', fn: () => _celSairSimples('faturas') },
+        { rotulo: '💳 Faturas do cartão', fn: () => { _celAba = 'faturas'; _celRerender(); window.scrollTo(0, 0); } },
         { rotulo: '📊 Gráficos', fn: () => _celSairSimples('graficos') },
         { rotulo: '📅 Análise do ano', fn: () => _celSairSimples('anual') },
         { rotulo: '🧾 Orçamento completo', fn: () => _celSairSimples('resumo') },
@@ -3407,9 +3449,18 @@
     }
 
     document.getElementById('celApp')?.addEventListener('click', e => {
-      const t = e.target.closest('[data-cel-aba],[data-cel-acao],[data-cel-filtro],[data-cel-conf],[data-cel-edit],[data-cel-cat],[data-cel-limite]');
+      const t = e.target.closest('[data-cel-aba],[data-cel-acao],[data-cel-filtro],[data-cel-conf],[data-cel-edit],[data-cel-cat],[data-cel-limite],[data-cel-fatexp],[data-cel-pagar]');
       if (!t) return;
       const ds = t.dataset;
+      if (ds.celFatexp) {
+        if (_celFatExpandidas.has(ds.celFatexp)) _celFatExpandidas.delete(ds.celFatexp); else _celFatExpandidas.add(ds.celFatexp);
+        _celRerender(); return;
+      }
+      if (ds.celPagar) {
+        _celFatKey = ''; // depois de pagar, recalcula as faturas
+        abrirModalConfirmarPagamento(ds.celPagar, parseFloat(ds.total), ds.nome, ds.mes, parseFloat(ds.antecipado) || 0);
+        return;
+      }
       if (ds.celAba) { _celAba = ds.celAba; _celRerender(); window.scrollTo(0, 0); return; }
       if (ds.celFiltro) { _celFiltro = ds.celFiltro; _celRerender(); return; }
       if (ds.celCat) { _celAba = 'lancamentos'; _celFiltro = 'tudo'; _celBusca = ds.celCat; _celRerender(); window.scrollTo(0, 0); return; }
@@ -3438,7 +3489,8 @@
           break;
         }
         case 'entrada': abrirModal('receita'); break;
-        case 'faturas': _celSairSimples('faturas'); break;
+        case 'faturas': _celAba = 'faturas'; _celRerender(); window.scrollTo(0, 0); break;
+        case 'cartaoNova': abrirModalCartaoDespesa(); break;
         case 'apagar':
           _celAba = 'lancamentos'; _celRerender();
           (document.getElementById('celAConfirmar') || document.getElementById('celApp'))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -6438,6 +6490,9 @@
 
       // ── Constroí cards de faturas ABERTAS ─────────────────────────────────────
       let totalGeralAbertas = 0; // soma de todas as faturas abertas — linha totalizadora (pedido Flávia 15/09/2026)
+      // Tela simples de Faturas do modo celular (10/11/2026): mesmos números desta tela.
+      const _celFatAb = [], _celFatFe = [];
+      window._celFaturas = { abertas: _celFatAb, fechadas: _celFatFe };
       const cardsAbertas = todosIds.map(cartaoId => {
         const cartaoObj   = _cartoes.find(c => c.id === cartaoId);
         const nomeCartao  = cartaoObj ? escapeHtml(cartaoObj.nome) : 'Cartão';
@@ -6496,6 +6551,7 @@
         })();
         const vctoStr  = _vctoLabel(cartaoObj?.diaVencimento, diaCorte, aMes, aAno);
         const subLabel = [fechaStr, vctoStr].filter(Boolean).join(' · ');
+        _celFatAb.push({ cartaoId, nome: cartaoObj?.nome || 'Cartão', mesNome, subLabel, total: totalAberta, itens: abertaItens });
 
         const estadoBadge = estado === 'aberta'
           ? `<span style="font-size:11px;background:rgba(52,211,153,0.15);color:#34d399;border-radius:20px;padding:2px 8px;font-weight:600;">● Aberta</span>`
@@ -6619,6 +6675,7 @@
           ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${_ajusteInfoTexto(fatEstado, totalCalc, totalDisplay)}</div>`
           : '';
         const antecipado = _antecipadoPorFechada[estadoKey] || 0;
+        _celFatFe.push({ estadoKey, nome: cartaoObj?.nome || 'Cartão', mesNome, vcto: vctoStr, total: totalDisplay, estado: fatEstado.estado || '', antecipado, itens: fechadaItens });
         const btnConfirmar = fatEstado.estado === 'paga_total' ? '' :
           `<button class="btn-add-item" data-confirmar-fat="${estadoKey}" data-total="${totalDisplay}" data-nome="${nomeCartao}" data-mes="${mesNome}" data-antecipado="${antecipado}"
             style="width:100%;background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.3);">✓ Confirmar pagamento</button>`;
