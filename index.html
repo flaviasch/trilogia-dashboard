@@ -1779,7 +1779,12 @@ async function init(user) {
     // ─── Onboarding ──────────────────────────────
     function checkOnboarding(data, { provisorio = false } = {}) {
       const temPerfil     = !!data.perfil?.perfil;
-      const temPatrimonio = (data.patrimonio?.ativos || 0) > 0 || localStorage.getItem('patrimonio_sem_ativos') === '1';
+      // Dívida cadastrada também conclui o passo (achado 10/11/2026, Luciana:
+      // só tem financiamento, sem ativos; a marca 'patrimonio_sem_ativos' fica
+      // só no navegador onde ela abriu Patrimônio, e no celular o passo
+      // continuava pendente).
+      const temPatrimonio = (data.patrimonio?.ativos || 0) > 0 || (data.patrimonio?.dividas || 0) > 0
+        || localStorage.getItem('patrimonio_sem_ativos') === '1';
       const temReservas   = (data.reservas || []).length > 0;
       // Desde 26/10/2026 a receita da home é só a que já entrou (caixa); no
       // começo do mês, com a renda ainda a receber, ela é zero. O passo conta

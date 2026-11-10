@@ -4523,7 +4523,9 @@ exports.getMentoradas = onCall({}, async (request) => {
     ]);
 
     const temPerfil     = !!m.perfil;
-    const temPatrimonio = !!(patSnap?.exists && ((patSnap.data().ir || []).length > 0 || (patSnap.data().corretora || []).length > 0));
+    // Dívida cadastrada também conta (mesma regra da home, 10/11/2026).
+    const temPatrimonio = !!(patSnap?.exists && ((patSnap.data().ir || []).length > 0 || (patSnap.data().corretora || []).length > 0
+      || (patSnap.data().dividas || []).length > 0));
     const temReservas   = !!(resSnap && !resSnap.empty);
     const temOrcamento  = (orcSnap?.exists ? (orcSnap.data().itens || []) : []).some(i => i.tipo === 'receita' && i.valor > 0);
 
