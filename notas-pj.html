@@ -125,7 +125,7 @@
 </style>
 
 <!-- Tema 2026 (10/11/2026): só vale com html.tema-novo -->
-<link rel="stylesheet" href="css/tema-2026.css?v=9" />
+<link rel="stylesheet" href="css/tema-2026.css?v=10" />
 </head>
 <body>
 
@@ -162,18 +162,16 @@
   <div class="venc-banner hidden" id="vencBanner"></div>
 
   <main>
-    <!-- Novidades de Outubro/2026 (comunicado) — some de vez ao fechar. -->
+    <!-- Dashboard de cara nova (10/11/2026, comunicado) — some de vez ao fechar. -->
     <div class="novidades-pj hidden" id="novidadesPJ">
       <button class="novidades-pj-fechar" id="btnFecharNovidadesPJ" title="Fechar">×</button>
-      <div class="novidades-pj-titulo">🏢 Novidades no seu Dashboard PJ</div>
-      <div class="novidades-pj-desc">Edite o formato de recebimento da nota de uma vez, gere parcelas com entrada, confirme contas a vencer no mês e veja as Reservas PJ pela média de 6 meses.</div>
+      <div class="novidades-pj-titulo">✨ O Dashboard PJ está de cara nova</div>
+      <div class="novidades-pj-desc">Nova identidade visual: menu do topo em pílulas com a tela atual em dourado, cartões mais leves e números em destaque. Nada mudou de lugar e nenhum número mudou.</div>
       <ul class="hidden" id="novidadesPJLista">
-        <li>📝 <strong>Editar formato de recebimento:</strong> no modal de Recebimentos, troque forma, parcelas, taxa e data da 1ª parcela de todos os pendentes da nota num passo só. Os já confirmados ficam como estão.</li>
-        <li>🧮 <strong>Parcelas com entrada:</strong> ao gerar as parcelas de uma nota, informe uma entrada com valor e data próprios, e o restante é dividido nas parcelas seguintes.</li>
-        <li>✅ <strong>Contas a vencer no mês:</strong> fixas e parceladas que vencem mais pra frente no mês já aparecem como "A vencer", com botão Confirmar.</li>
-        <li>🏦 <strong>Reservas PJ mais estáveis:</strong> capital de giro e retirada sugerida usam a média dos últimos 6 meses.</li>
-        <li>🔓 <strong>Reabrir fatura depois de ajustar:</strong> um ajuste de fatura não trava mais a reabertura do cartão.</li>
-        <li>🛡️ <strong>Segurança reforçada:</strong> auditoria completa de segurança, com mais proteção da sua conta e dos seus dados.</li>
+        <li>💛 <strong>Menu em pílulas:</strong> a tela em que você está fica destacada em dourado no menu do topo.</li>
+        <li>🪟 <strong>Cartões mais leves:</strong> sem bordas, com fundo suave e cantos arredondados, em todas as telas do PJ.</li>
+        <li>🔢 <strong>Números em destaque:</strong> os totais do topo ficaram mais fáceis de ler.</li>
+        <li>👆 <strong>Botões maiores:</strong> mais fáceis de tocar no celular e de clicar no computador.</li>
       </ul>
       <button class="novidades-pj-toggle" id="btnVerNovidadesPJ">Ver detalhes ▾</button>
     </div>
@@ -794,8 +792,8 @@
     }
     document.getElementById('btnFecharModalRecebimentos').addEventListener('click', () => modalRecebimentos.classList.add('hidden'));
 
-    // Banner de novidades Out/2026 — aparece até ela fechar (fica salvo no navegador).
-    const NOVIDADES_PJ_KEY = 'notif_novidades_pj_out2026';
+    // Banner do comunicado "Dashboard de cara nova" (10/11/2026) — aparece até ela fechar (fica salvo no navegador).
+    const NOVIDADES_PJ_KEY = 'notif_novidades_pj_visual_nov2026';
     (() => {
       let visto = false;
       try { visto = localStorage.getItem(NOVIDADES_PJ_KEY) === '1'; } catch (_) {}

@@ -1894,6 +1894,85 @@ function emailNovidadesOut2026(nome) {
 }
 
 /**
+ * E-mail: nova identidade visual (10/11/2026) e novidades de 05/11 a
+ * 10/11/2026. Só pra ativas. Texto em comunicado-visual-nov2026-rascunho.md.
+ */
+function emailNovidadesVisualNov2026(nome) {
+  const primeiroNome = (nome || 'você').split(' ')[0];
+  const item = (emoji, titulo, desc) =>
+    `<tr><td style="padding:11px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="width:28px;vertical-align:top;padding-top:2px;font-size:18px;">${emoji}</td>
+        <td style="padding-left:10px;">
+          <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#0D2B45;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+          <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${desc}</p>
+        </td>
+      </tr></table>
+    </td></tr>`;
+
+  const secao = (titulo) =>
+    `<tr><td style="padding:18px 0 6px;">
+      <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${titulo}</p>
+    </td></tr>`;
+
+  return layout(`
+    <h2 style="${S.h2}">Um Dashboard mais leve, mais bonito e mais fácil de usar</h2>
+    <p style="${S.p}">Olá, ${primeiroNome}!</p>
+    <p style="${S.p}">
+      Hoje tenho uma novidade que dá para ver logo de cara: <strong>o Dashboard ganhou uma nova identidade visual.</strong>
+      Todas as telas, do Orçamento aos investimentos, no pessoal e no PJ, ficaram mais leves, mais arejadas
+      e mais gostosas de usar, no computador e no celular.
+    </p>
+    <p style="${S.p}">
+      A ideia veio do uso de vocês: menos informação brigando por atenção, mais clareza para enxergar
+      o que importa no seu dinheiro.
+    </p>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('✨ A nova cara do Dashboard')}
+      ${item('🪟','Cartões mais leves','Saíram as bordas e entraram cartões com fundo suave e cantos arredondados. A tela respira e os números ganham destaque.')}
+      ${item('🔢','Números grandes, fáceis de ler','Os valores principais (sobra do mês, patrimônio, receitas e despesas) aparecem maiores, e os títulos ficaram mais discretos.')}
+      ${item('💛','Abas e menus em pílula dourada','A aba em que você está fica destacada em dourado, no Orçamento, no Mapa da Liberdade e no menu do Dashboard PJ. Você sempre sabe onde está.')}
+      ${item('👆','Botões maiores','Botões e campos ficaram mais altos, mais fáceis de tocar no celular e de clicar no computador.')}
+      ${item('🚦','Os alertas continuam lá','O que precisa da sua atenção segue sinalizado: meta concluída em verde, ponto de atenção em âmbar, destaques em dourado.')}
+    </table>
+
+    <div style="background:#FBF6EA;border-radius:12px;padding:14px 16px;margin:4px 0 8px;">
+      <p style="margin:0;font-size:13px;color:#0D2B45;line-height:1.55;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+        <strong>Importante: nada mudou de lugar e nenhum número mudou.</strong> É o mesmo Dashboard que você já
+        conhece, com tudo onde sempre esteve, só que mais bonito. O PDF do orçamento continua igual.
+      </p>
+    </div>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
+
+      ${secao('📱 No celular: o Orçamento ficou simples')}
+      ${item('🚀','Abre direto no Orçamento','No celular, o Dashboard já abre na tela que você mais usa no dia a dia.')}
+      ${item('🧭','Três abas só: Resumo, Lançamentos e Planejado','O essencial do mês, sem rolar a tela inteira para achar o que precisa.')}
+      ${item('➕','Botões "+ Despesa" e "+ Receita"','Lançar um gasto no meio do dia virou um toque. Compra no cartão entra pelo mesmo botão.')}
+      ${item('✅','"A confirmar" no topo','As despesas e receitas fixas do mês aparecem para você confirmar, editar ou pular ali mesmo.')}
+      ${item('🔻','Barra de baixo nova: Início, Orçamento, Metas e Mais','O resto do Dashboard está no "Mais", e a versão completa do Orçamento continua a um toque, em "Ver completo".')}
+
+      ${secao('📊 Orçamento (PC e celular)')}
+      ${item('📝','A aba "Detalhe" agora se chama "Lançamentos"','Mesmo conteúdo, nome mais claro.')}
+      ${item('💳','Despesas fixas no cartão todo mês','As fixas do cartão (assinaturas, mensalidades) entram em todas as faturas, sem pular mês e sem aparecer dobradas.')}
+      ${item('🔁','Importar extrato não apaga mais transferências e aportes','Ao importar o extrato de novo, as transferências entre contas e os aportes que você já tinha registrado no mês ficam onde estavam.')}
+      ${item('📅','Despesa fixa anual','IPVA, IPTU, anuidade, seguro: agora dá para cadastrar uma despesa fixa que acontece uma vez por ano, escolhendo o dia e o mês. Ela aparece sozinha no mês certo, todo ano.')}
+
+      ${secao('🎯 Reservas e investimentos')}
+      ${item('📈','A oscilação do mercado vai para a reserva de longo prazo','Quando você atualiza a posição da corretora e o valor sobe ou cai por causa do mercado, essa diferença vai direto para a sua reserva de longo prazo (a de prazo acima de 10 anos). Assim, as suas reservas acompanham o patrimônio real, sem aquele aviso de diferença a cada atualização.')}
+
+    </table>
+
+    <a href="https://dashboard.flaviaschusciman.com" style="${S.btn}">
+      Ver o novo Dashboard →
+    </a>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
+/**
  * E-mail: novidades de 22/10 a 04/11/2026 (Dashboard Pessoal e o que vale
  * pros dois). Só pra ativas. Texto em comunicado-nov2026-rascunho.md.
  */
@@ -2116,6 +2195,7 @@ module.exports = {
   emailModoCasalGestaoConjunta2026,
   emailNovidadesOut2026,
   emailNovidadesNov2026,
+  emailNovidadesVisualNov2026,
   emailPoliticaInvestimentosNov2026,
   emailPoliticaPrivacidadeOut2026,
   emailNovoConteudoClube,

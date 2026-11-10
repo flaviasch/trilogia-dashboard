@@ -299,6 +299,7 @@
   }
   html.tema-novo.tn-pj .card-ouro { border-color: transparent; border-radius: var(--tn-r); }
   html.tema-novo .login-card { border-color: transparent; border-radius: 20px; }
+  html.tema-novo .novidades-pj { border-color: transparent; border-radius: var(--tn-r); }
   /* Menu do topo em pílula, o item ativo dourado */
   html.tema-novo .nav-pj a { border-radius: 20px; padding: 6px 12px; }
   html.tema-novo .nav-pj a.ativo { background: var(--gold); color: #0D2B45; }

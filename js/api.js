@@ -1518,6 +1518,11 @@ export async function anunciarNovidadesOut2026() {
   return call('anunciarNovidadesOut2026')({});
 }
 
+/** Dispara e-mail da nova identidade visual + novidades 05/11 a 10/11/2026. Admin only. */
+export async function anunciarNovidadesVisualNov2026() {
+  return call('anunciarNovidadesVisualNov2026')({});
+}
+
 /** Dispara e-mail de novidades Nov/2026 (PF e nos dois). Admin only. */
 export async function anunciarNovidadesNov2026() {
   return call('anunciarNovidadesNov2026')({});

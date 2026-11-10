@@ -69,6 +69,7 @@ const {
   emailModoCasalGestaoConjunta2026,
   emailNovidadesOut2026,
   emailNovidadesNov2026,
+  emailNovidadesVisualNov2026,
   emailPoliticaInvestimentosNov2026,
   emailPoliticaPrivacidadeOut2026,
   emailNovoConteudoClube,
@@ -11711,9 +11712,38 @@ exports.anunciarNovidadesOut2026 = onCall({ secrets: SECRETS_EMAIL }, async (req
 });
 
 /**
+ * Nova identidade visual (10/11/2026) + novidades de 05/11 a 10/11/2026.
+ * Só pra ativas.
+ */
+exports.anunciarNovidadesVisualNov2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+  requireAdmin(request);
+  const mentoradas = await getAtivas();
+  let enviados = 0, erros = 0;
+  for (const m of mentoradas) {
+    if (!m.email) continue;
+    try {
+      await sendEmail({
+        to:      m.email,
+        subject: 'Seu Dashboard está de cara nova ✨',
+        html:    emailNovidadesVisualNov2026(m.nome || 'mentorada'),
+      });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarNovidadesVisualNov2026] Erro ao enviar para ${m.email}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { novidadesVisualNov2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, enviados, erros };
+});
+
+/**
  * Novidades de 22/10 a 04/11/2026 (PF e nos dois). Só pra ativas.
  */
-exports.anunciarNovidadesNov2026 = onCall({ secrets: SECRETS_EMAIL }, async (request) => {
+exports.anunciarNovidadesNov2026 =onCall({ secrets: SECRETS_EMAIL }, async (request) => {
   requireAdmin(request);
   const mentoradas = await getAtivas();
   let enviados = 0, erros = 0;

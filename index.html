@@ -733,7 +733,7 @@
   }
 </style>
 <!-- Tema 2026 (10/11/2026): só vale com html.tema-novo -->
-<link rel="stylesheet" href="css/tema-2026.css?v=9" />
+<link rel="stylesheet" href="css/tema-2026.css?v=10" />
 </head>
 <body>
 
@@ -2370,6 +2370,29 @@ async function init(user) {
           titulo: 'Seu patrimônio ainda está vazio',
           desc: 'Sem isso, o dashboard não sabe seu patrimônio líquido real nem consegue comparar sua carteira sugerida com a atual. Leva poucos minutos: cole o texto ou envie foto/PDF da sua posição da corretora (ou da declaração de IR) e a IA organiza pra você.',
           cta: { label: 'Importar patrimônio', href: 'patrimonio.html' },
+        });
+      }
+
+      // ⓪-q Dashboard de cara nova (05/11 a 10/11/2026): nova identidade
+      // visual + modo simples no celular. Fica por último no código para
+      // aparecer no topo da lista. Banner PJ próprio em notas-pj.html.
+      if (!localStorage.getItem('notif_novidades_visual_nov2026')) {
+        notifs.unshift({ id: 'novidades-visual-nov2026', type: 'novidades', key: 'notif_novidades_visual_nov2026', icon: '✨', _expansivel: true,
+          titulo: 'Seu Dashboard está de cara nova',
+          desc: 'Nova identidade visual em todas as telas: cartões mais leves, números maiores, abas em dourado e botões mais fáceis de tocar. Nada mudou de lugar e nenhum número mudou. No celular, o Orçamento ficou simples, com três abas e botões de lançar na mão.',
+          cta: { label: 'Ver o Orçamento', href: 'orcamento.html' },
+          itens: [
+            { emoji: '🪟', titulo: 'Cartões mais leves', desc: 'Sem bordas, com fundo suave e cantos arredondados.' },
+            { emoji: '🔢', titulo: 'Números grandes', desc: 'Sobra, patrimônio, receitas e despesas mais fáceis de ler.' },
+            { emoji: '💛', titulo: 'Aba em dourado', desc: 'A aba em que você está fica destacada em dourado.' },
+            { emoji: '👆', titulo: 'Botões maiores', desc: 'Mais fáceis de tocar no celular e de clicar no computador.' },
+            { emoji: '📱', titulo: 'Orçamento simples no celular', desc: 'Abre direto no Orçamento, com Resumo, Lançamentos e Planejado.' },
+            { emoji: '➕', titulo: '+ Despesa e + Receita', desc: 'No celular, lançar um gasto virou um toque.' },
+            { emoji: '💳', titulo: 'Fixas do cartão todo mês', desc: 'Entram em todas as faturas, sem pular nem dobrar.' },
+            { emoji: '🔁', titulo: 'Importar extrato sem perder nada', desc: 'Transferências entre contas e aportes do mês ficam onde estavam.' },
+            { emoji: '📅', titulo: 'Despesa fixa anual', desc: 'IPVA, IPTU, anuidade: escolha o dia e o mês, e ela aparece todo ano.' },
+            { emoji: '📈', titulo: 'Oscilação na reserva de longo prazo', desc: 'Ao atualizar a corretora, a variação do mercado vai direto para a reserva acima de 10 anos.' },
+          ],
         });
       }
 
