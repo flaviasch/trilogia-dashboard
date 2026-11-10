@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Diagnóstico do modo celular</title>
+  <style>
+    body { background: #0D2B45; color: #F4F1EA; font-family: Inter, system-ui, sans-serif; margin: 0; padding: 18px; font-size: 14px; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    p.sub { color: #b7c3d0; margin: 0 0 14px; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,.08); vertical-align: top; word-break: break-all; }
+    td:first-child { color: #b7c3d0; width: 46%; }
+    .ok { color: #4ade80; } .ruim { color: #f87171; } .gold { color: #CFAE65; }
+    button { margin-top: 16px; width: 100%; padding: 13px; border-radius: 12px; border: 1px solid #CFAE65; background: transparent; color: #CFAE65; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <!-- Diagnóstico do modo celular (10/11/2026): só leitura, não grava nada.
+       Mostra o que os scripts do topo das páginas encontram neste aparelho. -->
+  <h1>Diagnóstico do modo celular</h1>
+  <p class="sub">Tire um print desta tela e mande para o Claude. Nada é alterado aqui.</p>
+  <table id="t"></table>
+  <button type="button" onclick="location.reload()">Atualizar</button>
+
+  <script>
+    (function () {
+      var linhas = [];
+      function add(r, v, cls) { linhas.push([r, v, cls || '']); }
+      function ls(k) { try { return localStorage.getItem(k); } catch (e) { return 'erro: ' + e.message; } }
+      function ss(k) { try { return sessionStorage.getItem(k); } catch (e) { return 'erro: ' + e.message; } }
+      var flag = ls('celModoTeste'), va = ls('viewAsUid'), abriu = ss('celAbriuOrcamento');
+      var mq = window.matchMedia('(max-width: 767px)').matches;
+      var standalone = window.matchMedia('(display-mode: standalone)').matches;
+      add('Marca do modo celular (celModoTeste)', flag || '(vazia)', flag ? 'ok' : 'ruim');
+      add('Marca de ver como (viewAsUid)', va || '(vazia)', va && va !== flag ? 'ruim' : 'ok');
+      add('Já desviou nesta sessão (celAbriuOrcamento)', abriu || '(não)', abriu ? 'gold' : '');
+      add('Largura da tela', window.innerWidth + ' px · ' + (mq ? 'conta como celular' : 'NÃO conta como celular'), mq ? 'ok' : 'ruim');
+      add('Aberto como app instalado', standalone ? 'sim' : 'não');
+      var desvia = !!flag && mq && (!va || va === flag) && abriu !== '1';
+      add('O topo da tela inicial desviaria agora?', desvia ? 'sim' : 'não', desvia ? 'ok' : 'ruim');
+      add('Navegador', navigator.userAgent.replace(/^Mozilla\/5\.0 /, '').slice(0, 140));
+      window._diagLinhas = linhas;
+    })();
+  </script>
+  <script type="module">
+    const linhas = window._diagLinhas;
+    const add = (r, v, cls = '') => linhas.push([r, v, cls]);
+    const desenhar = () => {
+      document.getElementById('t').innerHTML = linhas.map(([r, v, c]) => `<tr><td>${r}</td><td class="${c}">${String(v).replace(/</g, '&lt;')}</td></tr>`).join('');
+    };
+    desenhar();
+    try {
+      const sw = navigator.serviceWorker?.controller?.scriptURL || '(nenhum)';
+      add('Service worker ativo', sw);
+      if (window.caches) {
+        const nomes = await caches.keys();
+        add('Caches guardados', nomes.join(', ') || '(nenhum)');
+      }
+      const r = await fetch('index.html?diag=' + Date.now(), { cache: 'no-store' });
+      const h = await r.text();
+      add('Tela inicial que o servidor entrega é a nova?', h.includes('sobra de ver como') ? 'sim' : 'NÃO', h.includes('sobra de ver como') ? 'ok' : 'ruim');
+    } catch (e) { add('Erro ao conferir versão', e.message, 'ruim'); }
+    desenhar();
+    try {
+      const { auth } = await import('./js/firebase-config.js');
+      const { onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+      onAuthStateChanged(auth, (u) => {
+        add('Login neste navegador', u ? u.email : '(ninguém logado)', u ? 'ok' : 'ruim');
+        if (u) add('Seu uid', u.uid);
+        desenhar();
+      });
+    } catch (e) { add('Erro ao ler login', e.message, 'ruim'); desenhar(); }
+  </script>
+</body>
+</html>
