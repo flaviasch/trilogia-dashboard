@@ -414,6 +414,19 @@
     </div>
 
     <!-- Resultado -->
+    <!-- Carregando entre a última resposta e o resultado (10/11/2026: a busca
+         das metas para o impacto leva alguns segundos e a tela ficava vazia) -->
+    <div id="perfilCalculando" style="display:none;text-align:center;padding:56px 20px;color:var(--text-secondary);">
+      <div class="perfil-spinner" aria-hidden="true"></div>
+      <div style="margin-top:16px;font-size:15px;">Calculando seu perfil…</div>
+    </div>
+    <style>
+      .perfil-spinner { width: 38px; height: 38px; margin: 0 auto; border-radius: 50%;
+        border: 3px solid rgba(207,174,101,0.25); border-top-color: var(--gold, #CFAE65);
+        animation: perfilGira 0.9s linear infinite; }
+      @keyframes perfilGira { to { transform: rotate(360deg); } }
+    </style>
+
     <div class="resultado" id="resultado">
       <div class="resultado-card">
         <div class="resultado-label">Seu novo perfil</div>
@@ -826,12 +839,16 @@
       document.getElementById('resultadoDesc').textContent = p.desc;
       renderBarraResultado(p.alocacao);
 
+      const calculando = document.getElementById('perfilCalculando');
+      calculando.style.display = 'block';
       try {
         const reservas = await getReservas();
         renderImpactoReservas(reservas, perfilAtual.perfil, perfil);
       } catch (err) {
         console.error('Erro ao checar reservas:', err);
         document.getElementById('impactoBox').style.display = 'none';
+      } finally {
+        calculando.style.display = 'none';
       }
 
       document.getElementById('resultado').classList.add('ativo');
