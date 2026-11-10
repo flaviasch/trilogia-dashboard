@@ -3445,6 +3445,59 @@
       });
       document.body.appendChild(fundo);
     }
+    // Janela de aporte do modo celular (10/11/2026, pedido da Flávia: o
+    // "Registrar" levava ao campo pequeno da tela completa). Pede só o valor
+    // (e a conta, se houver mais de uma) e segue para os mesmos passos de
+    // sempre: distribuir entre reservas (abrirModalReservas) e classe.
+    function _celModalAporte() {
+      if (!reservas || reservas.length === 0) {
+        _celSheet('Para registrar um aporte, crie antes uma meta (reserva)', [
+          { rotulo: '🎯 Criar minha primeira meta', fn: () => { location.href = 'reservas.html'; } },
+        ]);
+        return;
+      }
+      const resAtivas = reservas.filter(r => r.acumulado < r.meta && r.aporte > 0);
+      const plan = resAtivas.reduce((s, r) => s + r.aporte, 0);
+      const feito = (currentData.aportes || []).reduce((s, a) => s + a.valor, 0);
+      const falta = Math.max(plan - feito, 0);
+      const contasHtml = _contas.length > 1
+        ? `<label class="cel-rot" style="display:block;margin:12px 0 6px">Saiu de qual conta?</label>
+           <select id="celAporteConta" class="cel-busca" style="margin-bottom:0">${_contas.map(c => `<option value="${escapeHtml(c.id)}"${c.id === (_contaAtivaId || CONTA_PRINCIPAL_ID) ? ' selected' : ''}>${escapeHtml(c.nome)}</option>`).join('')}</select>`
+        : '';
+      const fundo = document.createElement('div');
+      fundo.className = 'cel-sheet-fundo';
+      fundo.innerHTML = `<div class="cel-sheet" style="padding-bottom:28px">
+        <div style="font-size:18px;font-weight:600;margin:0 2px 4px">Registrar aporte</div>
+        <div class="cel-rot" style="margin:0 2px 14px">${plan > 0 ? `Planejado ${brl(plan)} · já registrado ${brl(feito)}` : 'Quanto você investiu este mês?'}</div>
+        <label class="cel-rot" style="display:block;margin-bottom:6px">Quanto você investiu</label>
+        <input type="text" inputmode="numeric" id="celAporteValor" class="cel-busca" style="font-size:22px;padding:12px 14px;margin-bottom:0" placeholder="${falta > 0 ? Math.round(falta).toLocaleString('pt-BR') : '0'}">
+        ${contasHtml}
+        <div id="celAporteErro" style="display:none;color:var(--negative);font-size:13px;margin-top:8px">Digite o valor do aporte.</div>
+        <div class="cel-grid2" style="margin:18px 0 0">
+          <button type="button" class="cel-btn-out" id="celAporteCancelar">Cancelar</button>
+          <button type="button" class="cel-btn-gold" id="celAporteContinuar">Continuar</button>
+        </div>
+        <div class="cel-rot" style="text-align:center;margin-top:12px;font-size:11px">No próximo passo você escolhe em quais metas esse valor entra.</div>
+      </div>`;
+      document.body.appendChild(fundo);
+      const inp = fundo.querySelector('#celAporteValor');
+      bindMoneyInput(inp);
+      setTimeout(() => inp.focus(), 50);
+      const fechar = () => fundo.remove();
+      fundo.addEventListener('click', e => { if (e.target === fundo) fechar(); });
+      fundo.querySelector('#celAporteCancelar').addEventListener('click', fechar);
+      inp.addEventListener('input', () => { fundo.querySelector('#celAporteErro').style.display = 'none'; });
+      const continuar = () => {
+        const val = readMoney(inp);
+        if (!val || val <= 0) { fundo.querySelector('#celAporteErro').style.display = ''; inp.focus(); return; }
+        contaAportePendente = _contas.length > 1 ? (fundo.querySelector('#celAporteConta')?.value || null) : null;
+        fechar();
+        abrirModalReservas(val);
+      };
+      fundo.querySelector('#celAporteContinuar').addEventListener('click', continuar);
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') continuar(); });
+    }
+
     function _celMenuMais() {
       _celSheet('Mais', [
         { rotulo: '💳 Faturas do cartão', fn: () => { _celAba = 'faturas'; _celRerender(); window.scrollTo(0, 0); } },
@@ -3520,10 +3573,7 @@
           (document.getElementById('celAConfirmar') || document.getElementById('celApp'))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           break;
         case 'importar': document.getElementById('btnUploadIA')?.click(); break;
-        case 'aporte':
-          _celSairSimples('resumo');
-          setTimeout(() => { const i = document.getElementById('aporteEfetivadoInput'); i?.scrollIntoView({ behavior: 'smooth', block: 'center' }); i?.focus(); }, 300);
-          break;
+        case 'aporte': _celModalAporte(); break;
         case 'planCompleto': _celSairSimples('planejamento'); break;
       }
     });
