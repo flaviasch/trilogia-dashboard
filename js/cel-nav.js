@@ -105,6 +105,9 @@ function aplicar() {
   document.body.classList.toggle('cel-nav-global', on);
   if (on) montar();
   else document.getElementById('celNavGlobal')?.remove();
+  // Login conferido e barra decidida: libera a barra que estava escondida
+  // desde o 1º desenho (script no <head>, classe nav-pendente).
+  document.documentElement.classList.remove('nav-pendente');
 }
 
 // orcamento.html tem a própria barra: este arquivo só monta nas outras telas.
