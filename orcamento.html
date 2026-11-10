@@ -1507,8 +1507,30 @@
           </div>
         </div>
 
+        <!-- Passo "como funciona": extrato de conta em partes (10/11/2026, em teste) -->
+        <div id="iaPassoComoFunciona" style="display:none;">
+          <p class="modal-sub" style="margin-bottom:12px;">Como funciona a importação do extrato da conta</p>
+          <ul style="margin:0 0 14px 18px;padding:0;font-size:13px;line-height:1.55;color:var(--text-secondary);">
+            <li>Você pode importar o extrato em partes, quando quiser: por semana, a cada poucos dias ou o mês inteiro de uma vez.</li>
+            <li>O sistema olha a primeira e a última data do arquivo e só substitui o que já foi importado nesses dias. Os outros dias do mês ficam como estão.</li>
+            <li>Se o arquivo repetir dias já importados, esses dias são trocados pelos do arquivo novo, sem duplicar. Nesse caso aparece um aviso antes.</li>
+            <li>Lançamentos manuais, despesas fixas e parcelamentos nunca são apagados pela importação.</li>
+            <li>Cada conta é separada: importar o extrato de uma conta não mexe nas outras.</li>
+            <li><strong style="color:var(--white);">Dica:</strong> comece o próximo extrato no último dia já importado. Assim as compras feitas naquele dia depois da última importação também entram.</li>
+          </ul>
+          <div class="ia-ultimo-importado" style="display:none;margin-bottom:14px;padding:10px 12px;border:1px solid rgba(207,174,101,.35);background:rgba(207,174,101,.08);border-radius:8px;font-size:13px;color:var(--white);"></div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);margin-bottom:16px;cursor:pointer;">
+            <input type="checkbox" id="iaComoFuncionaNaoMostrar"> Não mostrar de novo
+          </label>
+          <div class="modal-actions">
+            <button class="btn-cancel" id="btnIaComoFuncionaVoltar">Voltar</button>
+            <button class="btn-save" id="btnIaComoFuncionaOk">Entendi, continuar</button>
+          </div>
+        </div>
+
         <!-- Passo 2: colar texto ou enviar arquivo -->
         <div id="iaPasso2" style="display:none;">
+          <div class="ia-ultimo-importado" style="display:none;margin-bottom:12px;padding:10px 12px;border:1px solid rgba(207,174,101,.35);background:rgba(207,174,101,.08);border-radius:8px;font-size:13px;color:var(--white);"></div>
           <p class="modal-sub">Cole o texto do extrato/fatura, ou envie um arquivo (PDF, foto, imagem, CSV/TXT, ou a planilha antiga do Orçamento Sob Medida em .xlsx). A IA extrai e categoriza as transações sozinha — sem precisar do agente externo.</p>
           <div style="margin-bottom:14px;">
             <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Colar texto do extrato/fatura</label>
@@ -9008,16 +9030,28 @@
           : (!item.cartao && pertenceAConta(item, escopo.contaId || CONTA_PRINCIPAL_ID));
       };
 
+      // Extrato de CONTA em partes (10/11/2026, em teste): só substitui os
+      // importados entre a primeira e a última data do arquivo. Fora dessa
+      // faixa (ou sem data) o lançamento importado antes fica. Ver
+      // _importPorPeriodoAtivo.
+      const _ehDataISO = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+      const _datasLote = (escopo?.tipo === 'conta' && _importPorPeriodoAtivo())
+        ? itensCsv.map(i => i.data).filter(_ehDataISO).sort() : [];
+      const faixa = _datasLote.length ? { de: _datasLote[0], ate: _datasLote[_datasLote.length - 1] } : null;
+      const dentroFaixa = item => !faixa || (_ehDataISO(item.data) && item.data >= faixa.de && item.data <= faixa.ate);
+
       // Já existe uma importação anterior desse mesmo escopo nesse mês?
       // saveOrcamento substitui tudo que não for manual/recorrente/parcelamento
       // — avisa antes de sobrescrever silenciosamente (achado em 12/07/2026).
       const seriamSubstituidos = [
-        ...dadosAlvo.receitas.filter(r => r.origem !== 'manual' && pertenceEscopo(r)),
-        ...dadosAlvo.despesas.filter(d => d._sourceMes == null && !d.recorrenteId && d.origem !== 'manual' && d.origem !== 'parcelamento' && pertenceEscopo(d)),
+        ...dadosAlvo.receitas.filter(r => r.origem !== 'manual' && pertenceEscopo(r) && dentroFaixa(r)),
+        ...dadosAlvo.despesas.filter(d => d._sourceMes == null && !d.recorrenteId && d.origem !== 'manual' && d.origem !== 'parcelamento' && pertenceEscopo(d) && dentroFaixa(d)),
       ].length;
       if (seriamSubstituidos > 0) {
-        const confirmou = await confirmDelete(
-          `Você já tem ${seriamSubstituidos} lançamento${seriamSubstituidos > 1 ? 's' : ''} importado${seriamSubstituidos > 1 ? 's' : ''} anteriormente em ${MESES[mesSalvar - 1]}/${anoSalvar}. Importar de novo vai substituí-${seriamSubstituidos > 1 ? 'los' : 'lo'} pelos novos lançamentos. Continuar?`,
+        const s = seriamSubstituidos > 1;
+        const confirmou = await confirmDelete(faixa
+          ? `Você já tem ${seriamSubstituidos} lançamento${s ? 's' : ''} importado${s ? 's' : ''} nesta conta entre ${formatData(faixa.de)} e ${formatData(faixa.ate)}, os mesmos dias deste arquivo. Importar vai trocá-${s ? 'los' : 'lo'} pelos do arquivo novo, sem duplicar. Os outros dias de ${MESES[mesSalvar - 1]} ficam como estão. Continuar?`
+          : `Você já tem ${seriamSubstituidos} lançamento${s ? 's' : ''} importado${s ? 's' : ''} anteriormente em ${MESES[mesSalvar - 1]}/${anoSalvar}. Importar de novo vai substituí-${s ? 'los' : 'lo'} pelos novos lançamentos. Continuar?`,
           'Substituir',
         );
         if (!confirmou) { toast('Importação cancelada.', 'info'); return; }
@@ -9060,11 +9094,23 @@
       // ainda", mesmo depois do fix de recorrenteId em receita).
       const preservar = [
         ...dadosAlvo.receitas
-          .filter(r => r.origem === 'manual' || !pertenceEscopo(r))
+          .filter(r => r.origem === 'manual' || !pertenceEscopo(r) || !dentroFaixa(r))
           .map(r => ({ categoria: r.categoria, tipo: 'receita', valor: r.valor, data: r.data || '', descricao: r.descricao || '', cartao: !!r.cartao, fatura: r.fatura || '', origem: r.origem || 'manual', ...(r.cartaoId ? { cartaoId: r.cartaoId } : {}), ...(r.contaId ? { contaId: r.contaId } : {}), ...(r.recorrenteId ? { recorrenteId: r.recorrenteId } : {}), ...(r.pendente ? { pendente: true } : {}), ...(r.confirmado ? { confirmado: true } : {}) })),
         ...dadosAlvo.despesas
-          .filter(d => d._sourceMes == null && (d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento' || !pertenceEscopo(d)))
+          .filter(d => d._sourceMes == null && (d.recorrenteId || d.origem === 'manual' || d.origem === 'parcelamento' || !pertenceEscopo(d) || !dentroFaixa(d)))
           .map(d => ({ categoria: d.categoria, tipo: 'despesa', valor: d.valor, data: d.data || '', descricao: d.descricao || '', cartao: !!d.cartao, fatura: d.fatura || '', origem: d.origem || 'manual', ...(d.contaId ? { contaId: d.contaId } : {}), ...(d.recorrenteId ? { recorrenteId: d.recorrenteId } : {}), ...(d.cartaoId ? { cartaoId: d.cartaoId } : {}), ...(d.pendente ? { pendente: true } : {}), ...(d.confirmado ? { confirmado: true } : {}), ...(d.parcelamentoId ? { parcelamentoId: d.parcelamentoId, parcelaAtual: d.parcelaAtual, parcelasTotal: d.parcelasTotal } : {}) })),
+        // Aportes e transferências entre contas nunca vêm de extrato: a
+        // importação precisa mantê-los sempre. Achado 10/11/2026: ficavam de
+        // fora desta lista e toda importação apagava os do mês (4
+        // transferências de novembro da Luciana iriam junto). Mesmo formato
+        // de _salvarEAtualizarAgora.
+        ...(dadosAlvo.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor, ...(a.contaId ? { contaId: a.contaId } : {}) })),
+        ...(dadosAlvo.transferencias || []).map(t => ({
+          categoria: 'Transferência', tipo: 'transferencia',
+          transferenciaId: t.transferenciaId, direcao: t.direcao, valor: t.valor,
+          contaId: t.contaId, contaContraparte: t.contaContraparte || '',
+          data: t.data || '', nota: t.nota || '',
+        })),
       ];
 
       // Fixa de cartão já lançada (recorrenteId) + a mesma cobrança vinda no
@@ -9458,6 +9504,7 @@
       _atualizarVisibilidadeContaIA();
       document.getElementById('iaErroAjuda').style.display = 'none';
       document.getElementById('iaPasso1').style.display = 'block';
+      document.getElementById('iaPassoComoFunciona').style.display = 'none';
       document.getElementById('iaPasso2').style.display = 'none';
       document.getElementById('iaPasso3').style.display = 'none';
       document.getElementById('modalImportarIA').classList.remove('hidden');
@@ -9485,8 +9532,68 @@
       document.getElementById('modalImportarIA').classList.add('hidden'); _unlockBody();
     });
 
+    // ── Extrato de conta em partes (10/11/2026, em teste) ──────────────────
+    // Achado 10/11/2026, Flávia/Luciana: importar o extrato de 4 a 9/11 apagava
+    // o que já tinha sido importado de 1 a 3/11 na mesma conta, porque cada
+    // importação substituía TODOS os importados da conta no mês. Agora o
+    // extrato de conta só substitui os importados entre a primeira e a última
+    // data do arquivo. Fatura de cartão continua substituindo a fatura inteira
+    // (parcelas antigas têm data de compra de meses atrás).
+    const _IMPORT_PERIODO_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    function _importPorPeriodoAtivo() {
+      const user = auth.currentUser;
+      if (!user) return false;
+      try { if (uidAtual() !== user.uid) return false; } catch (_) { return false; } // nunca no "ver como"
+      return _IMPORT_PERIODO_ALLOWLIST.includes((user.email || '').toLowerCase());
+    }
+    // Último dia já importado (extrato, não manual/fixa/parcelamento) da conta
+    // no mês em tela. null se não houver.
+    function _ultimoDiaImportadoConta(contaId) {
+      const ehImportado = i => i._sourceMes == null && !i.cartao && !i.recorrenteId
+        && !['manual', 'recorrente', 'parcelamento'].includes(i.origem || 'manual')
+        && pertenceAConta(i, contaId) && /^\d{4}-\d{2}-\d{2}$/.test(i.data || '');
+      const datas = [...(currentData?.despesas || []), ...(currentData?.receitas || [])].filter(ehImportado).map(i => i.data).sort();
+      return datas.length ? datas[datas.length - 1] : null;
+    }
+    function _preencherUltimoImportadoIA() {
+      const ehConta = !document.getElementById('iaCartaoSelecionado').value;
+      const ativo = ehConta && _importPorPeriodoAtivo();
+      const contaId = (_contas.length > 1 ? document.getElementById('iaContaSelecionada').value : '') || CONTA_PRINCIPAL_ID;
+      const ultimo = ativo ? _ultimoDiaImportadoConta(contaId) : null;
+      const nomeConta = (_contas.find(c => c.id === contaId)?.nome) || 'esta conta';
+      const { mes } = currentData.periodo;
+      const texto = ultimo
+        ? `Na conta <strong>${escapeHtml(nomeConta)}</strong>, em ${MESES[mes - 1]}, o último dia já importado é <strong>${formatData(ultimo)}</strong>. Baixe o extrato a partir desse dia.`
+        : `Na conta <strong>${escapeHtml(nomeConta)}</strong>, ${MESES[mes - 1]} ainda não tem extrato importado.`;
+      document.querySelectorAll('#modalImportarIA .ia-ultimo-importado').forEach(el => {
+        el.style.display = ativo ? 'block' : 'none';
+        el.innerHTML = ativo ? texto : '';
+      });
+      return ativo;
+    }
+
     document.getElementById('btnIaProximo').addEventListener('click', () => {
       document.getElementById('iaPasso1').style.display = 'none';
+      const ativo = _preencherUltimoImportadoIA();
+      let jaViu = false;
+      try { jaViu = localStorage.getItem('iaComoFuncionaVisto') === '1'; } catch (_) {}
+      if (ativo && !jaViu) {
+        document.getElementById('iaComoFuncionaNaoMostrar').checked = false;
+        document.getElementById('iaPassoComoFunciona').style.display = 'block';
+      } else {
+        document.getElementById('iaPasso2').style.display = 'block';
+      }
+    });
+
+    document.getElementById('btnIaComoFuncionaVoltar').addEventListener('click', () => {
+      document.getElementById('iaPassoComoFunciona').style.display = 'none';
+      document.getElementById('iaPasso1').style.display = 'block';
+    });
+    document.getElementById('btnIaComoFuncionaOk').addEventListener('click', () => {
+      if (document.getElementById('iaComoFuncionaNaoMostrar').checked) {
+        try { localStorage.setItem('iaComoFuncionaVisto', '1'); } catch (_) {}
+      }
+      document.getElementById('iaPassoComoFunciona').style.display = 'none';
       document.getElementById('iaPasso2').style.display = 'block';
     });
 
