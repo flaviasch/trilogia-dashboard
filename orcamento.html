@@ -836,6 +836,58 @@
     }
     .aporte-strip-hint a { color: var(--gold); font-weight: 600; text-decoration: none; }
 
+    /* ─── Modo celular simplificado (10/11/2026, em teste) ───────────── */
+    #celApp, #celBottomNav, .cel-voltar-simples { display: none; }
+    body.modo-cel #celApp { display: block; }
+    body.modo-cel #celBottomNav { display: flex; }
+    body.modo-cel .breadcrumb, body.modo-cel #btnExportarPDF, body.modo-cel #bannerNovidadesContas,
+    body.modo-cel .upload-banner, body.modo-cel #acoesRapidasBar, body.modo-cel #scoreWidget,
+    body.modo-cel .resumo-section, body.modo-cel #pendenciasSection, body.modo-cel #orcamentoMesSection,
+    body.modo-cel #projecaoSection, body.modo-cel .tabs-bar, body.modo-cel .tab-pane,
+    body.modo-cel #fabSpeedDial, body.modo-cel .bottom-nav { display: none !important; }
+    body.modo-cel .page-header { margin-bottom: 12px; }
+    body.modo-cel .page-header .page-title { display: none; }
+    body.modo-cel .page-header > div { width: 100%; justify-content: center; }
+    body.cel-completo .cel-voltar-simples { display: block; width: 100%; margin: -8px 0 14px; padding: 9px; border-radius: 10px;
+      border: 1px solid rgba(207,174,101,.4); background: rgba(207,174,101,.08); color: var(--gold); font-size: 13px; font-family: inherit; cursor: pointer; }
+    .cel-tabs { display: flex; gap: 6px; background: rgba(var(--rgb-fg),0.05); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+    .cel-tab { flex: 1; text-align: center; padding: 9px 0; border: none; border-radius: 9px; background: transparent; color: var(--text-secondary); font-size: 13px; font-family: inherit; cursor: pointer; }
+    .cel-tab.ativo { background: var(--gold); color: var(--navy); font-weight: 600; }
+    .cel-card { background: rgba(var(--rgb-fg),0.05); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+    .cel-rot { font-size: 12px; color: var(--text-secondary); }
+    .cel-grande { font-size: 28px; font-weight: 600; margin: 2px 0 10px; }
+    .cel-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .cel-mini { background: rgba(var(--rgb-fg),0.05); border-radius: 14px; padding: 12px; text-align: left; border: none; color: inherit; font-family: inherit; cursor: pointer; width: 100%; }
+    .cel-mini .v { font-size: 17px; font-weight: 600; margin-top: 4px; }
+    .cel-btn-gold { background: var(--gold); color: var(--navy); border: none; border-radius: 14px; padding: 14px 0; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; width: 100%; }
+    .cel-btn-out { background: transparent; color: var(--gold); border: 1px solid var(--gold); border-radius: 14px; padding: 13px 0; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; width: 100%; }
+    .cel-link { display: block; width: 100%; text-align: center; background: none; border: none; color: var(--gold); font-size: 13px; padding: 8px; font-family: inherit; cursor: pointer; }
+    .cel-sobra { display: flex; justify-content: space-between; font-size: 12px; background: rgba(207,174,101,.14); border-radius: 10px; padding: 8px 10px; }
+    .cel-confirmar { background: rgba(207,174,101,.10); border: 1px solid rgba(207,174,101,.35); border-radius: 14px; padding: 10px 12px; margin-bottom: 12px; }
+    .cel-conf-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; padding: 7px 0; }
+    .cel-conf-acoes { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+    .cel-conf-acoes button { background: none; border: none; font-size: 16px; padding: 4px 6px; cursor: pointer; color: var(--text-secondary); }
+    .cel-filtros { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; }
+    .cel-chip { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); font-size: 12px; font-family: inherit; white-space: nowrap; cursor: pointer; }
+    .cel-chip.ativo { background: var(--white); color: var(--navy); border-color: var(--white); font-weight: 600; }
+    .cel-busca { width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--navy-mid); color: var(--white); font-size: 14px; margin-bottom: 10px; font-family: inherit; }
+    .cel-dia { font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; margin: 8px 2px 6px; }
+    .cel-lista { background: rgba(var(--rgb-fg),0.05); border-radius: 14px; padding: 0 12px; margin-bottom: 8px; }
+    .cel-linha { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); width: 100%; background: none; border-left: none; border-right: none; border-top: none; color: inherit; font-family: inherit; text-align: left; cursor: pointer; }
+    .cel-linha:last-child { border-bottom: none; }
+    .cel-linha .d { font-size: 14px; }
+    .cel-linha .c { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    .cel-selo { margin-left: 4px; padding: 1px 6px; border-radius: 6px; background: rgba(207,174,101,.18); color: var(--gold); font-size: 10px; }
+    .cel-barra { height: 7px; background: rgba(var(--rgb-fg),0.10); border-radius: 6px; overflow: hidden; margin-top: 6px; }
+    .cel-barra > div { height: 100%; }
+    .cel-sheet-fundo { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1200; display: flex; align-items: flex-end; }
+    .cel-sheet { background: var(--navy); width: 100%; border-radius: 18px 18px 0 0; padding: 16px 16px 24px; border-top: 1px solid var(--border); }
+    .cel-sheet button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 8px; background: none; border: none; border-bottom: 1px solid var(--border); color: var(--white); font-size: 15px; font-family: inherit; text-align: left; cursor: pointer; }
+    #celBottomNav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 150; background: var(--navy); border-top: 1px solid var(--border); height: 60px; justify-content: space-around; align-items: stretch; }
+    #celBottomNav button, #celBottomNav a { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; background: none; border: none; color: var(--text-muted); font-size: 10px; font-weight: 500; text-decoration: none; font-family: inherit; cursor: pointer; }
+    #celBottomNav .ativo { color: var(--gold); }
+    #celBottomNav svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+
     /* ─── Bottom nav (mobile) ──────────────────── */
     .bottom-nav {
       display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 150;
@@ -1444,6 +1496,10 @@
       </div>
     </div>
 
+    <!-- Modo celular simplificado (10/11/2026, em teste): preenchido por renderCel() -->
+    <div id="celApp"></div>
+    <button type="button" id="celVoltarSimples" class="cel-voltar-simples">← Voltar ao modo simples</button>
+
     <!-- Banner de novidades: múltiplas contas + correções (Jul/2026) -->
     <div id="bannerNovidadesContas" style="display:none;background:rgba(207,174,101,0.08);border:1px solid rgba(207,174,101,0.3);border-radius:12px;padding:16px 18px;margin-bottom:16px;position:relative;">
       <button id="btnFecharBannerNovidadesContas" title="Fechar" style="position:absolute;top:10px;right:10px;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;line-height:1;padding:4px;">✕</button>
@@ -1569,7 +1625,7 @@
     </div>
 
     <!-- Ações rápidas de lançamento -->
-    <div style="display:flex;gap:8px;margin-top:-16px;margin-bottom:20px;flex-wrap:wrap;">
+    <div id="acoesRapidasBar" style="display:flex;gap:8px;margin-top:-16px;margin-bottom:20px;flex-wrap:wrap;">
       <button id="btnImportarSMS" class="btn-acao">📱 Importar notificação do banco</button>
       <button id="btnAddDespesaRapida" class="btn-acao">+ Lançar manualmente</button>
       <button id="btnLancarNoCartao" class="btn-acao" style="display:none;">💳 Lançar no cartão</button>
@@ -2410,6 +2466,26 @@
     </div>
   </div>
 
+  <!-- Menu de baixo do modo celular simplificado (10/11/2026, em teste) -->
+  <nav id="celBottomNav">
+    <a href="index.html?home=1">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Início
+    </a>
+    <button type="button" class="ativo" data-cel-nav="orcamento">
+      <svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M16 13h2"/><path d="M2 10h20"/></svg>
+      Orçamento
+    </button>
+    <a href="reservas.html">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Metas
+    </a>
+    <button type="button" data-cel-nav="mais">
+      <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+      Mais
+    </button>
+  </nav>
+
   <!-- Bottom nav (mobile) -->
   <nav class="bottom-nav">
     <a href="index.html" class="bnav-item">
@@ -3072,6 +3148,320 @@
     document.getElementById('tabBtnGraficos')    ?.addEventListener('click', () => ativarTab('graficos'));
     document.getElementById('tabBtnDetalhe')     ?.addEventListener('click', () => ativarTab('detalhe'));
     document.getElementById('tabBtnAnual')       ?.addEventListener('click', () => ativarTab('anual'));
+
+    // ─── Modo celular simplificado (10/11/2026, em teste) ─────────────────────
+    // Sugestão da Luciana, aprovada pela Flávia: no celular, para quem está
+    // começando, o Orçamento mostra só três abas (Resumo, Lançamentos,
+    // Planejado), com os mesmos números das telas completas (vêm de render(),
+    // via _celCtx). Ações reaproveitam os modais e funções que já existem.
+    // Nada é bloqueado: "Mais" e "Ver completo" levam à versão de sempre
+    // (sessionStorage 'celModoCompleto'). No computador nada muda.
+    const _CEL_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+    const _celMQ = window.matchMedia('(max-width: 767px)');
+    let _celAba = 'resumo', _celFiltro = 'tudo', _celBusca = '', _celCtx = null, _celFatKey = '';
+    function _modoCelGate() {
+      const user = auth.currentUser;
+      if (!user) return false;
+      try { if (uidAtual() !== user.uid) return false; } catch (_) { return false; } // nunca no "ver como"
+      return _CEL_ALLOWLIST.includes((user.email || '').toLowerCase());
+    }
+    function _celCompleto() {
+      try { return sessionStorage.getItem('celModoCompleto') === '1'; } catch (_) { return false; }
+    }
+    function _modoCelAtivo() { return _celMQ.matches && _modoCelGate() && !_celCompleto(); }
+    function _aplicarModoCel() {
+      const ativo = _modoCelAtivo();
+      document.body.classList.toggle('modo-cel', ativo);
+      document.body.classList.toggle('cel-completo', !ativo && _celMQ.matches && _modoCelGate() && _celCompleto());
+      if (ativo) _celRerender();
+    }
+    _celMQ.addEventListener?.('change', _aplicarModoCel);
+    function _celSairSimples(tab) {
+      try { sessionStorage.setItem('celModoCompleto', '1'); } catch (_) {}
+      _aplicarModoCel();
+      ativarTab(tab || 'resumo');
+      window.scrollTo(0, 0);
+    }
+    document.getElementById('celVoltarSimples')?.addEventListener('click', () => {
+      try { sessionStorage.removeItem('celModoCompleto'); } catch (_) {}
+      _celAba = 'resumo';
+      _aplicarModoCel();
+      window.scrollTo(0, 0);
+    });
+
+    const _celPad = n => String(n).padStart(2, '0');
+    const _celDiaLabel = iso => {
+      if (!iso) return 'Sem data';
+      const h = new Date();
+      const hoje = `${h.getFullYear()}-${_celPad(h.getMonth() + 1)}-${_celPad(h.getDate())}`;
+      const o = new Date(h.getFullYear(), h.getMonth(), h.getDate() - 1);
+      const ontem = `${o.getFullYear()}-${_celPad(o.getMonth() + 1)}-${_celPad(o.getDate())}`;
+      const curto = `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+      return iso === hoje ? `Hoje · ${curto}` : iso === ontem ? `Ontem · ${curto}` : curto;
+    };
+    const _celNomeConta = id => (_contas.find(c => c.id === (id || CONTA_PRINCIPAL_ID))?.nome) || 'Conta';
+
+    function _celHtmlResumo() {
+      const c = _celCtx;
+      const sobraCor = c.saldoFuturo >= 0 ? 'var(--positive)' : 'var(--negative)';
+      const nPagar = c.despesasPendentes.length + c.fixasVirtuais.length;
+      const totPagar = c.totalPendente + c.totalFixasVirtuais;
+      const temCartao = (_cartoes || []).some(x => x.ativo);
+      const fat = window._celTotalAbertas;
+      return `
+        <div class="cel-card">
+          <div class="cel-rot">Saldo na conta</div>
+          <div class="cel-grande">${brl(c.saldoFinal)}</div>
+          <div class="cel-sobra"><span style="color:var(--text-secondary)">Deve sobrar no fim do mês</span><span style="color:${sobraCor};font-weight:600">${brl(c.saldoFuturo)}</span></div>
+        </div>
+        <div class="cel-grid2">
+          <div class="cel-mini" style="cursor:default"><div class="cel-rot" style="color:var(--positive)">↑ Entrou</div><div class="v">${brl(c.totalReceita)}</div></div>
+          <div class="cel-mini" style="cursor:default"><div class="cel-rot" style="color:var(--negative)">↓ Saiu</div><div class="v">${brl(c.totalDespesa)}</div></div>
+        </div>
+        <div class="cel-grid2">
+          <button type="button" class="cel-btn-gold" data-cel-acao="gasto">+ Gasto</button>
+          <button type="button" class="cel-btn-out" data-cel-acao="entrada">+ Entrada</button>
+        </div>
+        <div class="cel-grid2">
+          ${temCartao ? `<button type="button" class="cel-mini" data-cel-acao="faturas"><div class="cel-rot">💳 Faturas abertas</div><div class="v" id="celFatValor">${fat == null ? '…' : brl(fat)}</div></button>` : ''}
+          <button type="button" class="cel-mini" data-cel-acao="apagar"${temCartao ? '' : ' style="grid-column:1/-1"'}><div class="cel-rot">📅 Contas a pagar</div><div class="v">${nPagar ? `${nPagar} · ${brl(totPagar)}` : 'Nada pendente'}</div></button>
+        </div>
+        <button type="button" class="cel-link" data-cel-acao="importar">⬆ Importar extrato</button>`;
+    }
+
+    function _celHtmlLancamentos() {
+      const c = _celCtx;
+      const { mes, ano } = currentData.periodo;
+      const mesKey = `${ano}-${_celPad(mes)}`;
+      const diaDe = s => parseInt(String(s || '').split('-')[2], 10) || 0;
+      const conf = [
+        ...c.fixasVirtuais.map(v => ({ tipo: 'despesa', virtual: 1, rec: v.recorrenteId, dia: v.dia, desc: v.descricao || v.categoria, valor: v.valor })),
+        ...c.fixasVirtuaisReceita.map(v => ({ tipo: 'receita', virtual: 1, rec: v.recorrenteId, dia: v.dia, desc: v.descricao || v.categoria, valor: v.valor })),
+        ...c.despesasPendentes.map(d => ({ tipo: 'despesa', idx: currentData.despesas.indexOf(d), dia: diaDe(d.data), desc: d.descricao || d.categoria, valor: d.valor })),
+        ...c.receitasPendentes.map(r => ({ tipo: 'receita', idx: currentData.receitas.indexOf(r), dia: diaDe(r.data), desc: r.descricao || r.categoria, valor: r.valor })),
+      ].filter(x => x.virtual || x.idx >= 0).sort((a, b) => a.dia - b.dia);
+      const confHtml = conf.length ? `
+        <div class="cel-confirmar" id="celAConfirmar">
+          <div class="cel-rot" style="color:var(--gold);margin-bottom:4px">A confirmar · ${conf.length}</div>
+          ${conf.map(x => {
+            const ref = x.virtual ? `data-rec="${escapeHtml(x.rec)}" data-dia="${x.dia}"` : `data-idx="${x.idx}"`;
+            const cor = x.tipo === 'receita' ? 'color:var(--positive)' : '';
+            return `<div class="cel-conf-linha">
+              <span style="min-width:0">${escapeHtml(x.desc)} <span style="color:var(--text-muted);font-size:11px">· dia ${x.dia || '?'}${x.tipo === 'receita' ? ' · entrada' : ''}</span></span>
+              <span class="cel-conf-acoes"><span style="${cor};margin-right:4px;white-space:nowrap">${x.tipo === 'receita' ? '+ ' : ''}${brl(x.valor)}</span>
+                <button type="button" title="Confirmar" style="color:var(--positive)" data-cel-conf="ok" data-tipo="${x.tipo}" ${ref}>✓</button>
+                <button type="button" title="Ajustar o valor deste mês" data-cel-conf="ajustar" data-tipo="${x.tipo}" ${ref}>✎</button>
+                ${x.virtual ? `<button type="button" title="Pular este mês" data-cel-conf="pular" data-tipo="${x.tipo}" ${ref}>⏭</button>` : ''}
+              </span></div>`;
+          }).join('')}
+        </div>` : '';
+
+      const pendD = new Set(c.despesasPendentes), pendR = new Set(c.receitasPendentes);
+      const naConta = item => !_contaAtivaId || item.cartao || pertenceAConta(item, _contaAtivaId);
+      let itens = [];
+      currentData.despesas.forEach((d, idx) => {
+        if (d.virtual || pendD.has(d) || (d._faturaAberta && d.fatura !== mesKey) || !naConta(d)) return;
+        itens.push({ tipo: 'despesa', idx, d });
+      });
+      currentData.receitas.forEach((r, idx) => {
+        if (pendR.has(r) || !naConta(r)) return;
+        itens.push({ tipo: 'receita', idx, d: r });
+      });
+      (currentData.transferencias || []).forEach(t => {
+        if (t.direcao !== 'saida' || (_contaAtivaId && t.contaId !== _contaAtivaId && t.contaContraparte !== _contaAtivaId)) return;
+        itens.push({ tipo: 'transf', d: { data: t.data, valor: t.valor, descricao: `${_celNomeConta(t.contaId)} para ${_celNomeConta(t.contaContraparte)}`, categoria: 'Transferência' } });
+      });
+      if (_celFiltro === 'saidas')   itens = itens.filter(i => i.tipo === 'despesa');
+      if (_celFiltro === 'entradas') itens = itens.filter(i => i.tipo === 'receita');
+      if (_celFiltro === 'cartao')   itens = itens.filter(i => i.tipo !== 'transf' && i.d.cartao);
+      const termo = _celBusca.trim().toLowerCase();
+      if (termo) itens = itens.filter(i => `${i.d.descricao || ''} ${i.d.categoria || ''}`.toLowerCase().includes(termo));
+
+      const porDia = {};
+      itens.forEach(i => { (porDia[i.d.data || ''] ||= []).push(i); });
+      const dias = Object.keys(porDia).sort((a, b) => (b || '0').localeCompare(a || '0'));
+      const lista = dias.map(dia => {
+        const linhas = porDia[dia];
+        const tot = linhas.reduce((s, i) => s + (i.tipo === 'receita' ? i.d.valor : i.tipo === 'despesa' ? -i.d.valor : 0), 0);
+        return `<div class="cel-dia"><span>${_celDiaLabel(dia)}</span><span style="color:${tot >= 0 ? 'var(--positive)' : 'var(--text-secondary)'}">${tot >= 0 ? '+ ' : '− '}${brl(Math.abs(tot))}</span></div>
+          <div class="cel-lista">${linhas.map(i => {
+            const d = i.d;
+            const cartao = i.tipo !== 'transf' && d.cartao ? (_cartoes.find(x => x.id === d.cartaoId)?.nome || 'Cartão') : '';
+            const sub = i.tipo === 'transf' ? 'Transferência · não é gasto' : `${escapeHtml(d.categoria || '')}${cartao ? ` <span class="cel-selo">${escapeHtml(cartao)}</span>` : ''}`;
+            const valor = i.tipo === 'receita' ? `<span style="color:var(--positive)">+ ${brl(d.valor)}</span>`
+              : i.tipo === 'transf' ? `<span style="color:var(--text-secondary)">${brl(d.valor)}</span>` : brl(d.valor);
+            const attr = i.tipo === 'transf' ? 'style="cursor:default"' : `data-cel-edit="${i.tipo}" data-idx="${i.idx}"`;
+            return `<button type="button" class="cel-linha" ${attr}><div style="min-width:0"><div class="d">${i.tipo === 'transf' ? '⇄ ' : ''}${escapeHtml(d.descricao || d.categoria || '')}</div><div class="c">${sub}</div></div><span style="font-size:14px;white-space:nowrap">${valor}</span></button>`;
+          }).join('')}</div>`;
+      }).join('');
+
+      const chips = [['tudo', 'Tudo'], ['saidas', 'Saídas'], ['entradas', 'Entradas'], ['cartao', 'Cartão']]
+        .map(([k, l]) => `<button type="button" class="cel-chip${_celFiltro === k ? ' ativo' : ''}" data-cel-filtro="${k}">${l}</button>`).join('');
+      return `${confHtml}
+        <div class="cel-filtros">${chips}</div>
+        <input type="search" class="cel-busca" id="celBusca" placeholder="Buscar (ex.: farmácia)" value="${escapeHtml(_celBusca)}">
+        ${lista || `<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:24px 0">${termo || _celFiltro !== 'tudo' ? 'Nada encontrado.' : 'Nenhum lançamento neste mês ainda.'}</div>`}`;
+    }
+
+    function _celHtmlPlanejado() {
+      const cats = categoriasMes || [];
+      const grupos = agruparGastoPlanejamento(currentData);
+      const comLimite = cats.filter(c => c.limite > 0 && normCat(c.nome) !== normCat(CATEGORIA_AJUSTE));
+      const normsLim = new Set(comLimite.map(c => normCat(c.nome)));
+      const naoPlan = calcularNaoPlanejado({ renda: planejamentoMeta.renda, percentual: planejamentoMeta.percentual, categorias: cats });
+      const totalPlan = naoPlan.totalPlanejado != null ? naoPlan.totalPlanejado : comLimite.reduce((s, c) => s + c.limite, 0);
+      const totalReal = Object.values(grupos).reduce((s, g) => s + g.total, 0);
+      const resAtivas = (reservas || []).filter(r => r.acumulado < r.meta && r.aporte > 0);
+      const aportePlan = resAtivas.reduce((s, r) => s + r.aporte, 0);
+      const aporteFeito = (currentData.aportes || []).reduce((s, a) => s + a.valor, 0);
+      const investir = aportePlan > 0 || aporteFeito > 0 ? `
+        <div class="cel-card" style="background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);display:flex;justify-content:space-between;align-items:center">
+          <div><div class="cel-rot" style="color:var(--positive)">Investir primeiro</div><div style="font-size:14px;margin-top:2px">${brl(aporteFeito)}${aportePlan > 0 ? ` de ${brl(aportePlan)}` : ''}</div></div>
+          <button type="button" class="cel-chip ativo" style="background:var(--positive);border-color:var(--positive)" data-cel-acao="aporte">Registrar</button>
+        </div>` : '';
+      if (!comLimite.length) {
+        return `${investir}<div class="cel-card" style="text-align:center"><div style="font-size:14px;margin-bottom:10px">O planejamento deste mês ainda não foi montado.</div>
+          <div class="cel-rot" style="margin-bottom:12px">Ele é montado no computador, ou na versão completa do Orçamento.</div>
+          <button type="button" class="cel-btn-out" data-cel-acao="planCompleto">Abrir planejamento completo</button></div>`;
+      }
+      const pode = totalPlan - totalReal;
+      const pctTot = totalPlan > 0 ? Math.min(totalReal / totalPlan * 100, 100) : 0;
+      const corPct = p => p > 100 ? 'var(--negative)' : p >= 80 ? '#f59e0b' : 'var(--positive)';
+      const linhas = comLimite.map(c => {
+        const real = grupos[normCat(c.nome)]?.total || 0;
+        return { nome: c.nome, limite: c.limite, real, pct: real / c.limite * 100 };
+      }).sort((a, b) => b.pct - a.pct);
+      const naoPlanejado = Object.entries(grupos).filter(([n]) => !normsLim.has(n)).reduce((s, [, g]) => s + g.total, 0);
+      return `
+        <div class="cel-card">
+          <div class="cel-rot">${pode >= 0 ? 'Ainda pode gastar este mês' : 'Passou do planejado em'}</div>
+          <div class="cel-grande" style="margin-bottom:8px;color:${pode >= 0 ? 'inherit' : 'var(--negative)'}">${brl(Math.abs(pode))}</div>
+          <div class="cel-barra"><div style="width:${pctTot.toFixed(1)}%;background:var(--gold)"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);margin-top:6px"><span>Gasto ${brl(totalReal)}</span><span>Planejado ${brl(totalPlan)}</span></div>
+        </div>
+        ${investir}
+        <div class="cel-rot" style="margin:6px 2px">Por categoria</div>
+        <div class="cel-lista">
+          ${linhas.map(l => {
+            const cor = corPct(l.pct);
+            const frase = l.real > l.limite ? `Passou ${brl(l.real - l.limite)}` : `Sobra ${brl(l.limite - l.real)}`;
+            return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                <button type="button" data-cel-cat="${escapeHtml(l.nome)}" style="background:none;border:none;color:inherit;font:inherit;font-size:14px;padding:0;text-align:left;cursor:pointer">${escapeHtml(l.nome)}</button>
+                <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary)">${brl(l.real)} de ${brl(l.limite)}
+                  <button type="button" title="Ajustar limite" data-cel-limite="${escapeHtml(l.nome)}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:2px">✎</button></span>
+              </div>
+              <div class="cel-barra"><div style="width:${Math.min(l.pct, 100).toFixed(1)}%;background:${cor}"></div></div>
+              <div style="font-size:11px;color:${cor};margin-top:4px">${frase}</div>
+            </div>`;
+          }).join('')}
+          ${naoPlanejado > 0 ? `<div style="padding:10px 0"><div style="display:flex;justify-content:space-between;font-size:14px"><span>Não planejado</span><span style="font-size:12px;color:var(--text-secondary)">${brl(naoPlanejado)}</span></div><div style="font-size:11px;color:var(--text-muted);margin-top:4px">Gastos em categorias sem limite</div></div>` : ''}
+        </div>`;
+    }
+
+    function _celRerender() {
+      const el = document.getElementById('celApp');
+      if (!el || !_celCtx || !currentData || !document.body.classList.contains('modo-cel')) return;
+      // Faz o lápis do Planejado e as confirmações redesenharem esta tela.
+      _tabAtiva = _celAba === 'planejado' ? 'planejamento' : 'resumo';
+      const abas = [['resumo', 'Resumo'], ['lancamentos', 'Lançamentos'], ['planejado', 'Planejado']];
+      const corpo = _celAba === 'lancamentos' ? _celHtmlLancamentos() : _celAba === 'planejado' ? _celHtmlPlanejado() : _celHtmlResumo();
+      const focoBusca = document.activeElement?.id === 'celBusca';
+      el.innerHTML = `<div class="cel-tabs">${abas.map(([k, l]) => `<button type="button" class="cel-tab${_celAba === k ? ' ativo' : ''}" data-cel-aba="${k}">${l}</button>`).join('')}</div>${corpo}`;
+      if (focoBusca) { const b = document.getElementById('celBusca'); b?.focus(); b?.setSelectionRange(b.value.length, b.value.length); }
+      // Total das faturas abertas: renderFaturas calcula; roda uma vez por versão dos dados.
+      if (_celAba === 'resumo' && (_cartoes || []).some(x => x.ativo)) {
+        const k = `${currentData.periodo.mes}-${currentData.periodo.ano}-${_dataGen}`;
+        if (k !== _celFatKey) {
+          _celFatKey = k;
+          carregarFaturaEstados().then(() => renderFaturas(currentData)).then(() => {
+            const v = document.getElementById('celFatValor');
+            if (v && window._celTotalAbertas != null) v.textContent = brl(window._celTotalAbertas);
+          }).catch(() => {});
+        }
+      }
+    }
+
+    function _celSheet(titulo, opcoes) {
+      const fundo = document.createElement('div');
+      fundo.className = 'cel-sheet-fundo';
+      fundo.innerHTML = `<div class="cel-sheet"><div class="cel-rot" style="margin:0 8px 4px">${escapeHtml(titulo)}</div>${opcoes.map((o, i) => `<button type="button" data-i="${i}">${o.rotulo}</button>`).join('')}</div>`;
+      fundo.addEventListener('click', e => {
+        const b = e.target.closest('button[data-i]');
+        if (b) { fundo.remove(); opcoes[+b.dataset.i].fn(); }
+        else if (e.target === fundo) fundo.remove();
+      });
+      document.body.appendChild(fundo);
+    }
+    function _celMenuMais() {
+      _celSheet('Mais', [
+        { rotulo: '💳 Faturas do cartão', fn: () => _celSairSimples('faturas') },
+        { rotulo: '📊 Gráficos', fn: () => _celSairSimples('graficos') },
+        { rotulo: '📅 Análise do ano', fn: () => _celSairSimples('anual') },
+        { rotulo: '🧾 Orçamento completo', fn: () => _celSairSimples('resumo') },
+        { rotulo: '💰 Patrimônio', fn: () => { location.href = 'patrimonio.html'; } },
+        { rotulo: '🧭 Jornada', fn: () => { location.href = 'jornada.html'; } },
+        { rotulo: '👤 Perfil de investidor', fn: () => { location.href = 'perfil.html'; } },
+        { rotulo: '❓ Ajuda', fn: () => { location.href = 'ajuda.html'; } },
+      ]);
+    }
+
+    document.getElementById('celApp')?.addEventListener('click', e => {
+      const t = e.target.closest('[data-cel-aba],[data-cel-acao],[data-cel-filtro],[data-cel-conf],[data-cel-edit],[data-cel-cat],[data-cel-limite]');
+      if (!t) return;
+      const ds = t.dataset;
+      if (ds.celAba) { _celAba = ds.celAba; _celRerender(); window.scrollTo(0, 0); return; }
+      if (ds.celFiltro) { _celFiltro = ds.celFiltro; _celRerender(); return; }
+      if (ds.celCat) { _celAba = 'lancamentos'; _celFiltro = 'tudo'; _celBusca = ds.celCat; _celRerender(); window.scrollTo(0, 0); return; }
+      if (ds.celLimite) { editarLimitePlan(ds.celLimite); return; }
+      if (ds.celEdit) { _comSpinner(t, () => abrirModal(ds.celEdit, +ds.idx)); return; }
+      if (ds.celConf) {
+        const tipo = ds.tipo;
+        if (ds.rec) {
+          if (ds.celConf === 'ok') materializarFixaPendente(ds.rec, +ds.dia, t);
+          else if (ds.celConf === 'ajustar') editarFixaMes(ds.rec, +ds.dia, tipo, t);
+          else if (ds.celConf === 'pular') _comSpinner(t, () => pularFixaMes(ds.rec, +ds.dia));
+        } else {
+          if (ds.celConf === 'ok') confirmarPendente(tipo, +ds.idx, t);
+          else if (ds.celConf === 'ajustar') _comSpinner(t, () => abrirModal(tipo, +ds.idx));
+        }
+        return;
+      }
+      switch (ds.celAcao) {
+        case 'gasto': {
+          const temCartao = (_cartoes || []).some(x => x.ativo);
+          if (!temCartao) { abrirModal('despesa'); break; }
+          _celSheet('Como foi pago?', [
+            { rotulo: '🏦 Pix, débito ou dinheiro', fn: () => abrirModal('despesa') },
+            { rotulo: '💳 Cartão de crédito', fn: () => abrirModalCartaoDespesa() },
+          ]);
+          break;
+        }
+        case 'entrada': abrirModal('receita'); break;
+        case 'faturas': _celSairSimples('faturas'); break;
+        case 'apagar':
+          _celAba = 'lancamentos'; _celRerender();
+          (document.getElementById('celAConfirmar') || document.getElementById('celApp'))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          break;
+        case 'importar': document.getElementById('btnUploadIA')?.click(); break;
+        case 'aporte':
+          _celSairSimples('resumo');
+          setTimeout(() => { const i = document.getElementById('aporteEfetivadoInput'); i?.scrollIntoView({ behavior: 'smooth', block: 'center' }); i?.focus(); }, 300);
+          break;
+        case 'planCompleto': _celSairSimples('planejamento'); break;
+      }
+    });
+    document.getElementById('celApp')?.addEventListener('input', e => {
+      if (e.target.id !== 'celBusca') return;
+      _celBusca = e.target.value;
+      _celRerender();
+    });
+    document.getElementById('celBottomNav')?.addEventListener('click', e => {
+      const b = e.target.closest('[data-cel-nav]');
+      if (!b) return;
+      if (b.dataset.celNav === 'mais') _celMenuMais();
+      else { _celAba = 'resumo'; _celRerender(); window.scrollTo(0, 0); }
+    });
 
     // Cards de Pendências e Alertas — abrem o Saldo Projetado já filtrado pro
     // tipo clicado, que é o único lugar com botão de confirmar/editar/excluir
@@ -5453,6 +5843,15 @@
       if (_tabAtiva === 'graficos')     renderGraficos(data);
       if (_tabAtiva === 'detalhe')      renderDespesasGrupos(data, totalDespesa);
 
+      // Modo celular simplificado: mesmos números calculados acima.
+      _celCtx = {
+        saldoFinal, totalReceita, totalDespesa,
+        saldoFuturo: saldoFinal + totalReceitaPendente + totalFixasVirtuaisReceita - totalPendente - totalFaturas - totalFixasVirtuais,
+        despesasPendentes, totalPendente, fixasVirtuais, totalFixasVirtuais,
+        receitasPendentes, fixasVirtuaisReceita,
+      };
+      _aplicarModoCel();
+
       renderAportesList(data);
       renderTransferenciasList(data);
 
@@ -6141,6 +6540,8 @@
             </div>
           </div>`;
       }).join('');
+
+      window._celTotalAbertas = totalGeralAbertas; // card "Faturas abertas" do modo celular
 
       // ── Constroí cards de faturas FECHADAS (a pagar este mês) ─────────────────
       const idsFechadas = Object.keys(gruposFechada);
@@ -6872,6 +7273,8 @@
     }
 
     function renderPlanejamento(data, cats) {
+      // Modo celular: limite editado pelo lápis do Planejado redesenha a tela simples também.
+      if (document.body.classList.contains('modo-cel')) setTimeout(_celRerender, 0);
       const el = document.getElementById('planejamentoContent');
       if (!el) return;
 

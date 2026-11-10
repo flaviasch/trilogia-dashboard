@@ -1234,6 +1234,20 @@ document.getElementById('btnDesvincularCasalHome')?.addEventListener('click', as
 });
 
 async function init(user) {
+      // Modo celular simplificado (10/11/2026, em teste): no celular, a primeira
+      // abertura da sessão vai direto para o Orçamento. "Início" no menu do
+      // Orçamento volta com ?home=1 e fica aqui. Nunca no "ver como".
+      try {
+        const _celTeste = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
+        if (!VIEW_AS_UID && window.matchMedia('(max-width: 767px)').matches
+            && _celTeste.includes((user.email || '').toLowerCase())
+            && !new URLSearchParams(location.search).has('home')
+            && sessionStorage.getItem('celAbriuOrcamento') !== '1') {
+          sessionStorage.setItem('celAbriuOrcamento', '1');
+          location.replace('orcamento.html');
+          return;
+        }
+      } catch (_) { /* sem sessionStorage: segue na home */ }
       document.getElementById('userDisplayName').textContent = user.displayName || user.email;
       let admin = await isAdmin();
       if (admin) document.getElementById('linkAdmin').style.display = 'inline';
