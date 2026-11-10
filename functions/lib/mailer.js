@@ -1960,6 +1960,9 @@ function emailNovidadesVisualNov2026(nome) {
       ${item('🔁','Importar extrato não apaga mais transferências e aportes','Ao importar o extrato de novo, as transferências entre contas e os aportes que você já tinha registrado no mês ficam onde estavam.')}
       ${item('📅','Despesa fixa anual','IPVA, IPTU, anuidade, seguro: agora dá para cadastrar uma despesa fixa que acontece uma vez por ano, escolhendo o dia e o mês. Ela aparece sozinha no mês certo, todo ano.')}
 
+      ${secao('🧭 Minha Jornada')}
+      ${item('🖼️','Mural de desejos','Nova ferramenta na Minha Jornada para montar o seu mural de desejos, ou atualizar o que você já tem, com a ajuda do ChatGPT. Você copia o prompt pronto, responde as perguntas com calma e recebe um mural lindo, com a vida que você quer construir. E ele é funcional: ao lado de cada desejo, você anota quanto custa e em quanto tempo quer realizar. Assim o mural vira plano.')}
+
       ${secao('🎯 Reservas e investimentos')}
       ${item('📈','A oscilação do mercado vai para a reserva de longo prazo','Quando você atualiza a posição da corretora e o valor sobe ou cai por causa do mercado, essa diferença vai direto para a sua reserva de longo prazo (a de prazo acima de 10 anos). Assim, as suas reservas acompanham o patrimônio real, sem aquele aviso de diferença a cada atualização.')}
 
