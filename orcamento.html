@@ -12131,16 +12131,10 @@
     // o caminho antigo é o que tinha o bug do mês alternado.
     function _fixaCartaoV2Ativa() { return true; }
 
-    // ── Despesa fixa anual (06/11/2026, em teste) ───────────────────────────
-    // Uma ocorrência por ano, no mês mesAnual. A opção "Anual" só aparece para
-    // a conta master e a de teste; nunca no "ver como".
-    const _FIXA_ANUAL_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
-    function _fixaAnualAtiva() {
-      const user = auth.currentUser;
-      if (!user) return false;
-      try { if (uidAtual() !== user.uid) return false; } catch (_) { return false; }
-      return _FIXA_ANUAL_ALLOWLIST.includes((user.email || '').toLowerCase());
-    }
+    // ── Despesa fixa anual (06/11/2026) ─────────────────────────────────────
+    // Uma ocorrência por ano, no mês mesAnual. Liberada para todas em
+    // 10/11/2026, a pedido da Flávia (entra no comunicado do visual novo).
+    function _fixaAnualAtiva() { return true; }
     function _sincronizarOpcaoAnual(sel) {
       if (!sel) return;
       const opt = sel.querySelector('option[value="anual"]');

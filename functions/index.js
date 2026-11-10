@@ -2685,10 +2685,7 @@ exports.saveRecorrente = onCall(async (request) => {
   // Anual (06/11/2026): uma vez por ano, no mês mesAnual. Sem prazo: o
   // "tempo determinado" conta meses lançados, não faz sentido para anual.
   const ehAnual = frequencia === 'anual';
-  // Em teste: só a conta master e a de teste podem criar/editar anual.
-  const FIXA_ANUAL_TESTE = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
-  if (ehAnual && !FIXA_ANUAL_TESTE.includes(String(request.auth?.token?.email || '').toLowerCase()))
-    throw new HttpsError('permission-denied', 'Recorrência anual ainda não disponível.');
+  // Liberada para todas em 10/11/2026 (antes só a conta master e a de teste).
   const mesAnualInformado = Number.isInteger(recorrente.mesAnual) && recorrente.mesAnual >= 1 && recorrente.mesAnual <= 12
     ? recorrente.mesAnual : null;
   const mesesRestantes = !ehAnual && Number.isInteger(recorrente.mesesRestantes) && recorrente.mesesRestantes >= 0

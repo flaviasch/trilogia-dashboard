@@ -2016,16 +2016,13 @@
     // Salva uma posição nomeada da corretora — usado tanto pela importação
     // com IA quanto pelo CSV, pra dar suporte a mais de uma posição (casal,
     // mais de uma corretora) sem uma sobrescrever a outra (achado 20/07/2026).
-    // ─── Oscilação de mercado → reserva de longo prazo (05/11/2026, em teste)
+    // ─── Oscilação de mercado → reserva de longo prazo (05/11/2026; liberada para todas em 10/11/2026)
     // Atualizar uma posição que já existe muda o valor pela variação dos
     // ativos, não por dinheiro novo. Essa diferença vai direto pra reserva
     // de prazo mais longo (> 10 anos) ainda em andamento, que é onde estão
     // RV/Internacional/Alternativos. Posição nova, excluída ou retirada
     // continuam no fluxo manual de conciliarReservas (regra de 01/10/2026).
-    const OSCILACAO_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br'];
-    function podeAjustarOscilacao() {
-      return OSCILACAO_ALLOWLIST.includes((auth.currentUser?.email || '').toLowerCase());
-    }
+    function podeAjustarOscilacao() { return !!auth.currentUser; }
 
     async function absorverOscilacaoNaReservaLP(delta, nomePosicao) {
       if (!podeAjustarOscilacao() || Math.abs(delta) < 0.01) return;
