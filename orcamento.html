@@ -2244,7 +2244,8 @@
   <div id="modalCategoriasIncertas" class="modal-overlay hidden">
     <div class="modal-card wide" style="max-width:600px;width:94%;">
       <h3 style="font-family:'Playfair Display',serif;font-size:18px;margin:0 0 6px;">Confirme estes lançamentos</h3>
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+      <div id="transfPropriasSection" style="display:none;margin-bottom:16px;"></div>
+      <p id="textoCategoriasIncertas" style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
         A IA não teve certeza da categoria (e, em alguns casos, se é receita ou despesa) destes lançamentos. Confirme ou corrija — da próxima vez que esse estabelecimento aparecer, a categoria já entra sozinha.
       </p>
       <div id="listaCategoriasIncertas" style="margin-bottom:16px;max-height:60vh;overflow-y:auto;padding-right:14px;"></div>
@@ -2897,7 +2898,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor, getStatusVinculo, getOrcamentoCasal } from './js/api.js?v=76';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor, getStatusVinculo, getOrcamentoCasal } from './js/api.js?v=77';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -3289,7 +3290,8 @@
       // salvar transferência), não o id. Consolidado: uma linha por
       // transferência (a perna de saída); conta específica: a perna dela.
       (currentData.transferencias || []).forEach(t => {
-        if (_contaAtivaId ? t.contaId !== _contaAtivaId : t.direcao !== 'saida') return;
+        // Consolidado: uma linha por transferência (a saída); entrada sem par (veio de conta fora do dashboard) aparece também.
+        if (_contaAtivaId ? t.contaId !== _contaAtivaId : (t.direcao !== 'saida' && currentData.transferencias.some(o => o !== t && o.transferenciaId === t.transferenciaId))) return;
         const outra = t.contaContraparte || 'outra conta';
         const desc = t.direcao === 'saida' ? `${_celNomeConta(t.contaId)} para ${outra}` : `${outra} para ${_celNomeConta(t.contaId)}`;
         itens.push({ tipo: 'transf', d: { data: t.data, valor: t.valor, descricao: desc, categoria: 'Transferência' } });
@@ -6170,7 +6172,8 @@
       const container = document.getElementById('transferenciasList');
       if (!container) return;
       const transferencias = data.transferencias || [];
-      if (transferencias.length === 0 || _contas.length <= 1) { container.innerHTML = ''; return; }
+      const _soltasVisiveis = _transfPropriaAtiva(); // perna sem par = conta fora do dashboard (em teste)
+      if (transferencias.length === 0 || (_contas.length <= 1 && !_soltasVisiveis)) { container.innerHTML = ''; return; }
 
       const porId = {};
       transferencias.forEach(t => {
@@ -6178,8 +6181,11 @@
         porId[t.transferenciaId][t.direcao] = t;
       });
       const pares = Object.entries(porId)
-        .filter(([, p]) => p.saida && p.entrada)
-        .map(([id, p]) => ({ id, ...p.saida }));
+        .filter(([, p]) => (p.saida && p.entrada) || (_soltasVisiveis && (p.saida || p.entrada)))
+        .map(([id, p]) => p.saida
+          ? { id, ...p.saida }
+          // Só a entrada (veio de conta fora do dashboard): mostra "fora → esta conta".
+          : { id, ...p.entrada, contaId: null, _origemNome: p.entrada.contaContraparte, contaContraparte: _nomeConta(p.entrada.contaId) });
 
       if (pares.length === 0) { container.innerHTML = ''; return; }
 
@@ -6194,7 +6200,7 @@
             ${pares.map(p => `
               <div class="item-row">
                 <div>
-                  <div class="item-categoria">${escapeHtml(_nomeConta(p.contaId))} → ${escapeHtml(p.contaContraparte || _nomeConta(null))}</div>
+                  <div class="item-categoria">${escapeHtml(p._origemNome || _nomeConta(p.contaId))} → ${escapeHtml(p.contaContraparte || _nomeConta(null))}</div>
                   <div style="font-size:11px;color:var(--text-muted)">${p.data ? p.data.split('-').reverse().join('/') : ''}${p.nota ? ' · ' + escapeHtml(p.nota) : ''}</div>
                 </div>
                 <div></div>
@@ -9613,7 +9619,11 @@
         const norm = normCat(item.categoria);
         if (!catCanonicaPorNorm[norm]) catCanonicaPorNorm[norm] = item.categoria;
       });
-      const itensNormalizados = itensCsv.map(i => {
+      // Transferências entre contas próprias confirmadas na revisão (em teste)
+      // não entram como receita/despesa: viram pernas de transferência abaixo.
+      const itensTransfPropria = itensCsv.filter(i => i._transfDecisao);
+      const transfResultado = _aplicarTransfPropriasImport(itensTransfPropria, dadosAlvo.transferencias);
+      const itensNormalizados = itensCsv.filter(i => !i._transfDecisao).map(i => {
         const canonica = catCanonicaPorNorm[normCat(i.categoria)];
         return canonica && canonica !== i.categoria ? { ...i, categoria: canonica } : i;
       });
@@ -9653,7 +9663,7 @@
         // transferências de novembro da Luciana iriam junto). Mesmo formato
         // de _salvarEAtualizarAgora.
         ...(dadosAlvo.aportes || []).map(a => ({ categoria: a.nota || 'Aporte efetivado', tipo: 'aporte', valor: a.valor, ...(a.contaId ? { contaId: a.contaId } : {}) })),
-        ...(dadosAlvo.transferencias || []).map(t => ({
+        ...transfResultado.lista.map(t => ({
           categoria: 'Transferência', tipo: 'transferencia',
           transferenciaId: t.transferenciaId, direcao: t.direcao, valor: t.valor,
           contaId: t.contaId, contaContraparte: t.contaContraparte || '',
@@ -9683,7 +9693,7 @@
       }
 
       // Salva todos os itens normalmente (fixa entra como lançamento regular)
-      const itens = [...itensImportar.map(({ fixa: _f, ...i }) => ({ ...i, origem: origemTag })), ...preservar];
+      const itens = [...itensImportar.map(({ fixa: _f, transferenciaPropria: _tp, contaSugerida: _cs, _transfCand: _tc, _transfDecisao: _td, ...i }) => ({ ...i, origem: origemTag })), ...preservar];
       await saveOrcamento(mesSalvar, anoSalvar, itens, true); // substituição intencional (nova importação)
       _invalPeriodo(mesSalvar, anoSalvar);
 
@@ -9693,6 +9703,10 @@
         toast(`${origemLabel} importado com sucesso!`, 'success');
       } else {
         toast(`${origemLabel} importado para ${MESES[mesSalvar - 1]} de ${anoSalvar} ✓`, 'success');
+      }
+      if (itensTransfPropria.length) {
+        const { criadas: c, jaExistiam: j } = transfResultado;
+        toast(`${c ? `${c} transferência${c > 1 ? 's' : ''} entre suas contas registrada${c > 1 ? 's' : ''}` : ''}${c && j ? ' e ' : ''}${j ? `${j} já estava${j > 1 ? 'm' : ''} lançada${j > 1 ? 's' : ''} e não ${j > 1 ? 'foram duplicadas' : 'foi duplicada'}` : ''}. Não contam como despesa nem receita.`, 'info', 7000);
       }
       if (fixasJaLancadas > 0) {
         toast(`${fixasJaLancadas} despesa${fixasJaLancadas > 1 ? 's fixas' : ' fixa'} do cartão já estava${fixasJaLancadas > 1 ? 'm' : ''} lançada${fixasJaLancadas > 1 ? 's' : ''} e não ${fixasJaLancadas > 1 ? 'foram duplicadas' : 'foi duplicada'}.`, 'info', 6000);
@@ -10096,6 +10110,140 @@
       try { if (uidAtual() !== user.uid) return false; } catch (_) { return false; } // nunca no "ver como"
       return _IMPORT_PERIODO_ALLOWLIST.includes((user.email || '').toLowerCase());
     }
+
+    // ── Transferência entre contas da mesma titularidade (11/11/2026, em teste) ──
+    // Pix/TED da usuária para ela mesma (ex: Uber Conta → Inter) não é despesa
+    // nem receita. A IA marca a linha (transferenciaPropria + contaSugerida), a
+    // revisão da importação pergunta a outra conta e o salvamento grava no
+    // mesmo formato da transferência manual (duas pernas). Sem duplicar quando
+    // o extrato da outra conta é importado depois: procura no mês uma perna de
+    // mesmo valor, data com 1 dia de folga e mesma conta. "Outra conta minha
+    // fora do dashboard" grava só a perna desta conta (sai do saldo dela sem
+    // virar despesa); quando a outra conta é cadastrada e importada depois, a
+    // perna solta ganha o par.
+    const _TRANSF_PROPRIA_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br', 'lucianakawahara@gmail.com'];
+    function _transfPropriaAtiva() {
+      const user = auth.currentUser;
+      if (!user) return false;
+      try { if (uidAtual() !== user.uid) return false; } catch (_) { return false; } // nunca no "ver como"
+      return _TRANSF_PROPRIA_ALLOWLIST.includes((user.email || '').toLowerCase());
+    }
+    const _TRF_FORA = '__fora__';
+    const _TRF_FORA_NOME = 'Outra conta sua (fora do dashboard)';
+    const _ehISOData = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+    function _normNomeConta(s) {
+      return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+    // Conta cadastrada (menos excluirId) cujo nome bate com o texto sugerido pela IA.
+    function _contaPorNomeSugerido(nome, excluirId) {
+      const n = _normNomeConta(nome);
+      if (n.length < 2) return null;
+      const outras = _contas.filter(c => c.id !== excluirId && c.ativa !== false);
+      const hit = outras.find(c => _normNomeConta(c.nome) === n)
+        || outras.find(c => { const cn = _normNomeConta(c.nome); return cn.length >= 3 && n.length >= 3 && (n.includes(cn) || cn.includes(n)); });
+      return hit ? hit.id : null;
+    }
+    // Perna de transferência já existente: mesma conta, direção e valor, data
+    // com até 1 dia de diferença, ainda não usada (casamento um para um).
+    function _acharPernaTransf(lista, contaId, direcao, valor, data, usadas) {
+      if (!_ehISOData(data)) return null;
+      const d0 = Date.parse(data);
+      return lista.find(t => !usadas.has(t)
+        && (t.contaId || CONTA_PRINCIPAL_ID) === contaId && t.direcao === direcao
+        && Math.abs((t.valor || 0) - valor) < 0.01
+        && _ehISOData(t.data) && Math.abs(Date.parse(t.data) - d0) <= 86400000) || null;
+    }
+    const _parDaPerna = (lista, perna) => lista.find(t => t !== perna && t.transferenciaId === perna.transferenciaId) || null;
+
+    // Antes da revisão: marca _transfCand nos itens que a IA apontou como
+    // transferência própria OU que já existem como transferência nesta conta
+    // (ex: lançada antes pela importação da outra conta, ou à mão).
+    async function _marcarCandidatosTransfPropria(itens, contaX) {
+      const det = detectarMesCsv(itens);
+      const { mes: mA, ano: aA } = currentData.periodo;
+      const m = det?.mes ?? mA, a = det?.ano ?? aA;
+      const dados = (m === mA && a === aA) ? currentData : await buscarPeriodo(m, a, false);
+      const lista = dados.transferencias || [];
+      const usadas = new Set();
+      itens.forEach(item => {
+        if (item.cartao || (item.tipo !== 'despesa' && item.tipo !== 'receita')) return;
+        const dir = item.tipo === 'despesa' ? 'saida' : 'entrada';
+        const pernaX = _acharPernaTransf(lista, contaX, dir, item.valor, item.data, usadas);
+        if (pernaX) {
+          usadas.add(pernaX);
+          const par = _parDaPerna(lista, pernaX);
+          item._transfCand = {
+            jaExiste: true,
+            sugeridaId: par ? (par.contaId || CONTA_PRINCIPAL_ID) : (_contaPorNomeSugerido(pernaX.contaContraparte, contaX) || _TRF_FORA),
+          };
+          return;
+        }
+        if (!item.transferenciaPropria) return;
+        // Perna solta na outra conta (importada antes como "fora do dashboard").
+        const oposta = dir === 'saida' ? 'entrada' : 'saida';
+        let sugeridaId = _contaPorNomeSugerido(item.contaSugerida, contaX);
+        if (!sugeridaId) {
+          const solta = _contas.filter(c => c.id !== contaX && c.ativa !== false)
+            .map(c => _acharPernaTransf(lista.filter(t => !_parDaPerna(lista, t)), c.id, oposta, item.valor, item.data, usadas))
+            .find(Boolean);
+          if (solta) { usadas.add(solta); sugeridaId = solta.contaId; }
+        }
+        item._transfCand = { jaExiste: false, sugeridaId: sugeridaId || _TRF_FORA };
+      });
+    }
+
+    // No salvamento: aplica as decisões (_transfDecisao = id da outra conta ou
+    // _TRF_FORA) sobre as transferências do mês, sem duplicar. Devolve a lista
+    // nova de pernas e quantas foram criadas / já existiam.
+    function _aplicarTransfPropriasImport(itensTransf, transferenciasMes) {
+      const lista = (transferenciasMes || []).map(t => ({ ...t }));
+      const usadas = new Set();
+      let criadas = 0, jaExistiam = 0, seq = 0;
+      const novoId = () => 'trf' + Date.now() + '_' + (seq++);
+      const perna = (transferenciaId, direcao, valor, contaId, contaContraparte, data, nota) => {
+        const p = { transferenciaId, direcao, valor, contaId, contaContraparte, data, nota };
+        lista.push(p); usadas.add(p);
+        return p;
+      };
+      itensTransf.forEach(item => {
+        const X = item.contaId || CONTA_PRINCIPAL_ID;
+        const Y = item._transfDecisao;
+        const dir = item.tipo === 'despesa' ? 'saida' : 'entrada';
+        const oposta = dir === 'saida' ? 'entrada' : 'saida';
+        const nota = item.descricao || 'Importado do extrato';
+        const pernaX = _acharPernaTransf(lista, X, dir, item.valor, item.data, usadas);
+        if (pernaX) usadas.add(pernaX);
+        if (Y === _TRF_FORA || Y === X) {
+          if (pernaX) jaExistiam++;
+          else { perna(novoId(), dir, item.valor, X, _TRF_FORA_NOME, item.data, nota); criadas++; }
+          return;
+        }
+        const pernaY = _acharPernaTransf(lista, Y, oposta, item.valor, item.data, usadas);
+        if (pernaY) usadas.add(pernaY);
+        if (pernaX && pernaY) { jaExistiam++; return; }
+        if (pernaX) {
+          // Já existia nesta conta; se estava solta (fora do dashboard), ganha o par.
+          if (!_parDaPerna(lista, pernaX)) {
+            pernaX.contaContraparte = _nomeConta(Y);
+            perna(pernaX.transferenciaId, oposta, item.valor, Y, _nomeConta(X), pernaX.data || item.data, pernaX.nota || nota);
+          }
+          jaExistiam++;
+          return;
+        }
+        if (pernaY && !_parDaPerna(lista, pernaY)) {
+          // Veio antes pelo extrato da outra conta como "fora do dashboard".
+          pernaY.contaContraparte = _nomeConta(X);
+          perna(pernaY.transferenciaId, dir, item.valor, X, _nomeConta(Y), item.data, nota);
+          jaExistiam++;
+          return;
+        }
+        const id = novoId();
+        perna(id, dir, item.valor, X, _nomeConta(Y), item.data, nota);
+        perna(id, oposta, item.valor, Y, _nomeConta(X), item.data, nota);
+        criadas++;
+      });
+      return { lista, criadas, jaExistiam };
+    }
     // Último dia já importado (extrato, não manual/fixa/parcelamento) da conta
     // no mês em tela. null se não houver.
     function _ultimoDiaImportadoConta(contaId) {
@@ -10261,7 +10409,10 @@
         // Nomes dos cartões ativos — ajuda a IA a reconhecer pagamento de fatura
         // mesmo quando a linha do extrato não diz "cartão"/"fatura" (achado 14/07/2026).
         const nomesCartoesAtivos = (_cartoes || []).filter(c => c.ativo).map(c => c.nome);
-        const { itens: itensIA, vencimentoFatura, pagamentosFatura } = await categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoesAtivos);
+        // Transferência própria (em teste): só em extrato de conta, nunca fatura.
+        const transfPropriaLote = !document.getElementById('iaCartaoSelecionado').value && _transfPropriaAtiva();
+        const pedidoTransf = transfPropriaLote ? { contas: _contas.filter(c => c.ativa !== false).map(c => c.nome) } : null;
+        const { itens: itensIA, vencimentoFatura, pagamentosFatura } = await categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoesAtivos, pedidoTransf);
 
         // Fatura de cartão selecionada: marca cada despesa como cartao. A fatura
         // é UMA SÓ para o lote inteiro, não recalculada por item a partir da
@@ -10327,6 +10478,7 @@
             .reduce((s, i) => s + (i.tipo === 'despesa' ? i.valor : -i.valor), 0);
           avulsoInfo = await _buscarAvulsoCorrespondenteAFatura(cartaoObjSel, faturaLote, totalFaturaImportada);
         }
+        if (transfPropriaLote && !cartaoObjSel) await _marcarCandidatosTransfPropria(itensProcessados, escopoLote.contaId);
 
         const { cancelado, excluirAvulso } = await confirmarCategoriasIncertas(itensProcessados, avulsoInfo);
         if (cancelado) { toast('Importação cancelada.', 'info'); return; }
@@ -11830,8 +11982,47 @@
     function confirmarCategoriasIncertas(itens, avulsoInfo = null) {
       const incertos = itens
         .map((item, idx) => ({ item, idx }))
-        .filter(({ item }) => item.categoriaIncerta === true || item.tipoIncerto === true);
-      if (!incertos.length && !avulsoInfo) return Promise.resolve({ itens, cancelado: false, excluirAvulso: false });
+        .filter(({ item }) => !item._transfCand && (item.categoriaIncerta === true || item.tipoIncerto === true));
+      const transfs = itens.map((item, idx) => ({ item, idx })).filter(({ item }) => item._transfCand);
+      if (!incertos.length && !avulsoInfo && !transfs.length) return Promise.resolve({ itens, cancelado: false, excluirAvulso: false });
+
+      // Transferências entre contas da própria usuária (11/11/2026, em teste).
+      const transfSection = document.getElementById('transfPropriasSection');
+      document.getElementById('textoCategoriasIncertas').style.display = incertos.length ? '' : 'none';
+      if (transfs.length) {
+        const contaX = (transfs[0].item.contaId) || CONTA_PRINCIPAL_ID;
+        const outras = _contas.filter(c => c.id !== contaX && c.ativa !== false);
+        const nomeX = _nomeConta(contaX);
+        transfSection.innerHTML = `
+          <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Transferências entre suas contas</div>
+          <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px;">
+            Estes lançamentos parecem dinheiro seu indo de uma conta sua para outra. Eles não contam como despesa nem receita. Confira a outra conta de cada um.
+            ${outras.length ? '' : ' Você tem só uma conta cadastrada: se quiser acompanhar o saldo da outra, cadastre-a em <strong>Contas</strong> e, quando importar o extrato dela, a transferência se completa sem duplicar.'}
+          </p>
+          ${transfs.map(({ item, idx }) => {
+            const saida = item.tipo === 'despesa';
+            const cand = item._transfCand;
+            const opt = (v, txt) => `<option value="${escapeHtml(v)}" ${cand.sugeridaId === v ? 'selected' : ''}>${escapeHtml(txt)}</option>`;
+            return `
+            <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+              <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:4px;">
+                <span style="font-size:13px;font-weight:500;min-width:0;">${escapeHtml(item.descricao || '(sem descrição)')}</span>
+                <span style="font-size:13px;font-weight:700;color:${saida ? 'var(--negative)' : 'var(--positive)'};white-space:nowrap;flex-shrink:0;">${saida ? '− ' : '+ '}${brl(item.valor)}</span>
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">${escapeHtml(formatData(item.data))} · ${saida ? `Saiu de ${escapeHtml(nomeX)} para:` : `Entrou em ${escapeHtml(nomeX)} vindo de:`}</div>
+              <select data-transf-idx="${idx}" style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:13px;font-family:inherit;">
+                ${outras.map(c => opt(c.id, c.nome)).join('')}
+                ${opt(_TRF_FORA, 'Outra conta minha que não está no dashboard')}
+                <option value="__nao__">Não é transferência (lançar como ${saida ? 'despesa' : 'receita'})</option>
+              </select>
+              ${cand.jaExiste ? '<div style="font-size:12px;color:var(--positive);margin-top:6px;">Já está lançada como transferência. Não vai duplicar.</div>' : ''}
+            </div>`;
+          }).join('')}`;
+        transfSection.style.display = '';
+      } else {
+        transfSection.innerHTML = '';
+        transfSection.style.display = 'none';
+      }
 
       const avulsoSection = document.getElementById('avulsoDuplicidadeSection');
       if (avulsoInfo) {
@@ -11906,6 +12097,16 @@
         document.getElementById('btnConfirmarCategoriasIncertas').onclick = async () => {
           const btn = document.getElementById('btnConfirmarCategoriasIncertas');
           setLoading(btn, true, 'Salvando…');
+          transfSection.querySelectorAll('[data-transf-idx]').forEach(select => {
+            const idx = Number(select.dataset.transfIdx);
+            const { _transfCand: _c, ...resto } = itens[idx];
+            if (select.value === '__nao__') {
+              delete resto.transferenciaPropria; delete resto.contaSugerida;
+              itens[idx] = resto;
+            } else {
+              itens[idx] = { ...resto, _transfDecisao: select.value };
+            }
+          });
           lista.querySelectorAll('[data-tipo-incerta-idx]:checked').forEach(radio => {
             const idx = Number(radio.dataset.tipoIncertaIdx);
             itens[idx] = { ...itens[idx], tipo: radio.value };

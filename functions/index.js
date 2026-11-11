@@ -1757,7 +1757,7 @@ exports.categorizarExtratoIA = onCall(
   { secrets: [sAnthropic], timeoutSeconds: 300, memory: '512MiB' },
   async (request) => {
     const auth = requireAuth(request);
-    const { uid, conteudo, tipoConteudo, nomesCartoes } = request.data;
+    const { uid, conteudo, tipoConteudo, nomesCartoes, transferenciasProprias } = request.data;
     requireSelfOrAdmin(request, uid);
     // 10 a cada 10min — uso típico é 1-2 importações por mês; generoso o bastante
     // contra abuso sem incomodar uso legítimo (várias contas/cartões no mesmo dia).
@@ -1813,6 +1813,31 @@ exports.categorizarExtratoIA = onCall(
       ? nomesCartoes.filter(n => typeof n === 'string' && n.trim()).map(n => n.trim().slice(0, 60)).slice(0, 20)
       : [];
 
+    // Transferência entre contas da mesma titularidade (11/11/2026, em teste):
+    // Pix/TED da usuária para ela mesma não é despesa nem receita. Só liga
+    // para a allowlist, na própria conta (nunca no "ver como": o frontend
+    // não manda o pedido e aqui o uid precisa ser o do login).
+    const _TRANSF_PROPRIA_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br', 'lucianakawahara@gmail.com'];
+    const transfPropriaAtiva = !!transferenciasProprias && typeof transferenciasProprias === 'object'
+      && auth.uid === uid
+      && _TRANSF_PROPRIA_ALLOWLIST.includes(String(auth.token?.email || '').toLowerCase());
+    let nomeTitular = '';
+    let listaContasProprias = [];
+    if (transfPropriaAtiva) {
+      const mentSnap = await db.collection('mentoradas').doc(uid).get();
+      nomeTitular = String((mentSnap.exists && mentSnap.data().nome) || auth.token?.name || '').trim().slice(0, 100);
+      listaContasProprias = Array.isArray(transferenciasProprias.contas)
+        ? transferenciasProprias.contas.filter(n => typeof n === 'string' && n.trim()).map(n => n.trim().slice(0, 60)).slice(0, 20)
+        : [];
+    }
+    const regraTransfPropria = !transfPropriaAtiva ? '' : `
+- TRANSFERÊNCIA ENTRE CONTAS DA PRÓPRIA USUÁRIA (mesma titularidade): dinheiro que sai de uma conta dela e entra em outra conta DELA não é despesa nem receita. Essas linhas entram normalmente em "itens" (com "tipo" decidido pela coluna, como sempre), mas com "transferenciaPropria": true. Titular: ${nomeTitular || '(nome não informado)'}. Contas que ela tem cadastradas no dashboard: ${listaContasProprias.length ? listaContasProprias.join(', ') : '(nenhuma informada)'}. Marque "transferenciaPropria": true quando a linha for um Pix/TED/DOC/transferência E houver QUALQUER um destes sinais:
+  (1) o nome da própria titular aparece como destinatário ou remetente (ex: "Pix enviado: Cp :22896431-Maria Clara Souza", "Pix recebido de MARIA C SOUZA", para a titular Maria Souza). Vale com nome do meio faltando, abreviado ou em maiúsculas, desde que o PRIMEIRO nome e o ÚLTIMO sobrenome sejam os dela. Mesmo sobrenome com outro primeiro nome (mãe, pai, irmã, cônjuge, filho) NÃO é dela: é transferência para terceiro;
+  (2) o texto diz "mesma titularidade", "entre contas", "transf entre contas", "conta própria";
+  (3) o texto cita o nome de uma das contas cadastradas dela acima junto da palavra transferência/Pix (ex: "Transferencia Inter Ma" no extrato de outra conta, quando ela tem uma conta "Inter").
+  NÃO marque: Pix/TED para outra pessoa ou empresa; pagamento de boleto, conta, fatura de cartão (fatura continua indo para "pagamentosFatura"); compra no débito mesmo que o nome dela apareça no estabelecimento; aplicação, resgate, "caixinha", "cofrinho", CDB, poupança ou qualquer investimento (isso não é transferência entre contas), EXCETO quando esse nome ("Caixinha", "Poupança" etc.) é exatamente uma das contas cadastradas dela acima: aí vale o sinal (3). Na dúvida, não marque.
+  "contaSugerida": quando marcar, o nome da OUTRA conta envolvida, se o texto permitir identificar. Prefira exatamente um dos nomes cadastrados acima quando o texto citar esse banco/conta; senão, o nome do banco que aparece no texto; senão null. Nunca invente.`;
+
     const systemPrompt = `Você extrai e categoriza transações de extratos bancários e faturas de cartão de crédito brasileiros.
 
 Categorias válidas para DESPESA (código=nome) — use SEMPRE o código numérico para despesas, nunca invente categoria fora desta lista:
@@ -1841,9 +1866,9 @@ Regras obrigatórias:
 - "valor" sempre positivo, tipo número (não string), com ponto decimal.
 - "data" no formato AAAA-MM-DD. Se o ano não estiver explícito, use o ano corrente (${new Date().getFullYear()}).
 - "vencimentoFatura": SE o documento for uma fatura de cartão de crédito (não extrato de conta corrente) E tiver uma data de vencimento impressa (ex: "Vencimento: 20/07/2026", "Data de vencimento", "Pagamento até"), preencha no formato AAAA-MM-DD. Isso é o vencimento IMPRESSO no documento, não uma data que você calcula — se não encontrar essa informação impressa, ou se for extrato de conta corrente, use null.
-- "pagamentosFatura": array com as linhas de pagamento de fatura de cartão identificadas (ver regra acima) — [] se não houver nenhuma ou se o documento for a própria fatura (não faz sentido dentro de uma fatura).
+- "pagamentosFatura": array com as linhas de pagamento de fatura de cartão identificadas (ver regra acima) — [] se não houver nenhuma ou se o documento for a própria fatura (não faz sentido dentro de uma fatura).${regraTransfPropria}
 - Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só, sem indentação nem quebras de linha). Formato:
-  {"vencimentoFatura": "AAAA-MM-DD"|null, "pagamentosFatura": [{"descricao": "<texto completo da linha>", "valor": <número>, "data": "AAAA-MM-DD"}], "itens": [{"categoria": "<código numérico como string, se despesa — ou texto da lista de receita, se receita>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false, "tipoIncerto": true|false}, ...]}`;
+  {"vencimentoFatura": "AAAA-MM-DD"|null, "pagamentosFatura": [{"descricao": "<texto completo da linha>", "valor": <número>, "data": "AAAA-MM-DD"}], "itens": [{"categoria": "<código numérico como string, se despesa — ou texto da lista de receita, se receita>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false, "tipoIncerto": true|false${transfPropriaAtiva ? ', "transferenciaPropria": true|false, "contaSugerida": "<nome>"|null' : ''}}, ...]}`;
 
     const contentBlock = tipoEfetivo === 'texto'
       ? { type: 'text', text: conteudoEfetivo }
@@ -1935,6 +1960,10 @@ Regras obrigatórias:
           : {}),
         ...(!categoriaAprendida && it.categoriaIncerta === true ? { categoriaIncerta: true } : {}),
         ...(it.tipoIncerto === true ? { tipoIncerto: true } : {}),
+        ...(transfPropriaAtiva && it.transferenciaPropria === true ? {
+          transferenciaPropria: true,
+          ...(typeof it.contaSugerida === 'string' && it.contaSugerida.trim() ? { contaSugerida: it.contaSugerida.trim().slice(0, 60) } : {}),
+        } : {}),
       };
     });
 
@@ -1943,7 +1972,7 @@ Regras obrigatórias:
       .map(p => ({ descricao: p.descricao.slice(0, 200), valor: Number(p.valor), data: p.data }))
       .slice(0, 20);
 
-    console.log(`[categorizarExtratoIA] uid=${uid} — ${itens.length} lançamentos extraídos via IA (tipoConteudo=${tipoConteudo}, vencimentoFatura=${vencimentoFatura || 'não encontrado'}, pagamentosFatura=${pagamentosFatura.length})`);
+    console.log(`[categorizarExtratoIA] uid=${uid} — ${itens.length} lançamentos extraídos via IA (tipoConteudo=${tipoConteudo}, vencimentoFatura=${vencimentoFatura || 'não encontrado'}, pagamentosFatura=${pagamentosFatura.length}${transfPropriaAtiva ? `, transferenciasProprias=${itens.filter(i => i.transferenciaPropria).length}` : ''})`);
     return { itens, vencimentoFatura, pagamentosFatura };
   },
 );

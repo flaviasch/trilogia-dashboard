@@ -314,8 +314,8 @@ export async function getReservasCasal(casalId) {
  *   a linha não diz "cartão"/"fatura" explicitamente (achado 14/07/2026).
  * @returns {Promise<{itens: Array}>} mesmo formato de parsearCsvRaioX — usar do mesmo jeito.
  */
-export async function categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoes = []) {
-  return call('categorizarExtratoIA', { timeout: TIMEOUT_IA_MS })({ uid: uidAtual(), conteudo, tipoConteudo, nomesCartoes });
+export async function categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoes = [], transferenciasProprias = null) {
+  return call('categorizarExtratoIA', { timeout: TIMEOUT_IA_MS })({ uid: uidAtual(), conteudo, tipoConteudo, nomesCartoes, ...(transferenciasProprias ? { transferenciasProprias } : {}) });
 }
 
 /**
