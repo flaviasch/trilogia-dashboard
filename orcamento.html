@@ -3285,9 +3285,14 @@
         if (pendR.has(r) || !naConta(r)) return;
         itens.push({ tipo: 'receita', idx, d: r });
       });
+      // contaContraparte guarda o NOME da outra conta (ver criação em
+      // salvar transferência), não o id. Consolidado: uma linha por
+      // transferência (a perna de saída); conta específica: a perna dela.
       (currentData.transferencias || []).forEach(t => {
-        if (t.direcao !== 'saida' || (_contaAtivaId && t.contaId !== _contaAtivaId && t.contaContraparte !== _contaAtivaId)) return;
-        itens.push({ tipo: 'transf', d: { data: t.data, valor: t.valor, descricao: `${_celNomeConta(t.contaId)} para ${_celNomeConta(t.contaContraparte)}`, categoria: 'Transferência' } });
+        if (_contaAtivaId ? t.contaId !== _contaAtivaId : t.direcao !== 'saida') return;
+        const outra = t.contaContraparte || 'outra conta';
+        const desc = t.direcao === 'saida' ? `${_celNomeConta(t.contaId)} para ${outra}` : `${outra} para ${_celNomeConta(t.contaId)}`;
+        itens.push({ tipo: 'transf', d: { data: t.data, valor: t.valor, descricao: desc, categoria: 'Transferência' } });
       });
       if (_celFiltro === 'saidas')   itens = itens.filter(i => i.tipo === 'despesa');
       if (_celFiltro === 'entradas') itens = itens.filter(i => i.tipo === 'receita');
