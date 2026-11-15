@@ -5229,7 +5229,11 @@
           // anterior a essa ação — aplicar mesmo assim apagaria a ação dela da
           // tela, e qualquer salvamento seguinte apagaria do banco também
           // (achado 18/07/2026, duas despesas fixas efetivadas sumiram assim).
-          if (_dataGen === genAntes) currentData = fresh;
+          if (_dataGen === genAntes) {
+            currentData = fresh;
+            // A releitura não traz o saldo inicial já resolvido (15/11/2026).
+            if (_saldoInicialPronto && _contaAtivaId === _contaDoSaldoInicial) fresh.saldoConta = _dataParaSaldo.saldoConta;
+          }
         }
         // Mesmo guard acima: se a usuária já trocou de mês, essa render()
         // renderizaria currentData (o mês novo, que ela já está vendo por
@@ -5266,11 +5270,26 @@
       // usada e, se currentData já mudou nesse meio tempo, reaplica o valor
       // resolvido no objeto atual em vez de descartar.
       const _dataParaSaldo = currentData;
+      let _saldoInicialPronto = false;
+      const _contaDoSaldoInicial = _contaAtivaId;
+      const _saldoInicialPromise = resolverSaldoContaAtiva(_dataParaSaldo).finally(() => { _saldoInicialPronto = true; });
       await Promise.race([
-        Promise.all([_cartoesReady, _recorrentesCarregadas, resolverSaldoContaAtiva(_dataParaSaldo)]).catch(() => {}),
+        Promise.all([_cartoesReady, _recorrentesCarregadas, _saldoInicialPromise]).catch(() => {}),
         new Promise(resolve => setTimeout(resolve, 5000)),
       ]);
       if (currentData !== _dataParaSaldo) currentData.saldoConta = _dataParaSaldo.saldoConta;
+      // Saldo inicial chegou DEPOIS dos 5s (celular abrindo o app com rede
+      // lenta): a tela era desenhada com saldo zero e só corrigia ao navegar
+      // (achado 15/11/2026, Flávia: "Saldo na conta" -R$ 1.218 ao abrir, o
+      // mesmo valor sem o saldo inicial de R$ 1.116,97). Quando ele chegar,
+      // aplica no mês em tela e redesenha.
+      if (!_saldoInicialPronto) {
+        _saldoInicialPromise.then(() => {
+          if (currentData.periodo.mes !== mes || currentData.periodo.ano !== ano || _contaAtivaId !== _contaDoSaldoInicial) return;
+          if (currentData !== _dataParaSaldo) currentData.saldoConta = _dataParaSaldo.saldoConta;
+          render(currentData);
+        }).catch(() => {});
+      }
 
       try {
         render(currentData);
