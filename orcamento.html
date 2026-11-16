@@ -5484,8 +5484,27 @@
       salvarScoreMes({ uid: uidAtual(), mes, ano, score, componentes }).catch(e => console.warn('[score] Falha ao salvar:', e.message));
     }
 
+    // Rede de segurança do saldo inicial (16/11/2026). Várias ações trocam
+    // currentData por uma cópia nova do mês (buscarPeriodo depois de salvar:
+    // fixas lançadas sozinhas ao abrir, fatura, parcelamento, importação) e
+    // redesenham sem resolver o saldo inicial, que fica fora do documento do
+    // mês (saldosConta) e chegava como zero: "Saldo na conta" -R$ 1.218 no
+    // celular da Flávia (15 e 16/11/2026), corrigindo só ao navegar. Se o
+    // objeto em tela ainda não teve o saldo resolvido para a visão ativa,
+    // resolve uma vez e redesenha.
+    function _garantirSaldoInicial(data) {
+      const chave = _contaAtivaId || '__todas__';
+      if (!data?.periodo || data._saldoResolvidoPara === chave || data._resolvendoSaldoPara === chave) return;
+      data._resolvendoSaldoPara = chave;
+      resolverSaldoContaAtiva(data).catch(() => { data._saldoResolvidoPara = chave; }).finally(() => {
+        data._resolvendoSaldoPara = null;
+        if (currentData === data && (_contaAtivaId || '__todas__') === chave) render(data);
+      });
+    }
+
     function render(data) {
       const { mes, ano } = data.periodo;
+      _garantirSaldoInicial(data);
       // Período
       document.getElementById('periodoLabel').textContent =
         `${MESES[data.periodo.mes - 1]} de ${data.periodo.ano}`;
@@ -9450,6 +9469,7 @@
      */
     async function resolverSaldoContaAtiva(data, sessaoAnterior = null) {
       const valorAntes = data.saldoConta;
+      data._saldoResolvidoPara = _contaAtivaId || '__todas__'; // ver _garantirSaldoInicial
       if (_contaAtivaId) {
         data.saldoConta = await resolverSaldoContaId(data, _contaAtivaId, sessaoAnterior);
         checarDivergenciaSaldoInicial(data, _contaAtivaId, sessaoAnterior).catch(() => {});
