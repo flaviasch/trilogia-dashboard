@@ -2898,7 +2898,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module">
     import { auth } from './js/firebase-config.js';
-    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor, getStatusVinculo, getOrcamentoCasal } from './js/api.js?v=77';
+    import { getOrcamento, saveOrcamento, parsearCsvRaioX, getReservas, saveReserva, aportePatrimonio, getPatrimonio, getPerfil, getCategoriasMes, saveCategoriasMes, upsertCategoriaLimite, renomearCategoriaLimite, upsertCategoriaMaeGlobal, getCategoriasMaeGlobais, migrarCategoriasMaeLegado, getPlanejamentoMeta, savePlanejamentoMeta, getSaldosConta, saveSaldoConta, getContas, saveConta, arquivarConta, deletarConta, setViewAsUid, getRecorrentes, saveRecorrente, deleteRecorrente, getCartoes, saveCartao, deleteCartao, registrarEvento, salvarScoreMes, getScoreHistorico, msgErro, saveParcelamento, cancelarParcelamento, uidAtual, getFaturaEstados, saveFaturaEstado, atualizarRecorrenteEmTodos, getNivelAcesso, categorizarExtratoIA, salvarCategoriaAprendida, getFixasPuladasServidor, adicionarFixasPuladasServidor, getStatusVinculo, getOrcamentoCasal } from './js/api.js?v=78';
     import { toast, setLoading, confirmDelete } from './js/ui.js';
     import { isAdmin } from './js/admin-guard.js';
     import {
@@ -9754,6 +9754,7 @@
       registrarEvento(eventoNome);
       // Se houver fixas detectadas, exibe modal de confirmação
       if (fixasDetectadas.length > 0) abrirModalFixasCsv(fixasDetectadas);
+      return true; // importou (cancelamento sai antes, sem valor)
     }
 
     // ─── Importação da planilha legada "Orçamento Sob Medida" (.xlsx) ────────
@@ -10451,7 +10452,14 @@
         // Transferência própria (em teste): só em extrato de conta, nunca fatura.
         const transfPropriaLote = !document.getElementById('iaCartaoSelecionado').value && _transfPropriaAtiva();
         const pedidoTransf = transfPropriaLote ? { contas: _contas.filter(c => c.ativa !== false).map(c => c.nome) } : null;
-        const { itens: itensIA, vencimentoFatura, pagamentosFatura } = await categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoesAtivos, pedidoTransf);
+        // Extrato de conta com vários meses (18/11/2026, em teste, mesmo gate):
+        // a IA lê só o mês em tela e soma os ganhos de aplicativo por dia.
+        const _pm = currentData.periodo;
+        const extrasIA = transfPropriaLote ? {
+          periodoImport: { de: `${_pm.ano}-${String(_pm.mes).padStart(2, '0')}-01`, ate: `${_pm.ano}-${String(_pm.mes).padStart(2, '0')}-${String(new Date(_pm.ano, _pm.mes, 0).getDate()).padStart(2, '0')}` },
+          agruparGanhosApp: true,
+        } : {};
+        const { itens: itensIA, vencimentoFatura, pagamentosFatura } = await categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoesAtivos, pedidoTransf, extrasIA);
 
         // Fatura de cartão selecionada: marca cada despesa como cartao. A fatura
         // é UMA SÓ para o lote inteiro, não recalculada por item a partir da
@@ -10553,7 +10561,12 @@
           }
         }
 
-        await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado', escopo: escopoLote });
+        const importou = await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado', escopo: escopoLote });
+        // Filtro do mês em tela (em teste): deixa explícito no fim o que entrou
+        // e como importar outro mês do mesmo arquivo (pedido da Flávia, 18/11/2026).
+        if (importou && extrasIA.periodoImport) {
+          toast(`Entraram só os lançamentos de ${MESES[_pm.mes - 1]} de ${_pm.ano}, o mês aberto na tela. Se o arquivo tinha outros meses, eles ficaram de fora: para importar outro mês, mude o mês na tela e importe o mesmo arquivo de novo.`, 'info', 12000);
+        }
 
         // Exclusão do avulso já foi decidida na tela de revisão acima —
         // executa aqui, depois que a fatura foi salva de verdade.

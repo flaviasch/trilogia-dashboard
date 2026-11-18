@@ -1757,7 +1757,7 @@ exports.categorizarExtratoIA = onCall(
   { secrets: [sAnthropic], timeoutSeconds: 300, memory: '512MiB' },
   async (request) => {
     const auth = requireAuth(request);
-    const { uid, conteudo, tipoConteudo, nomesCartoes, transferenciasProprias } = request.data;
+    const { uid, conteudo, tipoConteudo, nomesCartoes, transferenciasProprias, periodoImport, agruparGanhosApp } = request.data;
     requireSelfOrAdmin(request, uid);
     // 10 a cada 10min — uso típico é 1-2 importações por mês; generoso o bastante
     // contra abuso sem incomodar uso legítimo (várias contas/cartões no mesmo dia).
@@ -1818,9 +1818,17 @@ exports.categorizarExtratoIA = onCall(
     // para a allowlist, na própria conta (nunca no "ver como": o frontend
     // não manda o pedido e aqui o uid precisa ser o do login).
     const _TRANSF_PROPRIA_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br', 'lucianakawahara@gmail.com'];
-    const transfPropriaAtiva = !!transferenciasProprias && typeof transferenciasProprias === 'object'
-      && auth.uid === uid
+    const _gateTesteImport = auth.uid === uid
       && _TRANSF_PROPRIA_ALLOWLIST.includes(String(auth.token?.email || '').toLowerCase());
+    const transfPropriaAtiva = _gateTesteImport && !!transferenciasProprias && typeof transferenciasProprias === 'object';
+    // Extrato de conta com meses demais (18/11/2026, em teste, mesma allowlist):
+    // o Uber Conta da Luciana exporta 6 meses (1.390 linhas) e a resposta da IA
+    // estourava o limite e vinha cortada. Lê só o mês em tela e soma os ganhos
+    // de aplicativo por dia.
+    const _ehISO = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const periodo = (_gateTesteImport && periodoImport && _ehISO(periodoImport.de) && _ehISO(periodoImport.ate) && periodoImport.de <= periodoImport.ate)
+      ? { de: periodoImport.de, ate: periodoImport.ate } : null;
+    const agruparGanhos = _gateTesteImport && agruparGanhosApp === true;
     let nomeTitular = '';
     let listaContasProprias = [];
     if (transfPropriaAtiva) {
@@ -1830,6 +1838,9 @@ exports.categorizarExtratoIA = onCall(
         ? transferenciasProprias.contas.filter(n => typeof n === 'string' && n.trim()).map(n => n.trim().slice(0, 60)).slice(0, 20)
         : [];
     }
+    const regraPeriodoEGanhos = (periodo ? `
+- PERÍODO: o arquivo pode trazer vários meses. Inclua em "itens" e em "pagamentosFatura" SOMENTE lançamentos com data entre ${periodo.de} e ${periodo.ate} (inclusive). Ignore todos os outros, sem exceção.` : '') + (agruparGanhos ? `
+- GANHOS DE APLICATIVO: créditos repetidos de ganhos por corrida/entrega de aplicativo (ex: "Ganhos Uber", "Ganhos 99", "Repasse iFood") viram UMA linha por dia com a soma do dia: "descricao" = "<nome> (<quantidade> lançamentos)", "tipo" = "receita", "data" = o dia. Só para esse tipo de ganho; nunca agrupe despesas, Pix de pessoas ou outras receitas.` : '');
     const regraTransfPropria = !transfPropriaAtiva ? '' : `
 - TRANSFERÊNCIA ENTRE CONTAS DA PRÓPRIA USUÁRIA (mesma titularidade): dinheiro que sai de uma conta dela e entra em outra conta DELA não é despesa nem receita. Essas linhas entram normalmente em "itens" (com "tipo" decidido pela coluna, como sempre), mas com "transferenciaPropria": true. Titular: ${nomeTitular || '(nome não informado)'}. Contas que ela tem cadastradas no dashboard: ${listaContasProprias.length ? listaContasProprias.join(', ') : '(nenhuma informada)'}. Marque "transferenciaPropria": true quando a linha for um Pix/TED/DOC/transferência E houver QUALQUER um destes sinais:
   (1) o nome da própria titular aparece como destinatário ou remetente (ex: "Pix enviado: Cp :22896431-Maria Clara Souza", "Pix recebido de MARIA C SOUZA", para a titular Maria Souza). Vale com nome do meio faltando, abreviado ou em maiúsculas, desde que o PRIMEIRO nome e o ÚLTIMO sobrenome sejam os dela. Mesmo sobrenome com outro primeiro nome (mãe, pai, irmã, cônjuge, filho) NÃO é dela: é transferência para terceiro;
@@ -1866,7 +1877,7 @@ Regras obrigatórias:
 - "valor" sempre positivo, tipo número (não string), com ponto decimal.
 - "data" no formato AAAA-MM-DD. Se o ano não estiver explícito, use o ano corrente (${new Date().getFullYear()}).
 - "vencimentoFatura": SE o documento for uma fatura de cartão de crédito (não extrato de conta corrente) E tiver uma data de vencimento impressa (ex: "Vencimento: 20/07/2026", "Data de vencimento", "Pagamento até"), preencha no formato AAAA-MM-DD. Isso é o vencimento IMPRESSO no documento, não uma data que você calcula — se não encontrar essa informação impressa, ou se for extrato de conta corrente, use null.
-- "pagamentosFatura": array com as linhas de pagamento de fatura de cartão identificadas (ver regra acima) — [] se não houver nenhuma ou se o documento for a própria fatura (não faz sentido dentro de uma fatura).${regraTransfPropria}
+- "pagamentosFatura": array com as linhas de pagamento de fatura de cartão identificadas (ver regra acima) — [] se não houver nenhuma ou se o documento for a própria fatura (não faz sentido dentro de uma fatura).${regraTransfPropria}${regraPeriodoEGanhos}
 - Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, COMPACTO (uma linha só, sem indentação nem quebras de linha). Formato:
   {"vencimentoFatura": "AAAA-MM-DD"|null, "pagamentosFatura": [{"descricao": "<texto completo da linha>", "valor": <número>, "data": "AAAA-MM-DD"}], "itens": [{"categoria": "<código numérico como string, se despesa — ou texto da lista de receita, se receita>", "tipo": "despesa"|"receita", "valor": <número>, "data": "AAAA-MM-DD", "descricao": "<nome do estabelecimento ou lançamento>", "fixa": true|false, "parcelaAtual": <número ou null>, "parcelasTotal": <número ou null>, "categoriaIncerta": true|false, "tipoIncerto": true|false${transfPropriaAtiva ? ', "transferenciaPropria": true|false, "contaSugerida": "<nome>"|null' : ''}}, ...]}`;
 
@@ -1911,6 +1922,12 @@ Regras obrigatórias:
     }
 
     const textoResposta = respostaIA?.content?.[0]?.text || '';
+    // Resposta cortada por tamanho (18/11/2026, extrato Uber Conta de 6 meses):
+    // antes caía no "envie um extrato mais claro", que não dizia o problema.
+    if (respostaIA?.stop_reason === 'max_tokens') {
+      console.error(`[categorizarExtratoIA] Resposta cortada por tamanho (uid=${uid}, tipoConteudo=${tipoConteudo}, periodo=${periodo ? periodo.de + '..' + periodo.ate : 'todo'})`);
+      throw new HttpsError('invalid-argument', 'Esse arquivo tem lançamentos demais para ler de uma vez (provavelmente vários meses juntos). Baixe no app do banco o extrato só do período que você quer importar (por exemplo, só este mês) e envie de novo.');
+    }
     let itensBrutos;
     let vencimentoFatura = null;
     let pagamentosFaturaBrutos = [];
@@ -1932,7 +1949,9 @@ Regras obrigatórias:
     }
 
     if (itensBrutos.length === 0) {
-      throw new HttpsError('invalid-argument', 'Nenhuma transação foi identificada neste arquivo.');
+      throw new HttpsError('invalid-argument', periodo
+        ? `Nenhum lançamento entre ${periodo.de.split('-').reverse().join('/')} e ${periodo.ate.split('-').reverse().join('/')} neste arquivo. Para importar outro mês, mude o mês na tela do Orçamento antes de importar.`
+        : 'Nenhuma transação foi identificada neste arquivo.');
     }
     if (itensBrutos.length > 500) {
       throw new HttpsError('invalid-argument', 'Muitas transações identificadas (limite de 500). Envie um período menor.');
