@@ -632,6 +632,7 @@
   <script src="https://js.sentry-cdn.com/e2cecd67c4fbda5334b4c3df00e26e91.min.js" crossorigin="anonymous" async></script>
 <!-- Tema 2026 (10/11/2026): só vale com html.tema-novo -->
 <link rel="stylesheet" href="css/tema-2026.css?v=10" />
+  <script src="js/regua-estagios.js?v=1"></script>
 </head>
 <body>
 
@@ -1656,8 +1657,8 @@
         <button id="btnFecharHoje" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;margin-left:auto;line-height:1;">×</button>
       </div>
 
-      <!-- Banner: leads Fechado Ganho sem mentorada criada ainda (achado
-           23/07/2026: marcar como Fechado Ganho não cria a conta sozinho —
+      <!-- Banner: leads Convertido sem mentorada criada ainda (achado
+           23/07/2026: marcar como Convertido não cria a conta sozinho —
            só abre um confirm() fácil de fechar sem perceber, e depois disso
            não sobrava nenhum aviso de que o passo final ainda faltava). -->
       <div id="leadPendenteContaBanner" style="display:none;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);border-radius:10px;padding:12px 18px;margin-bottom:16px;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -1678,10 +1679,10 @@
         <input type="text" id="pipelineBusca" class="busca" placeholder="Buscar por nome…" style="flex:1;min-width:160px;" />
         <select id="pipelineFiltroEstagio" style="background:var(--navy-dark);border:1px solid rgba(207,174,101,0.3);border-radius:6px;color:inherit;padding:6px 12px;font-size:13px;cursor:pointer;">
           <option value="">Todos os estágios</option>
-          <option value="Lead Frio">Lead Frio</option>
-          <option value="Engajado">Engajado</option>
-          <option value="Interessado">Interessado</option>
-          <option value="Em Negociação">Em Negociação</option>
+          <option value="Novo">Novo</option>
+          <option value="Conexão">Conexão</option>
+          <option value="Diagnóstico">Diagnóstico</option>
+          <option value="Proposta">Proposta</option>
         </select>
         <div id="segmentoFiltroWrap" style="display:flex;gap:6px;">
           <button class="filter-btn ativo" data-seg="">Todos</button>
@@ -1781,15 +1782,16 @@
             <label>Valor R$</label>
             <input type="number" id="lValor" placeholder="0" min="0" step="0.01" />
           </div>
-          <div class="field-group">
+          <div class="field-group" style="grid-column:1/-1">
             <label>Estágio *</label>
-            <select id="lEstagio">
-              <option value="Lead Frio">Lead Frio</option>
-              <option value="Engajado">Engajado</option>
-              <option value="Interessado">Interessado</option>
-              <option value="Em Negociação">Em Negociação</option>
-              <option value="Fechado Ganho">Fechado Ganho</option>
-              <option value="Fechado Perdido">Fechado Perdido</option>
+            <div id="lEstagioRegua" style="margin-top:4px;"></div>
+            <select id="lEstagio" style="display:none">
+              <option value="Novo">Novo</option>
+              <option value="Conexão">Conexão</option>
+              <option value="Diagnóstico">Diagnóstico</option>
+              <option value="Proposta">Proposta</option>
+              <option value="Perdido">Perdido</option>
+              <option value="Convertido">Convertido</option>
             </select>
           </div>
           <div class="field-group">
@@ -6533,7 +6535,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       const hoje = new Date().toISOString().split('T')[0];
       const atrasados = pipelineLeads.filter(l => {
         const estagio = (l.estagio || '');
-        if (estagio === 'Fechado Ganho' || estagio === 'Fechado Perdido') return false;
+        if (estagio === 'Convertido' || estagio === 'Perdido') return false;
         const data = l.dataProximoPasso || l.proximoContato || '';
         return data && data <= hoje;
       });
@@ -6565,14 +6567,14 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       document.getElementById('leadHojeBanner').style.display = 'none';
     });
 
-    // ─── Banner: leads Fechado Ganho sem mentorada criada ──────────────────────
+    // ─── Banner: leads Convertido sem mentorada criada ──────────────────────
     // `contaDispensada`: marcado ao fechar o banner no × — não é "convertido
     // de verdade" (não cria conta, não ganha o ✓), só tira da contagem deste
     // aviso pra sempre. Achado 14/10/2026, Flávia: fechar no × só escondia
     // até o próximo carregamento (nada persistia), reaparecendo com os
     // mesmos leads antigos sem jeito de dispensar de vez.
     function verificarLeadsPendentesConta() {
-      const pendentes = pipelineLeads.filter(l => l.estagio === 'Fechado Ganho' && !l.convertidoEm && !l.contaDispensada);
+      const pendentes = pipelineLeads.filter(l => l.estagio === 'Convertido' && !l.convertidoEm && !l.contaDispensada);
       const banner = document.getElementById('leadPendenteContaBanner');
       if (pendentes.length > 0) {
         document.getElementById('leadPendenteContaCount').textContent = pendentes.length;
@@ -6585,7 +6587,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
     document.getElementById('btnFecharPendenteConta').addEventListener('click', async () => {
       const banner = document.getElementById('leadPendenteContaBanner');
       banner.style.display = 'none';
-      const pendentes = pipelineLeads.filter(l => l.estagio === 'Fechado Ganho' && !l.convertidoEm && !l.contaDispensada);
+      const pendentes = pipelineLeads.filter(l => l.estagio === 'Convertido' && !l.convertidoEm && !l.contaDispensada);
       await Promise.allSettled(pendentes.map(l => updateLead(l.id, { contaDispensada: true })));
       pendentes.forEach(l => { l.contaDispensada = true; });
     });
@@ -6640,17 +6642,17 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       if (!total) return;
 
       // ── Funil de conversão com % ───────────────────────────────────────────
-      const estagios = ['Lead Frio','Engajado','Interessado','Em Negociação','Fechado Ganho','Fechado Perdido'];
+      const estagios = ['Novo','Conexão','Diagnóstico','Proposta','Perdido','Convertido'];
       const coresEstagio = {
-        'Lead Frio':'#6b7db3','Engajado':'#5b9bd5','Interessado':'#f5a623',
-        'Em Negociação':'var(--gold)','Fechado Ganho':'var(--positive)','Fechado Perdido':'var(--negative)'
+        'Novo':'#6b7db3','Conexão':'#5b9bd5','Diagnóstico':'#f5a623',
+        'Proposta':'var(--gold)','Convertido':'var(--positive)','Perdido':'var(--negative)'
       };
       const contEstagio = {};
       estagios.forEach(e => contEstagio[e] = 0);
       leads.forEach(l => { if (contEstagio[l.estagio] !== undefined) contEstagio[l.estagio]++; });
       const maxEstagio = Math.max(...Object.values(contEstagio), 1);
-      const ganhos = contEstagio['Fechado Ganho'];
-      const perdidos = contEstagio['Fechado Perdido'];
+      const ganhos = contEstagio['Convertido'];
+      const perdidos = contEstagio['Perdido'];
       const decididos = ganhos + perdidos;
       const winRate = decididos > 0 ? Math.round((ganhos / decididos) * 100) : null;
       const winRateHTML = winRate !== null
@@ -6668,7 +6670,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       leads.forEach(l => {
         const t = classificarTipoFunil(l.origem);
         contTipo[t] = (contTipo[t] || 0) + 1;
-        if (l.estagio === 'Fechado Ganho') ganhosTipo[t] = (ganhosTipo[t] || 0) + 1;
+        if (l.estagio === 'Convertido') ganhosTipo[t] = (ganhosTipo[t] || 0) + 1;
       });
       const maxTipo = Math.max(...Object.values(contTipo), 1);
       const coresTipo = { 'Social Selling':'#5b9bd5','Diagnóstico':'#9b59b6','Oferta Direta':'var(--gold)','Indicação':'var(--positive)','Outros':'#6b7db3' };
@@ -6761,12 +6763,12 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
     let pipelineVistaAtual   = 'ativos'; // 'ativos' | 'ganhos' | 'perdidos'
     let pipelinePaginaAtual  = 1;
 
-    const ESTAGIOS = ['Lead Frio','Engajado','Interessado','Em Negociação','Fechado Ganho','Fechado Perdido'];
+    const ESTAGIOS = ['Novo','Conexão','Diagnóstico','Proposta','Perdido','Convertido'];
 
     function badgeEstagio(estagio) {
-      if (estagio === 'Fechado Ganho')   return `<span style="color:var(--positive);font-weight:600">${estagio}</span>`;
-      if (estagio === 'Fechado Perdido') return `<span style="color:var(--negative);font-weight:600">${estagio}</span>`;
-      if (estagio === 'Em Negociação')   return `<span style="color:var(--gold);font-weight:600">${estagio}</span>`;
+      if (estagio === 'Convertido')   return `<span style="color:var(--positive);font-weight:600">${estagio}</span>`;
+      if (estagio === 'Perdido') return `<span style="color:var(--negative);font-weight:600">${estagio}</span>`;
+      if (estagio === 'Proposta')   return `<span style="color:var(--gold);font-weight:600">${estagio}</span>`;
       return `<span style="color:var(--text-muted)">${estagio || '—'}</span>`;
     }
 
@@ -6790,9 +6792,9 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       if (document.getElementById('statsPanel').style.display !== 'none') renderEstatisticas();
     }
 
-    const ESTAGIOS_ATIVOS   = ['Lead Frio','Engajado','Interessado','Em Negociação'];
-    const ESTAGIOS_GANHOS   = ['Fechado Ganho'];
-    const ESTAGIOS_PERDIDOS = ['Fechado Perdido'];
+    const ESTAGIOS_ATIVOS   = ['Novo','Conexão','Diagnóstico','Proposta'];
+    const ESTAGIOS_GANHOS   = ['Convertido'];
+    const ESTAGIOS_PERDIDOS = ['Perdido'];
 
     function leadsFiltrados() {
       return pipelineLeads.filter(l => {
@@ -6809,8 +6811,8 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
 
     function atualizarContadoresSubAbas() {
       const ativos   = pipelineLeads.filter(l => ESTAGIOS_ATIVOS.includes(l.estagio)).length;
-      const ganhos   = pipelineLeads.filter(l => l.estagio === 'Fechado Ganho').length;
-      const perdidos = pipelineLeads.filter(l => l.estagio === 'Fechado Perdido').length;
+      const ganhos   = pipelineLeads.filter(l => l.estagio === 'Convertido').length;
+      const perdidos = pipelineLeads.filter(l => l.estagio === 'Perdido').length;
       document.getElementById('cntAtivos').textContent   = ativos   ? `(${ativos})`   : '';
       document.getElementById('cntGanhos').textContent   = ganhos   ? `(${ganhos})`   : '';
       document.getElementById('cntPerdidos').textContent = perdidos ? `(${perdidos})` : '';
@@ -6828,12 +6830,12 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
 
     function atualizarKpisPipeline() {
       const leads = pipelineLeads;
-      const semPerdidos = leads.filter(l => l.estagio !== 'Fechado Perdido');
+      const semPerdidos = leads.filter(l => l.estagio !== 'Perdido');
       const total = semPerdidos.reduce((s, l) => s + (l.valor || 0), 0);
       const ponderado = semPerdidos.reduce((s, l) => s + (l.valor || 0) * ((l.probabilidade || 0) / 100), 0);
-      const fechados = leads.filter(l => l.estagio === 'Fechado Ganho');
+      const fechados = leads.filter(l => l.estagio === 'Convertido');
       const receita = fechados.reduce((s, l) => s + (l.valor || 0), 0);
-      const ativos = leads.filter(l => l.estagio !== 'Fechado Ganho' && l.estagio !== 'Fechado Perdido').length;
+      const ativos = leads.filter(l => l.estagio !== 'Convertido' && l.estagio !== 'Perdido').length;
 
       document.getElementById('kpiPipelineTotal').textContent = brl(total);
       document.getElementById('kpiPipelineTotalSub').textContent = `${semPerdidos.length} lead${semPerdidos.length !== 1 ? 's' : ''}`;
@@ -6854,7 +6856,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
       if (filtroHoje) {
         lista = lista.filter(l => {
           const estagio = l.estagio || '';
-          if (estagio === 'Fechado Ganho' || estagio === 'Fechado Perdido') return false;
+          if (estagio === 'Convertido' || estagio === 'Perdido') return false;
           const data = l.dataProximoPasso || l.proximoContato || '';
           return data && data <= filtroHoje;
         });
@@ -6897,7 +6899,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         const diasCls = dias !== null && dias > 7 ? 'color:var(--negative);font-weight:600' : 'color:var(--text-muted)';
         const diasTxt = dias !== null ? `${dias}d` : '—';
         const proxContato = l.dataProximoPasso ? fmtDataSimples(l.dataProximoPasso) : '—';
-        const atrasado = l.dataProximoPasso && l.dataProximoPasso <= hoje && l.estagio !== 'Fechado Ganho' && l.estagio !== 'Fechado Perdido';
+        const atrasado = l.dataProximoPasso && l.dataProximoPasso <= hoje && l.estagio !== 'Convertido' && l.estagio !== 'Perdido';
         const rowStyle = atrasado ? 'cursor:pointer;background:rgba(207,174,101,0.05);border-left:3px solid var(--gold);' : 'cursor:pointer';
         // WhatsApp link
         const waTel = (l.whatsapp || '').replace(/\D/g,'');
@@ -6947,11 +6949,11 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
           if (!l) return;
           btn.disabled = true; btn.textContent = '…';
           try {
-            await updateLead(id, { estagio: 'Lead Frio', probabilidade: 10 });
-            l.estagio = 'Lead Frio'; l.probabilidade = 10;
+            await updateLead(id, { estagio: 'Novo', probabilidade: 10 });
+            l.estagio = 'Novo'; l.probabilidade = 10;
             atualizarContadoresSubAbas();
             renderTabelaPipeline();
-            mostrarToast(`${l.nome} reaberto como Lead Frio.`);
+            mostrarToast(`${l.nome} reaberto como Novo.`);
           } catch (err) {
             btn.disabled = false; btn.textContent = '↩ Reabrir';
             mostrarToast(`Erro: ${err.message}`);
@@ -7002,7 +7004,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         document.getElementById('lOrigem').value   = l.origem   || '';
         document.getElementById('lProdutoAlvo').value = l.produtoAlvo || '';
         document.getElementById('lValor').value    = l.valor    ?? '';
-        document.getElementById('lEstagio').value  = l.estagio  || 'Lead Frio';
+        document.getElementById('lEstagio').value  = l.estagio  || 'Novo';
         document.getElementById('lProbabilidade').value = l.probabilidade ?? '';
         document.getElementById('lProximoPasso').value  = l.proximoPasso  || '';
         document.getElementById('lDataProximoPasso').value = l.dataProximoPasso || '';
@@ -7021,7 +7023,7 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         document.getElementById('lOrigem').value   = '';
         document.getElementById('lProdutoAlvo').value = '';
         document.getElementById('lValor').value    = '';
-        document.getElementById('lEstagio').value  = 'Lead Frio';
+        document.getElementById('lEstagio').value  = 'Novo';
         document.getElementById('lProbabilidade').value = '';
         document.getElementById('lProximoPasso').value  = '';
         document.getElementById('lDataProximoPasso').value = '';
@@ -7029,6 +7031,11 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         document.getElementById('lNotas').value    = '';
         document.getElementById('btnDeletarLead').style.display = 'none';
       }
+
+      // Régua de estágios (18/11/2026): o select fica escondido e guarda o
+      // valor; a régua só desenha e troca o valor dele.
+      const selEstagio = document.getElementById('lEstagio');
+      window.ReguaEstagios?.render(document.getElementById('lEstagioRegua'), selEstagio.value, (e) => { selEstagio.value = e; });
 
       modal.style.display = 'block';
       modal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -7100,16 +7107,16 @@ ${m.nota ? `**Notas da mentora:**\n${m.nota}\n` : ''}
         atualizarKpisPipeline();
         renderTabelaPipeline();
 
-        // Se mudou para Fechado Ganho (não estava Ganho antes), oferece converter em mentorada
+        // Se mudou para Convertido (não estava Ganho antes), oferece converter em mentorada
         const estagioAnterior = document.getElementById('leadModal').dataset.estagioAnterior || '';
-        if (dados.estagio === 'Fechado Ganho' && estagioAnterior !== 'Fechado Ganho') {
+        if (dados.estagio === 'Convertido' && estagioAnterior !== 'Convertido') {
           const leadId = id || pipelineLeads[0]?.id;
           const lead   = pipelineLeads.find(l => l.id === leadId);
           if (lead && !lead.convertidoEm) {
             // Mostra o banner antes do confirm() — se ela fechar o diálogo sem
             // querer (achado 23/07/2026), o aviso continua visível depois.
             verificarLeadsPendentesConta();
-            const querer = confirm(`🎉 "${lead.nome}" marcada como Fechado Ganho!\n\nDeseja criar a mentorada agora?`);
+            const querer = confirm(`🎉 "${lead.nome}" marcada como convertida!\n\nDeseja criar a mentorada agora?`);
             if (querer) abrirModalConverterLead(leadId);
           }
         }

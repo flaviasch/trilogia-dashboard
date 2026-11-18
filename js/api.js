@@ -1022,6 +1022,20 @@ export async function criarVendaAntigaParceladaPJ(uid, dados) {
 }
 
 // ─── Cartões de crédito PJ ───────────────────────────────────────────────────
+// CRM PJ (18/11/2026) — leads da empresa + prazo estimado por porte.
+export async function getCrmPJ(uid) {
+  return callPJ('getCrmPJ')({ uid });
+}
+export async function saveLeadPJ(uid, lead) {
+  return callPJ('saveLeadPJ')({ uid, lead });
+}
+export async function deleteLeadPJ(uid, id) {
+  return callPJ('deleteLeadPJ')({ uid, id });
+}
+export async function saveCrmConfigPJ(uid, prazoEstimado) {
+  return callPJ('saveCrmConfigPJ')({ uid, prazoEstimado });
+}
+
 export async function getCartoesPJ(uid) {
   return callPJ('getCartoesPJ')({ uid });
 }

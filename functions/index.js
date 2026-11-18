@@ -8150,6 +8150,126 @@ exports.deleteCartaoPJ = onCall({}, async (request) => {
   return { ok: true };
 });
 
+// ─── CRM PJ (18/11/2026, pedido Flávia para a Lica) ──────────────────────────
+// Leads da empresa da usuária PJ, com a mesma régua de estágios do CRM do
+// admin (Novo → Conexão → Diagnóstico → Proposta → Perdido / Convertido).
+// Cada projeto é único: o valor é sempre digitado. O porte (P, M ou G) serve
+// para o prazo médio de fechamento, que projeta em que mês cada lead em
+// aberto deve fechar. Enquanto o porte não tem 3 projetos convertidos, vale a
+// estimativa que a usuária informa (crmConfigPJ/{uid}.prazoEstimado).
+// Gate de teste: só as contas abaixo até a Flávia validar.
+const CRM_PJ_UIDS_TESTE = [
+  'SmbehlGYm5gmB2S5J2iZrTsPuqD2', // Lica Cukier
+  'zHqnrTmtbsPJMis66kf4pplH3cl2', // Flávia (master)
+  'j4HCspHe6oTNaGdP4DWh6LMEhCz1', // Flavia (teste)
+  'tqrwd6BpreXKBJhNtKtjGEaBq712', // Luiza (teste)
+];
+const CRM_PJ_ESTAGIOS = ['Novo', 'Conexão', 'Diagnóstico', 'Proposta', 'Perdido', 'Convertido'];
+const CRM_PJ_FECHADOS = ['Perdido', 'Convertido'];
+const _dataISO = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
+
+function _requireCrmPJ(uid) {
+  if (!CRM_PJ_UIDS_TESTE.includes(uid))
+    throw new HttpsError('permission-denied', 'O CRM ainda não está liberado para esta conta.');
+}
+
+exports.getCrmPJ = onCall({}, async (request) => {
+  const { uid } = request.data || {};
+  requireSelfOrAdmin(request, uid);
+  _requireCrmPJ(uid);
+  const [snap, cfg] = await Promise.all([
+    db.collection('crmLeadsPJ').where('uid', '==', uid).get(),
+    db.collection('crmConfigPJ').doc(uid).get(),
+  ]);
+  const leads = snap.docs.map(d => {
+    const x = d.data();
+    delete x.criadoEm; delete x.atualizadoEm; // timestamps não serializam bem no callable
+    return { id: d.id, ...x };
+  }).sort((a, b) => (b.atualizadoEmMs ?? 0) - (a.atualizadoEmMs ?? 0));
+  const c = cfg.exists ? cfg.data() : {};
+  return { leads, prazoEstimado: c.prazoEstimado || { P: null, M: null, G: null } };
+});
+
+exports.saveLeadPJ = onCall({}, async (request) => {
+  _limparCamposTexto(request.data?.lead, ['nome', 'whatsapp', 'email', 'origem', 'proximoPasso', 'notas']);
+  const { uid, lead } = request.data || {};
+  requireSelfOrAdmin(request, uid);
+  _requireCrmPJ(uid);
+  await checkRateLimit(uid, 'saveLeadPJ', 30, 60_000);
+
+  const nome = String(lead?.nome || '').trim();
+  if (!nome) throw new HttpsError('invalid-argument', 'Nome é obrigatório.');
+  const estagio = CRM_PJ_ESTAGIOS.includes(lead.estagio) ? lead.estagio : 'Novo';
+  const valor = Number(lead.valor);
+  if (lead.valor != null && lead.valor !== '' && (!isFinite(valor) || valor < 0 || valor > 100000000))
+    throw new HttpsError('invalid-argument', 'Valor inválido.');
+  const hoje = new Date().toISOString().slice(0, 10);
+  const fechado = CRM_PJ_FECHADOS.includes(estagio);
+
+  const dados = {
+    nome:             nome.slice(0, 200),
+    whatsapp:         String(lead.whatsapp || '').trim().slice(0, 40),
+    email:            String(lead.email || '').trim().slice(0, 200),
+    origem:           String(lead.origem || '').trim().slice(0, 60),
+    porte:            ['P', 'M', 'G'].includes(lead.porte) ? lead.porte : '',
+    valor:            isFinite(valor) && valor > 0 ? Math.round(valor * 100) / 100 : 0,
+    estagio,
+    proximoPasso:     String(lead.proximoPasso || '').trim().slice(0, 300),
+    dataProximoPasso: _dataISO(lead.dataProximoPasso),
+    notas:            String(lead.notas || '').trim().slice(0, 3000),
+    dataEntrada:      _dataISO(lead.dataEntrada) || hoje,
+    // Fechou: guarda a data (a informada ou hoje). Reabriu: limpa.
+    dataFechamento:   fechado ? (_dataISO(lead.dataFechamento) || hoje) : null,
+    atualizadoEm:     admin.firestore.FieldValue.serverTimestamp(),
+    atualizadoEmMs:   Date.now(),
+  };
+
+  if (lead.id) {
+    const ref = db.collection('crmLeadsPJ').doc(String(lead.id));
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Lead não encontrado.');
+    if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+    await ref.update(dados);
+    return { id: ref.id, dataEntrada: dados.dataEntrada, dataFechamento: dados.dataFechamento };
+  }
+  const ref = await db.collection('crmLeadsPJ').add({
+    ...dados, uid, criadoEm: admin.firestore.FieldValue.serverTimestamp(), criadoEmMs: Date.now(),
+  });
+  return { id: ref.id, dataEntrada: dados.dataEntrada, dataFechamento: dados.dataFechamento };
+});
+
+exports.deleteLeadPJ = onCall({}, async (request) => {
+  const { uid, id } = request.data || {};
+  requireSelfOrAdmin(request, uid);
+  _requireCrmPJ(uid);
+  if (!id) throw new HttpsError('invalid-argument', 'id é obrigatório.');
+  const ref = db.collection('crmLeadsPJ').doc(String(id));
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Lead não encontrado.');
+  if (snap.data().uid !== uid) throw new HttpsError('permission-denied', 'Acesso negado.');
+  await ref.delete();
+  return { ok: true };
+});
+
+exports.saveCrmConfigPJ = onCall({}, async (request) => {
+  const { uid, prazoEstimado } = request.data || {};
+  requireSelfOrAdmin(request, uid);
+  _requireCrmPJ(uid);
+  const limpo = {};
+  for (const p of ['P', 'M', 'G']) {
+    const v = prazoEstimado?.[p];
+    if (v == null || v === '') { limpo[p] = null; continue; }
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 1000)
+      throw new HttpsError('invalid-argument', 'O prazo do porte ' + p + ' deve ser um número de dias entre 1 e 1000.');
+    limpo[p] = n;
+  }
+  await db.collection('crmConfigPJ').doc(uid).set({
+    prazoEstimado: limpo, uid, atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return { prazoEstimado: limpo };
+});
+
 /**
  * Lança uma compra no cartão — única ou parcelada. Cada parcela vira um doc
  * próprio em `despesasPJ` (tipo 'unica', cartao:true), ligados por
@@ -10239,12 +10359,13 @@ exports.exportarMeusDadosPJ = onCall({}, async (request) => {
  */
 async function _apagarDadosPJ(uid) {
   const colecoes = ['notasEmitidas', 'despesasPJ', 'reservasPJ', 'cartoesPJ', 'faturaEstadosPJ',
-                    'tributosConfig', 'impostosPrevistos', 'outrasEntradasPJ'];
+                    'tributosConfig', 'impostosPrevistos', 'outrasEntradasPJ', 'crmLeadsPJ'];
   for (const nomeColecao of colecoes) {
     const snap = await db.collection(nomeColecao).where('uid', '==', uid).get();
     for (const doc of snap.docs) await db.recursiveDelete(doc.ref); // leva recebimentos/pagamentos/movimentos
   }
   await db.recursiveDelete(db.collection('proLaborePJ').doc(uid));
+  await db.collection('crmConfigPJ').doc(uid).delete();
 }
 
 async function _deleteDocsBatched(refs) {
@@ -13664,7 +13785,7 @@ async function runSyncDiagnostico() {
       whatsapp:     row[3],
       origem:       'Diagnóstico',
       produtoAlvo:  mapProdutoDiagnostico(row[7]),
-      estagio:      'Lead Frio',
+      estagio:      'Novo',
       segmento:     'pipeline',
       probabilidade: 10,
       notas,
@@ -13792,7 +13913,7 @@ exports.backupFirestore = onSchedule(
 // Ver dashboard/WHATSAPP_SPEC.md. Instância A (mesma da esteira pós-venda, já
 // conectada) recebe mensagem de lead/desconhecido. Fluxo B (lead conhecido,
 // bate por telefone em leads.whatsapp): grava em leads/{id}/mensagens,
-// promove Lead Frio → Engajado automaticamente (única promoção automática do
+// promove Novo → Conexão automaticamente (única promoção automática do
 // pipeline). Fluxo C (desconhecido): não vira lead sozinho — cai em
 // mensagens_nao_triadas, fila de triagem manual no Pipeline. Retomado em
 // 16/09/2026 (pedido Flávia) — só a parte de CRM; o Fluxo A (mentorada
@@ -13869,7 +13990,7 @@ exports.zapiWebhookCRM = onRequest(
           ultimaMensagemEm: admin.firestore.FieldValue.serverTimestamp(),
           mensagensNaoLidas: admin.firestore.FieldValue.increment(1),
         };
-        if (leadDoc.data().estagio === 'Lead Frio') atualizacao.estagio = 'Engajado';
+        if (leadDoc.data().estagio === 'Novo') atualizacao.estagio = 'Conexão';
         await leadDoc.ref.update(atualizacao);
 
         res.status(200).send('ok: fluxo-b');

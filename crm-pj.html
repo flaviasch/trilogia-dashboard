@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <script>/* Tema 2026: marca gravada por js/tema.js */try{if(localStorage.getItem('temaNovoTeste'))document.documentElement.classList.add('tema-novo');}catch(e){}</script>
+  <script>(function(){try{if(localStorage.getItem('trilogia-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://js.sentry-cdn.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.sentry.io https://www.gstatic.com; frame-src 'self' https://*.firebaseapp.com https://www.youtube.com https://drive.google.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <script>if(window.top!==window.self){document.documentElement.style.display='none';try{window.top.location=window.self.location.href;}catch(e){}}</script>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trilogia Dashboard PJ — CRM</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0D2B45; --navy-dark: #081e30;
+      --gold: #CFAE65; --gold-light: #e8d49b;
+      --white: #FFFFFF;
+      --border: rgba(var(--rgb-fg),0.1);
+      --text-muted: rgba(var(--rgb-fg),0.45);
+      --positive: #4ade80; --negative: #f87171; --warning: #fbbf24;
+      --card-bg: rgba(var(--rgb-fg),0.03);
+      --rgb-fg: 255,255,255;
+    }
+    [data-theme="light"] {
+      --rgb-fg: 13,43,69;
+      --navy-dark: #F8F1E7;
+      --navy: #FFFFFF;
+      --white: #0D2B45;
+      --card-bg: rgba(87,52,34,0.035);
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--navy-dark); color: var(--white); min-height: 100vh; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--navy); }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; }
+    .logo span { color: var(--gold); }
+    .logo-icon { width: 24px; height: 24px; border-radius: 6px; }
+    .empresa-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .nav-pj { display: flex; gap: 4px; flex-wrap: wrap; }
+    .nav-pj a { font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+    .nav-pj a.ativo { background: rgba(207,174,101,.12); color: var(--gold); font-weight: 600; }
+    .btn-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    .view-as-banner { display: none; background: rgba(207,174,101,0.12); border-bottom: 1px solid rgba(207,174,101,0.3); padding: 10px 24px; font-size: 13px; color: var(--gold); gap: 12px; align-items: center; }
+    .view-as-banner a { color: var(--gold); margin-left: auto; }
+    main { max-width: 1000px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .kpi-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .kpi-value { font-size: 22px; font-weight: 700; }
+    .kpi-value.green { color: var(--positive); }
+    .kpi-value.red { color: var(--negative); }
+    .kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .secao { margin-bottom: 28px; }
+    .secao-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .secao-titulo { font-size: 14px; font-weight: 600; }
+    .secao-nota { font-size: 12px; color: var(--text-muted); }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; }
+    .portes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .porte-card { padding: 14px 16px; }
+    .porte-nome { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .porte-dias { font-size: 20px; font-weight: 700; }
+    .porte-fonte { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .porte-fonte.real { color: var(--positive); }
+    .btn-link { background: none; border: none; color: var(--gold); cursor: pointer; font-size: 12px; font-weight: 600; padding: 0; }
+    .previsao-lista { padding: 6px 0; }
+    .previsao-linha { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .previsao-linha:last-child { border-bottom: none; }
+    .previsao-mes { min-width: 120px; font-weight: 600; }
+    .previsao-barra { flex: 1; height: 8px; border-radius: 4px; background: rgba(var(--rgb-fg),.06); overflow: hidden; }
+    .previsao-barra div { height: 100%; background: var(--gold); border-radius: 4px; }
+    .previsao-linha.atrasado .previsao-mes, .previsao-linha.atrasado .previsao-valor { color: var(--negative); }
+    .previsao-linha.atrasado .previsao-barra div { background: var(--negative); }
+    .previsao-valor { min-width: 110px; text-align: right; font-weight: 600; }
+    .previsao-portes { min-width: 90px; font-size: 11px; color: var(--text-muted); text-align: right; }
+    .vazio { padding: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    .abas { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+    .aba { background: transparent; border: none; border-bottom: 2px solid transparent; padding: 8px 16px; font-size: 13px; color: var(--text-muted); cursor: pointer; font-family: 'Inter', sans-serif; }
+    .aba.ativo { border-bottom-color: var(--gold); color: var(--gold); font-weight: 600; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .busca { flex: 1; min-width: 160px; background: rgba(var(--rgb-fg),.05); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px; color: var(--white); }
+    .btn-novo { background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 9px 16px; font-weight: 700; cursor: pointer; font-size: 13px; white-space: nowrap; }
+    .tabela-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+    th { text-align: left; font-size: 11px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+    .td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: rgba(var(--rgb-fg),.03); }
+    .td.valor { text-align: right; font-weight: 600; white-space: nowrap; }
+    .porte-tag { display: inline-block; min-width: 24px; text-align: center; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 20px; background: rgba(207,174,101,.15); color: var(--gold); }
+    .estagio-tag { font-size: 12px; white-space: nowrap; }
+    .estagio-tag.Convertido { color: var(--positive); font-weight: 600; }
+    .estagio-tag.Perdido { color: var(--negative); font-weight: 600; }
+    .estagio-tag.Proposta { color: var(--gold); font-weight: 600; }
+    .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .atrasado-txt { color: var(--negative); font-weight: 600; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
+    .modal-overlay.hidden { display: none; }
+    .modal-card { background: var(--navy); border: 1px solid var(--border); border-radius: 14px; padding: 24px; max-width: 680px; width: 100%; max-height: 90vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .modal-card.estreito { max-width: 420px; }
+    .modal-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 18px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+    .col-full { grid-column: 1 / -1; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field-group label { font-size: 12px; color: rgba(var(--rgb-fg),.6); }
+    .field-group input, .field-group select, .field-group textarea { background: rgba(var(--rgb-fg),.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--white); width: 100%; font-family: inherit; }
+    .field-group select option { background: var(--navy); color: var(--white); }
+    .field-hint { font-size: 11px; color: var(--text-muted); }
+    .porte-opcoes { display: flex; gap: 8px; }
+    .porte-opcao { flex: 1; background: rgba(var(--rgb-fg),.05); border: 1px solid var(--border); border-radius: 8px; padding: 10px 0; font-size: 14px; font-weight: 700; color: var(--text-muted); cursor: pointer; }
+    .porte-opcao.ativo { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+    .modal-acoes { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 1; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
+    .btn-excluir { background: none; border: 1px solid rgba(248,113,113,.4); color: var(--negative); border-radius: 8px; padding: 11px 14px; cursor: pointer; font-size: 14px; }
+    .erro { color: var(--negative); font-size: 13px; margin-bottom: 10px; display: none; }
+
+    @media (max-width: 640px) {
+      header { flex-wrap: wrap; padding: 12px 16px; }
+      main { padding: 20px 16px 60px; }
+      .grid2 { grid-template-columns: 1fr; }
+      .portes { grid-template-columns: 1fr; }
+      .previsao-mes { min-width: 84px; }
+      .previsao-portes { display: none; }
+      .previsao-valor { min-width: 90px; }
+    }
+  </style>
+  <script src="js/regua-estagios.js?v=1"></script>
+  <link rel="stylesheet" href="css/tema-2026.css?v=10" />
+</head>
+<body>
+
+  <header>
+    <div>
+      <p class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>PJ</span></p>
+      <p class="empresa-nome" id="empresaNome">—</p>
+      <nav class="nav-pj" id="navPJ">
+        <a href="notas-pj.html" data-aba="notas">Notas</a>
+        <a href="recebimentos-pj.html" data-aba="recebimentos">Contas a Receber</a>
+        <a href="impostos-pj.html" data-aba="impostos">Impostos</a>
+        <a href="contas-a-pagar-pj.html" data-aba="contasAPagar">Contas a Pagar</a>
+        <a href="cartoes-pj.html" data-aba="cartoes">Cartões</a>
+        <a href="dre-pj.html" data-aba="dre">DRE</a>
+        <a href="pro-labore-pj.html" data-aba="proLabore">Pró-labore</a>
+        <a href="fluxo-caixa-pj.html" data-aba="fluxoCaixa">Fluxo de Caixa</a>
+        <a href="reservas-pj.html" data-aba="reservas">Reservas</a>
+        <a href="crm-pj.html" id="navCrm" class="ativo" data-aba="crm">CRM</a>
+        <a href="usuarios-pj.html" id="navUsuarios">Usuários</a>
+      </nav>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="orcamento.html" id="linkDashboardPF" style="display:none;font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">🏠 PF</a>
+      <a href="ajuda-pj.html" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">❓ Ajuda</a>
+      <button id="btnTheme" class="btn-logout" onclick="toggleTheme()" title="Mudar para tema claro" style="margin-right:4px;">☀️</button>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </header>
+
+  <div class="view-as-banner" id="viewAsBanner">
+    <span>👁 Visualizando como mentorada</span>
+    <a href="admin.html">← Voltar ao admin</a>
+  </div>
+
+  <main>
+    <h1>CRM</h1>
+    <p class="subtitulo">Seus contatos e projetos em negociação, do primeiro contato até a conversão.</p>
+
+    <div id="semAcesso" class="card vazio" style="display:none">O CRM ainda não está disponível para esta conta.</div>
+
+    <div id="conteudo" style="display:none">
+      <div class="kpis">
+        <div class="kpi-card">
+          <div class="kpi-label">Em aberto</div>
+          <div class="kpi-value" id="kpiAberto">—</div>
+          <div class="kpi-sub" id="kpiAbertoSub"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Convertido no mês</div>
+          <div class="kpi-value green" id="kpiConvertido">—</div>
+          <div class="kpi-sub" id="kpiConvertidoSub"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Leads ativos</div>
+          <div class="kpi-value" id="kpiAtivos">—</div>
+          <div class="kpi-sub">de Novo até Proposta</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Passaram do prazo</div>
+          <div class="kpi-value" id="kpiAtrasados">—</div>
+          <div class="kpi-sub">abertos além do prazo médio</div>
+        </div>
+      </div>
+
+      <div class="secao">
+        <div class="secao-topo">
+          <span class="secao-titulo">Prazo médio de fechamento por porte</span>
+          <button class="btn-link" id="btnAjustarPrazos">Ajustar estimativas</button>
+        </div>
+        <div class="portes" id="portesCards"></div>
+      </div>
+
+      <div class="secao">
+        <div class="secao-topo">
+          <span class="secao-titulo">Se tudo fechar no prazo médio</span>
+          <span class="secao-nota">Data de entrada do lead + prazo médio do porte. Soma todos os leads em aberto.</span>
+        </div>
+        <div class="card previsao-lista" id="previsaoLista"></div>
+      </div>
+
+      <div class="secao">
+        <div class="abas" id="abas">
+          <button class="aba ativo" data-vista="ativos">Ativos <span id="cntAtivos"></span></button>
+          <button class="aba" data-vista="convertidos">Convertidos <span id="cntConvertidos"></span></button>
+          <button class="aba" data-vista="perdidos">Perdidos <span id="cntPerdidos"></span></button>
+        </div>
+        <div class="toolbar">
+          <input type="text" class="busca" id="busca" placeholder="Buscar por nome…" />
+          <button class="btn-novo" id="btnNovoLead">+ Novo lead</button>
+        </div>
+        <div class="card tabela-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="td">Nome</th>
+                <th class="td">Porte</th>
+                <th class="td" style="text-align:right">Valor</th>
+                <th class="td">Estágio</th>
+                <th class="td">Próximo passo</th>
+                <th class="td" id="thPrevisao">Previsão</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaBody"></tbody>
+          </table>
+          <div class="vazio" id="tabelaVazia" style="display:none">Nenhum lead por aqui.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal: lead -->
+  <div class="modal-overlay hidden" id="modalLead">
+    <div class="modal-card">
+      <h3 id="modalLeadTitulo">Novo lead</h3>
+      <input type="hidden" id="leadId">
+      <div class="field-group">
+        <label>Estágio</label>
+        <div id="leadRegua"></div>
+      </div>
+      <div class="grid2">
+        <div class="field-group col-full">
+          <label for="leadNome">Nome *</label>
+          <input type="text" id="leadNome" maxlength="200" placeholder="Nome do cliente">
+        </div>
+        <div class="field-group">
+          <label for="leadWhatsapp">WhatsApp</label>
+          <input type="tel" id="leadWhatsapp" maxlength="40" placeholder="(11) 99999-9999">
+        </div>
+        <div class="field-group">
+          <label for="leadEmail">E-mail</label>
+          <input type="email" id="leadEmail" maxlength="200" placeholder="email@exemplo.com">
+        </div>
+        <div class="field-group">
+          <label>Porte do projeto</label>
+          <div class="porte-opcoes" id="leadPorte">
+            <button type="button" class="porte-opcao" data-porte="P">P</button>
+            <button type="button" class="porte-opcao" data-porte="M">M</button>
+            <button type="button" class="porte-opcao" data-porte="G">G</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="leadValor">Valor do projeto (R$)</label>
+          <input type="number" id="leadValor" min="0" step="0.01" placeholder="0,00" inputmode="decimal">
+        </div>
+        <div class="field-group">
+          <label for="leadOrigem">Origem</label>
+          <select id="leadOrigem">
+            <option value="">— selecione —</option>
+            <option>Indicação</option>
+            <option>Instagram</option>
+            <option>Site</option>
+            <option>WhatsApp</option>
+            <option>Evento</option>
+            <option>Cliente antigo</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="leadDataEntrada">Data de entrada</label>
+          <input type="date" id="leadDataEntrada">
+          <span class="field-hint">Quando o contato chegou. Conta para o prazo médio.</span>
+        </div>
+        <div class="field-group" id="grupoDataFechamento" style="display:none">
+          <label for="leadDataFechamento">Data de fechamento</label>
+          <input type="date" id="leadDataFechamento">
+        </div>
+        <div class="field-group">
+          <label for="leadProximoPasso">Próximo passo</label>
+          <input type="text" id="leadProximoPasso" maxlength="300" placeholder="Ex.: enviar proposta">
+        </div>
+        <div class="field-group">
+          <label for="leadDataProximoPasso">Data do próximo passo</label>
+          <input type="date" id="leadDataProximoPasso">
+        </div>
+        <div class="field-group col-full">
+          <label for="leadNotas">Notas</label>
+          <textarea id="leadNotas" rows="3" maxlength="3000"></textarea>
+        </div>
+      </div>
+      <p class="erro" id="leadErro"></p>
+      <div class="modal-acoes">
+        <button class="btn-excluir" id="btnExcluirLead" style="display:none">Excluir</button>
+        <button class="btn-cancel" id="btnCancelarLead">Cancelar</button>
+        <button class="btn-save" id="btnSalvarLead">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: estimativas de prazo -->
+  <div class="modal-overlay hidden" id="modalPrazos">
+    <div class="modal-card estreito">
+      <h3>Estimativa de prazo por porte</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Em quantos dias, em média, um projeto de cada porte fecha depois que o contato chega. Vale até o porte ter 3 projetos convertidos; depois disso o CRM usa a média real.</p>
+      <div class="field-group"><label for="prazoP">Porte P (dias)</label><input type="number" id="prazoP" min="1" max="1000" step="1" inputmode="numeric"></div>
+      <div class="field-group"><label for="prazoM">Porte M (dias)</label><input type="number" id="prazoM" min="1" max="1000" step="1" inputmode="numeric"></div>
+      <div class="field-group"><label for="prazoG">Porte G (dias)</label><input type="number" id="prazoG" min="1" max="1000" step="1" inputmode="numeric"></div>
+      <div class="modal-acoes">
+        <button class="btn-cancel" id="btnCancelarPrazos">Cancelar</button>
+        <button class="btn-save" id="btnSalvarPrazos">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { getContaPJ, getCrmPJ, saveLeadPJ, deleteLeadPJ, saveCrmConfigPJ, getStatusContaPF, msgErro, setViewAsUid, uidAtual, ehUsuarioSecundarioPJ } from './js/api.js?v=82';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { toast, setLoading } from './js/ui.js';
+    import { cacheGet, cacheSet } from './js/page-cache.js';
+    import { crmPJLiberado } from './js/crm-pj-gate.js?v=1';
+
+    const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const ABERTOS = ['Novo','Conexão','Diagnóstico','Proposta'];
+    const MIN_REAIS = 3; // projetos convertidos para a média real valer
+    const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+    const fmtData = (iso) => { if (!iso) return '—'; const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; };
+    const diasEntre = (a, b) => Math.round((Date.UTC(...b.split('-').map((x, i) => i === 1 ? x - 1 : +x)) - Date.UTC(...a.split('-').map((x, i) => i === 1 ? x - 1 : +x))) / 86400000);
+    function somaDias(iso, dias) {
+      const [a, m, d] = iso.split('-').map(Number);
+      const dt = new Date(Date.UTC(a, m - 1, d + dias));
+      return dt.toISOString().slice(0, 10);
+    }
+
+    let leads = [];
+    let prazoEstimado = { P: null, M: null, G: null };
+    let vista = 'ativos';
+    let busca = '';
+
+    // ─── ViewAs (admin vendo o PJ da mentorada) ───────────────────────────────
+    const PAGINAS_PJ = ['notas-pj.html','recebimentos-pj.html','impostos-pj.html','contas-a-pagar-pj.html','cartoes-pj.html','dre-pj.html','pro-labore-pj.html','fluxo-caixa-pj.html','reservas-pj.html','crm-pj.html','ajuda-pj.html'];
+    const VIEW_AS_UID = new URLSearchParams(window.location.search).get('viewAs') || localStorage.getItem('viewAsUid');
+    if (VIEW_AS_UID) {
+      setViewAsUid(VIEW_AS_UID);
+      localStorage.setItem('viewAsUid', VIEW_AS_UID);
+      document.getElementById('viewAsBanner').style.display = 'flex';
+      const suffix = `?viewAs=${VIEW_AS_UID}`;
+      PAGINAS_PJ.forEach(page => {
+        document.querySelectorAll(`a[href="${page}"], a[href^="${page}?"]`).forEach(a => { a.href = page + suffix; });
+      });
+    }
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      localStorage.removeItem('viewAsUid');
+      localStorage.removeItem('pjSubUserOwnerUid');
+      await signOut(auth);
+      window.location.href = 'login-pj.html';
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = 'login-pj.html'; return; }
+      if (ehUsuarioSecundarioPJ()) { window.location.href = 'recebimentos-pj.html'; return; }
+
+      const uid = uidAtual();
+      const cKey = `conta_${uid}`;
+      const cached = cacheGet(cKey);
+      if (cached) document.getElementById('empresaNome').textContent = cached.nomeEmpresa;
+      getContaPJ(uid).then(conta => {
+        if (conta) cacheSet(cKey, conta);
+        if (!VIEW_AS_UID) {
+          if (!conta) { window.location.href = 'onboarding-pj.html'; return; }
+        }
+        document.getElementById('empresaNome').textContent = conta ? conta.nomeEmpresa : '—';
+      }).catch(() => {});
+      if (!VIEW_AS_UID) getStatusContaPF(uid).then(({ ativa }) => { if (ativa) document.getElementById('linkDashboardPF').style.display = 'inline'; }).catch(() => {});
+
+      if (!crmPJLiberado(uid)) { document.getElementById('semAcesso').style.display = ''; return; }
+      document.getElementById('conteudo').style.display = '';
+      await carregar();
+    });
+
+    async function carregar() {
+      try {
+        const r = await getCrmPJ(uidAtual());
+        leads = r.leads || [];
+        prazoEstimado = r.prazoEstimado || { P: null, M: null, G: null };
+      } catch (err) {
+        toast(msgErro(err), 'error');
+        return;
+      }
+      render();
+    }
+
+    // ─── Prazo médio por porte ───────────────────────────────────────────────
+    function prazoDoPorte(p) {
+      const reais = leads.filter(l => l.porte === p && l.estagio === 'Convertido' && l.dataEntrada && l.dataFechamento)
+        .map(l => Math.max(0, diasEntre(l.dataEntrada, l.dataFechamento)));
+      if (reais.length >= MIN_REAIS) {
+        return { dias: Math.round(reais.reduce((s, d) => s + d, 0) / reais.length), fonte: 'real', n: reais.length };
+      }
+      const est = prazoEstimado?.[p];
+      return { dias: est || null, fonte: est ? 'estimativa' : 'sem', n: reais.length };
+    }
+
+    function previsaoDoLead(l) {
+      if (!ABERTOS.includes(l.estagio) || !l.porte || !l.dataEntrada) return null;
+      const pr = prazoDoPorte(l.porte);
+      if (!pr.dias) return null;
+      return somaDias(l.dataEntrada, pr.dias);
+    }
+
+    function render() {
+      renderKpis();
+      renderPortes();
+      renderPrevisao();
+      renderTabela();
+    }
+
+    function renderKpis() {
+      const hoje = hojeISO();
+      const mesAtual = hoje.slice(0, 7);
+      const abertos = leads.filter(l => ABERTOS.includes(l.estagio));
+      const convMes = leads.filter(l => l.estagio === 'Convertido' && (l.dataFechamento || '').slice(0, 7) === mesAtual);
+      const atrasados = abertos.filter(l => { const p = previsaoDoLead(l); return p && p < hoje; });
+      document.getElementById('kpiAberto').textContent = brl(abertos.reduce((s, l) => s + (l.valor || 0), 0));
+      document.getElementById('kpiAbertoSub').textContent = `${abertos.length} lead${abertos.length !== 1 ? 's' : ''}`;
+      document.getElementById('kpiConvertido').textContent = brl(convMes.reduce((s, l) => s + (l.valor || 0), 0));
+      document.getElementById('kpiConvertidoSub').textContent = `${convMes.length} projeto${convMes.length !== 1 ? 's' : ''} em ${MESES[new Date().getMonth()].toLowerCase()}`;
+      document.getElementById('kpiAtivos').textContent = abertos.length;
+      const elA = document.getElementById('kpiAtrasados');
+      elA.textContent = atrasados.length;
+      elA.className = 'kpi-value' + (atrasados.length ? ' red' : '');
+    }
+
+    function renderPortes() {
+      document.getElementById('portesCards').innerHTML = ['P', 'M', 'G'].map(p => {
+        const pr = prazoDoPorte(p);
+        let fonte;
+        if (pr.fonte === 'real') fonte = `<div class="porte-fonte real">média real de ${pr.n} projetos</div>`;
+        else if (pr.fonte === 'estimativa') fonte = `<div class="porte-fonte">sua estimativa · ${pr.n} de ${MIN_REAIS} projetos para a média real</div>`;
+        else fonte = `<div class="porte-fonte">informe uma estimativa</div>`;
+        return `<div class="card porte-card">
+          <div class="porte-nome">Porte ${p}</div>
+          <div class="porte-dias">${pr.dias ? `${pr.dias} dias` : '—'}</div>
+          ${fonte}
+        </div>`;
+      }).join('');
+    }
+
+    function renderPrevisao() {
+      const hoje = hojeISO();
+      const mesAtual = hoje.slice(0, 7);
+      const grupos = {}; // 'atrasado' | 'YYYY-MM'
+      let semPrazo = 0;
+      leads.filter(l => ABERTOS.includes(l.estagio)).forEach(l => {
+        const p = previsaoDoLead(l);
+        if (!p) { semPrazo++; return; }
+        // Passou do prazo e não fechou: não some do mês atual, vira "atrasado".
+        const chave = p < hoje ? 'atrasado' : p.slice(0, 7);
+        const g = grupos[chave] || (grupos[chave] = { valor: 0, P: 0, M: 0, G: 0 });
+        g.valor += l.valor || 0;
+        g[l.porte]++;
+      });
+      const chaves = Object.keys(grupos).filter(k => k !== 'atrasado').sort();
+      if (grupos.atrasado) chaves.unshift('atrasado');
+      const el = document.getElementById('previsaoLista');
+      if (!chaves.length) {
+        el.innerHTML = `<div class="vazio">${leads.some(l => ABERTOS.includes(l.estagio))
+          ? 'Para a previsão aparecer, informe o porte dos leads e a estimativa de prazo de cada porte.'
+          : 'Sem leads em aberto.'}</div>`;
+        return;
+      }
+      const max = Math.max(...chaves.map(k => grupos[k].valor), 1);
+      el.innerHTML = chaves.map(k => {
+        const g = grupos[k];
+        const rotulo = k === 'atrasado' ? 'Passou do prazo'
+          : `${MESES[+k.slice(5, 7) - 1]}${k.slice(0, 4) !== mesAtual.slice(0, 4) ? ' ' + k.slice(0, 4) : ''}`;
+        const portes = ['P', 'M', 'G'].filter(p => g[p]).map(p => `${g[p]} ${p}`).join(' · ');
+        return `<div class="previsao-linha${k === 'atrasado' ? ' atrasado' : ''}">
+          <span class="previsao-mes">${rotulo}</span>
+          <span class="previsao-barra"><div style="width:${Math.round(g.valor / max * 100)}%"></div></span>
+          <span class="previsao-portes">${portes}</span>
+          <span class="previsao-valor">${brl(g.valor)}</span>
+        </div>`;
+      }).join('') + (semPrazo ? `<div class="previsao-linha"><span class="secao-nota">${semPrazo} lead${semPrazo !== 1 ? 's' : ''} sem porte ou sem prazo fica${semPrazo !== 1 ? 'm' : ''} fora da previsão.</span></div>` : '');
+    }
+
+    function leadsDaVista() {
+      return leads.filter(l => {
+        if (vista === 'ativos' && !ABERTOS.includes(l.estagio)) return false;
+        if (vista === 'convertidos' && l.estagio !== 'Convertido') return false;
+        if (vista === 'perdidos' && l.estagio !== 'Perdido') return false;
+        return !busca || (l.nome || '').toLowerCase().includes(busca);
+      });
+    }
+
+    function renderTabela() {
+      const hoje = hojeISO();
+      const cnt = (f) => leads.filter(f).length;
+      const nA = cnt(l => ABERTOS.includes(l.estagio)), nC = cnt(l => l.estagio === 'Convertido'), nP = cnt(l => l.estagio === 'Perdido');
+      document.getElementById('cntAtivos').textContent = nA ? `(${nA})` : '';
+      document.getElementById('cntConvertidos').textContent = nC ? `(${nC})` : '';
+      document.getElementById('cntPerdidos').textContent = nP ? `(${nP})` : '';
+      document.getElementById('thPrevisao').textContent = vista === 'ativos' ? 'Previsão' : 'Fechamento';
+
+      const lista = leadsDaVista();
+      if (vista === 'ativos') {
+        lista.sort((a, b) => (previsaoDoLead(a) || '9999') .localeCompare(previsaoDoLead(b) || '9999'));
+      } else {
+        lista.sort((a, b) => (b.dataFechamento || '').localeCompare(a.dataFechamento || ''));
+      }
+      const tbody = document.getElementById('tabelaBody');
+      document.getElementById('tabelaVazia').style.display = lista.length ? 'none' : '';
+      tbody.innerHTML = lista.map(l => {
+        let ultima;
+        if (vista === 'ativos') {
+          const p = previsaoDoLead(l);
+          ultima = p ? (p < hoje ? `<span class="atrasado-txt">${fmtData(p)}</span><div class="sub">passou do prazo</div>` : fmtData(p)) : '<span class="sub">—</span>';
+        } else {
+          const dias = l.dataEntrada && l.dataFechamento ? diasEntre(l.dataEntrada, l.dataFechamento) : null;
+          ultima = `${fmtData(l.dataFechamento)}${dias != null ? `<div class="sub">${dias} dias</div>` : ''}`;
+        }
+        const passoAtrasado = l.dataProximoPasso && l.dataProximoPasso <= hoje && ABERTOS.includes(l.estagio);
+        return `<tr data-id="${esc(l.id)}">
+          <td class="td"><strong>${esc(l.nome)}</strong>${l.origem ? `<div class="sub">${esc(l.origem)}</div>` : ''}</td>
+          <td class="td">${l.porte ? `<span class="porte-tag">${esc(l.porte)}</span>` : '<span class="sub">—</span>'}</td>
+          <td class="td valor">${l.valor ? brl(l.valor) : '—'}</td>
+          <td class="td"><span class="estagio-tag ${esc(l.estagio)}">${esc(l.estagio)}</span></td>
+          <td class="td">${l.proximoPasso ? esc(l.proximoPasso) : '<span class="sub">—</span>'}${l.dataProximoPasso ? `<div class="sub${passoAtrasado ? ' atrasado-txt' : ''}">${fmtData(l.dataProximoPasso)}</div>` : ''}</td>
+          <td class="td">${ultima}</td>
+        </tr>`;
+      }).join('');
+      tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => abrirLead(tr.dataset.id)));
+    }
+
+    document.querySelectorAll('#abas .aba').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('#abas .aba').forEach(x => x.classList.toggle('ativo', x === b));
+      vista = b.dataset.vista;
+      renderTabela();
+    }));
+    document.getElementById('busca').addEventListener('input', (e) => { busca = e.target.value.trim().toLowerCase(); renderTabela(); });
+
+    // ─── Modal do lead ───────────────────────────────────────────────────────
+    const modalLead = document.getElementById('modalLead');
+    let estagioSel = 'Novo';
+    let porteSel = '';
+
+    function _bloquearScroll(sim) { document.body.style.overflow = sim ? 'hidden' : ''; }
+
+    function setPorte(p) {
+      porteSel = p;
+      document.querySelectorAll('#leadPorte .porte-opcao').forEach(b => b.classList.toggle('ativo', b.dataset.porte === p));
+    }
+    document.querySelectorAll('#leadPorte .porte-opcao').forEach(b => b.addEventListener('click', () => setPorte(porteSel === b.dataset.porte ? '' : b.dataset.porte)));
+
+    function setEstagio(e) {
+      estagioSel = e;
+      const fechado = e === 'Perdido' || e === 'Convertido';
+      document.getElementById('grupoDataFechamento').style.display = fechado ? '' : 'none';
+      const df = document.getElementById('leadDataFechamento');
+      if (fechado && !df.value) df.value = hojeISO();
+      window.ReguaEstagios.render(document.getElementById('leadRegua'), e, setEstagio);
+    }
+
+    function abrirLead(id) {
+      const l = id ? leads.find(x => x.id === id) : null;
+      document.getElementById('modalLeadTitulo').textContent = l ? 'Editar lead' : 'Novo lead';
+      document.getElementById('leadId').value = l?.id || '';
+      document.getElementById('leadNome').value = l?.nome || '';
+      document.getElementById('leadWhatsapp').value = l?.whatsapp || '';
+      document.getElementById('leadEmail').value = l?.email || '';
+      document.getElementById('leadValor').value = l?.valor || '';
+      document.getElementById('leadOrigem').value = l?.origem || '';
+      document.getElementById('leadDataEntrada').value = l?.dataEntrada || hojeISO();
+      document.getElementById('leadDataFechamento').value = l?.dataFechamento || '';
+      document.getElementById('leadProximoPasso').value = l?.proximoPasso || '';
+      document.getElementById('leadDataProximoPasso').value = l?.dataProximoPasso || '';
+      document.getElementById('leadNotas').value = l?.notas || '';
+      document.getElementById('btnExcluirLead').style.display = l ? '' : 'none';
+      document.getElementById('leadErro').style.display = 'none';
+      setPorte(l?.porte || '');
+      setEstagio(l?.estagio || 'Novo');
+      modalLead.classList.remove('hidden');
+      _bloquearScroll(true);
+      if (!l) setTimeout(() => document.getElementById('leadNome').focus(), 50);
+    }
+    function fecharLead() { modalLead.classList.add('hidden'); _bloquearScroll(false); }
+
+    document.getElementById('btnNovoLead').addEventListener('click', () => abrirLead(null));
+    document.getElementById('btnCancelarLead').addEventListener('click', fecharLead);
+
+    document.getElementById('btnSalvarLead').addEventListener('click', async () => {
+      const erro = document.getElementById('leadErro');
+      erro.style.display = 'none';
+      const fechado = estagioSel === 'Perdido' || estagioSel === 'Convertido';
+      const lead = {
+        id: document.getElementById('leadId').value || undefined,
+        nome: document.getElementById('leadNome').value.trim(),
+        whatsapp: document.getElementById('leadWhatsapp').value.trim(),
+        email: document.getElementById('leadEmail').value.trim(),
+        porte: porteSel,
+        valor: parseFloat(document.getElementById('leadValor').value) || 0,
+        origem: document.getElementById('leadOrigem').value,
+        estagio: estagioSel,
+        dataEntrada: document.getElementById('leadDataEntrada').value || hojeISO(),
+        dataFechamento: fechado ? (document.getElementById('leadDataFechamento').value || hojeISO()) : null,
+        proximoPasso: document.getElementById('leadProximoPasso').value.trim(),
+        dataProximoPasso: document.getElementById('leadDataProximoPasso').value || null,
+        notas: document.getElementById('leadNotas').value.trim(),
+      };
+      if (!lead.nome) { erro.textContent = 'Informe o nome.'; erro.style.display = 'block'; return; }
+      if (fechado && lead.dataFechamento < lead.dataEntrada) { erro.textContent = 'A data de fechamento não pode ser antes da data de entrada.'; erro.style.display = 'block'; return; }
+      const btn = document.getElementById('btnSalvarLead');
+      setLoading(btn, true, 'Salvando…');
+      try {
+        const r = await saveLeadPJ(uidAtual(), lead);
+        const salvo = { ...lead, id: r.id, dataEntrada: r.dataEntrada, dataFechamento: r.dataFechamento, atualizadoEmMs: Date.now() };
+        const i = leads.findIndex(x => x.id === r.id);
+        if (i >= 0) leads[i] = { ...leads[i], ...salvo }; else leads.unshift(salvo);
+        fecharLead();
+        render();
+        toast(lead.estagio === 'Convertido' ? 'Projeto convertido! 🎉' : 'Lead salvo.');
+      } catch (err) {
+        erro.textContent = msgErro(err);
+        erro.style.display = 'block';
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    document.getElementById('btnExcluirLead').addEventListener('click', async () => {
+      const id = document.getElementById('leadId').value;
+      const l = leads.find(x => x.id === id);
+      if (!id || !confirm(`Excluir o lead "${l?.nome || ''}"? Não dá para desfazer.`)) return;
+      try {
+        await deleteLeadPJ(uidAtual(), id);
+        leads = leads.filter(x => x.id !== id);
+        fecharLead();
+        render();
+        toast('Lead excluído.');
+      } catch (err) { toast(msgErro(err), 'error'); }
+    });
+
+    // ─── Modal de estimativas ────────────────────────────────────────────────
+    const modalPrazos = document.getElementById('modalPrazos');
+    document.getElementById('btnAjustarPrazos').addEventListener('click', () => {
+      ['P', 'M', 'G'].forEach(p => { document.getElementById('prazo' + p).value = prazoEstimado?.[p] ?? ''; });
+      modalPrazos.classList.remove('hidden');
+      _bloquearScroll(true);
+    });
+    document.getElementById('btnCancelarPrazos').addEventListener('click', () => { modalPrazos.classList.add('hidden'); _bloquearScroll(false); });
+    document.getElementById('btnSalvarPrazos').addEventListener('click', async () => {
+      const novo = {};
+      for (const p of ['P', 'M', 'G']) {
+        const v = document.getElementById('prazo' + p).value.trim();
+        if (v && (!/^\d+$/.test(v) || +v < 1 || +v > 1000)) { toast(`Prazo do porte ${p}: use um número de dias entre 1 e 1000.`, 'warning'); return; }
+        novo[p] = v ? +v : null;
+      }
+      const btn = document.getElementById('btnSalvarPrazos');
+      setLoading(btn, true, 'Salvando…');
+      try {
+        const r = await saveCrmConfigPJ(uidAtual(), novo);
+        prazoEstimado = r.prazoEstimado;
+        modalPrazos.classList.add('hidden');
+        _bloquearScroll(false);
+        render();
+        toast('Estimativas salvas.');
+      } catch (err) { toast(msgErro(err), 'error'); }
+      finally { setLoading(btn, false); }
+    });
+  </script>
+
+<script src="js/theme.js" defer></script>
+<script type="module" src="js/tema.js?v=6"></script>
+</body>
+</html>
