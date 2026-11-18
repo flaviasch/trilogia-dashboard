@@ -1818,8 +1818,15 @@ exports.categorizarExtratoIA = onCall(
     // para a allowlist, na própria conta (nunca no "ver como": o frontend
     // não manda o pedido e aqui o uid precisa ser o do login).
     const _TRANSF_PROPRIA_ALLOWLIST = ['flaviasch@gmail.com', 'flavia.schusciman@biginvest.com.br', 'lucianakawahara@gmail.com'];
-    const _gateTesteImport = auth.uid === uid
-      && _TRANSF_PROPRIA_ALLOWLIST.includes(String(auth.token?.email || '').toLowerCase());
+    const _emailLogado = String(auth.token?.email || '').toLowerCase();
+    let _gateTesteImport = auth.uid === uid && _TRANSF_PROPRIA_ALLOWLIST.includes(_emailLogado);
+    // "Ver como" (18/11/2026, pedido da Flávia para testar pela conta da
+    // Luciana): vale quando quem está logado é admin da lista E a conta vista
+    // também está na lista. Ver como de qualquer outra usuária segue sem gate.
+    if (!_gateTesteImport && auth.uid !== uid && auth.token?.admin === true && _TRANSF_PROPRIA_ALLOWLIST.includes(_emailLogado)) {
+      const alvo = await admin.auth().getUser(uid).catch(() => null);
+      _gateTesteImport = _TRANSF_PROPRIA_ALLOWLIST.includes(String(alvo?.email || '').toLowerCase());
+    }
     const transfPropriaAtiva = _gateTesteImport && !!transferenciasProprias && typeof transferenciasProprias === 'object';
     // Extrato de conta com meses demais (18/11/2026, em teste, mesma allowlist):
     // o Uber Conta da Luciana exporta 6 meses (1.390 linhas) e a resposta da IA
@@ -1833,7 +1840,7 @@ exports.categorizarExtratoIA = onCall(
     let listaContasProprias = [];
     if (transfPropriaAtiva) {
       const mentSnap = await db.collection('mentoradas').doc(uid).get();
-      nomeTitular = String((mentSnap.exists && mentSnap.data().nome) || auth.token?.name || '').trim().slice(0, 100);
+      nomeTitular = String((mentSnap.exists && mentSnap.data().nome) || (auth.uid === uid ? auth.token?.name : '') || '').trim().slice(0, 100);
       listaContasProprias = Array.isArray(transferenciasProprias.contas)
         ? transferenciasProprias.contas.filter(n => typeof n === 'string' && n.trim()).map(n => n.trim().slice(0, 60)).slice(0, 20)
         : [];
@@ -1992,7 +1999,7 @@ Regras obrigatórias:
       .slice(0, 20);
 
     console.log(`[categorizarExtratoIA] uid=${uid} — ${itens.length} lançamentos extraídos via IA (tipoConteudo=${tipoConteudo}, vencimentoFatura=${vencimentoFatura || 'não encontrado'}, pagamentosFatura=${pagamentosFatura.length}${transfPropriaAtiva ? `, transferenciasProprias=${itens.filter(i => i.transferenciaPropria).length}` : ''})`);
-    return { itens, vencimentoFatura, pagamentosFatura };
+    return { itens, vencimentoFatura, pagamentosFatura, periodoAplicado: !!periodo };
   },
 );
 

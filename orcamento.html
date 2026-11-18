@@ -10165,7 +10165,8 @@
     function _transfPropriaAtiva() {
       const user = auth.currentUser;
       if (!user) return false;
-      try { if (uidAtual() !== user.uid) return false; } catch (_) { return false; } // nunca no "ver como"
+      // Vale também no "ver como" (18/11/2026, pedido da Flávia): o servidor
+      // só aplica se a conta vista também estiver na lista de teste.
       return _TRANSF_PROPRIA_ALLOWLIST.includes((user.email || '').toLowerCase());
     }
     const _TRF_FORA = '__fora__';
@@ -10459,7 +10460,7 @@
           periodoImport: { de: `${_pm.ano}-${String(_pm.mes).padStart(2, '0')}-01`, ate: `${_pm.ano}-${String(_pm.mes).padStart(2, '0')}-${String(new Date(_pm.ano, _pm.mes, 0).getDate()).padStart(2, '0')}` },
           agruparGanhosApp: true,
         } : {};
-        const { itens: itensIA, vencimentoFatura, pagamentosFatura } = await categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoesAtivos, pedidoTransf, extrasIA);
+        const { itens: itensIA, vencimentoFatura, pagamentosFatura, periodoAplicado } = await categorizarExtratoIA(conteudo, tipoConteudo, nomesCartoesAtivos, pedidoTransf, extrasIA);
 
         // Fatura de cartão selecionada: marca cada despesa como cartao. A fatura
         // é UMA SÓ para o lote inteiro, não recalculada por item a partir da
@@ -10564,7 +10565,7 @@
         const importou = await processarItensImportados(itensProcessados, { origemLabel: 'Extrato', origemTag: 'raio-x-ia', eventoNome: 'extrato_ia_importado', escopo: escopoLote });
         // Filtro do mês em tela (em teste): deixa explícito no fim o que entrou
         // e como importar outro mês do mesmo arquivo (pedido da Flávia, 18/11/2026).
-        if (importou && extrasIA.periodoImport) {
+        if (importou && periodoAplicado) {
           toast(`Entraram só os lançamentos de ${MESES[_pm.mes - 1]} de ${_pm.ano}, o mês aberto na tela. Se o arquivo tinha outros meses, eles ficaram de fora: para importar outro mês, mude o mês na tela e importe o mesmo arquivo de novo.`, 'info', 12000);
         }
 
