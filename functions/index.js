@@ -1847,7 +1847,7 @@ exports.categorizarExtratoIA = onCall(
     }
     const regraPeriodoEGanhos = (periodo ? `
 - PERÍODO: o arquivo pode trazer vários meses. Inclua em "itens" e em "pagamentosFatura" SOMENTE lançamentos com data entre ${periodo.de} e ${periodo.ate} (inclusive). Ignore todos os outros, sem exceção.` : '') + (agruparGanhos ? `
-- GANHOS DE APLICATIVO: créditos repetidos de ganhos por corrida/entrega de aplicativo (ex: "Ganhos Uber", "Ganhos 99", "Repasse iFood") viram UMA linha por dia com a soma do dia: "descricao" = "<nome> (<quantidade> lançamentos)", "tipo" = "receita", "data" = o dia. Só para esse tipo de ganho; nunca agrupe despesas, Pix de pessoas ou outras receitas.` : '');
+- GANHOS DE APLICATIVO: liste CADA crédito de ganho por corrida/entrega (ex: "Ganhos Uber") como uma linha própria, com "descricao" exatamente igual ao texto do extrato (ex: "Ganhos Uber"). NÃO some nem agrupe: o sistema soma por dia depois.` : '');
     const regraTransfPropria = !transfPropriaAtiva ? '' : `
 - TRANSFERÊNCIA ENTRE CONTAS DA PRÓPRIA USUÁRIA (mesma titularidade): dinheiro que sai de uma conta dela e entra em outra conta DELA não é despesa nem receita. Essas linhas entram normalmente em "itens" (com "tipo" decidido pela coluna, como sempre), mas com "transferenciaPropria": true. Titular: ${nomeTitular || '(nome não informado)'}. Contas que ela tem cadastradas no dashboard: ${listaContasProprias.length ? listaContasProprias.join(', ') : '(nenhuma informada)'}. Marque "transferenciaPropria": true quando a linha for um Pix/TED/DOC/transferência E houver QUALQUER um destes sinais:
   (1) o nome da própria titular aparece como destinatário ou remetente (ex: "Pix enviado: Cp :22896431-Maria Clara Souza", "Pix recebido de MARIA C SOUZA", para a titular Maria Souza). Vale com nome do meio faltando, abreviado ou em maiúsculas, desde que o PRIMEIRO nome e o ÚLTIMO sobrenome sejam os dela. Mesmo sobrenome com outro primeiro nome (mãe, pai, irmã, cônjuge, filho) NÃO é dela: é transferência para terceiro;
@@ -1906,7 +1906,9 @@ Regras obrigatórias:
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 16000,
+          // Extrato de conta com período (em teste): linhas de um mês inteiro
+          // de app (ex: 300 corridas) não cabiam em 16k (18/11/2026).
+          max_tokens: periodo ? 32000 : 16000,
           system: systemPrompt,
           messages: [{
             role: 'user',
@@ -1966,7 +1968,7 @@ Regras obrigatórias:
     }
 
     const TIPOS_ITEM = new Set(['receita', 'despesa']);
-    const itens = itensBrutos.map((it, i) => {
+    const itensMapeados = itensBrutos.map((it, i) => {
       if (!TIPOS_ITEM.has(it.tipo)) throw new HttpsError('internal', `Item ${i + 1}: tipo inválido retornado pela IA.`);
       const valor = Number(it.valor);
       if (!Number.isFinite(valor) || valor < 0) throw new HttpsError('internal', `Item ${i + 1}: valor inválido retornado pela IA.`);
@@ -1994,12 +1996,35 @@ Regras obrigatórias:
       };
     });
 
+    // Período e soma dos ganhos feitos pelo SISTEMA, não pela IA (19/11/2026):
+    // em 18/11 a IA ignorou o período (devolveu 1/10 a 17/11 com novembro
+    // aberto na tela, e a importação caiu em outubro apagando o Uber de
+    // outubro) e errou as somas por dia (04/10: R$ 97,74 no lugar de 333,92).
+    const _noPeriodo = data => !periodo || (_ehISO(data) && data >= periodo.de && data <= periodo.ate);
+    let itens = itensMapeados.filter(i => _noPeriodo(i.data));
+    if (agruparGanhos) {
+      const _ehGanhoApp = i => i.tipo === 'receita' && /^(ganhos?|repasse)\b/i.test(i.descricao.trim());
+      const grupos = new Map();
+      const resto = [];
+      itens.forEach(i => {
+        if (!_ehGanhoApp(i)) { resto.push(i); return; }
+        const chave = `${i.data}|${i.descricao.trim().toLowerCase()}`;
+        const g = grupos.get(chave);
+        if (g) { g.valor = Math.round((g.valor + i.valor) * 100) / 100; g._n++; }
+        else grupos.set(chave, { categoria: i.categoria, tipo: 'receita', valor: i.valor, data: i.data, descricao: i.descricao.trim(), _n: 1 });
+      });
+      itens = [...resto, ...[...grupos.values()].map(({ _n, ...g }) => (_n > 1 ? { ...g, descricao: `${g.descricao} (${_n} lançamentos)` } : g))];
+    }
+    if (periodo && itens.length === 0) {
+      throw new HttpsError('invalid-argument', `Nenhum lançamento entre ${periodo.de.split('-').reverse().join('/')} e ${periodo.ate.split('-').reverse().join('/')} neste arquivo. Para importar outro mês, mude o mês na tela do Orçamento antes de importar.`);
+    }
+
     const pagamentosFatura = pagamentosFaturaBrutos
-      .filter(p => p && typeof p.descricao === 'string' && Number.isFinite(Number(p.valor)) && typeof p.data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.data))
+      .filter(p => p && typeof p.descricao === 'string' && Number.isFinite(Number(p.valor)) && typeof p.data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.data) && _noPeriodo(p.data))
       .map(p => ({ descricao: p.descricao.slice(0, 200), valor: Number(p.valor), data: p.data }))
       .slice(0, 20);
 
-    console.log(`[categorizarExtratoIA] uid=${uid} — ${itens.length} lançamentos extraídos via IA (tipoConteudo=${tipoConteudo}, vencimentoFatura=${vencimentoFatura || 'não encontrado'}, pagamentosFatura=${pagamentosFatura.length}${transfPropriaAtiva ? `, transferenciasProprias=${itens.filter(i => i.transferenciaPropria).length}` : ''})`);
+    console.log(`[categorizarExtratoIA] uid=${uid} — ${itens.length} lançamentos extraídos via IA (tipoConteudo=${tipoConteudo}, periodo=${periodo ? periodo.de + '..' + periodo.ate : 'todo'}, brutos=${itensMapeados.length}, vencimentoFatura=${vencimentoFatura || 'não encontrado'}, pagamentosFatura=${pagamentosFatura.length}${transfPropriaAtiva ? `, transferenciasProprias=${itens.filter(i => i.transferenciaPropria).length}` : ''})`);
     return { itens, vencimentoFatura, pagamentosFatura, periodoAplicado: !!periodo };
   },
 );
