@@ -3270,7 +3270,7 @@
               <span class="cel-conf-acoes"><span style="${cor};margin-right:4px;white-space:nowrap">${x.tipo === 'receita' ? '+ ' : ''}${brl(x.valor)}</span>
                 <button type="button" title="Confirmar" style="color:var(--positive)" data-cel-conf="ok" data-tipo="${x.tipo}" ${ref}>✓</button>
                 <button type="button" title="Ajustar o valor deste mês" data-cel-conf="ajustar" data-tipo="${x.tipo}" ${ref}>✎</button>
-                ${x.virtual ? `<button type="button" title="Pular este mês" data-cel-conf="pular" data-tipo="${x.tipo}" ${ref}>⏭</button>` : ''}
+                ${x.virtual ? `<button type="button" title="Pular este mês" data-cel-conf="pular" data-tipo="${x.tipo}" ${ref}>✕</button>` : ''}
               </span></div>`;
           }).join('')}
         </div>` : '';
@@ -5741,7 +5741,7 @@
             : ev.virtual
             ? `<button class="btn-item" data-proj-materializar="${ev.recorrenteId}:${ev.dia}" title="${ev.tipo === 'receita' ? 'Lançar essa receita fixa' : 'Lançar essa despesa fixa'}" style="color:var(--positive)">✓</button>
                <button class="btn-item" data-proj-editar-fixa="${ev.recorrenteId}:${ev.dia}:${ev.tipo}" title="Ajustar o valor só deste mês">✎</button>
-               <button class="btn-item" data-proj-pular="${ev.recorrenteId}:${ev.dia}" title="Pular este mês (a recorrência continua ativa)" style="color:var(--text-muted)">⏭</button>`
+               <button class="btn-item" data-proj-pular="${ev.recorrenteId}:${ev.dia}" title="Pular este mês (a recorrência continua ativa)" style="color:var(--text-muted)">✕</button>`
             : `<button class="btn-item" data-proj-confirmar="${ev.tipo}:${ev.idx}" title="Confirmar" style="color:var(--positive)">✓</button>
                <button class="btn-item" data-proj-editar="${ev.tipo}:${ev.idx}" title="Editar">✎</button>
                <button class="btn-item" data-proj-excluir="${ev.tipo}:${ev.idx}" title="Excluir" style="color:var(--negative)">✕</button>`;
@@ -7042,7 +7042,7 @@
       const virtualActionsHTML = item.virtual
         ? `<button class="btn-item" data-materializar-virtual="${item.recorrenteId}:${item.dia}" title="Lançar essa despesa fixa" style="color:var(--positive);font-size:11px;white-space:nowrap;">✓ Lançar</button>
            <button class="btn-item" data-editar-virtual="${item.recorrenteId}:${item.dia}" title="Ajustar o valor só deste mês">✎</button>
-           <button class="btn-item" data-pular-virtual="${item.recorrenteId}:${item.dia}" title="Pular este mês (a recorrência continua ativa)" style="color:var(--text-muted);">⏭</button>`
+           <button class="btn-item" data-pular-virtual="${item.recorrenteId}:${item.dia}" title="Pular este mês (a recorrência continua ativa)" style="color:var(--text-muted);">✕</button>`
         : '';
       const dataTagFinal = item.data
         ? `<div class="item-fonte">${categoriaTag}${escapeHtml(formatData(item.data))}${faturaTag}${recTag}${parcelaTag}${pendenteTag}${virtualTag}</div>`
