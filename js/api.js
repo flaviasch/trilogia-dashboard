@@ -1467,51 +1467,6 @@ export function parsearCsvPatrimonio(csvText) {
 
 // ─── Comunicados (admin only) ────────────────────────────────────────────────
 
-/** Dispara e-mail de novidades para todas as mentoradas ativas. Admin only. */
-export async function anunciarNovidades() {
-  return call('anunciarNovidades')({});
-}
-
-/** Dispara e-mail de novidades Jun/2026 v2 (conteúdo correto das melhorias). Admin only. */
-export async function anunciarNovidadesJun2026() {
-  return call('anunciarNovidadesJun2026')({});
-}
-
-/** Dispara e-mail completo de Junho/2026 — todas as melhorias do mês. Admin only. */
-export async function anunciarNovidadesJun2026Completo() {
-  return call('anunciarNovidadesJun2026Completo')({});
-}
-
-/** Dispara e-mail de novidades Jun/2026 v3 — texto livre + CSV por mês. Admin only. */
-export async function anunciarNovidadesJun2026v3() {
-  return call('anunciarNovidadesJun2026v3')({});
-}
-
-/** Comunica nova aba Minha Jornada para mentoradas em processo. Admin only. */
-export async function anunciarJornadaDashboard() {
-  return call('anunciarJornadaDashboard')({});
-}
-
-/** Dispara e-mail de novidades Jul/2026 — faturas + jornada. Admin only. */
-export async function anunciarNovidadesJul2026() {
-  return call('anunciarNovidadesJul2026')({});
-}
-
-/** Dispara e-mail completo de Julho/2026 — todas as melhorias do mês. Admin only. */
-export async function anunciarNovidadesJul2026Completo() {
-  return call('anunciarNovidadesJul2026Completo')({});
-}
-
-/** Dispara e-mail completo de Agosto/2026 — todas as melhorias do mês. Admin only. */
-export async function anunciarNovidadesAgo2026Completo() {
-  return call('anunciarNovidadesAgo2026Completo')({});
-}
-
-/** Dispara e-mail do modo claro/escuro + aporte sem alocação (Ago/2026). Admin only. */
-export async function anunciarModoClaroAgo2026() {
-  return call('anunciarModoClaroAgo2026')({});
-}
-
 /** Dispara e-mail de Dia do Cliente (15/09/2026) pra ativas E inativas. Admin only. */
 export async function anunciarDiaDoCliente2026() {
   return call('anunciarDiaDoCliente2026')({});
@@ -1559,26 +1514,6 @@ export async function anunciarPoliticaPrivacidadeOut2026() {
  */
 export async function corrigirRelatorioAgosto2026() {
   return call('reemitirRelatorioMensal')({ mes: 8, ano: 2026 });
-}
-
-/** Dispara e-mail de balanço Jul/2026 — Detalhe, Planejamento e despesas fixas. Admin only. */
-export async function anunciarBalancoJul2026() {
-  return call('anunciarBalancoJul2026')({});
-}
-
-/** Dispara e-mail de múltiplas contas correntes — Jul/2026. Admin only. */
-export async function anunciarMultiplasContasJul2026() {
-  return call('anunciarMultiplasContasJul2026')({});
-}
-
-/** Dispara e-mail de importar extrato com IA no Orçamento — Jul/2026. Admin only. */
-export async function anunciarRaioXJul2026() {
-  return call('anunciarRaioXJul2026')({});
-}
-
-/** Dispara e-mail de importar Patrimônio com IA (IR, corretora, dívidas) — Jul/2026. Admin only. */
-export async function anunciarPatrimonioIAJul2026() {
-  return call('anunciarPatrimonioIAJul2026')({});
 }
 
 /** Marca/desmarca lição de casa no Notion. */
