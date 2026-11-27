@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Fechamento Mensal do Trilogia Dashboard (projeto fechamento-mensal, fase 03).
+ * Fechamento Mensal do Dashboard Trilogia (projeto fechamento-mensal, fase 03).
  *
  * Lógica PURA, sem Firestore e sem rede, para ser testável. Quem lê o banco e
  * chama a API é o index.js (notifDia1 e previewFechamentoMensal).
@@ -232,7 +232,7 @@ function dadosParaIA(d) {
 }
 
 const SYSTEM_PROMPT = [
-  'Você escreve a leitura do mês de uma pessoa que usa o Trilogia Dashboard, um app de organização financeira pessoal.',
+  'Você escreve a leitura do mês de uma pessoa que usa o Dashboard Trilogia, um app de organização financeira pessoal.',
   'Receba um JSON com números já calculados e escreva de 3 a 4 frases em português do Brasil.',
   'Regras:',
   '- Use apenas números que estão no JSON. Não calcule, não arredonde de outra forma, não invente.',

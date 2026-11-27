@@ -60,10 +60,12 @@ test('texto padrão só usa números que existem no pacote (todas as perguntas)'
       { nome: 'Emergência', meta: 45000, acumulado: 18400, aporte: 900 },
       { nome: 'Viagem', meta: 10000, acumulado: 10000, aporte: 0 },
     ]),
-    liberdade_meta: T.pacoteLiberdade(
-      { pessoas: [{ id: 'a', nome: 'Fulana', idadeAtual: 40, idadeAposentadoria: 60, expectativaVida: 90 }], rendaMensalDesejadaAposentadoria: 15000 },
-      { patrimonioNaAposentadoria: 2100000, patrimonioConsumo: 2800000, patrimonioPreservacao: 4000000, diagnostico: { classificacao: 'inadequado', diferenca: 700000, aporteAdicionalSugerido: 1500 } },
-    ),
+    liberdade_meta: T.pacoteLiberdade({
+      reservas: [{ nome: 'Liberdade Financeira', meta: 5330191, acumulado: 559023.28, aporte: 5000, dataMeta: '2046-11' }],
+      perfil: 'moderado', hojeISO: '2026-11-27',
+      mapa: { respostas: { pessoas: [{ idadeAtual: 40, idadeAposentadoria: 60, expectativaVida: 90 }], rendaMensalDesejadaAposentadoria: 25000 },
+              resultado: { patrimonioNaAposentadoria: 4427072, patrimonioConsumo: 4000000, patrimonioPreservacao: 6250000, mesAposentadoria: 240, diagnostico: { classificacao: 'adequado', diferenca: 1822928 } } },
+    }),
   };
   for (const [id, p] of Object.entries(pacotes)) {
     const texto = T.textoPadrao(id, p);
@@ -94,13 +96,15 @@ test('travessão, "pra" e produto financeiro são rejeitados', async () => {
 // ── Privacidade: o que vai ao modelo ─────────────────────────────────────────
 
 test('pacote enviado ao modelo não leva nome da pessoa nem campos internos', () => {
-  const p = T.pacoteLiberdade(
-    { pessoas: [{ id: 'a', nome: 'Fulana de Tal', idadeAtual: 40, idadeAposentadoria: 60, expectativaVida: 90 }], rendaMensalDesejadaAposentadoria: 15000 },
-    { patrimonioNaAposentadoria: 2100000, patrimonioConsumo: 2800000, patrimonioPreservacao: 4000000, diagnostico: { classificacao: 'adequado', diferenca: 100000, aporteAdicionalSugerido: 0 } },
-  );
+  const p = T.pacoteLiberdade({
+    reservas: [{ nome: 'Aposentadoria', meta: 1000000, acumulado: 100000, aporte: 1000, dataMeta: '2050-01' }],
+    perfil: 'arrojado', hojeISO: '2026-11-27',
+    mapa: { respostas: { pessoas: [{ id: 'a', nome: 'Fulana de Tal', idadeAtual: 40, idadeAposentadoria: 60, expectativaVida: 90 }], rendaMensalDesejadaAposentadoria: 15000 },
+            resultado: { patrimonioNaAposentadoria: 2100000, patrimonioConsumo: 2800000, patrimonioPreservacao: 4000000, mesAposentadoria: 240, diagnostico: {} } },
+  });
   const json = JSON.stringify(T.paraModelo(p));
   assert.doesNotMatch(json, /Fulana/);
-  assert.doesNotMatch(json, /_classificacao/);
+  assert.doesNotMatch(json, /_insuficiente/);
 });
 
 test('nomes de categoria são saneados (sem instrução escondida)', () => {
@@ -133,14 +137,45 @@ test('sem reservas devolve null (estado sem_reservas)', () => {
   assert.equal(T.pacoteReservas([]), null);
 });
 
-test('liberdade: aporte sugerido entra quando está abaixo do necessário', () => {
-  const p = T.pacoteLiberdade(
-    { pessoas: [{ idadeAtual: 40, idadeAposentadoria: 60, expectativaVida: 90 }, { idadeAtual: 42, idadeAposentadoria: 62, expectativaVida: 90 }], rendaMensalDesejadaAposentadoria: 20000 },
-    { patrimonioNaAposentadoria: 1000000, patrimonioConsumo: 3000000, patrimonioPreservacao: 5000000, diagnostico: { classificacao: 'inadequado', diferenca: 2000000, aporteAdicionalSugerido: 4200 } },
-  );
-  assert.equal(p.pessoas_no_mapa, 2);
-  assert.match(p.aporte_mensal_adicional_sugerido, /^R\$\s4\.200,00$/);
-  assert.match(T.textoPadrao('liberdade_meta', p), /aporte adicional de R\$\s4\.200,00 por mês/);
+test('meta: é o valor da reserva de longo prazo; viver de renda é só complemento', async () => {
+  const p = T.pacoteLiberdade({
+    reservas: [
+      { nome: 'Emergência', meta: 50000, acumulado: 50000, aporte: 0 },
+      { nome: 'Liberdade Financeira', meta: 5330191, acumulado: 559023.28, aporte: 5000, dataMeta: '2046-11' },
+    ],
+    perfil: 'moderado', hojeISO: '2026-11-27',
+    mapa: { respostas: { pessoas: [{ idadeAtual: 40, idadeAposentadoria: 60, expectativaVida: 90 }], rendaMensalDesejadaAposentadoria: 25000 },
+            resultado: { patrimonioNaAposentadoria: 4427072, patrimonioConsumo: 4000000, patrimonioPreservacao: 6250000, mesAposentadoria: 240, diagnostico: { classificacao: 'adequado', diferenca: 1822928 } } },
+  });
+  assert.equal(p.meta_de_longo_prazo.reserva, 'Liberdade Financeira');
+  assert.match(p.meta_de_longo_prazo.meta, /5\.330\.191,00/);
+  const texto = T.textoPadrao('liberdade_meta', p);
+  assert.match(texto, /^Sua meta de longo prazo, cadastrada na reserva Liberdade Financeira, é R\$\s5\.330\.191,00\./);
+  assert.match(texto, /Como complemento: se um dia você quiser viver só de renda/);
+  assert.match(texto, /R\$\s6\.250\.000,00/);
+  assert.match(texto, /aporte adicional seria de/);
+  assert.doesNotMatch(texto, /903\.119/);
+  // Aporte adicional para viver de renda: diferença no prazo do Mapa, taxa do perfil.
+  const i = Math.pow(1.05, 1 / 12) - 1;
+  const pmt = (6250000 - 4427072) * i / (Math.pow(1 + i, 240) - 1);
+  assert.equal(p.complemento_viver_de_renda.aporte_adicional_para_viver_de_renda, F.brl(pmt));
+  assert.equal(F.validarTextoIA(texto, T.paraModelo(p)).ok, true);
+  const c = T.ctaConsultoria('liberdade_meta', p);
+  assert.match(c.texto, /revisados uma vez por ano: a vida muda, os objetivos mudam e a inflação corrói/);
+  assert.match(c.texto, /fale com a Flávia/);
+});
+
+test('meta: sem reserva de longo prazo usa só o Mapa; sem os dois devolve null (sem_mapa)', () => {
+  const soMapa = T.pacoteLiberdade({ reservas: [], hojeISO: '2026-11-27',
+    mapa: { respostas: { pessoas: [{ idadeAtual: 40, idadeAposentadoria: 60, expectativaVida: 90 }], rendaMensalDesejadaAposentadoria: 10000 },
+            resultado: { patrimonioNaAposentadoria: 3000000, patrimonioPreservacao: 2000000, mesAposentadoria: 240, diagnostico: {} } } });
+  assert.equal(soMapa.sem_meta_cadastrada, true);
+  assert.equal(soMapa.complemento_viver_de_renda.ja_alcanca_viver_de_renda, true);
+  assert.match(T.textoPadrao('liberdade_meta', soMapa), /ainda não cadastrou uma reserva de longo prazo/);
+  assert.equal(T.pacoteLiberdade({ reservas: [], hojeISO: '2026-11-27', mapa: null }), null);
+  // Longo prazo por data (> 10 anos) quando o nome não diz.
+  const r = T.escolherReservaLongoPrazo([{ nome: 'Casa', meta: 1, dataMeta: '2030-01' }, { nome: 'Sonho', meta: 1, dataMeta: '2050-01' }], '2026-11-27');
+  assert.equal(r.nome, 'Sonho');
 });
 
 test('destaque do mês: categoria que mais mudou, por regra', () => {

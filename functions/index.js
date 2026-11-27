@@ -201,7 +201,7 @@ async function alertarErro(funcao, erro) {
       auth: { user: 'flaviasch@gmail.com', pass: process.env.GMAIL_APP_PASSWORD },
     });
     await transporter.sendMail({
-      from:    '"Trilogia Dashboard" <flaviasch@gmail.com>',
+      from:    '"Dashboard Trilogia" <flaviasch@gmail.com>',
       to:      'flaviasch@gmail.com',
       subject: `⚠️ Erro na função ${funcao}`,
       html: `
@@ -4698,7 +4698,7 @@ exports.createMentorada = onCall({ secrets: SECRETS_ALL }, async (request) => {
   try {
     await sendEmail({
       to:      email,
-      subject: 'Bem-vinda ao Trilogia Dashboard',
+      subject: 'Bem-vinda ao Dashboard Trilogia',
       html:    emailBoasVindas(nome),
     });
     emailEnviado = true;
@@ -5040,7 +5040,7 @@ exports.reenviarAcesso = onCall({ secrets: ['GMAIL_APP_PASSWORD'] }, async (requ
     const nome = snap.exists ? (snap.data().nome || userRecord.displayName || 'Mentorada') : (userRecord.displayName || 'Mentorada');
     await sendEmail({
       to: userRecord.email,
-      subject: 'Seu link de acesso — Trilogia Dashboard',
+      subject: 'Seu link de acesso — Dashboard Trilogia',
       html: emailReenvioAcesso(nome, link),
     });
     return { ok: true, emailEnviado: true };
@@ -5093,7 +5093,7 @@ exports.solicitarRedefinicaoSenha = onCall({ secrets: SECRETS_EMAIL }, async (re
     const nome = snap.exists ? (snap.data().nome || userRecord.displayName || 'mentorada') : (userRecord.displayName || 'mentorada');
     await sendEmail({
       to: userRecord.email,
-      subject: 'Seu link de acesso — Trilogia Dashboard',
+      subject: 'Seu link de acesso — Dashboard Trilogia',
       html: emailReenvioAcesso(nome, link),
     });
     console.log(`[solicitarRedefinicaoSenha] e-mail enviado para ${maskEmail(emailNorm)}`);
@@ -6463,7 +6463,7 @@ exports.kiwifyWebhook = onRequest({ cors: false, secrets: [...SECRETS_ALL, sKiwi
         const contextoBoasVindas = produtoEspecifico === 'raiox' ? 'raio-x' : 'mentoria';
         const assuntoBoasVindas  = contextoBoasVindas === 'raio-x'
           ? 'Bem-vinda ao seu Raio-X Financeiro'
-          : 'Bem-vinda ao Trilogia Dashboard';
+          : 'Bem-vinda ao Dashboard Trilogia';
         await sendEmail({ to: email, subject: assuntoBoasVindas, html: emailBoasVindas(nomeCliente, contextoBoasVindas) });
       } catch (err) {
         console.error(`[kiwify] Falha no e-mail de boas-vindas para ${maskEmail(email)}:`, err.message);
@@ -11321,23 +11321,31 @@ exports.perguntarTrilogia = onCall({ secrets: [sAnthropic], timeoutSeconds: 60 }
       pacote = trilogiaLib.pacoteReservas(snap.docs.map(d => d.data()), { perfil: ctx.md.perfil, hojeISO: hoje() });
       if (!pacote) return responderFixo('sem_reservas', trilogiaLib.TEXTOS_ESTADO.sem_reservas);
     } else if (perguntaId === 'liberdade_meta') {
-      const snap = await base.collection('materiaisJornada').doc('mapa-liberdade').get();
+      // A meta é a reserva de longo prazo cadastrada; o Mapa da Liberdade entra
+      // só como complemento (viver de renda), 27/11/2026.
+      const [resSnap, snap] = await Promise.all([
+        base.collection('reservas').get(),
+        base.collection('materiaisJornada').doc('mapa-liberdade').get(),
+      ]);
       const r = snap.exists ? (snap.data().respostas || null) : null;
       const pessoasOk = r && Array.isArray(r.pessoas) && r.pessoas.length >= 1 && r.pessoas.length <= 2
         && r.pessoas.every(p => p && p.idadeAtual != null && p.idadeAposentadoria != null && p.expectativaVida != null
           && p.idadeAposentadoria > p.idadeAtual && p.expectativaVida > p.idadeAposentadoria);
-      if (!pessoasOk || !(r.rendaMensalDesejadaAposentadoria > 0)) {
-        return responderFixo('sem_mapa', trilogiaLib.TEXTOS_ESTADO.sem_mapa);
+      let mapa = null;
+      if (pessoasOk && r.rendaMensalDesejadaAposentadoria > 0) {
+        try {
+          mapa = { respostas: r, resultado: _simularLiberdade({
+            pessoas: r.pessoas,
+            patrimonioInicial: r.patrimonioInicial || 0,
+            rendaMensalDesejadaAposentadoria: r.rendaMensalDesejadaAposentadoria,
+            objetivosExtras: Array.isArray(r.objetivosExtras) ? r.objetivosExtras : [],
+            rendasDespesas: Array.isArray(r.rendasDespesas) ? r.rendasDespesas : [],
+            premissas: r.premissas || {},
+          }) };
+        } catch (e) { console.warn('[trilogia] Mapa não calculado:', e.message); }
       }
-      const resultado = _simularLiberdade({
-        pessoas: r.pessoas,
-        patrimonioInicial: r.patrimonioInicial || 0,
-        rendaMensalDesejadaAposentadoria: r.rendaMensalDesejadaAposentadoria,
-        objetivosExtras: Array.isArray(r.objetivosExtras) ? r.objetivosExtras : [],
-        rendasDespesas: Array.isArray(r.rendasDespesas) ? r.rendasDespesas : [],
-        premissas: r.premissas || {},
-      });
-      pacote = trilogiaLib.pacoteLiberdade(r, resultado);
+      pacote = trilogiaLib.pacoteLiberdade({ reservas: resSnap.docs.map(d => d.data()), perfil: ctx.md.perfil, hojeISO: hoje(), mapa });
+      if (!pacote) return responderFixo('sem_mapa', trilogiaLib.TEXTOS_ESTADO.sem_mapa);
     }
 
     const resp = await trilogiaLib.gerarResposta(
@@ -12119,7 +12127,7 @@ exports.comunicadoTecnico = onCall({ secrets: SECRETS_EMAIL }, async (request) =
     try {
       await sendEmail({
         to:      m.email,
-        subject: 'Aviso sobre o Trilogia Dashboard',
+        subject: 'Aviso sobre o Dashboard Trilogia',
         html:    emailComunicadoTecnico(m.nome || 'mentorada'),
       });
       enviados++;
