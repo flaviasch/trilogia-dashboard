@@ -2186,6 +2186,47 @@ function emailPoliticaPrivacidadeNov2026(nome) {
   `);
 }
 
+/**
+ * E-mail: convite para o grupo de teste da TrilogIA (27/11/2026). Só para os
+ * e-mails de config/trilogia.emailsTeste.
+ */
+function emailTrilogiaTesteNov2026(nome) {
+  const primeiroNome = esc((nome || '').trim().split(' ')[0]);
+  const item = (t) => `<li style="margin:0 0 6px;">${t}</li>`;
+  return layout(`
+    <h2 style="${S.h2}">Você vai testar a TrilogIA antes de todo mundo</h2>
+    <p style="${S.p}">${primeiroNome ? `Olá, ${primeiroNome}.` : 'Olá.'}</p>
+    <p style="${S.p}">
+      Você faz parte do pequeno grupo que vai testar a TrilogIA, a nova analista de números
+      do Dashboard Trilogia. Ela responde perguntas sobre o seu mês usando os números que
+      você já lançou:
+    </p>
+    <ul style="${S.p}padding-left:20px;">
+      ${item('Por que minha sobra mudou?')}
+      ${item('Onde passei do limite?')}
+      ${item('Como evoluiu meu patrimônio?')}
+      ${item('Como estão minhas reservas?')}
+      ${item('Quanto falta para minha meta?')}
+    </ul>
+    <p style="${S.p}">
+      <strong>Onde encontrar:</strong> no computador, na tela inicial, logo abaixo da Missão do mês.
+      No celular, no fim da tela do Orçamento. Toque em "Perguntar à TrilogIA" e escolha a pergunta.
+    </p>
+    <p style="${S.p}">
+      Os números são calculados pelo sistema. A IA apenas escreve a explicação, e nada é gravado
+      ou alterado nos seus dados. É orientação educacional e não substitui um profissional.
+    </p>
+    <p style="${S.p}">
+      Como é um teste, a sua opinião faz toda a diferença. Se alguma resposta parecer estranha
+      ou confusa, tire um print e me mande no WhatsApp.
+    </p>
+    <p style="${S.p}">
+      <a href="https://dashboard.flaviaschusciman.com/index.html" style="${S.btn}">Abrir o Dashboard</a>
+    </p>
+    <p style="${S.pSmall}">Com carinho,<br><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
 function emailNovoConteudoClube(nome, item) {
   const emojiPorTipo = { gravacao: '🎬', documento: '📄', agenda: '🗓️' };
   const labelPorTipo  = { gravacao: 'Nova gravação', documento: 'Novo documento', agenda: 'Novo encontro na agenda' };
@@ -2251,6 +2292,7 @@ module.exports = {
   emailPoliticaInvestimentosNov2026,
   emailPoliticaPrivacidadeOut2026,
   emailPoliticaPrivacidadeNov2026,
+  emailTrilogiaTesteNov2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,

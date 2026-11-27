@@ -73,6 +73,7 @@ const {
   emailPoliticaInvestimentosNov2026,
   emailPoliticaPrivacidadeOut2026,
   emailPoliticaPrivacidadeNov2026,
+  emailTrilogiaTesteNov2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
@@ -12112,6 +12113,55 @@ exports.anunciarPoliticaPrivacidadeNov2026 = onCall({ secrets: SECRETS_EMAIL, ti
     { merge: true }
   );
   return { ok: true, modo, enviados, erros, porGrupo };
+});
+
+/**
+ * Convite do grupo de teste da TrilogIA (27/11/2026). Destinatárias: os e-mails
+ * de config/trilogia.emailsTeste que têm conta PF. Admin only. data.modo:
+ *   'contar' → só a contagem; 'teste' → só para a Flávia; 'todas' → o grupo.
+ */
+exports.anunciarTrilogiaTesteNov2026 = onCall({ secrets: SECRETS_EMAIL, timeoutSeconds: 300 }, async (request) => {
+  requireAdmin(request);
+  const modo = request.data?.modo;
+  if (!['contar', 'teste', 'todas'].includes(modo)) {
+    throw new HttpsError('invalid-argument', "modo deve ser 'contar', 'teste' ou 'todas'.");
+  }
+  const subject = 'Você vai testar a TrilogIA antes de todo mundo';
+  if (modo === 'teste') {
+    await sendEmail({ to: ADMIN_EMAIL, subject, html: emailTrilogiaTesteNov2026('Flávia') });
+    return { ok: true, modo, enviados: 1, erros: 0 };
+  }
+  const cfg = await _lerCfgTrilogia();
+  const emails = [...new Set((Array.isArray(cfg.emailsTeste) ? cfg.emailsTeste : []).map(e => String(e).trim().toLowerCase()).filter(Boolean))];
+  const lista = [];
+  for (const email of emails) {
+    const snap = await db.collection('mentoradas').where('email', '==', email).limit(1).get();
+    if (snap.empty) continue;
+    lista.push({ email, nome: snap.docs[0].data().nome || '' });
+  }
+  if (modo === 'contar') return { ok: true, modo, total: lista.length, modoTrilogia: cfg.modo || 'off' };
+  if (cfg.modo !== 'teste' && cfg.modo !== 'on') {
+    throw new HttpsError('failed-precondition', 'A TrilogIA está desligada. Ligue o modo teste antes de enviar o convite.');
+  }
+  const jaEnviado = (await db.collection('config').doc('comunicados').get()).data()?.trilogiaTesteNov2026?.enviadoEm;
+  if (jaEnviado && request.data?.forcar !== true) {
+    throw new HttpsError('failed-precondition', 'Este convite já foi enviado. Para reenviar, confirme o reenvio.');
+  }
+  let enviados = 0, erros = 0;
+  for (const d of lista) {
+    try {
+      await sendEmail({ to: d.email, subject, html: emailTrilogiaTesteNov2026(d.nome) });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarTrilogiaTesteNov2026] Erro ao enviar para ${maskEmail(d.email)}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { trilogiaTesteNov2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros } },
+    { merge: true }
+  );
+  return { ok: true, modo, enviados, erros };
 });
 
 /**
