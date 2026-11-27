@@ -1,5 +1,5 @@
 /**
- * api.js — cliente das Cloud Functions do Trilogia Dashboard.
+ * api.js — cliente das Cloud Functions do Dashboard Trilogia.
  *
  * Todas as páginas devem importar daqui em vez de usar fetch direto.
  * Cada função chama o endpoint Firebase onCall correspondente e retorna

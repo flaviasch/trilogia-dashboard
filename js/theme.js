@@ -1,4 +1,4 @@
-// ─── Tema claro/escuro — Trilogia Dashboard ────────────────────────────────
+// ─── Tema claro/escuro — Dashboard Trilogia ────────────────────────────────
 // Preferência salva no localStorage do navegador. Padrão é escuro (como sempre foi).
 const THEME_KEY = 'trilogia-theme';
 

@@ -1,4 +1,4 @@
-// Trilogia Dashboard — Service Worker v22
+// Dashboard Trilogia — Service Worker v22
 // HTML:           sempre rede (no-store)
 // JS/CSS com ?v=: Cache First — URL versionada, muda só no ?v=
 // JS/CSS locais:  Network First → garante versão atual; fallback cache se offline
@@ -51,7 +51,7 @@ self.addEventListener('activate', (event) => {
 
 // ── Push: recebe notificação do servidor ─────────────────────────────────────
 self.addEventListener('push', (event) => {
-  let data = { titulo: 'Trilogia Dashboard', corpo: '', url: '/index.html', tag: 'geral' };
+  let data = { titulo: 'Dashboard Trilogia', corpo: '', url: '/index.html', tag: 'geral' };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch (e) {

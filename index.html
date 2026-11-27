@@ -10,7 +10,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://js.sentry-cdn.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.sentry.io https://www.gstatic.com; frame-src 'self' https://*.firebaseapp.com https://www.youtube.com https://drive.google.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <script>if(window.top!==window.self){document.documentElement.style.display='none';try{window.top.location=window.self.location.href;}catch(e){}}</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trilogia Dashboard</title>
+  <title>Dashboard Trilogia</title>
   <link rel="icon" type="image/png" href="/icons/icon-192-v2.png" />
   <!-- Captura beforeinstallprompt antes de qualquer script carregar -->
   <script>window.__pwaPrompt=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__pwaPrompt=e;});</script>
@@ -739,7 +739,7 @@
 
   <!-- Navbar -->
   <nav class="navbar">
-    <span class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Trilogia <span>Dashboard</span></span>
+    <span class="logo"><img src="icons/icon-192-v2.png" alt="" class="logo-icon">Dashboard <span>Trilogia</span></span>
     <div class="navbar-right">
       <a href="admin.html" id="linkAdmin" style="display:none; color:var(--gold); font-size:.8rem; opacity:.7; text-decoration:none; margin-right:16px;">Admin</a>
       <a href="notas-pj.html" id="linkDashboardPJ" style="display:none; color:var(--gold); font-size:.85rem; font-weight:600; text-decoration:none; margin-right:16px; opacity:.85;">🏢 Dashboard PJ</a>
@@ -816,7 +816,7 @@
   <div id="welcomeScreen" style="display:none">
     <div class="welcome-screen">
       <div class="welcome-hero">
-        <h1 class="welcome-title">Bem-vinda ao <span>Trilogia Dashboard</span></h1>
+        <h1 class="welcome-title">Bem-vinda ao <span>Dashboard Trilogia</span></h1>
         <p class="welcome-sub">5 passos para começar. Leva menos de 15 minutos — e você sai daqui com uma visão clara da sua vida financeira.</p>
         <p class="welcome-order-note">💡 Siga a ordem abaixo — cada passo destrava o próximo. Por exemplo, só dá pra registrar um <strong>aporte</strong> (passo 5) depois de criar pelo menos uma <strong>reserva</strong> (passo 3): é nela que o aporte fica guardado.</p>
       </div>
@@ -1942,7 +1942,7 @@ async function init(user) {
         </div>
       `).join('') + `
         <p class="lgpd-inline-nota">
-          Ao usar o Trilogia Dashboard, você concorda com o tratamento dos seus dados
+          Ao usar o Dashboard Trilogia, você concorda com o tratamento dos seus dados
           em conformidade com a <strong>LGPD (Lei 13.709/2018)</strong>.
           Os dados são processados em servidores nos EUA (Google Firebase) e mantidos
           pelo prazo da mentoria ativa + 12 meses. Nunca compartilhados com terceiros.
@@ -2569,7 +2569,7 @@ async function init(user) {
     <div class="modal-lgpd-card">
       <div class="modal-lgpd-titulo">Privacidade e uso dos seus dados</div>
       <div class="modal-lgpd-texto">
-        Para funcionar, o Trilogia Dashboard armazena seus dados financeiros
+        Para funcionar, o Dashboard Trilogia armazena seus dados financeiros
         (patrimônio, reservas, orçamento e perfil de investidor) de forma segura
         na nuvem, acessíveis apenas por você e pela sua mentora.<br><br>
         Os dados são processados em servidores nos <strong>Estados Unidos</strong>
@@ -2617,7 +2617,7 @@ async function init(user) {
   <div id="pwaBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:var(--navy);border-top:1px solid rgba(207,174,101,0.3);padding:14px 20px;align-items:center;gap:12px;box-shadow:0 -4px 16px rgba(0,0,0,0.3);">
     <img src="/icons/icon-192-v2.png" style="width:40px;height:40px;border-radius:10px;flex-shrink:0;" alt="">
     <div style="flex:1;min-width:0;">
-      <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.3;">Instalar Trilogia Dashboard</div>
+      <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.3;">Instalar Dashboard Trilogia</div>
       <div id="pwaBannerSub" style="font-size:12px;color:rgba(var(--rgb-fg),0.6);line-height:1.3;">Salve como app na tela inicial</div>
     </div>
     <button id="pwaBannerInstall" style="background:#CFAE65;color:var(--navy);border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Instalar</button>
