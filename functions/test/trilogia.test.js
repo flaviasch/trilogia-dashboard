@@ -216,26 +216,57 @@ test('convite da consultoria: só no patrimônio com oscilação, link do WhatsA
   assert.equal(T.ctaConsultoria('patrimonio_evolucao', semAporte), null);
 });
 
-test('reservas: prazo considera o rendimento do saldo e dos aportes (premissa do Mapa)', async () => {
-  const p = T.pacoteReservas([
+test('reservas: usa a data-meta e a taxa do perfil para dizer se é suficiente', async () => {
+  const reservas = [
     { nome: 'Emergência', meta: 50000, acumulado: 50000, aporte: 0 },
-    { nome: 'Liberdade Financeira', meta: 5330191, acumulado: 559023.28, aporte: 5000 },
-  ], 0.8);
+    { nome: 'Liberdade Financeira', meta: 5330191, acumulado: 559023.28, aporte: 5000, dataMeta: '2046-11' },
+    { nome: 'Carro', meta: 60000, acumulado: 40000, aporte: 2000, dataMeta: '2027-11' },
+  ];
+  const p = T.pacoteReservas(reservas, { perfil: 'moderado', hojeISO: '2026-11-27' });
+  assert.match(p.rendimento_considerado, /^5% ao ano acima da inflação, pelo seu perfil moderado$/);
   const lib = p.reservas.find(r => r.reserva === 'Liberdade Financeira');
-  assert.equal(lib.meses_para_completar_com_rendimento, 203);
-  assert.equal(lib.anos_aproximados, 17);
+  assert.equal(lib.meses_ate_a_data, 240);
+  assert.equal(lib.suficiente, false);
+  assert.ok(lib.aporte_mensal_necessario);
+  const carro = p.reservas.find(r => r.reserva === 'Carro');
+  assert.equal(carro.suficiente, true);
+  // Conferência independente da conta: 240 meses a 5% a.a. real.
+  const i = Math.pow(1.05, 1 / 12) - 1;
+  const fv = 559023.28 * Math.pow(1 + i, 240) + 5000 * (Math.pow(1 + i, 240) - 1) / i;
+  assert.equal(lib.valor_previsto_na_data, F.brl(fv));
+  const nec = (5330191 - 559023.28 * Math.pow(1 + i, 240)) * i / (Math.pow(1 + i, 240) - 1);
+  assert.equal(lib.aporte_mensal_necessario, F.brl(nec));
+
   const texto = T.textoPadrao('reservas_situacao', p);
-  assert.match(texto, /203 meses \(cerca de 17 anos\)/);
-  assert.match(texto, /0,8% ao mês acima da inflação/);
-  assert.doesNotMatch(texto, /955/);
+  assert.match(texto, /Carro: .* é suficiente\./);
+  assert.match(texto, /Liberdade Financeira: .*faltariam .*aporte precisaria ser de/);
   assert.equal(F.validarTextoIA(texto, T.paraModelo(p)).ok, true);
-  // Modelo que volta a dividir de forma simples (955) é rejeitado: o número não está no pacote.
+  assert.doesNotMatch(texto, /\b955\b/);
+
+  const c = T.ctaConsultoria('reservas_situacao', p);
+  assert.match(c.texto, /rever as metas de aporte e como encaixar isso no orçamento/);
+  assert.match(decodeURIComponent(c.link), /Liberdade Financeira/);
+  assert.doesNotMatch(decodeURIComponent(c.link), /Carro/);
+
+  // Modelo que volta a dividir de forma simples é rejeitado (número fora do pacote).
   const r = await T.gerarResposta('reservas_situacao', p, modeloQueResponde('A reserva Liberdade Financeira acumulou R$ 559.023,28 da meta de R$ 5.330.191,00. Com aporte de R$ 5.000,00, faltam 955 meses. Acompanhe na página Reservas.'));
   assert.equal(r.origem, 'padrao');
 });
 
-test('reservas: sem taxa definida usa 0,8% e sem aporte nem rendimento não há prazo', () => {
-  assert.equal(T.mesesComRendimento(100, 1000, 0, 0), null);
-  assert.equal(T.mesesComRendimento(1000, 1000, 10, 0.008), 0);
-  assert.match(T.pacoteReservas([{ nome: 'X', meta: 10, acumulado: 1, aporte: 1 }], undefined).rendimento_considerado, /^0,8%/);
+test('reservas: perfil conservador usa 4%, sem perfil usa moderado; sem data-meta e data vencida', () => {
+  const base = [{ nome: 'X', meta: 10000, acumulado: 1000, aporte: 100, dataMeta: '2030-01' }];
+  assert.match(T.pacoteReservas(base, { perfil: 'conservador', hojeISO: '2026-11-27' }).rendimento_considerado, /^4% .*perfil conservador/);
+  assert.match(T.pacoteReservas(base, { hojeISO: '2026-11-27' }).rendimento_considerado, /^5% .*padrão do perfil moderado/);
+  const sem = T.pacoteReservas([{ nome: 'Y', meta: 100, acumulado: 1, aporte: 1 }], { hojeISO: '2026-11-27' });
+  assert.equal(sem.reservas[0].sem_data_meta, true);
+  assert.match(T.textoPadrao('reservas_situacao', sem), /Cadastre a data-meta/);
+  const venc = T.pacoteReservas([{ nome: 'Z', meta: 100, acumulado: 1, aporte: 1, dataMeta: '2025-01' }], { hojeISO: '2026-11-27' });
+  assert.equal(venc.reservas[0].data_meta_ja_passou, true);
+  assert.equal(T.ctaConsultoria('reservas_situacao', sem), null);
+});
+
+test('reservas: aporte que começa no futuro só conta a partir do início', () => {
+  const i = Math.pow(1.05, 1 / 12) - 1;
+  assert.ok(T.valorNaData(0, 100, i, 12, 6) < T.valorNaData(0, 100, i, 12, 0));
+  assert.equal(T.valorNaData(0, 100, 0, 12, 6), 600);
 });
