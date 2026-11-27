@@ -182,49 +182,11 @@ function pacotePatrimonio(historico, nomeMesDeChave, aporteMes = null) {
   return p;
 }
 
-/** Meses para chegar à meta com o saldo rendendo e aportes mensais no fim de
- *  cada mês: meta = PV(1+i)^n + PMT((1+i)^n - 1)/i. Sem taxa (i = 0) cai na
- *  divisão simples. null se não chega (sem aporte e sem rendimento). */
-function mesesComRendimento(acumulado, meta, aporte, taxaMensal) {
-  const pv = Math.max(0, Number(acumulado) || 0), fv = Number(meta) || 0, pmt = Math.max(0, Number(aporte) || 0);
-  const i = Math.max(0, Number(taxaMensal) || 0);
-  if (pv >= fv) return 0;
-  if (i === 0) return pmt > 0 ? Math.max(1, Math.ceil((fv - pv) / pmt)) : null;
-  const den = pv * i + pmt;
-  if (den <= 0) return null;
-  const n = Math.log((fv * i + pmt) / den) / Math.log(1 + i);
-  return Number.isFinite(n) ? Math.max(1, Math.ceil(n)) : null;
-}
-
-// Rendimento real por perfil de investidor, o mesmo do Mapa da Liberdade
-// (liberdade.html, definido pela Flávia em 22/07/2026): 4% / 5% / 6% ao ano
-// acima da inflação. Sem perfil cadastrado, moderado.
-const TAXA_ANUAL_POR_PERFIL = { conservador: 4, moderado: 5, arrojado: 6 };
+// Conta das reservas compartilhada com o Fechamento Mensal (27/11/2026).
+const RC = require('./reserva-calc');
+const { TAXA_ANUAL_POR_PERFIL, valorNaData, aporteNecessario, mesesComRendimento } = RC;
+const _mesesEntre = RC.mesesEntre;
 const NOMES_MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-
-function _mesesEntre(deISO, ateISO) {
-  const m = (x) => { const r = /^(\d{4})-(\d{2})/.exec(String(x || '')); return r ? { a: Number(r[1]), m: Number(r[2]) } : null; };
-  const d = m(deISO), t = m(ateISO);
-  if (!d || !t) return null;
-  return (t.a - d.a) * 12 + (t.m - d.m);
-}
-
-/** Valor da reserva na data: saldo rendendo n meses + aportes mensais a partir
- *  do mês k (aporte começa em dataInicioAporte, se for no futuro). */
-function valorNaData(pv, pmt, i, n, k = 0) {
-  const nAp = Math.max(0, n - Math.max(0, k));
-  if (i === 0) return pv + pmt * nAp;
-  return pv * Math.pow(1 + i, n) + pmt * (Math.pow(1 + i, nAp) - 1) / i;
-}
-
-/** Aporte mensal que faz a reserva chegar à meta na data. */
-function aporteNecessario(pv, meta, i, n, k = 0) {
-  const nAp = Math.max(0, n - Math.max(0, k));
-  if (nAp <= 0) return null;
-  const falta = meta - pv * (i === 0 ? 1 : Math.pow(1 + i, n));
-  if (falta <= 0) return 0;
-  return i === 0 ? falta / nAp : falta * i / (Math.pow(1 + i, nAp) - 1);
-}
 
 /**
  * Reservas com o prazo da tela de Reservas (dataMeta) e rendimento pelo perfil

@@ -50,19 +50,29 @@ function categoriasEstouradas(itens, categoriasLimite, normCat, max = 3) {
 
 /**
  * Reservas pendentes seguem a definição da tela (acumulado < meta). O foco é a
- * reserva com menor percentual concluído. Prazo = (meta menos acumulado) dividido
- * pelo aporte planejado daquela reserva, arredondado para cima.
+ * reserva com menor percentual concluído.
+ *
+ * Prazo (27/11/2026, Flávia): nunca dividir o que falta pelo aporte, porque o
+ * saldo aplicado rende. Com data-meta cadastrada, diz se o aporte é suficiente
+ * até a data e, se não for, qual aporte seria necessário. Sem data-meta, o
+ * prazo considera o rendimento. Taxa real pelo perfil de investidor (4/5/6% ao
+ * ano), a mesma do Mapa da Liberdade e da TrilogIA (lib/reserva-calc.js).
+ * opts: { perfil, hojeISO: 'AAAA-MM-DD' }
  */
-function resumoReservas(reservas) {
+function resumoReservas(reservas, opts = {}) {
+  const RC = require('./reserva-calc');
+  const taxa = RC.taxaDoPerfil(opts && opts.perfil);
+  const hoje = (opts && opts.hojeISO) || new Date().toISOString().slice(0, 10);
+  const rendimento = { taxaAnual: taxa.taxaAnual, perfil: taxa.perfil };
   const lista = (reservas || []).filter(r => r && Number(r.meta) > 0);
   if (!lista.length) {
-    return { existe: false, completa: false, foco: null, prazoMeses: null, aportePlanejado: 0, totalAcumulado: 0, totalMeta: 0 };
+    return { existe: false, completa: false, foco: null, prazoMeses: null, aportePlanejado: 0, totalAcumulado: 0, totalMeta: 0, rendimento, naData: null };
   }
   const totalAcumulado = r2(lista.reduce((s, r) => s + (Number(r.acumulado) || 0), 0));
   const totalMeta = r2(lista.reduce((s, r) => s + Number(r.meta), 0));
   const pendentes = lista.filter(r => (Number(r.acumulado) || 0) < Number(r.meta));
   if (!pendentes.length) {
-    return { existe: true, completa: true, foco: null, prazoMeses: null, aportePlanejado: 0, totalAcumulado, totalMeta };
+    return { existe: true, completa: true, foco: null, prazoMeses: null, aportePlanejado: 0, totalAcumulado, totalMeta, rendimento, naData: null };
   }
   const comPct = pendentes.map(r => ({ r, pct: (Number(r.acumulado) || 0) / Number(r.meta) }));
   comPct.sort((a, b) => a.pct - b.pct);
@@ -70,6 +80,10 @@ function resumoReservas(reservas) {
   const aporte = Number(f.aporte) || 0;
   const acumulado = Number(f.acumulado) || 0;
   const aportePlanejado = r2(pendentes.reduce((s, r) => s + (Number(r.aporte) || 0), 0));
+  const sit = RC.situacaoNaData(f, { i: taxa.i, hojeISO: hoje });
+  const naData = sit.previsto != null
+    ? { dataMeta: sit.dataMeta, previsto: r2(sit.previsto), suficiente: sit.suficiente, faltaria: r2(sit.faltaria), aporteNecessario: sit.aporteNecessario != null ? r2(sit.aporteNecessario) : null }
+    : (sit.dataMetaPassou ? { dataMeta: sit.dataMeta, passou: true } : null);
   return {
     existe: true,
     completa: false,
@@ -80,10 +94,12 @@ function resumoReservas(reservas) {
       percentual: Math.min(100, Math.round(comPct[0].pct * 100)),
       aporte: r2(aporte),
     },
-    prazoMeses: aporte > 0 ? Math.max(1, Math.ceil((Number(f.meta) - acumulado) / aporte)) : null,
+    prazoMeses: RC.mesesComRendimento(acumulado, Number(f.meta), aporte, taxa.i),
     aportePlanejado,
     totalAcumulado,
     totalMeta,
+    rendimento,
+    naData,
   };
 }
 
@@ -226,7 +242,14 @@ function dadosParaIA(d) {
     aporte_planejado: d.aportePlanejado,
     categorias_acima_do_limite: d.categorias.estouradas.map(c => ({ nome: sanitizarNome(c.nome), acima_do_limite: c.excesso })),
     reserva: d.reserva.existe
-      ? { completa: d.reserva.completa, percentual_da_meta: d.reserva.foco ? d.reserva.foco.percentual : null, prazo_em_meses: d.reserva.prazoMeses }
+      ? {
+          completa: d.reserva.completa,
+          percentual_da_meta: d.reserva.foco ? d.reserva.foco.percentual : null,
+          rendimento_considerado_ao_ano: d.reserva.rendimento ? `${d.reserva.rendimento.taxaAnual}% acima da inflação` : null,
+          ...(d.reserva.naData && d.reserva.naData.previsto != null
+            ? { data_meta: d.reserva.naData.dataMeta, chega_na_meta_na_data: d.reserva.naData.suficiente, aporte_necessario: d.reserva.naData.aporteNecessario }
+            : { prazo_em_meses_com_rendimento: d.reserva.prazoMeses }),
+        }
       : null,
   };
 }

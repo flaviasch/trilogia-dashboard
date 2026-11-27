@@ -11142,7 +11142,7 @@ async function _montarFechamentoMensal(uid, mes, ano, agora) {
     totalReservas: md.totalReservas || 0,
     nota,
     categorias: fechamentoLib.categoriasEstouradas(itens, cats, _normCat),
-    reserva: fechamentoLib.resumoReservas(reservas),
+    reserva: fechamentoLib.resumoReservas(reservas, { perfil: md.perfil, hojeISO: hoje() }),
   });
   const { texto, origem } = await fechamentoLib.gerarTextoLeitura(
     dados,

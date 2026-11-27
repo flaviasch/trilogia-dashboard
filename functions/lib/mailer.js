@@ -1301,9 +1301,21 @@ function emailFechamentoMensal(nome, d, textoLeitura) {
     blocoRes = pEsc(`Suas metas de reserva estão completas: ${brl(r.totalAcumulado)} de ${brl(r.totalMeta)}.`);
   } else {
     const f = r.foco;
-    const prazo = r.prazoMeses != null
-      ? `No aporte planejado de ${brl(f.aporte)} por mês, faltam cerca de ${r.prazoMeses} ${r.prazoMeses === 1 ? 'mês' : 'meses'}.`
-      : 'Defina um aporte mensal para ver o prazo.';
+    // Prazo com rendimento (27/11/2026): data-meta da tela de Reservas e taxa do perfil.
+    const rend = r.rendimento ? ` e rendimento de ${r.rendimento.taxaAnual}% ao ano acima da inflação${r.rendimento.perfil ? ` (perfil ${r.rendimento.perfil})` : ''}` : '';
+    const base = f.aporte > 0 ? `Com o aporte de ${brl(f.aporte)} por mês${rend}` : `Só com o saldo atual${rend}`;
+    let prazo;
+    if (r.naData && r.naData.previsto != null) {
+      prazo = r.naData.suficiente
+        ? `${base}, a reserva chega a ${brl(r.naData.previsto)} em ${r.naData.dataMeta}: é suficiente para a meta.`
+        : `${base}, a reserva chega a ${brl(r.naData.previsto)} em ${r.naData.dataMeta}, abaixo da meta.${r.naData.aporteNecessario ? ` Para chegar na data, o aporte precisaria ser de ${brl(r.naData.aporteNecessario)} por mês.` : ''}`;
+    } else if (r.naData && r.naData.passou) {
+      prazo = `A data-meta de ${r.naData.dataMeta} já passou. Atualize o prazo na aba Reservas.`;
+    } else if (r.prazoMeses != null) {
+      prazo = `${base}, faltam cerca de ${r.prazoMeses} ${r.prazoMeses === 1 ? 'mês' : 'meses'}.`;
+    } else {
+      prazo = 'Defina um aporte mensal ou uma data-meta na aba Reservas para ver o prazo.';
+    }
     const aporteLinha = d.aportePlanejado > 0
       ? `Aporte do mês: ${brl(d.aporteReal)} realizado para ${brl(d.aportePlanejado)} planejado.`
       : '';

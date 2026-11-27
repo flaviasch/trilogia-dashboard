@@ -43,12 +43,15 @@ test('resumoReservas: foco é a de menor percentual, prazo arredonda para cima',
   assert.equal(r.completa, false);
   assert.equal(r.foco.nome, 'Emergência');
   assert.equal(r.foco.percentual, 41);
-  assert.equal(r.prazoMeses, 30); // (45000-18400)/900 = 29,56 -> 30
+  // Com rendimento de 5% a.a. real (moderado, padrão) o prazo fica abaixo dos 30 meses da divisão simples.
+  assert.ok(r.prazoMeses < 30 && r.prazoMeses >= 25, String(r.prazoMeses));
   assert.equal(r.aportePlanejado, 1400);
 });
 
 test('resumoReservas: sem aporte não há prazo; completa; inexistente', () => {
-  assert.equal(F.resumoReservas([{ nome: 'A', meta: 1000, acumulado: 100, aporte: 0 }]).prazoMeses, null);
+  // Sem aporte, o saldo aplicado ainda rende: chega à meta, só que devagar (27/11/2026).
+  assert.ok(F.resumoReservas([{ nome: 'A', meta: 1000, acumulado: 100, aporte: 0 }]).prazoMeses > 400);
+  assert.equal(F.resumoReservas([{ nome: 'A', meta: 1000, acumulado: 0, aporte: 0 }]).prazoMeses, null);
   const c = F.resumoReservas([{ nome: 'A', meta: 1000, acumulado: 1000, aporte: 0 }]);
   assert.equal(c.completa, true);
   assert.equal(F.resumoReservas([]).existe, false);
@@ -188,4 +191,18 @@ test('validarTextoIA: aceita nome de categoria da própria pessoa que parece pro
   const r = F.validarTextoIA(t.replace('A categoria Financiamento passou R$ 200,00 do limite.', 'Vale olhar um financiamento.'), dadosExemplo());
   assert.equal(r.ok, false);
   assert.match(r.motivo, /produto financeiro/);
+});
+
+test('resumoReservas: com data-meta diz se é suficiente e qual aporte seria necessário (taxa do perfil)', () => {
+  const r = F.resumoReservas([{ nome: 'Liberdade', meta: 5330191, acumulado: 559023.28, aporte: 5000, dataMeta: '2046-11' }], { perfil: 'arrojado', hojeISO: '2026-11-27' });
+  assert.equal(r.rendimento.taxaAnual, 6);
+  assert.equal(r.naData.dataMeta, 'novembro de 2046');
+  assert.equal(r.naData.suficiente, false);
+  const i = Math.pow(1.06, 1 / 12) - 1;
+  const fv = 559023.28 * Math.pow(1 + i, 240) + 5000 * (Math.pow(1 + i, 240) - 1) / i;
+  assert.ok(Math.abs(r.naData.previsto - fv) < 0.01);
+  assert.ok(r.naData.aporteNecessario > 5000);
+  const ok = F.resumoReservas([{ nome: 'Carro', meta: 60000, acumulado: 40000, aporte: 2000, dataMeta: '2027-11' }], { perfil: 'conservador', hojeISO: '2026-11-27' });
+  assert.equal(ok.naData.suficiente, true);
+  assert.equal(ok.rendimento.taxaAnual, 4);
 });
