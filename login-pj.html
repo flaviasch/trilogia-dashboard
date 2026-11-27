@@ -258,6 +258,7 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { getContaPJ, aceitarLGPDPJ, minhasPermissoesPJ } from './js/api.js?v=62';
+    import { precisaNovoAceiteLGPD } from './js/lgpd-versao.js?v=1';
     import {
       signInWithEmailAndPassword,
       signOut,
@@ -312,6 +313,12 @@
           abrirModalLGPDPJ(user.uid);
           return;
         }
+        // Novo aceite da Política com IA, a partir de 12/12/2026 (27/11/2026).
+        if (conta && precisaNovoAceiteLGPD(conta.lgpdVersao)) {
+          jaRedirecionando = false;
+          abrirModalLGPDPJ(user.uid, true);
+          return;
+        }
         window.location.href = conta ? 'notas-pj.html' : 'onboarding-pj.html';
       } catch (err) {
         jaRedirecionando = false;
@@ -319,10 +326,21 @@
       }
     }
 
-    function abrirModalLGPDPJ(uid) {
+    function abrirModalLGPDPJ(uid, versaoNova = false) {
       const modal = document.getElementById('modalLGPDPJ');
       const chk   = document.getElementById('chkLGPDPJModal');
       const btn   = document.getElementById('btnConfirmarLGPDPJ');
+      if (versaoNova) {
+        modal.querySelector('h3').textContent = 'Atualizamos nossa Política de Privacidade';
+        modal.querySelector('p').innerHTML =
+          'A partir de 12 de dezembro de 2026 vale uma nova versão da Política de Privacidade. ' +
+          '<strong>O que mudou:</strong> a política agora explica que alguns recursos usam inteligência artificial, ' +
+          'como a categorização de extratos e documentos que você envia. Ela informa o que é enviado, para qual provedor ' +
+          '(Anthropic, nos Estados Unidos) e por quanto tempo. A IA não grava nem altera nenhum dado seu, e os dados da sua empresa ' +
+          'continuam guardados normalmente. <a href="privacidade.html" target="_blank">Ler a política completa</a>.';
+        document.querySelector('label[for="chkLGPDPJModal"]').textContent =
+          'Li e concordo com a nova versão da Política de Privacidade, incluindo o uso de inteligência artificial descrito nela.';
+      }
       chk.checked = false;
       btn.disabled = true;
       modal.classList.remove('hidden');

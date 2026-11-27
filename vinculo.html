@@ -199,6 +199,7 @@
     import { auth } from './js/firebase-config.js';
     import { exigirAuth, logout } from './js/admin-guard.js';
     import { getStatusVinculo, aceitarVinculo, recusarVinculo, desvincular, aceitarLGPDParceiro, msgErro } from './js/api.js?v=66';
+    import { precisaNovoAceiteLGPD } from './js/lgpd-versao.js?v=1';
 
     document.getElementById('linkSair').addEventListener('click', (e) => { e.preventDefault(); logout(); });
 
@@ -251,6 +252,21 @@
         if (!status.lgpdAceite) {
           elTitulo.textContent = 'Antes de começar';
           elTexto.textContent = `Sua conta está vinculada com ${status.outroNome || 'sua mentorada'}. Pra lançar seus próprios dados de orçamento, patrimônio e reservas, precisamos do seu aceite aos termos de uso e privacidade.`;
+          elAcoesLgpd.style.display = '';
+          return;
+        }
+        // Novo aceite da Política com IA, a partir de 12/12/2026 (27/11/2026).
+        if (precisaNovoAceiteLGPD(status.lgpdVersao)) {
+          elTitulo.textContent = 'Atualizamos nossa Política de Privacidade';
+          elTexto.innerHTML = 'A partir de 12 de dezembro de 2026 vale uma nova versão da Política de Privacidade. ' +
+            '<strong>O que mudou:</strong> a política agora explica que alguns recursos usam inteligência artificial, como a categorização ' +
+            'de extratos e documentos que você envia e o Fechamento Mensal. Ela informa o que é enviado, para qual provedor ' +
+            '(Anthropic, nos Estados Unidos) e por quanto tempo. A IA não grava nem altera nenhum dado seu, e seus dados continuam guardados normalmente. ' +
+            '<a href="privacidade.html" target="_blank" style="color:var(--gold);">Ler a política completa</a>.';
+          elChkLgpd.nextElementSibling.textContent = 'Li e concordo com a nova versão da Política de Privacidade, incluindo o uso de inteligência artificial descrito nela.';
+          elChkLgpd.checked = false;
+          elBtnAceitarLgpd.disabled = true;
+          elBtnAceitarLgpd.textContent = 'Aceitar e continuar';
           elAcoesLgpd.style.display = '';
           return;
         }

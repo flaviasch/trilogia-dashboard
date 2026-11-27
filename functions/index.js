@@ -612,7 +612,7 @@ async function _buscarDashboardParceiro(uid) {
   if (!parceiroSnap.exists) {
     throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
   }
-  const { nome, lgpdAceite } = parceiroSnap.data();
+  const { nome, lgpdAceite, lgpdVersao } = parceiroSnap.data();
 
   const agora = new Date();
   const mes = agora.getMonth() + 1;
@@ -651,6 +651,7 @@ async function _buscarDashboardParceiro(uid) {
     perfil,
     inicio:          null,
     lgpdAceite:      lgpdAceite || false,
+    lgpdVersao:      lgpdVersao || null,
     assinaturaClube: false,
     nivelAcesso:     null,
     sheetError:      false,
@@ -666,7 +667,7 @@ async function _buscarDashboard(uid, { callerUid, isAdmin }) {
     // Modo Casal: uid pode ser de um parceiro (contasParceiro), sem billing.
     return _buscarDashboardParceiro(uid);
   }
-  const { sheetId, inicio, nome, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
+  const { sheetId, inicio, nome, perfil: perfilFirestore, lgpdAceite, lgpdVersao, ultimoAcessoMes,
           assinaturaClube, assinaturaDashboard, nivelAcesso,
           scoreMes, scoreChave } = docSnap.data();
 
@@ -684,6 +685,7 @@ async function _buscarDashboard(uid, { callerUid, isAdmin }) {
     nome:            nome       || null,
     inicio:          inicio     || null,
     lgpdAceite:      lgpdAceite || false,
+    lgpdVersao:      lgpdVersao || null,
     assinaturaClube: true,
     apenasClube:     true,
     orcamento:  { receita: 0, despesa: 0, sobra: 0, mes: new Date().getMonth() + 1, ano: new Date().getFullYear() },
@@ -798,6 +800,7 @@ async function _buscarDashboard(uid, { callerUid, isAdmin }) {
     perfil,
     inicio:          inicio          || null,
     lgpdAceite:      lgpdAceite      || false,
+    lgpdVersao:      lgpdVersao || null,
     assinaturaClube: assinaturaClube || false,
     nivelAcesso:     nivelAcesso     || null, // 'raio-x' → frontend esconde Patrimônio/Reservas/Perfil
     sheetError:      sheetError,
@@ -848,7 +851,7 @@ exports.getDashboardHome = onCall(async (request) => {
 
   if (!docSnap.exists) throw new HttpsError('not-found', `Mentorada não encontrada: ${uid}`);
 
-  const { nome, inicio, perfil: perfilFirestore, lgpdAceite, ultimoAcessoMes,
+  const { nome, inicio, perfil: perfilFirestore, lgpdAceite, lgpdVersao, ultimoAcessoMes,
           assinaturaClube, assinaturaDashboard, mentoriaEncerrada, nivelAcesso,
           pl, sobra, totalReservas, scoreMes, scoreChave, sheetId, dataExpiracao,
           dataNascimento } = docSnap.data();
@@ -881,14 +884,14 @@ exports.getDashboardHome = onCall(async (request) => {
   const mentoriaAcabou = mentoriaEncerrada === true || (dataExpiracao && dataExpiracao <= hojeISO);
   const acessoExpirado = !isAdminUser && semAssinaturaAtiva && mentoriaAcabou;
   if (acessoExpirado) {
-    return { acessoBloqueado: true, nome: nome || null, inicio: inicio || null, lgpdAceite: lgpdAceite || false };
+    return { acessoBloqueado: true, nome: nome || null, inicio: inicio || null, lgpdAceite: lgpdAceite || false, lgpdVersao: lgpdVersao || null };
   }
 
   const clubeOnly   = assinaturaClube === true && assinaturaDashboard !== true;
   const temDashboard = isAdminUser || !clubeOnly;
 
   if (!temDashboard && assinaturaClube) {
-    return { apenasClube: true, nome: nome || null, inicio: inicio || null, lgpdAceite: lgpdAceite || false, assinaturaClube: true };
+    return { apenasClube: true, nome: nome || null, inicio: inicio || null, lgpdAceite: lgpdAceite || false, lgpdVersao: lgpdVersao || null, assinaturaClube: true };
   }
   // Admin ou assinante do dashboard sem Sheets ainda → home carrega com dados do Firestore
   if (!sheetId && !assinaturaClube && !isAdminUser && !assinaturaDashboard) {
@@ -942,6 +945,7 @@ exports.getDashboardHome = onCall(async (request) => {
     nome:            nome            || null,
     inicio:          inicio          || null,
     lgpdAceite:      lgpdAceite      || false,
+    lgpdVersao:      lgpdVersao || null,
     assinaturaClube: assinaturaClube || false,
     perfil:          { perfil: perfilFirestore?.perfil || perfilFirestore || null, dataAtualizacao: null },
     reservas,
@@ -5186,13 +5190,32 @@ exports.registrarEvento = onCall({}, async (request) => {
 /**
  * Registra aceite do termo LGPD pela aluna.
  */
+// Versão da Política de Privacidade aceita (27/11/2026: seção de IA, vigência
+// 12/12/2026). Gravada junto com todo aceite (PF, PJ e parceiro). A partir da
+// vigência, quem tem versão diferente vê o modal de novo aceite.
+const LGPD_VERSAO_ATUAL = '2026-11-27';
+
 exports.aceitarLGPD = onCall({}, async (request) => {
   const auth = requireAuth(request);
-  await db.collection('mentoradas').doc(auth.uid).update({
+  const ref = db.collection('mentoradas').doc(auth.uid);
+  if (!(await ref.get()).exists) {
+    // Parceiro de Modo Casal usa a mesma tela inicial (index.html): grava o
+    // aceite na conta dele, em vez de falhar num doc de mentorada inexistente.
+    const refParceiro = db.collection('contasParceiro').doc(auth.uid);
+    if (!(await refParceiro.get()).exists) throw new HttpsError('not-found', 'Conta não encontrada.');
+    await refParceiro.update({
+      lgpdAceite:   true,
+      lgpdAceiteEm: admin.firestore.FieldValue.serverTimestamp(),
+      lgpdVersao:   LGPD_VERSAO_ATUAL,
+    });
+    return { ok: true, lgpdVersao: LGPD_VERSAO_ATUAL };
+  }
+  await ref.update({
     lgpdAceite:     true,
     lgpdAceiteData: admin.firestore.FieldValue.serverTimestamp(),
+    lgpdVersao:     LGPD_VERSAO_ATUAL,
   });
-  return { ok: true };
+  return { ok: true, lgpdVersao: LGPD_VERSAO_ATUAL };
 });
 
 /**
@@ -5207,8 +5230,9 @@ exports.aceitarLGPDParceiro = onCall({}, async (request) => {
   await ref.update({
     lgpdAceite:   true,
     lgpdAceiteEm: admin.firestore.FieldValue.serverTimestamp(),
+    lgpdVersao:   LGPD_VERSAO_ATUAL,
   });
-  return { ok: true };
+  return { ok: true, lgpdVersao: LGPD_VERSAO_ATUAL };
 });
 
 // ─── SCORE DE SAÚDE FINANCEIRA ───────────────────────────────────────────────
@@ -8850,6 +8874,7 @@ exports.salvarOnboardingPJ = onCall({}, async (request) => {
       // separadamente via aceitarLGPDPJ, no primeiro login após o deploy.
       lgpdAceitePJ: true,
       lgpdAceiteDataPJ: admin.firestore.FieldValue.serverTimestamp(),
+      lgpdVersao: LGPD_VERSAO_ATUAL,
     }),
     atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
@@ -8870,6 +8895,7 @@ exports.aceitarLGPDPJ = onCall({}, async (request) => {
   await ref.update({
     lgpdAceitePJ: true,
     lgpdAceiteDataPJ: admin.firestore.FieldValue.serverTimestamp(),
+    lgpdVersao: LGPD_VERSAO_ATUAL,
   });
   return { ok: true };
 });
@@ -13853,6 +13879,7 @@ exports.getStatusVinculo = onCall({}, async (request) => {
   let papel = null;
   let casalId = null;
   let lgpdAceite = null;
+  let lgpdVersao = null;
   if (mentoradaSnap.exists) {
     papel = 'mentorada';
     casalId = mentoradaSnap.data().casalId || null;
@@ -13860,12 +13887,13 @@ exports.getStatusVinculo = onCall({}, async (request) => {
     papel = 'parceiro';
     casalId = parceiroSnap.data().casalId || null;
     lgpdAceite = parceiroSnap.data().lgpdAceite || false;
+    lgpdVersao = parceiroSnap.data().lgpdVersao || null;
   }
 
-  if (!casalId) return { papel, casalId: null, casalStatus: null, outroNome: null, souQuemConvidou: false, lgpdAceite };
+  if (!casalId) return { papel, casalId: null, casalStatus: null, outroNome: null, souQuemConvidou: false, lgpdAceite, lgpdVersao };
 
   const casalSnap = await db.collection('casais').doc(casalId).get();
-  if (!casalSnap.exists) return { papel, casalId: null, casalStatus: null, outroNome: null, souQuemConvidou: false, lgpdAceite };
+  if (!casalSnap.exists) return { papel, casalId: null, casalStatus: null, outroNome: null, souQuemConvidou: false, lgpdAceite, lgpdVersao };
 
   const { uidA, uidB, status } = casalSnap.data();
   const uidOutro = uid === uidA ? uidB : uidA;
@@ -13877,7 +13905,7 @@ exports.getStatusVinculo = onCall({}, async (request) => {
     ? snapOutroMentorada.data().nome
     : (snapOutroParceiro.exists ? snapOutroParceiro.data().nome : null);
 
-  return { papel, casalId, casalStatus: status, outroNome, souQuemConvidou: uid === uidA, lgpdAceite };
+  return { papel, casalId, casalStatus: status, outroNome, souQuemConvidou: uid === uidA, lgpdAceite, lgpdVersao };
 });
 
 /**

@@ -11,7 +11,7 @@
 
 const nodemailer = require('nodemailer');
 
-const REMETENTE_NOME  = 'Trilogia Dashboard';
+const REMETENTE_NOME  = 'Dashboard Trilogia';
 
 // Escapa texto que veio de usuária antes de entrar no HTML do e-mail
 // (auditoria de segurança 01/10/2026, item 3: nome do parceiro digitado
@@ -69,7 +69,7 @@ function layout(conteudo) {
         <tr>
           <td style="background:#0D2B45;padding:28px 32px;">
             <span style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-.3px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-              Trilogia <span style="color:#CFAE65;">Dashboard</span>
+              Dashboard <span style="color:#CFAE65;">Trilogia</span>
             </span>
           </td>
         </tr>
@@ -226,7 +226,7 @@ function emailOnboardingParado(nome) {
     <h2 style="${S.h2}">Posso te ajudar a configurar o Dashboard?</h2>
     <p style="${S.p}">Olá, ${primeiroNome}!</p>
     <p style="${S.p}">
-      Vi que você acessou o Trilogia Dashboard, mas ainda não terminou de configurar
+      Vi que você acessou o Dashboard Trilogia, mas ainda não terminou de configurar
       as informações iniciais (perfil de investidor, patrimônio, reservas ou orçamento).
       Isso é normal — às vezes só falta alguém explicar rapidinho por onde começar.
     </p>
@@ -484,7 +484,7 @@ function emailReenvioAcesso(nome, linkSenha) {
     <h2 style="${S.h2}">Seu link de acesso ao Dashboard</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
-      Um novo link de acesso foi gerado para sua conta no Trilogia Dashboard.
+      Um novo link de acesso foi gerado para sua conta no Dashboard Trilogia.
       Clique no botão abaixo para definir (ou redefinir) sua senha e entrar na plataforma.
     </p>
     <a href="${linkSenha}" style="${S.btn}">
@@ -537,7 +537,7 @@ function emailBoasVindas(nome, contexto = 'mentoria') {
       <p style="${S.p}">Olá, ${nome}!</p>
       <p style="${S.p}">
         Seu acesso ao Dashboard PJ está liberado. Você entra com o
-        <strong>mesmo e-mail e a mesma senha</strong> que já usa no Trilogia Dashboard.
+        <strong>mesmo e-mail e a mesma senha</strong> que já usa no Dashboard Trilogia.
       </p>
       <a href="https://dashboard.flaviaschusciman.com/login-pj.html" style="${S.btn}">
         Acessar o Dashboard PJ
@@ -560,7 +560,7 @@ function emailBoasVindas(nome, contexto = 'mentoria') {
         titulo: 'Bem-vinda ao seu Raio-X Financeiro',
         paragrafo: `
           Sua conta está criada e você já tem <strong>30 dias de acesso</strong> ao módulo de
-          Orçamento do Trilogia Dashboard. É só entrar, colar ou anexar seu extrato e fatura,
+          Orçamento do Dashboard Trilogia. É só entrar, colar ou anexar seu extrato e fatura,
           e a inteligência artificial classifica tudo automaticamente para você.
         `,
         botao: 'Acessar o Dashboard',
@@ -591,7 +591,7 @@ function emailBoasVindas(nome, contexto = 'mentoria') {
         `,
       }
     : {
-        titulo: 'Bem-vinda ao Trilogia Dashboard',
+        titulo: 'Bem-vinda ao Dashboard Trilogia',
         paragrafo: `
           Sua conta está criada e o Dashboard já está pronto para você.
           Para definir sua senha e acessar pela primeira vez, clique no botão abaixo:
@@ -627,7 +627,7 @@ function emailExpiracaoProxima(nome) {
     <h2 style="${S.h2}">Seu acesso expira em 7 dias</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
-      Seu acesso ao Trilogia Dashboard expira em <strong>7 dias</strong>.
+      Seu acesso ao Dashboard Trilogia expira em <strong>7 dias</strong>.
       Para continuar acompanhando seu patrimônio, reservas e orçamento,
       renove sua assinatura antes do vencimento.
     </p>
@@ -1112,10 +1112,10 @@ function emailPatrimonioIAJul2026(nome) {
 
 function emailComunicadoTecnico(nome) {
   return layout(`
-    <h2 style="${S.h2}">Aviso sobre o Trilogia Dashboard</h2>
+    <h2 style="${S.h2}">Aviso sobre o Dashboard Trilogia</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
-      Identificamos uma instabilidade temporária no acesso ao Trilogia Dashboard pelo celular.
+      Identificamos uma instabilidade temporária no acesso ao Dashboard Trilogia pelo celular.
       O problema já foi corrigido — mas se o app estiver travando na tela de carregamento
       ou não abrindo corretamente, siga os passos abaixo para resolver em menos de 1 minuto.
     </p>
@@ -1361,7 +1361,7 @@ function emailRetencaoDia1(nome) {
     <h2 style="${S.h2}">Identificamos um atraso no seu pagamento</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
-      Parece que houve um atraso na cobrança da sua assinatura do Trilogia Dashboard.
+      Parece que houve um atraso na cobrança da sua assinatura do Dashboard Trilogia.
       Isso pode acontecer por vencimento do cartão, limite ou instabilidade temporária.
     </p>
     <p style="${S.p}">
@@ -1384,7 +1384,7 @@ function emailRetencaoDia3(nome) {
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
       O pagamento da sua assinatura ainda não foi identificado. Se não for regularizado
-      em breve, seu acesso ao Trilogia Dashboard será suspenso.
+      em breve, seu acesso ao Dashboard Trilogia será suspenso.
     </p>
     <p style="${S.p}">Você perderia o acompanhamento de:</p>
     <ul style="color:#C8C8D0;font-size:15px;line-height:1.8;padding-left:20px;margin:12px 0 20px;">
@@ -1411,7 +1411,7 @@ function emailRetencaoDia7(nome) {
     <h2 style="${S.h2}">Último aviso — acesso será suspenso em breve</h2>
     <p style="${S.p}">Olá, ${nome}!</p>
     <p style="${S.p}">
-      Este é o último aviso antes da suspensão do seu acesso ao Trilogia Dashboard.
+      Este é o último aviso antes da suspensão do seu acesso ao Dashboard Trilogia.
       O pagamento está em atraso há 7 dias e, caso não seja regularizado, o acesso
       será bloqueado automaticamente.
     </p>
@@ -1467,7 +1467,7 @@ function emailUpgradeDashboard(nome, contexto = 'mentoria', diasRestantes = null
     <p style="${S.p}">${intro.paragrafo}</p>
     <p style="${S.p}">
       Para continuar acompanhando seu patrimônio, reservas, orçamento e score financeiro,
-      você pode manter o acesso com a assinatura do Trilogia Dashboard:
+      você pode manter o acesso com a assinatura do Dashboard Trilogia:
     </p>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
       <tr>

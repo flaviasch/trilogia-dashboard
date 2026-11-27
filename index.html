@@ -1355,7 +1355,42 @@ async function init(user) {
     // ─── LGPD ─────────────────────────────────────
     const LGPD_KEY = 'lgpd_aceite';
 
-    function verificarLGPD(lgpdAceite) {
+    // Novo aceite da Política com IA (27/11/2026). Antes de 12/12/2026 nada
+    // muda. A partir daí, quem não tem lgpdVersao = 2026-11-27 vê o modal de
+    // novo, com o texto do que mudou. ?lgpdData=AAAA-MM-DD simula a data (teste).
+    const LGPD_VERSAO = '2026-11-27';
+    const LGPD_VIGENCIA = '2026-12-12';
+    const LGPD_VERSAO_KEY = 'lgpd_versao';
+    function lgpdHoje() {
+      const q = new URLSearchParams(location.search).get('lgpdData');
+      if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) return q;
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    function precisaNovoAceiteLGPD(lgpdVersao) {
+      return lgpdHoje() >= LGPD_VIGENCIA && lgpdVersao !== LGPD_VERSAO;
+    }
+
+    function verificarLGPD(lgpdAceite, lgpdVersao) {
+      if (precisaNovoAceiteLGPD(lgpdVersao)) {
+        if (VIEW_AS_UID) return; // admin no "ver como" não aceita no lugar da mentorada
+        if (localStorage.getItem(LGPD_VERSAO_KEY) === LGPD_VERSAO) return;
+        const modal = document.getElementById('modalLGPD');
+        if (!modal) return;
+        modal.querySelector('.modal-lgpd-titulo').textContent = 'Atualizamos nossa Política de Privacidade';
+        modal.querySelector('.modal-lgpd-texto').innerHTML =
+          'A partir de 12 de dezembro de 2026 vale uma nova versão da Política de Privacidade.<br><br>' +
+          '<strong>O que mudou:</strong> a política agora explica que alguns recursos usam inteligência artificial: ' +
+          'a categorização de extratos e documentos que você envia, o Fechamento Mensal e a Trilogia, nossa analista de números. ' +
+          'Ela informa o que é enviado, para qual provedor (Anthropic, nos Estados Unidos) e por quanto tempo.<br><br>' +
+          'Seus números continuam sendo calculados pelo sistema. A IA apenas escreve a explicação, e nada é gravado ou alterado por ela. ' +
+          'Seus dados e seu histórico continuam guardados normalmente.<br><br>' +
+          '<a href="privacidade.html" target="_blank" style="color:var(--gold);">Ler a política completa →</a>';
+        const chkTexto = document.getElementById('chkLGPD')?.nextElementSibling;
+        if (chkTexto) chkTexto.textContent = 'Li e concordo com a nova versão da Política de Privacidade, incluindo o uso de inteligência artificial descrito nela.';
+        modal.classList.remove('hidden');
+        return;
+      }
       // Checa localStorage primeiro — resposta imediata, sem esperar API
       if (localStorage.getItem(LGPD_KEY) === '1') return;
       if (lgpdAceite) {
@@ -1379,8 +1414,9 @@ async function init(user) {
       localStorage.setItem(LGPD_KEY, '1'); // grava imediatamente no cliente
       document.getElementById('modalLGPD')?.classList.add('hidden');
       try {
-        await aceitarLGPD(); // persiste no servidor (lgpdAceite + lgpdAceiteData)
-      } catch { /* continua mesmo se falhar */ }
+        await aceitarLGPD(); // persiste no servidor (lgpdAceite + lgpdAceiteData + lgpdVersao)
+        localStorage.setItem(LGPD_VERSAO_KEY, LGPD_VERSAO); // só marca a versão se o servidor gravou
+      } catch { /* continua mesmo se falhar: o modal volta no próximo acesso */ }
     });
 
     // ─── Format helpers ───────────────────────────
@@ -1879,7 +1915,7 @@ async function init(user) {
         }
         renderMissaoMes(data);
         // Só mostra modal LGPD para quem já passou do onboarding
-        verificarLGPD(data.lgpdAceite);
+        verificarLGPD(data.lgpdAceite, data.lgpdVersao);
       }
     }
 
