@@ -99,6 +99,7 @@ const {
   emailUpgradeDashboard,
 } = require('./lib/mailer');
 const fechamentoLib = require('./lib/fechamento');
+const trilogiaLib   = require('./lib/trilogia');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -11172,6 +11173,175 @@ exports.previewFechamentoMensal = onCall({ secrets: [...SECRETS_EMAIL, sAnthropi
     await sendEmail({ to: destino, subject: `[PRÉVIA] Fechamento de ${f.dados.mesNome}`, html });
   }
   return { ok: true, origemTexto: f.origem, dados: f.dados, html };
+});
+
+// ─── TRILOGIA, ANALISTA DE NÚMEROS (fatia 1, 27/11/2026) ─────────────────────
+//
+// Cinco perguntas fixas sobre o mês da própria usuária PF. O código monta o
+// pacote de fatos (lib/trilogia.js), o modelo só escreve a explicação e todo
+// número precisa existir no pacote. Nada é gravado nos dados financeiros; só o
+// registro de uso em mentoradas/{uid}/usoTrilogia, sem o texto da resposta.
+// Liberação em config/trilogia: { modo: 'off'|'teste'|'on', emailsTeste: [] }.
+// Desligar na hora, sem deploy: config/trilogia.modo = 'off'.
+
+async function _lerCfgTrilogia() {
+  try {
+    const snap = await db.collection('config').doc('trilogia').get();
+    return snap.exists ? (snap.data() || {}) : {};
+  } catch (err) {
+    console.warn('[trilogia] Falha ao ler config, seguindo no modo off:', err.message);
+    return {};
+  }
+}
+
+/** Valida quem chama e devolve { uid, md, isAdmin, liberado }. Só contas PF. */
+async function _contextoTrilogia(request) {
+  const auth = requireAuth(request);
+  const uid = (request.data && request.data.uid) || auth.uid;
+  requireSelfOrAdmin(request, uid);
+  const isAdmin = auth.token.admin === true;
+  const snap = await db.collection('mentoradas').doc(uid).get();
+  if (!snap.exists) throw new HttpsError('permission-denied', 'A TrilogIA está disponível só no Dashboard pessoal.');
+  const md = snap.data() || {};
+  const cfg = await _lerCfgTrilogia();
+  return { uid, md, isAdmin, liberado: trilogiaLib.liberado(cfg, md.email, isAdmin) };
+}
+
+function _mesAnoTrilogia(data) {
+  const [hojeAno, hojeMes] = hoje().split('-').map(Number);
+  let mes = Number(data && data.mes) || hojeMes;
+  let ano = Number(data && data.ano) || hojeAno;
+  if (mes < 1 || mes > 12 || ano < 2020 || ano > 2100) throw new HttpsError('invalid-argument', 'Mês ou ano inválido.');
+  const prevMes = mes === 1 ? 12 : mes - 1;
+  const prevAno = mes === 1 ? ano - 1 : ano;
+  return { mes, ano, prevMes, prevAno };
+}
+
+const _nomeMesDeChave = (chave) => { const [a, m] = chave.split('-').map(Number); return nomeMesPt(m, a); };
+
+/**
+ * Se a Trilogia está liberada para a conta e o destaque do mês (só por regra,
+ * sem modelo). Chamada quando a tela abre, para mostrar ou esconder o quadro.
+ * Espera: { uid?, mes?, ano? }
+ */
+exports.statusTrilogia = onCall({}, async (request) => {
+  const ctx = await _contextoTrilogia(request);
+  if (!ctx.liberado) return { disponivel: false };
+  const { mes, ano, prevMes, prevAno } = _mesAnoTrilogia(request.data);
+  let destaque = null;
+  try {
+    const [itens, itensAnt] = await Promise.all([
+      _buscarItensOrcamento(ctx.uid, mes, ano),
+      _buscarItensOrcamento(ctx.uid, prevMes, prevAno),
+    ]);
+    destaque = trilogiaLib.destaqueDoMes({
+      itens, itensAnt, normCat: _normCat, mesNome: nomeMesPt(mes, ano), mesAnteriorNome: nomeMesPt(prevMes, prevAno),
+    });
+  } catch (err) {
+    console.warn('[trilogia] destaque indisponível:', err.message);
+  }
+  return { disponivel: true, perguntas: trilogiaLib.PERGUNTAS, aviso: trilogiaLib.AVISO_FIXO, destaque: destaque ? destaque.texto : null };
+});
+
+/**
+ * Responde uma das perguntas fixas. Espera: { perguntaId, uid?, mes?, ano? }.
+ * perguntaId também aceita 'investimento', 'impostos' e 'projecao' (recusa fixa).
+ */
+exports.perguntarTrilogia = onCall({ secrets: [sAnthropic], timeoutSeconds: 60 }, async (request) => {
+  const ctx = await _contextoTrilogia(request);
+  const perguntaId = String((request.data && request.data.perguntaId) || '');
+  const ehPergunta = Object.prototype.hasOwnProperty.call(trilogiaLib.PERGUNTAS, perguntaId);
+  const ehRecusa = Object.prototype.hasOwnProperty.call(trilogiaLib.RECUSAS, perguntaId);
+  if (!ehPergunta && !ehRecusa) throw new HttpsError('invalid-argument', 'Pergunta desconhecida.');
+  if (!ctx.liberado) return { estado: 'desligado', texto: trilogiaLib.TEXTOS_ESTADO.desligado };
+
+  const { mes, ano, prevMes, prevAno } = _mesAnoTrilogia(request.data);
+  const mesKey = `${ano}-${String(mes).padStart(2, '0')}`;
+  const registrar = (r) => db.collection('mentoradas').doc(ctx.uid).collection('usoTrilogia').add({
+    criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    perguntaId, mesKey,
+    estado: r.estado,
+    origem: r.origem || 'regra',
+    usouModelo: r.origem === 'ia' || (r.uso && (r.uso.entrada > 0 || r.uso.saida > 0)) || false,
+    tokensEntrada: (r.uso && r.uso.entrada) || 0,
+    tokensSaida: (r.uso && r.uso.saida) || 0,
+    validacaoFalhou: !!r.validacaoFalhou,
+    motivo: r.motivo || null,
+    porAdmin: ctx.isAdmin && request.auth.uid !== ctx.uid,
+  }).catch(err => console.warn('[trilogia] falha ao registrar uso:', err.message));
+
+  const responderFixo = async (estado, texto) => {
+    await registrar({ estado, origem: 'regra' });
+    return { estado, perguntaId, texto };
+  };
+
+  if (ehRecusa) return responderFixo('recusa', trilogiaLib.RECUSAS[perguntaId]);
+
+  try {
+    let pacote = null;
+    const base = db.collection('mentoradas').doc(ctx.uid);
+
+    if (perguntaId === 'sobra_mudou' || perguntaId === 'limite_estourado') {
+      const agora = new Date();
+      const { itens, orc } = await _orcResumoMes(ctx.uid, mes, ano, agora);
+      if (!orc || !(orc.receita > 0 || orc.despesa > 0)) {
+        return responderFixo('sem_dados', `Ainda não há lançamentos de ${nomeMesPt(mes, ano)}. Importe seu extrato ou lance os gastos no Orçamento para eu explicar o mês.`);
+      }
+      if (perguntaId === 'sobra_mudou') {
+        const ant = await _orcResumoMes(ctx.uid, prevMes, prevAno, agora);
+        const temAnt = ant.orc && (ant.orc.receita > 0 || ant.orc.despesa > 0);
+        pacote = trilogiaLib.pacoteSobra({
+          mesNome: nomeMesPt(mes, ano), mesAnteriorNome: nomeMesPt(prevMes, prevAno),
+          orc, orcAnt: temAnt ? ant.orc : null, itens, itensAnt: temAnt ? ant.itens : [], normCat: _normCat,
+        });
+      } else {
+        const planSnap = await base.collection('planejamento').doc(mesKey).get();
+        const cats = planSnap.exists ? (planSnap.data().categorias || []) : [];
+        pacote = trilogiaLib.pacoteLimite({ mesNome: nomeMesPt(mes, ano), estouradas: fechamentoLib.categoriasEstouradas(itens, cats, _normCat, 5) });
+      }
+    } else if (perguntaId === 'patrimonio_evolucao') {
+      const snap = await base.collection('historico').orderBy('data', 'desc').limit(2).get();
+      pacote = trilogiaLib.pacotePatrimonio(snap.docs.map(d => d.data()), _nomeMesDeChave);
+      if (!pacote) return responderFixo('sem_historico', trilogiaLib.TEXTOS_ESTADO.sem_historico);
+    } else if (perguntaId === 'reservas_situacao') {
+      const snap = await base.collection('reservas').get();
+      pacote = trilogiaLib.pacoteReservas(snap.docs.map(d => d.data()));
+      if (!pacote) return responderFixo('sem_reservas', trilogiaLib.TEXTOS_ESTADO.sem_reservas);
+    } else if (perguntaId === 'liberdade_meta') {
+      const snap = await base.collection('materiaisJornada').doc('mapa-liberdade').get();
+      const r = snap.exists ? (snap.data().respostas || null) : null;
+      const pessoasOk = r && Array.isArray(r.pessoas) && r.pessoas.length >= 1 && r.pessoas.length <= 2
+        && r.pessoas.every(p => p && p.idadeAtual != null && p.idadeAposentadoria != null && p.expectativaVida != null
+          && p.idadeAposentadoria > p.idadeAtual && p.expectativaVida > p.idadeAposentadoria);
+      if (!pessoasOk || !(r.rendaMensalDesejadaAposentadoria > 0)) {
+        return responderFixo('sem_mapa', trilogiaLib.TEXTOS_ESTADO.sem_mapa);
+      }
+      const resultado = _simularLiberdade({
+        pessoas: r.pessoas,
+        patrimonioInicial: r.patrimonioInicial || 0,
+        rendaMensalDesejadaAposentadoria: r.rendaMensalDesejadaAposentadoria,
+        objetivosExtras: Array.isArray(r.objetivosExtras) ? r.objetivosExtras : [],
+        rendasDespesas: Array.isArray(r.rendasDespesas) ? r.rendasDespesas : [],
+        premissas: r.premissas || {},
+      });
+      pacote = trilogiaLib.pacoteLiberdade(r, resultado);
+    }
+
+    const resp = await trilogiaLib.gerarResposta(
+      perguntaId, pacote,
+      (payload) => fechamentoLib.chamarHaiku(null, {
+        apiKey: sAnthropic.value(), fetchFn: fetch, system: trilogiaLib.SYSTEM_TRILOGIA,
+        payload, maxTokens: 400, comUso: true,
+      }),
+      (msg) => console.warn(`[trilogia] ${perguntaId}: ${msg}`),
+    );
+    await registrar({ estado: 'ok', ...resp });
+    return { estado: 'ok', perguntaId, texto: resp.texto, origem: resp.origem };
+  } catch (err) {
+    console.error(`[trilogia] erro em ${perguntaId}:`, err);
+    await registrar({ estado: 'erro', origem: 'regra', motivo: String(err && err.message || err).slice(0, 200) });
+    return { estado: 'erro', perguntaId, texto: trilogiaLib.TEXTOS_ESTADO.erro };
+  }
 });
 
 /**

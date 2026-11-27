@@ -1825,3 +1825,12 @@ export async function getAdmins()              { return call('getAdmins')({}); }
 export async function addAdmin(email, nome)    { return call('addAdmin')({ email, nome }); }
 export async function removeAdmin(uid)         { return call('removeAdmin')({ uid }); }
 export async function getBackupStatus()        { return call('getBackupStatus')({}); }
+
+// ─── Trilogia, analista de números (fatia 1, 27/11/2026) ─────────────────────
+// Sempre da própria conta logada (o quadro não aparece no "ver como").
+export async function statusTrilogia(mes, ano) {
+  return call('statusTrilogia')({ mes, ano });
+}
+export async function perguntarTrilogia(perguntaId, mes, ano) {
+  return call('perguntarTrilogia')({ perguntaId, mes, ano });
+}

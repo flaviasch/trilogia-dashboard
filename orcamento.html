@@ -841,6 +841,8 @@
     /* ─── Modo celular simplificado (10/11/2026, em teste) ───────────── */
     #celApp, #celBottomNav, .cel-voltar-simples { display: none; }
     body.modo-cel #celApp { display: block; }
+    #trilogiaCel { display: none; }
+    body.modo-cel #trilogiaCel:not([hidden]) { display: block; margin-top: 16px; }
     body.modo-cel #celBottomNav { display: flex; }
     body.modo-cel .breadcrumb, body.modo-cel #btnExportarPDF, body.modo-cel #bannerNovidadesContas,
     body.modo-cel .upload-banner, body.modo-cel #acoesRapidasBar, body.modo-cel #scoreWidget,
@@ -1502,6 +1504,9 @@
 
     <!-- Modo celular simplificado (10/11/2026, em teste): preenchido por renderCel() -->
     <div id="celApp"></div>
+    <!-- Trilogia, sua analista de números (27/11/2026): no celular fica no fim do
+         Orçamento simplificado. Montado por js/trilogia-ui.js. -->
+    <div id="trilogiaCel" hidden></div>
     <button type="button" id="celVoltarSimples" class="cel-voltar-simples">← Voltar ao modo simples</button>
 
     <!-- Banner de novidades: múltiplas contas + correções (Jul/2026) -->
@@ -3191,10 +3196,21 @@
       if (_celMQ.matches && _modoCelGate()) _celLerParam();
       const ativo = _modoCelAtivo();
       document.body.classList.toggle('modo-cel', ativo);
+      if (ativo) _celMontarTrilogia();
       document.body.classList.toggle('cel-completo', !ativo && _celMQ.matches && _modoCelGate() && _celCompleto());
       if (ativo) _celRerender();
     }
     _celMQ.addEventListener?.('change', _aplicarModoCel);
+    // Trilogia (27/11/2026): só no modo celular simplificado, nunca no "ver como"
+    // (_modoCelGate já garante). Pergunta sobre o mês em tela.
+    let _celTrilogiaMontada = false;
+    function _celMontarTrilogia() {
+      if (_celTrilogiaMontada) return;
+      _celTrilogiaMontada = true;
+      import('./js/trilogia-ui.js?v=1')
+        .then(m => m.montarTrilogia(document.getElementById('trilogiaCel'), { periodo: () => currentData && currentData.periodo }))
+        .catch(() => {});
+    }
     function _celSairSimples(tab) {
       try { sessionStorage.setItem('celModoCompleto', '1'); } catch (_) {}
       _aplicarModoCel();

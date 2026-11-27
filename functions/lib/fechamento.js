@@ -248,7 +248,10 @@ const SYSTEM_PROMPT = [
  * Chama a Claude API. fetchFn e apiKey vêm de fora (testável).
  * Lança erro em qualquer falha; quem chama cai no texto-padrão.
  */
-async function chamarHaiku(dados, { apiKey, fetchFn, timeoutMs = 15000 }) {
+// Opções extras (27/11/2026, Trilogia): system e payload trocam a instrução e
+// o JSON enviados; comUso devolve { texto, uso: { entrada, saida } } com os
+// tokens. Sem elas o comportamento é o mesmo de sempre (Fechamento Mensal).
+async function chamarHaiku(dados, { apiKey, fetchFn, timeoutMs = 15000, system, payload, maxTokens, comUso = false }) {
   if (!apiKey) throw new Error('sem chave da API');
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -259,14 +262,17 @@ async function chamarHaiku(dados, { apiKey, fetchFn, timeoutMs = 15000 }) {
       headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: MODELO_IA,
-        max_tokens: 300,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: JSON.stringify(dadosParaIA(dados)) }],
+        max_tokens: maxTokens || 300,
+        system: system || SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: JSON.stringify(payload !== undefined ? payload : dadosParaIA(dados)) }],
       }),
     });
     if (!resp.ok) throw new Error(`API retornou ${resp.status}`);
     const json = await resp.json();
-    return json && json.content && json.content[0] && json.content[0].text ? String(json.content[0].text) : '';
+    const texto = json && json.content && json.content[0] && json.content[0].text ? String(json.content[0].text) : '';
+    if (!comUso) return texto;
+    const u = (json && json.usage) || {};
+    return { texto, uso: { entrada: Number(u.input_tokens) || 0, saida: Number(u.output_tokens) || 0 } };
   } finally {
     clearTimeout(timer);
   }
@@ -366,4 +372,8 @@ module.exports = {
   extrairNumeros,
   validarTextoIA,
   gerarTextoLeitura,
+  // Também usados pela Trilogia (lib/trilogia.js), 27/11/2026.
+  sanitizarNome,
+  coletarNumerosPermitidos,
+  semNomesDosDados,
 };
