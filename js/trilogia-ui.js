@@ -133,7 +133,12 @@ export async function montarTrilogia(container, opts = {}) {
   const abrir = _montarModal(st.perguntas || {}, st.aviso || '', periodo);
   container.textContent = '';
   const card = _el('div', 'tri-card');
-  card.appendChild(_el('div', 'tri-rot', '✦ TrilogIA, sua analista de números'));
+  // O rótulo fica em maiúsculas pelo estilo, mas o nome é sempre TrilogIA.
+  const rot = _el('div', 'tri-rot', '✦ ');
+  const nomeTri = _el('span', null, 'TrilogIA');
+  nomeTri.style.textTransform = 'none';
+  rot.append(nomeTri, document.createTextNode(', sua analista de números'));
+  card.appendChild(rot);
   if (st.destaque) card.appendChild(_el('div', 'tri-destaque', st.destaque));
   else card.appendChild(_el('div', 'tri-sub', 'Pergunte sobre a sua sobra, os limites, o patrimônio, as reservas e a sua meta.'));
   const b = _el('button', 'tri-btn', 'Perguntar à TrilogIA');

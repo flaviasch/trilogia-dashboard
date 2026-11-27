@@ -2026,7 +2026,7 @@ async function init(user) {
       if (_trilogiaMontada || VIEW_AS_UID) return;
       if (!window.matchMedia('(min-width: 768px)').matches) return;
       _trilogiaMontada = true;
-      import('./js/trilogia-ui.js?v=3')
+      import('./js/trilogia-ui.js?v=4')
         .then(m => m.montarTrilogia(document.getElementById('trilogiaCard')))
         .catch(() => {});
     }
