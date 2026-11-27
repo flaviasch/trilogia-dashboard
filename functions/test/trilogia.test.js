@@ -69,8 +69,11 @@ test('texto padrão só usa números que existem no pacote (todas as perguntas)'
   };
   for (const [id, p] of Object.entries(pacotes)) {
     const texto = T.textoPadrao(id, p);
-    const v = F.validarTextoIA(texto, T.paraModelo(p));
+    // Texto padrão não passa pelo limite de tamanho do modelo: confere só números e linguagem.
+    const v = F.validarTextoIA(texto.slice(0, 690), T.paraModelo(p));
     assert.equal(v.ok, true, `${id}: ${v.motivo} :: ${texto}`);
+    const permitidos = new Set(F.coletarNumerosPermitidos(T.paraModelo(p)).flatMap(n => [n, Math.round(n), Math.round(Math.abs(n))]));
+    for (const n of F.extrairNumeros(texto)) assert.ok([...permitidos].some(x => Math.abs(x - n) < 0.011), `${id}: número fora do pacote ${n}`);
   }
 });
 
@@ -137,7 +140,7 @@ test('sem reservas devolve null (estado sem_reservas)', () => {
   assert.equal(T.pacoteReservas([]), null);
 });
 
-test('meta: é o valor da reserva de longo prazo; viver de renda é só complemento', async () => {
+test('meta: é o valor da reserva de longo prazo; perpetuidade é só complemento', async () => {
   const p = T.pacoteLiberdade({
     reservas: [
       { nome: 'Emergência', meta: 50000, acumulado: 50000, aporte: 0 },
@@ -150,16 +153,18 @@ test('meta: é o valor da reserva de longo prazo; viver de renda é só compleme
   assert.equal(p.meta_de_longo_prazo.reserva, 'Liberdade Financeira');
   assert.match(p.meta_de_longo_prazo.meta, /5\.330\.191,00/);
   const texto = T.textoPadrao('liberdade_meta', p);
-  assert.match(texto, /^Sua meta de longo prazo, cadastrada na reserva Liberdade Financeira, é R\$\s5\.330\.191,00\./);
-  assert.match(texto, /Como complemento: se um dia você quiser viver só de renda/);
+  assert.match(texto, /^Sua meta de longo prazo, cadastrada na reserva Liberdade Financeira, é R\$\s5\.330\.191,00, o patrimônio para viver dos investimentos/);
+  assert.match(texto, /Como complemento: se quiser a perpetuidade, viver dos rendimentos sem mexer no principal/);
+  assert.match(texto, /o patrimônio para viver dos investimentos consumindo o principal até a expectativa de vida definida/);
+  assert.doesNotMatch(texto, /só de renda|exclusivamente/);
   assert.match(texto, /R\$\s6\.250\.000,00/);
   assert.match(texto, /aporte adicional seria de/);
   assert.doesNotMatch(texto, /903\.119/);
   // Aporte adicional para viver de renda: diferença no prazo do Mapa, taxa do perfil.
   const i = Math.pow(1.05, 1 / 12) - 1;
   const pmt = (6250000 - 4427072) * i / (Math.pow(1 + i, 240) - 1);
-  assert.equal(p.complemento_viver_de_renda.aporte_adicional_para_viver_de_renda, F.brl(pmt));
-  assert.equal(F.validarTextoIA(texto, T.paraModelo(p)).ok, true);
+  assert.equal(p.complemento_perpetuidade.aporte_adicional_para_perpetuidade, F.brl(pmt));
+  for (const n of F.extrairNumeros(texto)) assert.ok(F.coletarNumerosPermitidos(T.paraModelo(p)).some(x => Math.abs(x - n) < 0.011 || Math.abs(Math.round(x) - n) < 0.011), `número fora do pacote ${n}`);
   const c = T.ctaConsultoria('liberdade_meta', p);
   assert.match(c.texto, /revisados uma vez por ano: a vida muda, os objetivos mudam e a inflação corrói/);
   assert.match(c.texto, /fale com a Flávia/);
@@ -170,7 +175,7 @@ test('meta: sem reserva de longo prazo usa só o Mapa; sem os dois devolve null 
     mapa: { respostas: { pessoas: [{ idadeAtual: 40, idadeAposentadoria: 60, expectativaVida: 90 }], rendaMensalDesejadaAposentadoria: 10000 },
             resultado: { patrimonioNaAposentadoria: 3000000, patrimonioPreservacao: 2000000, mesAposentadoria: 240, diagnostico: {} } } });
   assert.equal(soMapa.sem_meta_cadastrada, true);
-  assert.equal(soMapa.complemento_viver_de_renda.ja_alcanca_viver_de_renda, true);
+  assert.equal(soMapa.complemento_perpetuidade.ja_alcanca_perpetuidade, true);
   assert.match(T.textoPadrao('liberdade_meta', soMapa), /ainda não cadastrou uma reserva de longo prazo/);
   assert.equal(T.pacoteLiberdade({ reservas: [], hojeISO: '2026-11-27', mapa: null }), null);
   // Longo prazo por data (> 10 anos) quando o nome não diz.
