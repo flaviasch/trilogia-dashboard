@@ -11315,8 +11315,14 @@ exports.perguntarTrilogia = onCall({ secrets: [sAnthropic], timeoutSeconds: 60 }
       pacote = trilogiaLib.pacotePatrimonio(hist, _nomeMesDeChave, aporteMes);
       if (!pacote) return responderFixo('sem_historico', trilogiaLib.TEXTOS_ESTADO.sem_historico);
     } else if (perguntaId === 'reservas_situacao') {
-      const snap = await base.collection('reservas').get();
-      pacote = trilogiaLib.pacoteReservas(snap.docs.map(d => d.data()));
+      const [snap, mapaSnap] = await Promise.all([
+        base.collection('reservas').get(),
+        base.collection('materiaisJornada').doc('mapa-liberdade').get(),
+      ]);
+      // Rendimento real da premissa do Mapa da própria pessoa (mesmo padrão de
+      // _simularLiberdade: 0,8% ao mês quando não definido), 27/11/2026.
+      const premissas = mapaSnap.exists ? ((mapaSnap.data().respostas || {}).premissas || {}) : {};
+      pacote = trilogiaLib.pacoteReservas(snap.docs.map(d => d.data()), premissas.taxaRealMensalPct ?? 0.8);
       if (!pacote) return responderFixo('sem_reservas', trilogiaLib.TEXTOS_ESTADO.sem_reservas);
     } else if (perguntaId === 'liberdade_meta') {
       const snap = await base.collection('materiaisJornada').doc('mapa-liberdade').get();

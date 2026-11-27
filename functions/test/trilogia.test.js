@@ -215,3 +215,27 @@ test('convite da consultoria: só no patrimônio com oscilação, link do WhatsA
   const semAporte = T.pacotePatrimonio([{ data: '2026-10', ativos: 10, dividas: 0 }, { data: '2026-11', ativos: 5, dividas: 0 }], (k) => k, null);
   assert.equal(T.ctaConsultoria('patrimonio_evolucao', semAporte), null);
 });
+
+test('reservas: prazo considera o rendimento do saldo e dos aportes (premissa do Mapa)', async () => {
+  const p = T.pacoteReservas([
+    { nome: 'Emergência', meta: 50000, acumulado: 50000, aporte: 0 },
+    { nome: 'Liberdade Financeira', meta: 5330191, acumulado: 559023.28, aporte: 5000 },
+  ], 0.8);
+  const lib = p.reservas.find(r => r.reserva === 'Liberdade Financeira');
+  assert.equal(lib.meses_para_completar_com_rendimento, 203);
+  assert.equal(lib.anos_aproximados, 17);
+  const texto = T.textoPadrao('reservas_situacao', p);
+  assert.match(texto, /203 meses \(cerca de 17 anos\)/);
+  assert.match(texto, /0,8% ao mês acima da inflação/);
+  assert.doesNotMatch(texto, /955/);
+  assert.equal(F.validarTextoIA(texto, T.paraModelo(p)).ok, true);
+  // Modelo que volta a dividir de forma simples (955) é rejeitado: o número não está no pacote.
+  const r = await T.gerarResposta('reservas_situacao', p, modeloQueResponde('A reserva Liberdade Financeira acumulou R$ 559.023,28 da meta de R$ 5.330.191,00. Com aporte de R$ 5.000,00, faltam 955 meses. Acompanhe na página Reservas.'));
+  assert.equal(r.origem, 'padrao');
+});
+
+test('reservas: sem taxa definida usa 0,8% e sem aporte nem rendimento não há prazo', () => {
+  assert.equal(T.mesesComRendimento(100, 1000, 0, 0), null);
+  assert.equal(T.mesesComRendimento(1000, 1000, 10, 0.008), 0);
+  assert.match(T.pacoteReservas([{ nome: 'X', meta: 10, acumulado: 1, aporte: 1 }], undefined).rendimento_considerado, /^0,8%/);
+});
