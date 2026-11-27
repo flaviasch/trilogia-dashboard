@@ -72,6 +72,7 @@ const {
   emailNovidadesVisualNov2026,
   emailPoliticaInvestimentosNov2026,
   emailPoliticaPrivacidadeOut2026,
+  emailPoliticaPrivacidadeNov2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
@@ -11806,6 +11807,93 @@ exports.anunciarPoliticaPrivacidadeOut2026 = onCall({ secrets: SECRETS_EMAIL }, 
     { merge: true }
   );
   return { ok: true, enviados, erros };
+});
+
+/**
+ * Destinatárias do aviso da Política de Privacidade com IA (27/11/2026):
+ * PF ativas + contas PJ ativas + parceiros de Modo Casal com vínculo ativo,
+ * sem repetir e-mail. Contas inativas, Auth desabilitado e convites pendentes
+ * ficam de fora.
+ */
+async function _destinatariasPoliticaPrivacidadeNov2026() {
+  const porEmail = new Map();
+  const add = (email, nome, grupo) => {
+    const e = (email || '').trim().toLowerCase();
+    if (!e || porEmail.has(e)) return;
+    porEmail.set(e, { email: e, nome: nome || '', grupo });
+  };
+
+  for (const m of await getAtivas()) add(m.email, m.nome, 'pf');
+
+  const pjSnap = await db.collection('contasPJ').get();
+  for (const d of pjSnap.docs) {
+    const c = d.data();
+    if (c.ativo === false) continue;
+    const u = await admin.auth().getUser(d.id).catch(() => null);
+    if (!u || u.disabled) continue;
+    add(c.email || u.email, u.displayName || '', 'pj');
+  }
+
+  const casaisSnap = await db.collection('casais').where('status', '==', 'ativo').get();
+  for (const cs of casaisSnap.docs) {
+    const { uidA, uidB } = cs.data();
+    for (const uid of [uidA, uidB].filter(Boolean)) {
+      const p = await db.collection('contasParceiro').doc(uid).get();
+      if (!p.exists) continue;
+      const u = await admin.auth().getUser(uid).catch(() => null);
+      if (!u || u.disabled) continue;
+      add(p.data().email || u.email, p.data().nome, 'parceiro');
+    }
+  }
+  return [...porEmail.values()];
+}
+
+/**
+ * Aviso da Política de Privacidade com a seção de IA (27/11/2026, vigência
+ * 12/12/2026). Admin only. data.modo:
+ *   'contar' → só devolve a contagem por grupo (usado na confirmação do botão)
+ *   'teste'  → envia só para o e-mail da Flávia, não grava status
+ *   'todas'  → envia para todas as destinatárias e grava config/comunicados
+ */
+exports.anunciarPoliticaPrivacidadeNov2026 = onCall({ secrets: SECRETS_EMAIL, timeoutSeconds: 540 }, async (request) => {
+  requireAdmin(request);
+  const modo = request.data?.modo;
+  if (!['contar', 'teste', 'todas'].includes(modo)) {
+    throw new HttpsError('invalid-argument', "modo deve ser 'contar', 'teste' ou 'todas'.");
+  }
+  const subject = 'Atualizamos nossa Política de Privacidade';
+
+  if (modo === 'teste') {
+    await sendEmail({ to: ADMIN_EMAIL, subject, html: emailPoliticaPrivacidadeNov2026('Flávia') });
+    return { ok: true, modo, enviados: 1, erros: 0 };
+  }
+
+  const lista = await _destinatariasPoliticaPrivacidadeNov2026();
+  const porGrupo = { pf: 0, pj: 0, parceiro: 0 };
+  for (const d of lista) porGrupo[d.grupo]++;
+  if (modo === 'contar') return { ok: true, modo, total: lista.length, porGrupo };
+
+  // Trava contra reenvio acidental: se já saiu, só reenvia com forcar: true.
+  const jaEnviado = (await db.collection('config').doc('comunicados').get()).data()?.politicaPrivacidadeNov2026?.enviadoEm;
+  if (jaEnviado && request.data?.forcar !== true) {
+    throw new HttpsError('failed-precondition', 'Este aviso já foi enviado. Para reenviar, confirme o reenvio.');
+  }
+
+  let enviados = 0, erros = 0;
+  for (const d of lista) {
+    try {
+      await sendEmail({ to: d.email, subject, html: emailPoliticaPrivacidadeNov2026(d.nome) });
+      enviados++;
+    } catch (err) {
+      console.error(`[anunciarPoliticaPrivacidadeNov2026] Erro ao enviar para ${maskEmail(d.email)}:`, err.message);
+      erros++;
+    }
+  }
+  await db.collection('config').doc('comunicados').set(
+    { politicaPrivacidadeNov2026: { enviadoEm: admin.firestore.FieldValue.serverTimestamp(), enviados, erros, porGrupo } },
+    { merge: true }
+  );
+  return { ok: true, modo, enviados, erros, porGrupo };
 });
 
 /**

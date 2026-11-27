@@ -1507,6 +1507,11 @@ export async function anunciarPoliticaPrivacidadeOut2026() {
   return call('anunciarPoliticaPrivacidadeOut2026')({});
 }
 
+/** Aviso da Política de Privacidade com IA (nov/2026). modo: 'contar' | 'teste' | 'todas'. Admin only. */
+export async function anunciarPoliticaPrivacidadeNov2026(modo, forcar = false) {
+  return call('anunciarPoliticaPrivacidadeNov2026')({ modo, forcar });
+}
+
 /**
  * Reenvia o resumo mensal de agosto/2026 com Despesas/Sobra corrigidas —
  * correção pontual (achado 01/09/2026), não faz parte do fluxo normal.

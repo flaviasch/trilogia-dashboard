@@ -2137,6 +2137,43 @@ function emailPoliticaPrivacidadeOut2026(nome) {
   `);
 }
 
+/**
+ * E-mail: aviso da Política de Privacidade do Dashboard com a seção de IA
+ * (27/11/2026, vigência 12/12/2026). Texto aprovado pela Flávia, sem
+ * alterações. Vai para PF ativas, PJ ativas e parceiros com vínculo ativo.
+ */
+function emailPoliticaPrivacidadeNov2026(nome) {
+  const primeiroNome = esc((nome || '').trim().split(' ')[0]);
+  return layout(`
+    <h2 style="${S.h2}">Atualizamos nossa Política de Privacidade</h2>
+    <p style="${S.p}">${primeiroNome ? `Olá, ${primeiroNome}.` : 'Olá.'}</p>
+    <p style="${S.p}">Atualizamos a Política de Privacidade do Dashboard Trilogia.</p>
+    <p style="${S.p}">
+      O que muda: passamos a informar com clareza que alguns recursos usam inteligência
+      artificial. São eles a categorização de extratos e documentos que você envia, o
+      Fechamento Mensal e a Trilogia, nossa analista de números. A política explica o que
+      é enviado, para qual provedor e por quanto tempo.
+    </p>
+    <p style="${S.p}">
+      Seus números continuam sendo calculados pelo sistema. A IA apenas escreve a
+      explicação, e nada é gravado ou alterado por ela.
+    </p>
+    <p style="${S.p}">
+      Você pode deixar de usar esses recursos. Se não quiser receber o Fechamento Mensal,
+      responda este e-mail.
+    </p>
+    <p style="${S.p}">
+      A nova versão vale a partir de 12 de dezembro de 2026. No primeiro acesso depois
+      dessa data, vamos pedir o seu aceite.
+    </p>
+    <p style="${S.p}">
+      <a href="https://dashboard.flaviaschusciman.com/privacidade.html" style="${S.btn}">Leia a política completa</a>
+    </p>
+    <p style="${S.p}">Dúvidas: flaviasch@gmail.com.</p>
+    <p style="${S.pSmall}"><strong style="color:#0D2B45;">Flávia Schusciman, CFP®</strong></p>
+  `);
+}
+
 function emailNovoConteudoClube(nome, item) {
   const emojiPorTipo = { gravacao: '🎬', documento: '📄', agenda: '🗓️' };
   const labelPorTipo  = { gravacao: 'Nova gravação', documento: 'Novo documento', agenda: 'Novo encontro na agenda' };
@@ -2201,6 +2238,7 @@ module.exports = {
   emailNovidadesVisualNov2026,
   emailPoliticaInvestimentosNov2026,
   emailPoliticaPrivacidadeOut2026,
+  emailPoliticaPrivacidadeNov2026,
   emailNovoConteudoClube,
   emailBalancoJul2026,
   emailMultiplasContasJul2026,
