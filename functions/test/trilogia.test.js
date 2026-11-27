@@ -175,3 +175,43 @@ test('chamarHaiku sem opções novas mantém o comportamento do Fechamento', asy
   assert.equal(corpo.system, 'S');
   assert.equal(corpo.messages[0].content, '{"a":1}');
 });
+
+test('patrimônio: com aporte e sem dívida nova, a queda dos ativos é oscilação de mercado', async () => {
+  const nomes = { '2026-10': 'outubro de 2026', '2026-11': 'novembro de 2026' };
+  const p = T.pacotePatrimonio([
+    { data: '2026-10', ativos: 1800000, dividas: 58215.97, pl: 1741784.03 },
+    { data: '2026-11', ativos: 1794459.25, dividas: 58215.97, pl: 1736243.28 },
+  ], (k) => nomes[k], 3000);
+  assert.equal(p.dividas, 'não mudaram');
+  assert.match(p.aportes_no_mes, /^R\$\s3\.000,00$/);
+  assert.match(p.oscilacao_de_mercado, /^desvalorização de R\$\s8\.540,75 nos investimentos$/);
+  const texto = T.textoPadrao('patrimonio_evolucao', p);
+  assert.match(texto, /oscilação de mercado/);
+  assert.doesNotMatch(texto, /[Rr]evise/);
+  const v = F.validarTextoIA(texto, T.paraModelo(p));
+  assert.equal(v.ok, true, v.motivo);
+  // O modelo pode citar a oscilação (número está no pacote).
+  const r = await T.gerarResposta('patrimonio_evolucao', p, modeloQueResponde('Seu patrimônio líquido diminuiu R$ 5.540,75 em novembro de 2026. Com aporte de R$ 3.000,00 e dívidas sem mudança, a queda veio da desvalorização de R$ 8.540,75 nos investimentos, uma oscilação de mercado. Veja o detalhe por classe na página Patrimônio.'));
+  assert.equal(r.origem, 'ia');
+});
+
+test('patrimônio: sem dado de aporte, diz que não tem o detalhe', () => {
+  const p = T.pacotePatrimonio([{ data: '2026-10', ativos: 10, dividas: 0 }, { data: '2026-11', ativos: 5, dividas: 0 }], (k) => k, null);
+  assert.equal(p.sem_dado_de_aporte, true);
+  assert.match(T.textoPadrao('patrimonio_evolucao', p), /não tem o detalhe/);
+});
+
+test('convite da consultoria: só no patrimônio com oscilação, link do WhatsApp da Flávia', () => {
+  const nomes = { '2026-10': 'outubro de 2026', '2026-11': 'novembro de 2026' };
+  const p = T.pacotePatrimonio([
+    { data: '2026-10', ativos: 1800000, dividas: 58215.97 },
+    { data: '2026-11', ativos: 1794459.25, dividas: 58215.97 },
+  ], (k) => nomes[k], 3000);
+  const c = T.ctaConsultoria('patrimonio_evolucao', p);
+  assert.match(c.texto, /quais classes mais sofreram, o que fazer e por quê/);
+  assert.match(c.link, /^https:\/\/wa\.me\/5511995658658\?text=/);
+  assert.doesNotMatch(c.texto, /\bpra\b|\bpro\b|[—–]/);
+  assert.equal(T.ctaConsultoria('sobra_mudou', p), null);
+  const semAporte = T.pacotePatrimonio([{ data: '2026-10', ativos: 10, dividas: 0 }, { data: '2026-11', ativos: 5, dividas: 0 }], (k) => k, null);
+  assert.equal(T.ctaConsultoria('patrimonio_evolucao', semAporte), null);
+});

@@ -11266,6 +11266,7 @@ exports.perguntarTrilogia = onCall({ secrets: [sAnthropic], timeoutSeconds: 60 }
     tokensEntrada: (r.uso && r.uso.entrada) || 0,
     tokensSaida: (r.uso && r.uso.saida) || 0,
     validacaoFalhou: !!r.validacaoFalhou,
+    ctaConsultoria: !!r.ctaConsultoria,
     motivo: r.motivo || null,
     porAdmin: ctx.isAdmin && request.auth.uid !== ctx.uid,
   }).catch(err => console.warn('[trilogia] falha ao registrar uso:', err.message));
@@ -11301,7 +11302,17 @@ exports.perguntarTrilogia = onCall({ secrets: [sAnthropic], timeoutSeconds: 60 }
       }
     } else if (perguntaId === 'patrimonio_evolucao') {
       const snap = await base.collection('historico').orderBy('data', 'desc').limit(2).get();
-      pacote = trilogiaLib.pacotePatrimonio(snap.docs.map(d => d.data()), _nomeMesDeChave);
+      const hist = snap.docs.map(d => d.data());
+      // Aporte do mês mais recente do histórico, pelo mesmo cálculo do Orçamento,
+      // para separar aporte de oscilação de mercado (27/11/2026).
+      let aporteMes = null;
+      const chaveRecente = hist[0] && /^\d{4}-\d{2}$/.test(hist[0].data || '') ? hist[0].data : null;
+      if (chaveRecente) {
+        const [aH, mH] = chaveRecente.split('-').map(Number);
+        const r = await _orcResumoMes(ctx.uid, mH, aH, new Date()).catch(() => ({ orc: null }));
+        if (r && r.orc) aporteMes = r.orc.aporte;
+      }
+      pacote = trilogiaLib.pacotePatrimonio(hist, _nomeMesDeChave, aporteMes);
       if (!pacote) return responderFixo('sem_historico', trilogiaLib.TEXTOS_ESTADO.sem_historico);
     } else if (perguntaId === 'reservas_situacao') {
       const snap = await base.collection('reservas').get();
@@ -11335,8 +11346,9 @@ exports.perguntarTrilogia = onCall({ secrets: [sAnthropic], timeoutSeconds: 60 }
       }),
       (msg) => console.warn(`[trilogia] ${perguntaId}: ${msg}`),
     );
-    await registrar({ estado: 'ok', ...resp });
-    return { estado: 'ok', perguntaId, texto: resp.texto, origem: resp.origem };
+    const cta = trilogiaLib.ctaConsultoria(perguntaId, pacote);
+    await registrar({ estado: 'ok', ...resp, ctaConsultoria: !!cta });
+    return { estado: 'ok', perguntaId, texto: resp.texto, origem: resp.origem, cta };
   } catch (err) {
     console.error(`[trilogia] erro em ${perguntaId}:`, err);
     await registrar({ estado: 'erro', origem: 'regra', motivo: String(err && err.message || err).slice(0, 200) });

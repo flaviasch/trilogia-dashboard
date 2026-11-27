@@ -3207,7 +3207,7 @@
     function _celMontarTrilogia() {
       if (_celTrilogiaMontada) return;
       _celTrilogiaMontada = true;
-      import('./js/trilogia-ui.js?v=1')
+      import('./js/trilogia-ui.js?v=3')
         .then(m => m.montarTrilogia(document.getElementById('trilogiaCel'), { periodo: () => currentData && currentData.periodo }))
         .catch(() => {});
     }

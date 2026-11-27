@@ -13,7 +13,7 @@ const CSS = `
 .tri-destaque{font-size:14px;line-height:1.5;margin-bottom:14px}
 .tri-btn{background:var(--gold);color:#0D2B45;border:none;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;width:100%}
 .tri-aviso{font-size:11px;color:var(--text-secondary);line-height:1.5;margin-top:12px;opacity:.85}
-.tri-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:flex-end;justify-content:center;z-index:400}
+.tri-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:flex-end;justify-content:center;z-index:10050}
 .tri-overlay[hidden]{display:none}
 .tri-modal{background:var(--navy);border-top:1px solid var(--border-gold);border-radius:16px 16px 0 0;padding:24px 20px 28px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 @media (min-width:768px){.tri-overlay{align-items:center}.tri-modal{border-radius:16px;border:1px solid var(--border-gold)}.tri-btn{width:auto}}
@@ -26,6 +26,9 @@ const CSS = `
 .tri-perg:disabled{opacity:.6;cursor:wait}
 .tri-resp{font-size:14px;line-height:1.65;padding:14px;border-radius:10px;background:rgba(var(--rgb-fg,255,255,255),0.04);border-left:3px solid var(--gold)}
 .tri-resp[hidden]{display:none}
+.tri-cta{margin-top:12px;padding:14px;border-radius:10px;border:1px solid var(--border-gold);font-size:14px;line-height:1.5}
+.tri-cta[hidden]{display:none}
+.tri-cta a{display:inline-block;margin-top:10px;background:var(--gold);color:#0D2B45;text-decoration:none;font-weight:700;border-radius:8px;padding:9px 14px;font-size:13px}
 `;
 
 let _cssOk = false;
@@ -64,6 +67,17 @@ function _montarModal(perguntas, aviso, periodo) {
   const resp = _el('div', 'tri-resp');
   resp.hidden = true;
   resp.setAttribute('aria-live', 'polite');
+  const cta = _el('div', 'tri-cta');
+  cta.hidden = true;
+  const mostrarCta = (c) => {
+    cta.textContent = '';
+    if (!c || !c.texto || !/^https:\/\/wa\.me\//.test(c.link || '')) { cta.hidden = true; return; }
+    cta.appendChild(_el('div', null, c.texto));
+    const a = _el('a', null, c.botao || 'Falar com a Flávia');
+    a.href = c.link; a.target = '_blank'; a.rel = 'noopener';
+    cta.appendChild(a);
+    cta.hidden = false;
+  };
   const botoes = Object.entries(perguntas).map(([id, texto]) => {
     const b = _el('button', 'tri-perg', texto);
     b.type = 'button';
@@ -71,10 +85,12 @@ function _montarModal(perguntas, aviso, periodo) {
       botoes.forEach(x => { x.disabled = true; x.classList.toggle('ativa', x === b); });
       resp.hidden = false;
       resp.textContent = 'Analisando os seus números…';
+      mostrarCta(null);
       try {
         const p = periodo() || {};
         const r = await perguntarTrilogia(id, p.mes, p.ano);
         resp.textContent = (r && r.texto) || 'Não consegui montar essa resposta agora. Tente novamente mais tarde.';
+        mostrarCta(r && r.cta);
       } catch (_) {
         resp.textContent = 'Não consegui montar essa resposta agora. Tente novamente mais tarde.';
       } finally {
@@ -84,7 +100,7 @@ function _montarModal(perguntas, aviso, periodo) {
     lista.appendChild(b);
     return b;
   });
-  m.append(topo, lista, resp, _el('div', 'tri-aviso', aviso));
+  m.append(topo, lista, resp, cta, _el('div', 'tri-aviso', aviso));
   ov.appendChild(m);
   const fecharModal = () => { ov.hidden = true; document.body.style.overflow = ''; };
   fechar.addEventListener('click', fecharModal);
@@ -93,7 +109,7 @@ function _montarModal(perguntas, aviso, periodo) {
   document.body.appendChild(ov);
   _modal = ov;
   return () => {
-    resp.hidden = true; resp.textContent = '';
+    resp.hidden = true; resp.textContent = ''; mostrarCta(null);
     botoes.forEach(x => x.classList.remove('ativa'));
     ov.hidden = false; document.body.style.overflow = 'hidden';
   };
