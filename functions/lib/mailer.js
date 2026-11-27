@@ -2197,7 +2197,12 @@ function emailTrilogiaTesteNov2026(nome) {
     <h2 style="${S.h2}">Você vai testar a TrilogIA antes de todo mundo</h2>
     <p style="${S.p}">${primeiroNome ? `Olá, ${primeiroNome}.` : 'Olá.'}</p>
     <p style="${S.p}">
-      Você faz parte do pequeno grupo que vai testar a TrilogIA, a nova analista de números
+      Antes, um aviso rápido: o nosso painel agora se chama <strong>Dashboard Trilogia</strong>
+      (antes era "Trilogia Dashboard"). O endereço, o login e todos os seus dados continuam iguais.
+      No app instalado no celular, o nome novo pode levar uns dias para aparecer.
+    </p>
+    <p style="${S.p}">
+      E a novidade: você faz parte do pequeno grupo que vai testar a TrilogIA, a nova analista de números
       do Dashboard Trilogia. Ela responde perguntas sobre o seu mês usando os números que
       você já lançou:
     </p>
