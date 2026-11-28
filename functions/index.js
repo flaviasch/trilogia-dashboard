@@ -7892,6 +7892,32 @@ function _ocorrenciaDespesaPJ(desp, mesX, anoX) {
 }
 
 /**
+ * Chaves `${despesaId}_${mesAno}` das ocorrências de despesa canceladas
+ * (dispensadas em Contas a Pagar, `pagamentos/{mesAno}.cancelado`). Fatia 0
+ * do Fechamento PJ (28/11/2026): DRE, reservas, pró-labore e ponto de
+ * equilíbrio passam a excluir essas ocorrências, igual Fluxo de Caixa e
+ * Contas a Pagar já faziam. Uma consulta por chamada de function: quem
+ * calcula vários meses lê uma vez e repassa o resultado (ver
+ * _calcularDRESimplificado, parâmetro `canceladas`).
+ */
+async function _ocorrenciasCanceladasPJ(uid) {
+  const snap = await db.collectionGroup('pagamentos').where('uid', '==', uid).get();
+  const canceladas = new Set();
+  snap.docs.forEach(d => { if (d.data().cancelado) canceladas.add(`${d.ref.parent.parent.id}_${d.id}`); });
+  return canceladas;
+}
+
+/** Soma o valor das ocorrências de despesa do mês, sem as canceladas. */
+function _somaDespesasDoMesPJ(despesaDocs, mes, ano, canceladas) {
+  return despesaDocs.reduce((s, d) => {
+    const desp = d.data();
+    const oc = _ocorrenciaDespesaPJ(desp, mes, ano);
+    if (!oc || canceladas.has(`${d.id}_${oc.mesAno}`)) return s;
+    return s + (desp.valor || 0);
+  }, 0);
+}
+
+/**
  * Vencimentos DE HOJE (não "vencidos até hoje", que é escopo mais amplo já
  * coberto por getContasPagarPendentesPJ) — usado pelo banner no dashboard
  * e pelo e-mail diário (achado 27/08/2026, Flávia: alertas devem incluir
@@ -9488,14 +9514,17 @@ exports.getFluxoCaixaPJ = onCall({}, async (request) => {
 // Extraído em 28/07/2026 (fatia Reservas) pra ser reaproveitado também por
 // getIndicadoresReservasPJ (Retirada Sugerida precisa do mesmo Lucro Líquido)
 // sem duplicar a lógica — mesmo cálculo de sempre, só virou helper interno.
-async function _calcularDRESimplificado(uid, mes, ano) {
-  // As 3 queries não dependem uma da outra — disparar em paralelo em vez de
+// `canceladas` (opcional): Promise<Set> de _ocorrenciasCanceladasPJ, para
+// quem calcula vários meses na mesma chamada ler os pagamentos uma vez só.
+async function _calcularDRESimplificado(uid, mes, ano, canceladas = null) {
+  // As queries não dependem uma da outra — disparar em paralelo em vez de
   // em série corta o tempo de resposta em ~3x (achado de performance
   // 14/08/2026, mesmo padrão já aplicado em _calcularSugestaoSalarioPJ).
-  const [notasSnap, impSnap, despesasSnap] = await Promise.all([
+  const [notasSnap, impSnap, despesasSnap, canceladasSet] = await Promise.all([
     db.collection('notasEmitidas').where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get(),
     db.collection('impostosPrevistos').where('uid', '==', uid).where('mes', '==', mes).where('ano', '==', ano).get(),
     db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get(),
+    canceladas || _ocorrenciasCanceladasPJ(uid),
   ]);
 
   // Notas 'legado' (venda antiga sem nota, reconstruída só pra Contas a
@@ -9513,11 +9542,8 @@ async function _calcularDRESimplificado(uid, mes, ano) {
 
   const receitaLiquida = receitaBruta - impostos;
 
-  const despesasOperacionais = despesasSnap.docs.reduce((s, d) => {
-    const desp = d.data();
-    const oc = _ocorrenciaDespesaPJ(desp, mes, ano);
-    return oc ? s + (desp.valor || 0) : s;
-  }, 0);
+  // Sem as ocorrências canceladas em Contas a Pagar (fatia 0, 28/11/2026).
+  const despesasOperacionais = _somaDespesasDoMesPJ(despesasSnap.docs, mes, ano, canceladasSet);
 
   // Despesas financeiras: taxa de cartão/adquirente e juros de atraso das
   // vendas emitidas NESTE mês — competência da venda, não do recebimento
@@ -9581,8 +9607,9 @@ exports.getRelatorioAnualPJ = onCall({}, async (request) => {
 
   const arredonda = v => Math.round((v || 0) * 100) / 100;
 
+  const canceladas = _ocorrenciasCanceladasPJ(uid); // lida uma vez para os 12 meses
   const dresMensais = await Promise.all(
-    Array.from({ length: 12 }, (_, i) => _calcularDRESimplificado(uid, i + 1, ano))
+    Array.from({ length: 12 }, (_, i) => _calcularDRESimplificado(uid, i + 1, ano, canceladas))
   );
   const meses = dresMensais.map((d, i) => ({ mes: i + 1, ...d }));
   const totais = meses.reduce((acc, m) => ({
@@ -9871,20 +9898,19 @@ exports.getIndicadoresReservasPJ = onCall({}, async (request) => {
     mesesJanela.push({ mes: m, ano: a });
   }
 
-  const [dresJanela, pmrCalculado, pmpCalculado, contaSnap, despesasSnap] = await Promise.all([
-    Promise.all(mesesJanela.map(({ mes: m, ano: a }) => _calcularDRESimplificado(uid, m, a))),
+  const canceladas = _ocorrenciasCanceladasPJ(uid); // lida uma vez para os 6 meses
+  const [dresJanela, pmrCalculado, pmpCalculado, contaSnap, despesasSnap, canceladasSet] = await Promise.all([
+    Promise.all(mesesJanela.map(({ mes: m, ano: a }) => _calcularDRESimplificado(uid, m, a, canceladas))),
     _calcularPMR(uid),
     _calcularPMP(uid),
     db.collection('contasPJ').doc(uid).get(),
     db.collection('despesasPJ').where('uid', '==', uid).where('ativo', '==', true).get(),
+    canceladas,
   ]);
 
+  // Sem as ocorrências canceladas (fatia 0, 28/11/2026).
   const despesaOperacionalPorMes = mesesJanela.map(({ mes: m, ano: a }) =>
-    despesasSnap.docs.reduce((s, d) => {
-      const desp = d.data();
-      const oc = _ocorrenciaDespesaPJ(desp, m, a);
-      return oc ? s + (desp.valor || 0) : s;
-    }, 0)
+    _somaDespesasDoMesPJ(despesasSnap.docs, m, a, canceladasSet)
   );
   const despesaOperacionalMensal = despesaOperacionalPorMes.reduce((s, v) => s + v, 0) / JANELA_MESES;
   const lucroLiquido = dresJanela.reduce((s, d) => s + d.lucroLiquido, 0) / JANELA_MESES;
@@ -10078,7 +10104,8 @@ function _primeiroMesDoTrimestrePJ(trimestre) { return (trimestre - 1) * 3 + 1; 
  * primeiro mês sem nenhuma nota emitida (limite real do histórico da
  * empresa), mesmo que isso dê menos de 6 meses.
  */
-async function _calcularSugestaoSalarioPJ(uid, trimestre, ano) {
+async function _calcularSugestaoSalarioPJ(uid, trimestre, ano, canceladas = null) {
+  canceladas = canceladas || _ocorrenciasCanceladasPJ(uid); // lida uma vez para todos os meses da janela
   const primeiroMes = _primeiroMesDoTrimestrePJ(trimestre);
 
   // Monta os até 6 candidatos (mês anterior ao início do trimestre, indo pra
@@ -10107,7 +10134,7 @@ async function _calcularSugestaoSalarioPJ(uid, trimestre, ano) {
     candidatosValidos.push(candidatos[i]);
   }
 
-  const dres = await Promise.all(candidatosValidos.map(c => _calcularDRESimplificado(uid, c.mes, c.ano)));
+  const dres = await Promise.all(candidatosValidos.map(c => _calcularDRESimplificado(uid, c.mes, c.ano, canceladas)));
   const meses = candidatosValidos
     .map((c, i) => ({ mes: c.mes, ano: c.ano, lucroLiquido: dres[i].lucroLiquido }))
     .reverse(); // candidatos vêm do mais recente pro mais antigo; meses precisa cronológico (mais antigo primeiro), igual ao unshift() da versão sequencial
@@ -10136,7 +10163,7 @@ async function _salarioAprovadoNoTrimestrePJ(uid, trimestre, ano, dadosAtuais) {
  * só passa a valer a partir de agora, pra não jogar de uma vez vários meses
  * de excedente pré-Pró-labore no saldo a distribuir.
  */
-async function _processarMesesFechadosProLaborePJ(uid, dados) {
+async function _processarMesesFechadosProLaborePJ(uid, dados, canceladas = null) {
   const hoje = new Date();
   const mesAtualNum = hoje.getMonth() + 1, anoAtualNum = hoje.getFullYear();
 
@@ -10154,7 +10181,8 @@ async function _processarMesesFechadosProLaborePJ(uid, dados) {
     if (proxMes > 12) { proxMes = 1; proxAno++; }
     if (proxAno > anoAtualNum || (proxAno === anoAtualNum && proxMes >= mesAtualNum)) break; // não processa o mês corrente
 
-    const dre = await _calcularDRESimplificado(uid, proxMes, proxAno);
+    canceladas = canceladas || _ocorrenciasCanceladasPJ(uid);
+    const dre = await _calcularDRESimplificado(uid, proxMes, proxAno, canceladas);
     const trimestreDoMes = _trimestreDoMesPJ(proxMes);
     const salario = await _salarioAprovadoNoTrimestrePJ(uid, trimestreDoMes, proxAno, dados);
     const excedente = dre.lucroLiquido - salario;
@@ -10215,7 +10243,9 @@ exports.getProLaborePJ = onCall(async (request) => {
   const mesAtualNum = hoje.getMonth() + 1, anoAtualNum = hoje.getFullYear();
   const trimestreAtualNum = _trimestreDoMesPJ(mesAtualNum);
 
-  const proc = await _processarMesesFechadosProLaborePJ(uid, dados);
+  // Ocorrências canceladas lidas uma vez para todos os DREs desta chamada.
+  const canceladas = _ocorrenciasCanceladasPJ(uid);
+  const proc = await _processarMesesFechadosProLaborePJ(uid, dados, canceladas);
   if (proc.saldoADistribuirDelta !== 0 || !dados.ultimoMesProcessado) {
     const novoSaldoADistribuir = Math.round(((dados.saldoADistribuir || 0) + proc.saldoADistribuirDelta) * 100) / 100;
     await ref.set({ saldoADistribuir: novoSaldoADistribuir, ultimoMesProcessado: proc.novoUltimoMesProcessado, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
@@ -10242,8 +10272,8 @@ exports.getProLaborePJ = onCall(async (request) => {
   // enquanto está pendente de aprovação. Renomeado sugestaoPendente →
   // sugestaoAtual pra refletir isso (não é mais "só até aprovar").
   const [sugestaoAtual, dreAtual, reservasSnap] = await Promise.all([
-    _calcularSugestaoSalarioPJ(uid, trimestreAtualNum, anoAtualNum),
-    _calcularDRESimplificado(uid, mesAtualNum, anoAtualNum),
+    _calcularSugestaoSalarioPJ(uid, trimestreAtualNum, anoAtualNum, canceladas),
+    _calcularDRESimplificado(uid, mesAtualNum, anoAtualNum, canceladas),
     db.collection('reservasPJ').where('uid', '==', uid).where('ativa', '==', true).get(),
   ]);
 
@@ -11697,15 +11727,41 @@ exports.reemitirRelatorioMensal = onCall({ secrets: SECRETS_EMAIL }, async (requ
 });
 
 /**
- * Alerta semanal (toda segunda, 08h): caixa da empresa (PJ) abaixo da
- * reserva mínima que a própria mentorada configurou em Reservas PJ
- * (achado 27/08/2026, Flávia: "alertas" aprovado em escopo — primeiro
- * alerta proativo do PJ, avisa antes que ela distribua/retire mais do
- * que devia). Semanal (não diário) pra não virar spam — o saldo de caixa
- * não muda tão rápido a ponto de precisar de aviso todo dia.
- * Só considera contas com reservaMinimaCaixa configurada (> 0): quem não
- * configurou não tem o que comparar.
+ * Destinatária dos alertas e e-mails do Dashboard PJ (fatia 0 do Fechamento
+ * PJ, 28/11/2026). Parte de contasPJ, não de mentoradas: conta só PJ (Kiwify
+ * "dashboard_pj" ou "+ Nova conta PJ") não tem documento em mentoradas e
+ * antes nunca recebia nada. Só a titular: o id do doc contasPJ é o uid dela
+ * (usuárias secundárias ficam em contasPJ/{uid}/usuariosSecundarios).
+ * E-mail e nome vêm do Firebase Auth. Retorna null para conta com
+ * ativo:false, login inexistente, desabilitado ou sem e-mail.
+ * Reaproveitada pela fatia 2 (e-mail de fechamento).
  */
+async function _destinatariaTitularPJ(uid, conta) {
+  if (!conta || conta.ativo === false) return null;
+  let user;
+  try { user = await admin.auth().getUser(uid); }
+  catch (e) {
+    if (e.code === 'auth/user-not-found') return null; // login inexistente
+    throw e; // falha transitória: quem chama registra e segue para a próxima conta
+  }
+  if (user.disabled || !user.email) return null;
+  return { uid, email: user.email, nome: (user.displayName || '').trim() || 'empresária' };
+}
+
+/**
+ * Alerta semanal (toda segunda, 08h): saldo de caixa da empresa (PJ) abaixo
+ * da reserva mínima que a própria mentorada configurou em Reservas PJ
+ * (achado 27/08/2026). Semanal (não diário) para não virar spam.
+ * Só considera contas com reservaMinimaCaixa configurada (> 0).
+ * Fatia 0 do Fechamento PJ (28/11/2026): compara o saldo de caixa informado
+ * no Fluxo de Caixa (saldoCaixaAtual), não mais a soma das reservas. Sem
+ * saldo informado, não envia. Só envia com saldo abaixo do mínimo. Se esse
+ * saldo tiver mais de 15 dias, o e-mail pede a atualização em vez de afirmar
+ * que o caixa está baixo, uma única vez por saldoCaixaAtualizadoEm
+ * (contasPJ.caixaAtualizacaoPedidaPara guarda a chave já avisada).
+ */
+const DIAS_SALDO_CAIXA_DESATUALIZADO_PJ = 15;
+
 exports.notifCaixaBaixoPJ = onSchedule(
   { schedule: '0 8 * * 1', timeZone: 'America/Sao_Paulo', secrets: [...SECRETS_EMAIL, ...SECRETS_PUSH] },
   comMonitoramento('notifCaixaBaixoPJ', async () => {
@@ -11719,30 +11775,48 @@ exports.notifCaixaBaixoPJ = onSchedule(
       const conta  = contaDoc.data();
       const minimo = typeof conta.reservaMinimaCaixa === 'number' ? conta.reservaMinimaCaixa : 0;
       if (minimo <= 0) continue;
+      if (typeof conta.saldoCaixaAtual !== 'number') continue; // sem saldo informado, não há o que comparar
 
       try {
-        const mentoradaSnap = await db.collection('mentoradas').doc(uid).get();
-        if (!mentoradaSnap.exists) continue;
-        const mentorada = mentoradaSnap.data();
-        if (mentorada.status !== 'ativa' || !mentorada.email) continue;
+        const dest = await _destinatariaTitularPJ(uid, conta);
+        if (!dest) continue;
 
-        const reservasSnap = await db.collection('reservasPJ')
-          .where('uid', '==', uid).where('ativa', '==', true).get();
-        const saldoAtual = reservasSnap.docs.reduce((s, r) => s + (r.data().saldoAtual || 0), 0);
-        if (saldoAtual >= minimo) continue;
+        const saldo = conta.saldoCaixaAtual;
+        if (saldo >= minimo) continue; // só envia com saldo abaixo do mínimo
 
-        await sendEmail({
-          to:      mentorada.email,
-          subject: 'Seu caixa está abaixo da reserva mínima',
-          html:    emailCaixaBaixoPJ(mentorada.nome || 'mentorada', saldoAtual, minimo),
-        }).catch(e => console.warn(`[notifCaixaBaixoPJ] e-mail falhou para ${uid}:`, e.message));
+        const informadoEm = conta.saldoCaixaAtualizadoEm?.toDate ? conta.saldoCaixaAtualizadoEm.toDate() : null;
+        const diasDesde = informadoEm ? Math.floor((Date.now() - informadoEm.getTime()) / 86_400_000) : null;
+        const desatualizado = diasDesde === null || diasDesde > DIAS_SALDO_CAIXA_DESATUALIZADO_PJ;
 
-        await sendPushToUid(uid, {
-          titulo: 'Caixa abaixo do mínimo',
-          corpo:  `Seu caixa está em ${brl(saldoAtual)}, abaixo da reserva mínima de ${brl(minimo)}.`,
-          url:    '/reservas-pj.html',
-          tag:    'caixa-baixo-pj',
-        }).catch(e => console.warn(`[notifCaixaBaixoPJ] push falhou para ${uid}:`, e.message));
+        // Saldo desatualizado: pede a atualização uma única vez por saldo
+        // informado. A chave é o próprio saldoCaixaAtualizadoEm; quando ela
+        // atualiza o saldo, a chave muda e o alerta volta a valer.
+        const chaveSaldo = informadoEm ? String(informadoEm.getTime()) : 'sem-data';
+        if (desatualizado && conta.caixaAtualizacaoPedidaPara === chaveSaldo) continue;
+
+        try {
+          await sendEmail({
+            to:      dest.email,
+            subject: desatualizado ? 'Atualize o saldo de caixa da sua empresa' : 'Seu caixa está abaixo da reserva mínima',
+            html:    emailCaixaBaixoPJ(dest.nome, saldo, minimo, informadoEm, desatualizado),
+          });
+          if (desatualizado) {
+            await contaDoc.ref.set({ caixaAtualizacaoPedidaPara: chaveSaldo }, { merge: true });
+          }
+        } catch (e) {
+          console.warn(`[notifCaixaBaixoPJ] e-mail falhou para ${uid}:`, e.message);
+        }
+
+        // Push fora do escopo da fatia 0: mantido como era, só no alerta de
+        // caixa baixo (chega a quem tem push cadastrado pelo PF).
+        if (!desatualizado) {
+          await sendPushToUid(uid, {
+            titulo: 'Caixa abaixo do mínimo',
+            corpo:  `Seu caixa está em ${brl(saldo)}, abaixo da reserva mínima de ${brl(minimo)}.`,
+            url:    '/reservas-pj.html',
+            tag:    'caixa-baixo-pj',
+          }).catch(e => console.warn(`[notifCaixaBaixoPJ] push falhou para ${uid}:`, e.message));
+        }
       } catch (err) {
         console.warn(`[notifCaixaBaixoPJ] erro ao processar ${uid}:`, err.message);
       }
@@ -11768,18 +11842,18 @@ exports.notifVencimentosDiaPJ = onSchedule(
     for (const contaDoc of contasSnap.docs) {
       const uid = contaDoc.id;
       try {
-        const mentoradaSnap = await db.collection('mentoradas').doc(uid).get();
-        if (!mentoradaSnap.exists) continue;
-        const mentorada = mentoradaSnap.data();
-        if (mentorada.status !== 'ativa' || !mentorada.email) continue;
+        // Fatia 0 do Fechamento PJ (28/11/2026): destinatária pela conta PJ
+        // e pelo Firebase Auth, não mais por mentoradas.
+        const dest = await _destinatariaTitularPJ(uid, contaDoc.data());
+        if (!dest) continue;
 
         const { contasAPagar, impostos, contasAReceber } = await _vencimentosHojePJ(uid);
         if (!contasAPagar.length && !impostos.length && !contasAReceber.length) continue;
 
         await sendEmail({
-          to:      mentorada.email,
+          to:      dest.email,
           subject: 'Vencimentos de hoje na sua empresa',
-          html:    emailVencimentosHojePJ(mentorada.nome || 'mentorada', contasAPagar, impostos, contasAReceber),
+          html:    emailVencimentosHojePJ(dest.nome, contasAPagar, impostos, contasAReceber),
         }).catch(e => console.warn(`[notifVencimentosDiaPJ] e-mail falhou para ${uid}:`, e.message));
       } catch (err) {
         console.warn(`[notifVencimentosDiaPJ] erro ao processar ${uid}:`, err.message);

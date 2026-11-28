@@ -316,26 +316,54 @@ function emailAniversarioDia(aniversariantes) {
 }
 
 /**
- * E-mail: alerta de caixa da empresa (PJ) abaixo da reserva mínima configurada.
- * @param {string} nome        — nome da mentorada
- * @param {number} saldoAtual  — soma do saldoAtual das reservas PJ ativas
- * @param {number} minimo      — reservaMinimaCaixa configurada em contasPJ
+ * E-mail: saldo de caixa da empresa (PJ) abaixo da reserva mínima, ou
+ * pedido de atualização quando o saldo informado está desatualizado
+ * (fatia 0 do Fechamento PJ, 28/11/2026).
+ * @param {string}  nome          — nome da titular (Firebase Auth)
+ * @param {number}  saldo         — saldoCaixaAtual informado no Fluxo de Caixa
+ * @param {number}  minimo        — reservaMinimaCaixa configurada em contasPJ
+ * @param {Date|null} informadoEm — saldoCaixaAtualizadoEm
+ * @param {boolean} desatualizado — saldo com mais de 15 dias (ou sem data)
  */
-function emailCaixaBaixoPJ(nome, saldoAtual, minimo) {
+function emailCaixaBaixoPJ(nome, saldo, minimo, informadoEm, desatualizado) {
   const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const data = informadoEm
+    ? informadoEm.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+    : null;
+  const quando = data ? `em ${data}` : 'sem data registrada';
+  const botao = `
+    <a href="https://dashboard.flaviaschusciman.com/fluxo-caixa-pj.html" style="${S.btn}">
+      Atualizar saldo no Fluxo de Caixa
+    </a>`;
+
+  if (desatualizado) {
+    return layout(`
+      <h2 style="${S.h2}">Atualize o saldo de caixa da sua empresa</h2>
+      <p style="${S.p}">Olá, ${esc(nome)}!</p>
+      <p style="${S.p}">
+        O último saldo de caixa informado foi <strong>${brl(saldo)}</strong>, ${quando},
+        abaixo da reserva mínima de <strong>${brl(minimo)}</strong> que você definiu.
+        Esse valor tem mais de 15 dias e pode não mostrar o caixa de hoje.
+      </p>
+      <p style="${S.p}">
+        Informe o saldo de hoje no Fluxo de Caixa. Leva menos de um minuto.
+      </p>
+      ${botao}
+    `);
+  }
+
   return layout(`
     <h2 style="${S.h2}">Seu caixa está abaixo da reserva mínima</h2>
-    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">Olá, ${esc(nome)}!</p>
     <p style="${S.p}">
-      O caixa atual da sua empresa está em <strong>${brl(saldoAtual)}</strong>,
-      abaixo da reserva mínima que você definiu de <strong>${brl(minimo)}</strong>.
+      O saldo de caixa que você informou ${quando} é <strong>${brl(saldo)}</strong>,
+      abaixo da reserva mínima de <strong>${brl(minimo)}</strong> que você definiu.
     </p>
     <p style="${S.p}">
-      Vale revisar antes de fazer novas retiradas ou distribuições.
+      Revise antes de fazer novas retiradas ou distribuições. Se o saldo já mudou,
+      atualize o valor no Fluxo de Caixa.
     </p>
-    <a href="https://dashboard.flaviaschusciman.com/reservas-pj.html" style="${S.btn}">
-      Ver reservas da empresa
-    </a>
+    ${botao}
   `);
 }
 
@@ -367,7 +395,7 @@ function emailVencimentosHojePJ(nome, contasAPagar, impostos, contasAReceber) {
 
   return layout(`
     <h2 style="${S.h2}">Vencimentos de hoje na sua empresa</h2>
-    <p style="${S.p}">Olá, ${nome}!</p>
+    <p style="${S.p}">Olá, ${esc(nome)}!</p>
     ${linhasPagar ? `
       <p style="${S.p}"><strong>A pagar hoje — total ${brl(totalPagar)}</strong></p>
       <table width="100%" style="border-collapse:collapse;margin-bottom:16px;">${linhasPagar}</table>
