@@ -12123,10 +12123,23 @@ exports.anunciarPoliticaPrivacidadeNov2026 = onCall({ secrets: SECRETS_EMAIL, ti
 exports.anunciarTrilogiaTesteNov2026 = onCall({ secrets: SECRETS_EMAIL, timeoutSeconds: 300 }, async (request) => {
   requireAdmin(request);
   const modo = request.data?.modo;
-  if (!['contar', 'teste', 'todas'].includes(modo)) {
-    throw new HttpsError('invalid-argument', "modo deve ser 'contar', 'teste' ou 'todas'.");
+  if (!['contar', 'teste', 'todas', 'um'].includes(modo)) {
+    throw new HttpsError('invalid-argument', "modo deve ser 'contar', 'teste', 'todas' ou 'um'.");
   }
   const subject = 'Você vai testar a TrilogIA antes de todo mundo';
+  // 'um': convite para uma pessoa que entrou no teste depois do disparo do grupo
+  // (28/11/2026, Rodrigo). Só aceita e-mail que já está em config/trilogia.emailsTeste.
+  if (modo === 'um') {
+    const alvo = String(request.data?.email || '').trim().toLowerCase();
+    const cfgUm = await _lerCfgTrilogia();
+    const listaUm = (Array.isArray(cfgUm.emailsTeste) ? cfgUm.emailsTeste : []).map(e => String(e).trim().toLowerCase());
+    if (!alvo || !listaUm.includes(alvo)) throw new HttpsError('invalid-argument', 'Esse e-mail não está no grupo de teste da TrilogIA.');
+    if (cfgUm.modo !== 'teste' && cfgUm.modo !== 'on') throw new HttpsError('failed-precondition', 'A TrilogIA está desligada.');
+    const snapUm = await db.collection('mentoradas').where('email', '==', alvo).limit(1).get();
+    if (snapUm.empty) throw new HttpsError('not-found', 'Não há conta do Dashboard pessoal com esse e-mail.');
+    await sendEmail({ to: alvo, subject, html: emailTrilogiaTesteNov2026(snapUm.docs[0].data().nome || '') });
+    return { ok: true, modo, enviados: 1, erros: 0 };
+  }
   if (modo === 'teste') {
     await sendEmail({ to: ADMIN_EMAIL, subject, html: emailTrilogiaTesteNov2026('Flávia') });
     return { ok: true, modo, enviados: 1, erros: 0 };
